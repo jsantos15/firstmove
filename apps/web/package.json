@@ -14,13 +14,13 @@
     "@firstmove/core": "workspace:*",
     "@firstmove/supabase": "workspace:*",
     "@supabase/supabase-js": "^2.47.0",
-    "@tanstack/react-query": "^5.62.0",
-    "chess.js": "^1.3.0",
+    "@tanstack/react-query": "^5.97.0",
+    "chess.js": "^1.4.0",
     "next": "16.2.3",
     "react": "19.2.4",
-    "react-chessboard": "^4.7.0",
+    "react-chessboard": "^4.7.3",
     "react-dom": "19.2.4",
-    "zustand": "^5.0.0"
+    "zustand": "^5.0.12"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
