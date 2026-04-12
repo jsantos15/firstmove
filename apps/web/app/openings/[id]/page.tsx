@@ -24,10 +24,13 @@ export default function PracticePage({ params }: PageProps) {
   const { currentMoveIndex } = usePracticeStore();
 
   return (
-    <div className="min-h-screen bg-[#0f1117]">
+    // h-screen + flex-col so content below the header fills the remaining
+    // viewport height — required for the responsive board sizing to work.
+    <div className="h-screen flex flex-col bg-[#0f1117] overflow-hidden">
+
       {/* Header */}
-      <header className="border-b border-white/5 bg-[#0f1117]/80 backdrop-blur sticky top-0 z-10">
-        <div className="mx-auto max-w-6xl px-6 py-4 flex items-center justify-between">
+      <header className="shrink-0 border-b border-white/5 bg-[#0f1117]/80 backdrop-blur z-10">
+        <div className="px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <Link href="/openings" className="text-gray-400 hover:text-white transition-colors text-sm">
               ← Library
@@ -38,18 +41,20 @@ export default function PracticePage({ params }: PageProps) {
         </div>
       </header>
 
-      <div className="mx-auto max-w-6xl px-6 py-8">
-        <div className="flex flex-col lg:flex-row gap-8">
+      {/* Content: board + sidebar centred together so the sidebar sits flush
+          against the board rather than pinned to the far-right edge. */}
+      <div className="flex-1 min-h-0 flex items-center justify-center overflow-hidden p-4 lg:p-6">
+        <div className="h-full flex gap-4 lg:gap-6 w-fit max-w-full">
 
-          {/* Left — Board */}
-          <div className="flex flex-col items-center gap-6 flex-1">
+          {/* Board column — square, height-driven */}
+          <div className="h-full shrink-0" style={{ aspectRatio: '1 / 1' }}>
             {selectedVariation && (
               <PracticeBoard opening={opening} variation={selectedVariation} />
             )}
           </div>
 
-          {/* Right — Sidebar */}
-          <div className="w-full lg:w-72 flex flex-col gap-5">
+          {/* Sidebar — adjacent to board, independently scrollable */}
+          <div className="w-64 lg:w-72 shrink-0 h-full flex flex-col gap-4 overflow-y-auto">
 
             {/* Opening info */}
             <div className="rounded-xl border border-white/5 bg-[#1a1d27] p-5">
@@ -92,22 +97,16 @@ export default function PracticePage({ params }: PageProps) {
               <MoveList variation={selectedVariation} currentMoveIndex={currentMoveIndex} />
             )}
 
-            {/* How to play */}
-            <div className="rounded-xl border border-white/5 bg-[#1a1d27] p-4">
-              <h3 className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-2">
-                How to play
-              </h3>
-              <ul className="text-xs text-gray-400 space-y-1.5 leading-relaxed">
-                <li>• You play as <span className="text-white">{opening.color}</span></li>
-                <li>• Drag pieces to make moves</li>
-                <li>• The computer plays the opposing side</li>
-                <li>• Wrong moves flash red — try again</li>
-                <li>• A subtle glow hints at the piece to move</li>
-              </ul>
-            </div>
           </div>
+          {/* end sidebar */}
+
         </div>
+        {/* end board + sidebar group */}
+
       </div>
+      {/* end content */}
+
     </div>
+    // end root
   );
 }

@@ -152,23 +152,25 @@ export const OPENING_DEFINITIONS: OpeningDefinition[] = [
   // ─── Caro-Kann ──────────────────────────────────────────────────────────────
   {
     id: 'caro-kann',
-    ecoCode: 'B10',
+    ecoCode: 'B12',
     name: 'Caro-Kann Defense',
     color: 'black',
     difficulty: 'intermediate',
     description:
       'A rock-solid response to 1.e4. Black establishes a strong pawn structure without locking in the light-squared bishop as in the French.',
+    // Lines ordered most-popular → least-popular
     mainLine: {
-      id: 'caro-classical',
-      name: 'Classical Variation',
-      sans: ['e4', 'c6', 'd4', 'd5', 'Nc3', 'dxe4', 'Nxe4', 'Bf5', 'Ng3', 'Bg6', 'h4', 'h6', 'Nf3'],
+      id: 'caro-advance',
+      name: 'Advance Variation',
+      description: 'White gains space with e5. Black develops the bishop outside the pawn chain before the chain closes.',
+      sans: ['e4', 'c6', 'd4', 'd5', 'e5', 'Bf5', 'Nf3', 'e6', 'Be2', 'Nd7', 'O-O', 'Ne7'],
     },
     variations: [
       {
-        id: 'caro-advance',
-        name: 'Advance Variation',
-        description: 'White gains space. Black develops the bishop outside the pawn chain.',
-        sans: ['e4', 'c6', 'd4', 'd5', 'e5', 'Bf5', 'Nf3', 'e6', 'Be2', 'Nd7', 'O-O', 'Ne7'],
+        id: 'caro-classical',
+        name: 'Classical Variation',
+        description: 'Black exchanges on e4 and develops the bishop to f5 — the most principled response.',
+        sans: ['e4', 'c6', 'd4', 'd5', 'Nc3', 'dxe4', 'Nxe4', 'Bf5', 'Ng3', 'Bg6', 'h4', 'h6', 'Nf3'],
       },
       {
         id: 'caro-exchange',
