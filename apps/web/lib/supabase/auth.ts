@@ -1,0 +1,38 @@
+import { createClient } from './client';
+
+/**
+ * Web-specific auth helpers — all use the SSR browser client so tokens
+ * are stored in cookies and readable by middleware / server components.
+ */
+
+export async function signInWithEmail(email: string, password: string) {
+  const supabase = createClient();
+  const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+  if (error) throw error;
+  return data;
+}
+
+export async function signUpWithEmail(email: string, password: string) {
+  const supabase = createClient();
+  const { data, error } = await supabase.auth.signUp({ email, password });
+  if (error) throw error;
+  return data;
+}
+
+export async function signInWithGoogle() {
+  const supabase = createClient();
+  const { data, error } = await supabase.auth.signInWithOAuth({
+    provider: 'google',
+    options: {
+      redirectTo: `${process.env.NEXT_PUBLIC_APP_URL}/auth/callback`,
+    },
+  });
+  if (error) throw error;
+  return data;
+}
+
+export async function signOut() {
+  const supabase = createClient();
+  const { error } = await supabase.auth.signOut();
+  if (error) throw error;
+}

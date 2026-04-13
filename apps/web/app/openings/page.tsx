@@ -4,6 +4,7 @@ import { useState, useMemo } from 'react';
 import { OPENINGS } from '@firstmove/core';
 import { OpeningCard } from '@/components/openings/OpeningCard';
 import { OpeningFilters } from '@/components/openings/OpeningFilters';
+import { UserMenu } from '@/components/ui/UserMenu';
 
 interface Filters {
   search: string;
@@ -46,6 +47,7 @@ export default function OpeningsPage() {
           <nav className="flex items-center gap-6 text-sm text-gray-400">
             <span className="text-white font-medium">Library</span>
             <a href="#" className="hover:text-white transition-colors">My Progress</a>
+            <UserMenu />
           </nav>
         </div>
       </header>

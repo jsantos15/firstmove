@@ -13,6 +13,7 @@
   "dependencies": {
     "@firstmove/core": "workspace:*",
     "@firstmove/supabase": "workspace:*",
+    "@supabase/ssr": "^0.10.2",
     "@supabase/supabase-js": "^2.47.0",
     "@tanstack/react-query": "^5.97.0",
     "chess.js": "^1.4.0",

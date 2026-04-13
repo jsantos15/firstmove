@@ -44,6 +44,14 @@
 
 ---
 
+## 2026-04-12 — @supabase/ssr for Next.js App Router auth
+
+**Decision:** Add `@supabase/ssr` to `apps/web` alongside `@supabase/supabase-js`.
+
+**Reason:** The standard `supabase-js` client stores auth tokens in localStorage, which is inaccessible to Next.js middleware and server components. `@supabase/ssr` provides `createBrowserClient` (stores tokens in cookies, readable by server) and `createServerClient` (reads cookies via Next.js `cookies()` API). The web app uses these for all auth operations. The shared `packages/supabase` client is unchanged and still used by mobile.
+
+---
+
 ## 2026-04-10 — Custom SVG board on mobile via react-native-svg
 
 **Decision:** Build a custom chess board component using react-native-svg rather than using an off-the-shelf React Native chess board.

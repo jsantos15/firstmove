@@ -1,9 +1,63 @@
 'use client';
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { useState } from 'react';
+import { createContext, useContext, useEffect, useState } from 'react';
+import type { Session, User } from '@supabase/supabase-js';
+import { createClient } from '@/lib/supabase/client';
 
-export function Providers({ children }: { children: React.ReactNode }) {
+// ─── Auth Context ─────────────────────────────────────────────────────────────
+
+interface AuthContextValue {
+  user: User | null;
+  session: Session | null;
+  loading: boolean;
+}
+
+const AuthContext = createContext<AuthContextValue>({
+  user: null,
+  session: null,
+  loading: true,
+});
+
+export function useAuth() {
+  return useContext(AuthContext);
+}
+
+function AuthProvider({ children }: { children: React.ReactNode }) {
+  const [user, setUser] = useState<User | null>(null);
+  const [session, setSession] = useState<Session | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const supabase = createClient();
+
+    // Load existing session on mount
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+      setUser(session?.user ?? null);
+      setLoading(false);
+    });
+
+    // Keep state in sync when auth changes (sign in, sign out, token refresh)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSession(session);
+      setUser(session?.user ?? null);
+      setLoading(false);
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
+  return (
+    <AuthContext.Provider value={{ user, session, loading }}>
+      {children}
+    </AuthContext.Provider>
+  );
+}
+
+// ─── Query Client ─────────────────────────────────────────────────────────────
+
+function QueryProvider({ children }: { children: React.ReactNode }) {
   const [queryClient] = useState(
     () =>
       new QueryClient({
@@ -16,4 +70,14 @@ export function Providers({ children }: { children: React.ReactNode }) {
   );
 
   return <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>;
+}
+
+// ─── Combined Providers ───────────────────────────────────────────────────────
+
+export function Providers({ children }: { children: React.ReactNode }) {
+  return (
+    <QueryProvider>
+      <AuthProvider>{children}</AuthProvider>
+    </QueryProvider>
+  );
 }

@@ -8,6 +8,8 @@ import { PracticeBoard } from '@/components/board/PracticeBoard';
 import { MoveList } from '@/components/board/MoveList';
 import { DifficultyBadge, ColorBadge, Badge } from '@/components/ui/Badge';
 import { usePracticeStore } from '@/stores/practiceStore';
+import { UserMenu } from '@/components/ui/UserMenu';
+import { useAuth } from '@/app/providers';
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -19,9 +21,20 @@ export default function PracticePage({ params }: PageProps) {
 
   if (!opening) notFound();
 
+  const { user } = useAuth();
   const [selectedVariationId, setSelectedVariationId] = useState(opening.variations[0]?.id ?? '');
+  const [showAuthPrompt, setShowAuthPrompt] = useState(false);
   const selectedVariation = opening.variations.find(v => v.id === selectedVariationId) ?? opening.variations[0];
   const { currentMoveIndex } = usePracticeStore();
+
+  function handleVariationClick(variationId: string, index: number) {
+    if (index > 0 && !user) {
+      setShowAuthPrompt(true);
+      return;
+    }
+    setShowAuthPrompt(false);
+    setSelectedVariationId(variationId);
+  }
 
   return (
     // h-screen + flex-col so content below the header fills the remaining
@@ -38,6 +51,7 @@ export default function PracticePage({ params }: PageProps) {
             <span className="text-white/20">/</span>
             <span className="text-white font-medium text-sm">{opening.name}</span>
           </div>
+          <UserMenu />
         </div>
       </header>
 
@@ -73,23 +87,43 @@ export default function PracticePage({ params }: PageProps) {
                 Lines
               </h3>
               <div className="flex flex-col gap-1.5">
-                {opening.variations.map(variation => (
-                  <button
-                    key={variation.id}
-                    onClick={() => setSelectedVariationId(variation.id)}
-                    className={`w-full text-left px-3 py-2.5 rounded-lg text-sm transition-colors ${
-                      variation.id === selectedVariationId
-                        ? 'bg-amber-400/15 text-amber-300 border border-amber-400/20'
-                        : 'text-gray-400 hover:text-white hover:bg-white/5'
-                    }`}
-                  >
-                    <div className="font-medium">{variation.name}</div>
-                    {variation.description && (
-                      <div className="text-xs opacity-60 mt-0.5 line-clamp-2">{variation.description}</div>
-                    )}
-                  </button>
-                ))}
+                {opening.variations.map((variation, index) => {
+                  const locked = index > 0 && !user;
+                  return (
+                    <button
+                      key={variation.id}
+                      onClick={() => handleVariationClick(variation.id, index)}
+                      className={`w-full text-left px-3 py-2.5 rounded-lg text-sm transition-colors ${
+                        variation.id === selectedVariationId
+                          ? 'bg-amber-400/15 text-amber-300 border border-amber-400/20'
+                          : locked
+                          ? 'text-gray-600 cursor-pointer hover:bg-white/5'
+                          : 'text-gray-400 hover:text-white hover:bg-white/5'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="font-medium">{variation.name}</span>
+                        {locked && <span className="text-xs shrink-0">🔒</span>}
+                      </div>
+                      {variation.description && (
+                        <div className="text-xs opacity-60 mt-0.5 line-clamp-2">{variation.description}</div>
+                      )}
+                    </button>
+                  );
+                })}
               </div>
+
+              {showAuthPrompt && (
+                <div className="mt-2 rounded-lg border border-amber-400/20 bg-amber-400/5 p-3 text-xs text-amber-300">
+                  <p className="mb-2">Sign in to unlock all lines.</p>
+                  <Link
+                    href="/login"
+                    className="inline-block rounded-md bg-amber-400 px-3 py-1.5 text-xs font-semibold text-[#0f1117] hover:bg-amber-300 transition-colors"
+                  >
+                    Sign in
+                  </Link>
+                </div>
+              )}
             </div>
 
             {/* Move list */}
