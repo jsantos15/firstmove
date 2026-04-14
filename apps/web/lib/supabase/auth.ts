@@ -14,7 +14,15 @@ export async function signInWithEmail(email: string, password: string) {
 
 export async function signUpWithEmail(email: string, password: string) {
   const supabase = createClient();
-  const { data, error } = await supabase.auth.signUp({ email, password });
+  const { data, error } = await supabase.auth.signUp({
+    email,
+    password,
+    options: {
+      // Route the confirmation link through our callback so the session
+      // is exchanged and cookies are set before landing on the app.
+      emailRedirectTo: `${window.location.origin}/auth/callback`,
+    },
+  });
   if (error) throw error;
   return data;
 }

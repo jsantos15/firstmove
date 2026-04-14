@@ -4,6 +4,8 @@ import { useEffect, useState, useRef } from 'react';
 import { Chessboard } from 'react-chessboard';
 import type { Opening, OpeningVariation } from '@firstmove/core';
 import { usePracticeStore, isUserTurn } from '@/stores/practiceStore';
+import { useRecordCompletion } from '@/hooks/useProgress';
+import { useAuth } from '@/app/providers';
 import type { Square } from 'chess.js';
 
 interface PracticeBoardProps {
@@ -28,6 +30,25 @@ export function PracticeBoard({ opening, variation }: PracticeBoardProps) {
   const expectedMove = moves[currentMoveIndex];
   const isMyTurn = status === 'playing' && isUserTurn(currentMoveIndex, opening.color);
   const playerColor = opening.color === 'white' ? 'w' : 'b';
+
+  // ─── Progress recording ─────────────────────────────────────────────────────
+  // Only record once per completion — ref resets when the variation changes.
+  const { user } = useAuth();
+  const recordCompletion = useRecordCompletion();
+  const hasRecordedRef = useRef(false);
+
+  useEffect(() => {
+    hasRecordedRef.current = false;
+  }, [variation.id]);
+
+  useEffect(() => {
+    if (status === 'complete' && !hasRecordedRef.current && user) {
+      hasRecordedRef.current = true;
+      recordCompletion.mutate({ openingSlug: opening.id, variationSlug: variation.id });
+    }
+    // recordCompletion.mutate is stable; opening/variation IDs don't change mid-session.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [status, user]);
 
   // ─── Responsive board size ──────────────────────────────────────────────────
   // Ref is on the board-wrapper div (flex-1), so its height already excludes

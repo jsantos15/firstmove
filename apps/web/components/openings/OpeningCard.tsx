@@ -5,12 +5,14 @@ import Link from 'next/link';
 import type { Opening } from '@firstmove/core';
 import { getCharacteristicFen } from '@firstmove/core';
 import { DifficultyBadge, ColorBadge, Badge } from '@/components/ui/Badge';
+import { type MasteryLevel, MASTERY_LABELS, MASTERY_COLORS } from '@/hooks/useProgress';
 
 interface OpeningCardProps {
   opening: Opening;
+  mastery?: MasteryLevel;
 }
 
-export function OpeningCard({ opening }: OpeningCardProps) {
+export function OpeningCard({ opening, mastery }: OpeningCardProps) {
   const fen = getCharacteristicFen(opening);
   const lineCount = opening.variations.length;
 
@@ -50,9 +52,16 @@ export function OpeningCard({ opening }: OpeningCardProps) {
             <span className="text-xs text-gray-500">
               {lineCount} {lineCount === 1 ? 'line' : 'lines'}
             </span>
-            <span className="text-xs text-amber-400 opacity-0 group-hover:opacity-100 transition-opacity">
-              Practice →
-            </span>
+            {mastery && mastery !== 'new' ? (
+              <span className="flex items-center gap-1.5 text-xs text-gray-400">
+                <span className={`w-2 h-2 rounded-full ${MASTERY_COLORS[mastery]}`} />
+                {MASTERY_LABELS[mastery]}
+              </span>
+            ) : (
+              <span className="text-xs text-amber-400 opacity-0 group-hover:opacity-100 transition-opacity">
+                Practice →
+              </span>
+            )}
           </div>
         </div>
       </div>

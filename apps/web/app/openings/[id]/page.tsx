@@ -10,6 +10,7 @@ import { DifficultyBadge, ColorBadge, Badge } from '@/components/ui/Badge';
 import { usePracticeStore } from '@/stores/practiceStore';
 import { UserMenu } from '@/components/ui/UserMenu';
 import { useAuth } from '@/app/providers';
+import { useAllProgress, MASTERY_LABELS, MASTERY_COLORS } from '@/hooks/useProgress';
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -22,6 +23,7 @@ export default function PracticePage({ params }: PageProps) {
   if (!opening) notFound();
 
   const { user } = useAuth();
+  const { data: progress } = useAllProgress();
   const [selectedVariationId, setSelectedVariationId] = useState(opening.variations[0]?.id ?? '');
   const [showAuthPrompt, setShowAuthPrompt] = useState(false);
   const selectedVariation = opening.variations.find(v => v.id === selectedVariationId) ?? opening.variations[0];
@@ -37,8 +39,6 @@ export default function PracticePage({ params }: PageProps) {
   }
 
   return (
-    // h-screen + flex-col so content below the header fills the remaining
-    // viewport height — required for the responsive board sizing to work.
     <div className="h-screen flex flex-col bg-[#0f1117] overflow-hidden">
 
       {/* Header */}
@@ -55,19 +55,17 @@ export default function PracticePage({ params }: PageProps) {
         </div>
       </header>
 
-      {/* Content: board + sidebar centred together so the sidebar sits flush
-          against the board rather than pinned to the far-right edge. */}
       <div className="flex-1 min-h-0 flex items-center justify-center overflow-hidden p-4 lg:p-6">
         <div className="h-full flex gap-4 lg:gap-6 w-fit max-w-full">
 
-          {/* Board column — square, height-driven */}
+          {/* Board column */}
           <div className="h-full shrink-0" style={{ aspectRatio: '1 / 1' }}>
             {selectedVariation && (
               <PracticeBoard opening={opening} variation={selectedVariation} />
             )}
           </div>
 
-          {/* Sidebar — adjacent to board, independently scrollable */}
+          {/* Sidebar */}
           <div className="w-64 lg:w-72 shrink-0 h-full flex flex-col gap-4 overflow-y-auto">
 
             {/* Opening info */}
@@ -89,6 +87,8 @@ export default function PracticePage({ params }: PageProps) {
               <div className="flex flex-col gap-1.5">
                 {opening.variations.map((variation, index) => {
                   const locked = index > 0 && !user;
+                  const vProgress = progress?.get(`${opening.id}/${variation.id}`);
+                  const mastery = vProgress?.mastery;
                   return (
                     <button
                       key={variation.id}
@@ -103,10 +103,22 @@ export default function PracticePage({ params }: PageProps) {
                     >
                       <div className="flex items-center justify-between gap-2">
                         <span className="font-medium">{variation.name}</span>
-                        {locked && <span className="text-xs shrink-0">🔒</span>}
+                        {locked ? (
+                          <span className="text-xs shrink-0">🔒</span>
+                        ) : mastery && mastery !== 'new' ? (
+                          <span className="flex items-center gap-1 text-xs text-gray-500 shrink-0">
+                            <span className={`w-1.5 h-1.5 rounded-full ${MASTERY_COLORS[mastery]}`} />
+                            {MASTERY_LABELS[mastery]}
+                          </span>
+                        ) : null}
                       </div>
                       {variation.description && (
                         <div className="text-xs opacity-60 mt-0.5 line-clamp-2">{variation.description}</div>
+                      )}
+                      {vProgress && (
+                        <div className="text-xs text-gray-600 mt-1">
+                          {vProgress.timesCompleted} {vProgress.timesCompleted === 1 ? 'completion' : 'completions'}
+                        </div>
                       )}
                     </button>
                   );
@@ -132,15 +144,10 @@ export default function PracticePage({ params }: PageProps) {
             )}
 
           </div>
-          {/* end sidebar */}
 
         </div>
-        {/* end board + sidebar group */}
-
       </div>
-      {/* end content */}
 
     </div>
-    // end root
   );
 }

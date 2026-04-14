@@ -5,6 +5,7 @@ import { OPENINGS } from '@firstmove/core';
 import { OpeningCard } from '@/components/openings/OpeningCard';
 import { OpeningFilters } from '@/components/openings/OpeningFilters';
 import { UserMenu } from '@/components/ui/UserMenu';
+import { useAllProgress, getOpeningMastery } from '@/hooks/useProgress';
 
 interface Filters {
   search: string;
@@ -18,6 +19,8 @@ export default function OpeningsPage() {
     color: 'all',
     difficulty: 'all',
   });
+
+  const { data: progress } = useAllProgress();
 
   const filtered = useMemo(() => {
     return OPENINGS.filter(o => {
@@ -86,7 +89,11 @@ export default function OpeningsPage() {
         ) : (
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             {filtered.map(opening => (
-              <OpeningCard key={opening.id} opening={opening} />
+              <OpeningCard
+                key={opening.id}
+                opening={opening}
+                mastery={getOpeningMastery(progress, opening.id, opening.variations.map(v => v.id))}
+              />
             ))}
           </div>
         )}
