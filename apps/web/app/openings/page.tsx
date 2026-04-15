@@ -41,12 +41,12 @@ export default function OpeningsPage() {
       return true;
     });
 
-    if (filters.inProgress && progress) {
-      const getProgressCount = (o: typeof OPENINGS[0]) => {
-        const lineIds = o.variations.map(v => v.id);
-        return lineIds.filter(id => (progress.get(`${o.id}/${id}`)?.timesCompleted ?? 0) > 0).length;
-      };
-      result.sort((a, b) => getProgressCount(b) - getProgressCount(a));
+    if (filters.inProgress) {
+      const getProgressCount = (o: typeof OPENINGS[0]) =>
+        o.variations.filter(v => (progress?.get(`${o.id}/${v.id}`)?.timesCompleted ?? 0) > 0).length;
+      return result
+        .filter(o => getProgressCount(o) > 0)
+        .sort((a, b) => getProgressCount(b) - getProgressCount(a));
     }
 
     return result;
