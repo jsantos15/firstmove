@@ -3,21 +3,19 @@
  *
  * Seeds openings_catalog and opening_lines in Supabase from the
  * engine-fetched JSON. Safe to re-run — uses upsert.
+ * Uses fetch directly to avoid workspace dependency issues.
  *
  * Usage:
  *   npx tsx scripts/seed-openings.ts
- *
- * Requires SUPABASE_SERVICE_ROLE_KEY in .env.local (already present).
  */
 
-import { createClient } from '@supabase/supabase-js';
 import * as fs from 'fs';
 import * as path from 'path';
 import { fileURLToPath } from 'url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-// Load .env.local manually (no extra deps needed)
+// Load apps/web/.env.local
 const envPath = path.join(__dirname, '..', 'apps', 'web', '.env.local');
 if (fs.existsSync(envPath)) {
   for (const line of fs.readFileSync(envPath, 'utf-8').split('\n')) {
@@ -30,13 +28,28 @@ const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 if (!supabaseUrl || !serviceRoleKey) {
-  console.error('Missing NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY in .env.local');
+  console.error('Missing NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY');
   process.exit(1);
 }
 
-const supabase = createClient(supabaseUrl, serviceRoleKey, {
-  auth: { persistSession: false },
-});
+const headers = {
+  'Content-Type': 'application/json',
+  'apikey': serviceRoleKey,
+  'Authorization': `Bearer ${serviceRoleKey}`,
+  'Prefer': 'resolution=merge-duplicates',
+};
+
+async function upsert(table: string, rows: object[]): Promise<void> {
+  const res = await fetch(`${supabaseUrl}/rest/v1/${table}`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify(rows),
+  });
+  if (!res.ok) {
+    const body = await res.text();
+    throw new Error(`Upsert into ${table} failed (${res.status}): ${body}`);
+  }
+}
 
 interface FetchedLine {
   id: string;
@@ -60,9 +73,8 @@ const inputPath = path.join(__dirname, 'output', 'openings-fetched.json');
 const openings: FetchedOpening[] = JSON.parse(fs.readFileSync(inputPath, 'utf-8'));
 
 async function seed() {
-  console.log(`Seeding ${openings.length} openings...`);
+  console.log(`Seeding ${openings.length} openings into Supabase...`);
 
-  // ── Upsert openings_catalog ──────────────────────────────────────────────
   const catalogRows = openings.map(o => ({
     slug:        o.id,
     eco_code:    o.ecoCode,
@@ -73,17 +85,9 @@ async function seed() {
     tags:        o.tags,
   }));
 
-  const { error: catalogError } = await supabase
-    .from('openings_catalog')
-    .upsert(catalogRows, { onConflict: 'slug' });
-
-  if (catalogError) {
-    console.error('Failed to upsert openings_catalog:', catalogError.message);
-    process.exit(1);
-  }
+  await upsert('openings_catalog', catalogRows);
   console.log(`✓ ${catalogRows.length} openings upserted into openings_catalog`);
 
-  // ── Upsert opening_lines ─────────────────────────────────────────────────
   const lineRows = openings.flatMap(o =>
     o.lines.map((line, index) => ({
       slug:         line.id,
@@ -91,17 +95,14 @@ async function seed() {
       name:         line.name,
       description:  line.description ?? null,
       sans:         line.sans,
-      sort_order:   index,  // 0 = main line
+      sort_order:   index,
     }))
   );
 
-  const { error: linesError } = await supabase
-    .from('opening_lines')
-    .upsert(lineRows, { onConflict: 'opening_slug,slug' });
-
-  if (linesError) {
-    console.error('Failed to upsert opening_lines:', linesError.message);
-    process.exit(1);
+  // Supabase has a default row limit — batch in chunks of 500
+  const CHUNK = 500;
+  for (let i = 0; i < lineRows.length; i += CHUNK) {
+    await upsert('opening_lines', lineRows.slice(i, i + CHUNK));
   }
   console.log(`✓ ${lineRows.length} lines upserted into opening_lines`);
 
