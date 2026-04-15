@@ -1,0 +1,875 @@
+[
+  {
+    "id": "italian-game",
+    "ecoCode": "C50",
+    "name": "Italian Game",
+    "color": "white",
+    "difficulty": "beginner",
+    "description": "One of the oldest openings in chess. White develops rapidly, targets the center, and aims the bishop at the vulnerable f7 square.",
+    "tags": [
+      "e4",
+      "open-game",
+      "classical",
+      "beginner-friendly"
+    ],
+    "lines": [
+      {
+        "id": "italian-giuoco-piano",
+        "name": "Giuoco Piano",
+        "description": "The classical Italian — both sides develop naturally toward the center.",
+        "sans": [
+          "e4",
+          "e5",
+          "Nf3",
+          "Nc6",
+          "Bc4",
+          "Bc5",
+          "c3",
+          "Nf6",
+          "d4",
+          "exd4",
+          "e5",
+          "d5",
+          "Bb5",
+          "Ne4",
+          "cxd4",
+          "Bb6",
+          "Nc3",
+          "O-O"
+        ]
+      },
+      {
+        "id": "italian-two-knights",
+        "name": "Two Knights Defense",
+        "description": "Black counterattacks with Nf6 instead of mirroring White's bishop.",
+        "sans": [
+          "e4",
+          "e5",
+          "Nf3",
+          "Nc6",
+          "Bc4",
+          "Nf6",
+          "d3",
+          "Bc5",
+          "a4",
+          "O-O",
+          "O-O",
+          "a5",
+          "Nc3"
+        ]
+      },
+      {
+        "id": "italian-evans-gambit",
+        "name": "Evans Gambit",
+        "description": "White sacrifices a pawn on b4 for rapid development and attacking chances.",
+        "sans": [
+          "e4",
+          "e5",
+          "Nf3",
+          "Nc6",
+          "Bc4",
+          "Bc5",
+          "b4",
+          "Bxb4",
+          "c3",
+          "Be7",
+          "d4",
+          "exd4",
+          "cxd4",
+          "Nf6",
+          "d5",
+          "Na5",
+          "Bd3",
+          "c6"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "ruy-lopez",
+    "ecoCode": "C60",
+    "name": "Ruy Lopez",
+    "color": "white",
+    "difficulty": "intermediate",
+    "description": "The most classic of all openings. White pressures the e5 pawn indirectly and aims for long-term positional dominance.",
+    "tags": [
+      "e4",
+      "open-game",
+      "classical",
+      "positional"
+    ],
+    "lines": [
+      {
+        "id": "ruy-morphy-closed",
+        "name": "Closed Variation",
+        "description": "White retreats the bishop to a4 and castles. The main theoretical battleground.",
+        "sans": [
+          "e4",
+          "e5",
+          "Nf3",
+          "Nc6",
+          "Bb5",
+          "a6",
+          "Ba4",
+          "Nf6",
+          "O-O",
+          "Be7",
+          "Re1",
+          "b5",
+          "Bb3",
+          "d6",
+          "c3",
+          "O-O",
+          "h3",
+          "Bb7"
+        ]
+      },
+      {
+        "id": "ruy-berlin",
+        "name": "Berlin Defense",
+        "description": "Rock-solid defense famously used by Magnus Carlsen to neutralize 1.e4.",
+        "sans": [
+          "e4",
+          "e5",
+          "Nf3",
+          "Nc6",
+          "Bb5",
+          "Nf6",
+          "O-O",
+          "Nxe4",
+          "d4",
+          "Nd6"
+        ]
+      },
+      {
+        "id": "ruy-exchange",
+        "name": "Exchange Variation",
+        "description": "White captures on c6 early, doubling Black's pawns for a structural edge.",
+        "sans": [
+          "e4",
+          "e5",
+          "Nf3",
+          "Nc6",
+          "Bb5",
+          "a6",
+          "Bxc6",
+          "dxc6",
+          "Nc3",
+          "f6",
+          "d4",
+          "exd4",
+          "Nxd4",
+          "c5",
+          "Nde2",
+          "Qxd1+",
+          "Nxd1",
+          "Be6"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "sicilian-defense",
+    "ecoCode": "B20",
+    "name": "Sicilian Defense",
+    "color": "black",
+    "difficulty": "intermediate",
+    "description": "The most popular response to 1.e4. Black fights for the center asymmetrically, leading to rich, complex positions.",
+    "tags": [
+      "e4",
+      "semi-open",
+      "dynamic",
+      "popular",
+      "sharp"
+    ],
+    "lines": [
+      {
+        "id": "sicilian-najdorf",
+        "name": "Najdorf Variation",
+        "description": "The most popular and theoretically rich Sicilian. Favored by Fischer and Kasparov.",
+        "sans": [
+          "e4",
+          "c5",
+          "Nf3",
+          "d6",
+          "d4",
+          "cxd4",
+          "Nxd4",
+          "Nf6",
+          "Nc3",
+          "a6",
+          "Be2",
+          "e5",
+          "Nb3",
+          "Be6",
+          "f4",
+          "Be7",
+          "O-O",
+          "exf4"
+        ]
+      },
+      {
+        "id": "sicilian-dragon",
+        "name": "Dragon Variation",
+        "description": "Black fianchettoes the bishop for a powerful long diagonal battery.",
+        "sans": [
+          "e4",
+          "c5",
+          "Nf3",
+          "d6",
+          "d4",
+          "cxd4",
+          "Nxd4",
+          "Nf6",
+          "Nc3",
+          "g6",
+          "Bc4",
+          "Bg7",
+          "O-O",
+          "Nc6",
+          "Bb5",
+          "Bd7"
+        ]
+      },
+      {
+        "id": "sicilian-classical",
+        "name": "Classical Variation",
+        "description": "Black plays Nc6 — solid and flexible development without early commitments.",
+        "sans": [
+          "e4",
+          "c5",
+          "Nf3",
+          "Nc6",
+          "d4",
+          "cxd4",
+          "Nxd4",
+          "Nf6",
+          "Nc3",
+          "e5",
+          "Ndb5",
+          "d6",
+          "Bg5",
+          "a6",
+          "Na3",
+          "b5",
+          "Nd5",
+          "Be7"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "french-defense",
+    "ecoCode": "C00",
+    "name": "French Defense",
+    "color": "black",
+    "difficulty": "intermediate",
+    "description": "Black builds a solid pawn chain and counterattacks the center. Leads to closed, strategic battles.",
+    "tags": [
+      "e4",
+      "semi-open",
+      "solid",
+      "strategic"
+    ],
+    "lines": [
+      {
+        "id": "french-classical",
+        "name": "Classical Variation",
+        "description": "Black develops the knight to f6, directly challenging White's center.",
+        "sans": [
+          "e4",
+          "e6",
+          "d4",
+          "d5",
+          "Nc3",
+          "Nf6",
+          "e5",
+          "Nfd7",
+          "f4",
+          "c5",
+          "Nf3",
+          "Nc6",
+          "a3",
+          "cxd4",
+          "Nb5",
+          "Bc5",
+          "b4",
+          "Be7"
+        ]
+      },
+      {
+        "id": "french-advance",
+        "name": "Advance Variation",
+        "description": "White advances e5 to gain space. Black immediately counterattacks with c5.",
+        "sans": [
+          "e4",
+          "e6",
+          "d4",
+          "d5",
+          "e5",
+          "c5",
+          "c3",
+          "Nc6",
+          "Nf3",
+          "Qb6",
+          "Be2",
+          "cxd4",
+          "cxd4",
+          "Nh6",
+          "Bd3",
+          "Bd7",
+          "Bc2",
+          "Nf5"
+        ]
+      },
+      {
+        "id": "french-exchange",
+        "name": "Exchange Variation",
+        "description": "White exchanges on d5 for a symmetrical, quieter game.",
+        "sans": [
+          "e4",
+          "e6",
+          "d4",
+          "d5",
+          "exd5",
+          "exd5",
+          "Nf3",
+          "Bd6",
+          "c4",
+          "dxc4",
+          "Bxc4",
+          "Nf6",
+          "O-O",
+          "O-O",
+          "Nc3",
+          "Nc6"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "caro-kann",
+    "ecoCode": "B12",
+    "name": "Caro-Kann Defense",
+    "color": "black",
+    "difficulty": "intermediate",
+    "description": "A rock-solid response to 1.e4. Black establishes a strong pawn structure without locking in the light-squared bishop.",
+    "tags": [
+      "e4",
+      "semi-open",
+      "solid",
+      "positional"
+    ],
+    "lines": [
+      {
+        "id": "caro-advance",
+        "name": "Advance Variation",
+        "description": "White gains space with e5. Black develops the bishop outside the pawn chain before it closes.",
+        "sans": [
+          "e4",
+          "c6",
+          "d4",
+          "d5",
+          "e5",
+          "Bf5",
+          "c3",
+          "e6",
+          "Nf3",
+          "c5",
+          "Bb5+",
+          "Nd7",
+          "O-O",
+          "a6",
+          "Be2",
+          "Ne7"
+        ]
+      },
+      {
+        "id": "caro-classical",
+        "name": "Classical Variation",
+        "description": "Black exchanges on e4 and develops the bishop to f5 — the most principled response.",
+        "sans": [
+          "e4",
+          "c6",
+          "d4",
+          "d5",
+          "Nc3",
+          "dxe4",
+          "Nxe4",
+          "Bf5",
+          "Ng3",
+          "Bg6",
+          "N1e2",
+          "Nf6",
+          "c3",
+          "Nbd7",
+          "h4",
+          "h6",
+          "Nf4",
+          "Bh7"
+        ]
+      },
+      {
+        "id": "caro-exchange",
+        "name": "Exchange Variation",
+        "description": "Symmetrical pawn structure. White looks for a small edge in the endgame.",
+        "sans": [
+          "e4",
+          "c6",
+          "d4",
+          "d5",
+          "exd5",
+          "cxd5",
+          "Bd3",
+          "Nc6",
+          "Ne2",
+          "Nf6",
+          "O-O",
+          "Bg4",
+          "h3",
+          "Bh5"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "queens-gambit",
+    "ecoCode": "D06",
+    "name": "Queen's Gambit",
+    "color": "white",
+    "difficulty": "intermediate",
+    "description": "White offers a pawn to seize central control. One of the oldest and most respected openings — used by world champions for over a century.",
+    "tags": [
+      "d4",
+      "closed-game",
+      "classical",
+      "positional"
+    ],
+    "lines": [
+      {
+        "id": "qgd-main",
+        "name": "Queen's Gambit Declined",
+        "description": "Black declines with e6 — the most principled and solid response.",
+        "sans": [
+          "d4",
+          "d5",
+          "c4",
+          "e6",
+          "Nc3",
+          "Nf6",
+          "Bg5",
+          "dxc4",
+          "e3",
+          "c5",
+          "d5",
+          "Be7",
+          "Bxf6",
+          "Bxf6",
+          "Bxc4",
+          "Bxc3+",
+          "bxc3",
+          "exd5"
+        ]
+      },
+      {
+        "id": "slav-defense",
+        "name": "Slav Defense",
+        "description": "Black supports d5 with c6 — avoids locking in the light-squared bishop.",
+        "sans": [
+          "d4",
+          "d5",
+          "c4",
+          "c6",
+          "Nf3",
+          "Nf6",
+          "Nc3",
+          "dxc4",
+          "e3",
+          "b5",
+          "a4",
+          "b4",
+          "Nb1",
+          "Ba6",
+          "Nbd2",
+          "c3",
+          "bxc3",
+          "bxc3"
+        ]
+      },
+      {
+        "id": "qga",
+        "name": "Queen's Gambit Accepted",
+        "description": "Black accepts the pawn with dxc4, fighting for equality with active play.",
+        "sans": [
+          "d4",
+          "d5",
+          "c4",
+          "dxc4",
+          "e3",
+          "e5",
+          "Bxc4",
+          "exd4",
+          "exd4",
+          "Bd6",
+          "Nc3",
+          "Nf6",
+          "Qe2+",
+          "Qe7",
+          "Bg5",
+          "O-O",
+          "Qxe7",
+          "Bxe7"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "london-system",
+    "ecoCode": "D02",
+    "name": "London System",
+    "color": "white",
+    "difficulty": "beginner",
+    "description": "A simple, solid opening system White can use against almost anything. Develop the bishop to f4, support with e3, and build a strong center.",
+    "tags": [
+      "d4",
+      "system",
+      "solid",
+      "beginner-friendly"
+    ],
+    "lines": [
+      {
+        "id": "london-main",
+        "name": "Main Line",
+        "description": "The standard London setup against 1...d5 and 1...Nf6.",
+        "sans": [
+          "d4",
+          "d5",
+          "Nf3",
+          "Nf6",
+          "Bf4",
+          "c5",
+          "dxc5",
+          "e6",
+          "e3",
+          "Bxc5",
+          "c4",
+          "O-O",
+          "Nc3",
+          "Bb4",
+          "Qc2"
+        ]
+      },
+      {
+        "id": "london-vs-kid",
+        "name": "vs King's Indian Setup",
+        "description": "Black fianchettoes — White maintains the same solid setup.",
+        "sans": [
+          "d4",
+          "Nf6",
+          "Nf3",
+          "g6",
+          "Bf4",
+          "Bg7",
+          "Nc3",
+          "d5",
+          "Nb5",
+          "Na6",
+          "e3",
+          "c6",
+          "Nc3",
+          "Qb6",
+          "Rb1",
+          "Nh5",
+          "Bg5",
+          "Nc7"
+        ]
+      },
+      {
+        "id": "london-vs-slav",
+        "name": "vs Slav Setup",
+        "description": "Black plays c6 early — White's London structure handles it comfortably.",
+        "sans": [
+          "d4",
+          "d5",
+          "Nf3",
+          "Nf6",
+          "Bf4",
+          "c6",
+          "Nbd2",
+          "Bf5",
+          "c4",
+          "e6",
+          "Qb3",
+          "Qc8",
+          "Nh4",
+          "dxc4",
+          "Qxc4",
+          "Be7",
+          "e3",
+          "O-O"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "kings-indian",
+    "ecoCode": "E60",
+    "name": "King's Indian Defense",
+    "color": "black",
+    "difficulty": "intermediate",
+    "description": "Black allows White to build a large center, then attacks it dynamically. One of the sharpest and most complex openings.",
+    "tags": [
+      "d4",
+      "indian-defense",
+      "dynamic",
+      "counterattack"
+    ],
+    "lines": [
+      {
+        "id": "kid-classical",
+        "name": "Classical Variation",
+        "description": "White plays Be2 — the most popular main line response.",
+        "sans": [
+          "d4",
+          "Nf6",
+          "c4",
+          "g6",
+          "Nc3",
+          "Bg7",
+          "e4",
+          "d6",
+          "Nf3",
+          "O-O",
+          "Be2",
+          "e5",
+          "d5",
+          "a5",
+          "h3",
+          "Na6",
+          "Bg5",
+          "Bd7"
+        ]
+      },
+      {
+        "id": "kid-saemisch",
+        "name": "Sämisch Variation",
+        "description": "White plays f3 to support the center aggressively, weakening the kingside.",
+        "sans": [
+          "d4",
+          "Nf6",
+          "c4",
+          "g6",
+          "Nc3",
+          "Bg7",
+          "e4",
+          "d6",
+          "f3",
+          "O-O",
+          "Nge2",
+          "c5",
+          "Be3"
+        ]
+      },
+      {
+        "id": "kid-four-pawns",
+        "name": "Four Pawns Attack",
+        "description": "White grabs maximum center space. Black must counterattack immediately.",
+        "sans": [
+          "d4",
+          "Nf6",
+          "c4",
+          "g6",
+          "Nc3",
+          "Bg7",
+          "e4",
+          "d6",
+          "f4",
+          "O-O",
+          "Nf3",
+          "e5",
+          "fxe5"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "vienna-game",
+    "ecoCode": "C25",
+    "name": "Vienna Game",
+    "color": "white",
+    "difficulty": "beginner",
+    "description": "A flexible opening where White develops the knight to c3 before committing the king's knight. Can lead to quiet or sharp play.",
+    "tags": [
+      "e4",
+      "open-game",
+      "flexible",
+      "beginner-friendly"
+    ],
+    "lines": [
+      {
+        "id": "vienna-main",
+        "name": "Main Line",
+        "description": "White plays Bc4 aiming for the center and f7.",
+        "sans": [
+          "e4",
+          "e5",
+          "Nc3",
+          "Nc6",
+          "Bc4",
+          "Nf6",
+          "Nf3",
+          "Nxe4",
+          "Nxe4",
+          "d5",
+          "Bd3",
+          "dxe4",
+          "Bxe4",
+          "Nb4",
+          "a3",
+          "f5",
+          "Bxb7",
+          "Bxb7"
+        ]
+      },
+      {
+        "id": "vienna-gambit",
+        "name": "Vienna Gambit",
+        "description": "White plays f4 to immediately challenge the center.",
+        "sans": [
+          "e4",
+          "e5",
+          "Nc3",
+          "Nf6",
+          "f4",
+          "d5",
+          "fxe5",
+          "Nxe4",
+          "Qf3",
+          "Nc6",
+          "Bb5",
+          "Be6",
+          "Nge2",
+          "Qh4+",
+          "g3",
+          "Qe7",
+          "d4",
+          "Qd7"
+        ]
+      },
+      {
+        "id": "vienna-mieses",
+        "name": "Mieses Variation",
+        "description": "White plays Nf3 for a quieter, more positional game.",
+        "sans": [
+          "e4",
+          "e5",
+          "Nc3",
+          "Nc6",
+          "Nf3",
+          "Nf6",
+          "Bb5",
+          "Nd4",
+          "Bc4",
+          "Bc5",
+          "Nxe5",
+          "Qe7",
+          "Nd3",
+          "d5",
+          "Nxd5",
+          "Nxd5",
+          "Bxd5",
+          "Qg5"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "kings-gambit",
+    "ecoCode": "C30",
+    "name": "King's Gambit",
+    "color": "white",
+    "difficulty": "intermediate",
+    "description": "One of the oldest and most aggressive openings. White sacrifices a pawn on move 2 for rapid development and a fierce kingside attack.",
+    "tags": [
+      "e4",
+      "gambit",
+      "sharp",
+      "attacking",
+      "romantic"
+    ],
+    "lines": [
+      {
+        "id": "kga-accepted",
+        "name": "King's Gambit Accepted",
+        "description": "Black accepts the pawn — the sharpest and most principled reply.",
+        "sans": [
+          "e4",
+          "e5",
+          "f4",
+          "exf4",
+          "Nf3",
+          "Be7",
+          "Bc4",
+          "Nf6",
+          "e5",
+          "Ne4",
+          "Bd5",
+          "Ng5",
+          "Nc3",
+          "d6",
+          "d4",
+          "Ne6",
+          "O-O",
+          "c6"
+        ]
+      },
+      {
+        "id": "kgd-falkbeer",
+        "name": "Falkbeer Counter Gambit",
+        "description": "Black sacrifices a pawn for immediate counterplay with d5.",
+        "sans": [
+          "e4",
+          "e5",
+          "f4",
+          "d5",
+          "exd5",
+          "exf4",
+          "Nf3",
+          "Nf6",
+          "c4",
+          "Bd6",
+          "d4",
+          "O-O",
+          "Nc3",
+          "c5",
+          "Be2"
+        ]
+      },
+      {
+        "id": "kgd-classical",
+        "name": "King's Gambit Declined",
+        "description": "Black declines with Bc5 — solid and avoids the sharp gambit lines.",
+        "sans": [
+          "e4",
+          "e5",
+          "f4",
+          "Bc5",
+          "Nc3",
+          "d6",
+          "fxe5",
+          "dxe5",
+          "Qh5",
+          "Qd4",
+          "Qh4",
+          "Be7",
+          "Qg3",
+          "Nf6",
+          "Bb5+",
+          "c6",
+          "Be2",
+          "Nxe4"
+        ]
+      }
+    ]
+  }
+]
