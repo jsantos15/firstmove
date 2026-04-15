@@ -43,7 +43,7 @@ export default function OpeningsPage() {
 
     if (filters.inProgress && progress) {
       const getProgressCount = (o: typeof OPENINGS[0]) => {
-        const lineIds = [o.mainLine.id, ...o.variations.map(v => v.id)];
+        const lineIds = o.variations.map(v => v.id);
         return lineIds.filter(id => (progress.get(`${o.id}/${id}`)?.timesCompleted ?? 0) > 0).length;
       };
       result.sort((a, b) => getProgressCount(b) - getProgressCount(a));
