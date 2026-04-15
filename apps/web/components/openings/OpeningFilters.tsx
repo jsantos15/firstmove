@@ -2,22 +2,22 @@
 
 interface Filters {
   search: string;
-  color: 'all' | 'white' | 'black';
+  color: 'all' | 'white' | 'black' | 'gambits';
   difficulty: 'all' | 'beginner' | 'intermediate' | 'advanced';
+  inProgress: boolean;
 }
 
 interface OpeningFiltersProps {
   filters: Filters;
   onChange: (filters: Filters) => void;
-  totalCount: number;
-  filteredCount: number;
 }
 
-export function OpeningFilters({ filters, onChange, totalCount, filteredCount }: OpeningFiltersProps) {
+export function OpeningFilters({ filters, onChange }: OpeningFiltersProps) {
   const colorOptions: { value: Filters['color']; label: string }[] = [
     { value: 'all', label: 'All' },
     { value: 'white', label: '♔ White' },
     { value: 'black', label: '♚ Black' },
+    { value: 'gambits', label: '⚔ Gambits' },
   ];
 
   const difficultyOptions: { value: Filters['difficulty']; label: string }[] = [
@@ -84,10 +84,17 @@ export function OpeningFilters({ filters, onChange, totalCount, filteredCount }:
           ))}
         </div>
 
-        {/* Count */}
-        <span className="text-xs text-gray-500">
-          {filteredCount === totalCount ? `${totalCount} openings` : `${filteredCount} of ${totalCount}`}
-        </span>
+        {/* In Progress toggle */}
+        <button
+          onClick={() => onChange({ ...filters, inProgress: !filters.inProgress })}
+          className={`px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors ${
+            filters.inProgress
+              ? 'border-amber-400/50 bg-amber-400/20 text-amber-400'
+              : 'border-white/10 text-gray-400 hover:text-white hover:bg-white/5'
+          }`}
+        >
+          In Progress
+        </button>
       </div>
     </div>
   );

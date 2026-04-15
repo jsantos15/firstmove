@@ -9,8 +9,9 @@ import { useAllProgress, getOpeningMastery } from '@/hooks/useProgress';
 
 interface Filters {
   search: string;
-  color: 'all' | 'white' | 'black';
+  color: 'all' | 'white' | 'black' | 'gambits';
   difficulty: 'all' | 'beginner' | 'intermediate' | 'advanced';
+  inProgress: boolean;
 }
 
 export default function OpeningsPage() {
@@ -18,13 +19,16 @@ export default function OpeningsPage() {
     search: '',
     color: 'all',
     difficulty: 'all',
+    inProgress: false,
   });
 
   const { data: progress } = useAllProgress();
 
   const filtered = useMemo(() => {
-    return OPENINGS.filter(o => {
-      if (filters.color !== 'all' && o.color !== filters.color) return false;
+    const result = OPENINGS.filter(o => {
+      if (filters.color === 'gambits') {
+        if (!o.tags.includes('gambit')) return false;
+      } else if (filters.color !== 'all' && o.color !== filters.color) return false;
       if (filters.difficulty !== 'all' && o.difficulty !== filters.difficulty) return false;
       if (filters.search) {
         const q = filters.search.toLowerCase();
@@ -36,7 +40,17 @@ export default function OpeningsPage() {
       }
       return true;
     });
-  }, [filters]);
+
+    if (filters.inProgress && progress) {
+      const getProgressCount = (o: typeof OPENINGS[0]) => {
+        const lineIds = [o.mainLine.id, ...o.variations.map(v => v.id)];
+        return lineIds.filter(id => (progress.get(`${o.id}/${id}`)?.timesCompleted ?? 0) > 0).length;
+      };
+      result.sort((a, b) => getProgressCount(b) - getProgressCount(a));
+    }
+
+    return result;
+  }, [filters, progress]);
 
   return (
     <div className="min-h-screen bg-[#0f1117]">
@@ -68,8 +82,6 @@ export default function OpeningsPage() {
         <OpeningFilters
           filters={filters}
           onChange={setFilters}
-          totalCount={OPENINGS.length}
-          filteredCount={filtered.length}
         />
       </div>
 
@@ -80,7 +92,7 @@ export default function OpeningsPage() {
             <span className="text-5xl mb-4">♟</span>
             <p className="text-gray-400">No openings match your filters.</p>
             <button
-              onClick={() => setFilters({ search: '', color: 'all', difficulty: 'all' })}
+              onClick={() => setFilters({ search: '', color: 'all', difficulty: 'all', inProgress: false })}
               className="mt-4 text-sm text-amber-400 hover:underline"
             >
               Clear filters
