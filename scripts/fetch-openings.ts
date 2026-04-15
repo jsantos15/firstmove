@@ -388,7 +388,7 @@ const OPENINGS: OpeningConfig[] = [
     tags: ['d4', 'system', 'solid', 'beginner-friendly', 'attacking'],
     lines: [
       { id: 'colle-koltanowski', name: 'Colle-Koltanowski', description: 'The standard Colle with c3 — White prepares a queenside break or kingside attack.', startSans: ['d4', 'd5', 'Nf3', 'Nf6', 'e3', 'e6', 'Bd3', 'c5', 'c3', 'Nc6', 'Nbd2'] },
-      { id: 'colle-zukertort', name: 'Colle-Zukertort', description: "White plays b3 and Bb2 instead of c3 — a more dynamic bishop placement.", startSans: ['d4', 'd5', 'Nf3', 'Nf6', 'e3', 'e6', 'Bd3', 'Nbd7', 'O-O', 'b3', 'Bb2', 'c5'] },
+      { id: 'colle-zukertort', name: 'Colle-Zukertort', description: "White plays b3 and Bb2 instead of c3 — a more dynamic bishop placement.", startSans: ['d4', 'd5', 'Nf3', 'Nf6', 'e3', 'e6', 'Bd3', 'Be7', 'O-O', 'O-O', 'b3', 'c5', 'Bb2'] },
       { id: 'colle-vs-kid', name: "vs King's Indian Setup", description: "Black fianchettoes — White maintains the Colle pyramid.", startSans: ['d4', 'Nf6', 'Nf3', 'g6', 'e3', 'Bg7', 'Bd3', 'd6', 'Nbd2', 'O-O', 'O-O'] },
     ],
   },
@@ -440,7 +440,7 @@ const OPENINGS: OpeningConfig[] = [
       { id: 'kid-saemisch', name: 'Sämisch Variation', description: 'White plays f3 to support the center aggressively, weakening the kingside.', startSans: ['d4', 'Nf6', 'c4', 'g6', 'Nc3', 'Bg7', 'e4', 'd6', 'f3', 'O-O', 'Be3'] },
       { id: 'kid-four-pawns', name: 'Four Pawns Attack', description: 'White grabs maximum center space with e4 and f4. Black must counterattack immediately.', startSans: ['d4', 'Nf6', 'c4', 'g6', 'Nc3', 'Bg7', 'e4', 'd6', 'f4', 'O-O', 'Nf3'] },
       { id: 'kid-averbakh', name: 'Averbakh System', description: "White plays Bg5 and Qd2 for a positional squeeze.", startSans: ['d4', 'Nf6', 'c4', 'g6', 'Nc3', 'Bg7', 'e4', 'd6', 'Be2', 'O-O', 'Bg5'] },
-      { id: 'kid-petrosian', name: 'Petrosian System', description: "White plays d5 to close the center and then attack on the queenside.", startSans: ['d4', 'Nf6', 'c4', 'g6', 'Nc3', 'Bg7', 'e4', 'd6', 'Nf3', 'O-O', 'Be2', 'e5', 'd5', 'Ne7', 'Nd2'] },
+      { id: 'kid-petrosian', name: 'Petrosian System', description: "White plays d5 to close the center and then attack on the queenside.", startSans: ['d4', 'Nf6', 'c4', 'g6', 'Nc3', 'Bg7', 'e4', 'd6', 'Nf3', 'O-O', 'Be2', 'e5', 'd5', 'Ne8', 'Nd2'] },
       { id: 'kid-fianchetto', name: 'Fianchetto Variation', description: "White fianchettoes the bishop — a quieter alternative to e4.", startSans: ['d4', 'Nf6', 'c4', 'g6', 'Nf3', 'Bg7', 'g3', 'O-O', 'Bg2', 'd6', 'Nc3'] },
     ],
   },
@@ -633,7 +633,7 @@ const OPENINGS: OpeningConfig[] = [
     tags: ['e4', 'gambit', 'attacking', 'sharp'],
     lines: [
       { id: 'goring-accepted', name: 'Accepted', description: "Black accepts both pawns — White launches a powerful attack with Bc4.", startSans: ['e4', 'e5', 'Nf3', 'Nc6', 'd4', 'exd4', 'c3', 'dxc3', 'Bc4', 'cxb2', 'Bxb2', 'd6'] },
-      { id: 'goring-declined', name: 'Declined — d5', description: "Black declines with d5 — the solid response.", startSans: ['e4', 'e5', 'Nf3', 'Nc6', 'd4', 'exd4', 'c3', 'd5', 'exd5', 'Qxd5', 'cxd4', 'Nc6'] },
+      { id: 'goring-declined', name: 'Declined — d5', description: "Black declines with d5 — the solid response.", startSans: ['e4', 'e5', 'Nf3', 'Nc6', 'd4', 'exd4', 'c3', 'd5', 'exd5', 'Qxd5', 'cxd4', 'Nf6'] },
       { id: 'goring-one-pawn', name: 'One Pawn Accepted', description: "Black takes one pawn but declines the second — a cautious approach.", startSans: ['e4', 'e5', 'Nf3', 'Nc6', 'd4', 'exd4', 'c3', 'dxc3', 'Nxc3', 'Nf6', 'e5', 'Ng4'] },
     ],
   },

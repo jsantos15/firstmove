@@ -811,7 +811,7 @@ export const OPENING_DEFINITIONS: OpeningDefinition[] = [
         id: 'colle-zukertort',
         name: 'Colle-Zukertort',
         description: 'White plays b3 and Bb2 instead of c3 — a more dynamic bishop placement.',
-        sans: ['d4', 'd5', 'Nf3', 'Nf6', 'e3', 'e6', 'Bd3', 'Nbd7', 'O-O', 'b3', 'Bb2', 'c5'],
+        sans: ['d4', 'd5', 'Nf3', 'Nf6', 'e3', 'e6', 'Bd3', 'Be7', 'O-O', 'O-O', 'b3', 'c5', 'Bb2'],
       },
       {
         id: 'colle-vs-kid',
@@ -925,7 +925,7 @@ export const OPENING_DEFINITIONS: OpeningDefinition[] = [
         id: 'kid-petrosian',
         name: 'Petrosian System',
         description: 'White plays d5 to close the center and then attack on the queenside.',
-        sans: ['d4', 'Nf6', 'c4', 'g6', 'Nc3', 'Bg7', 'e4', 'd6', 'Nf3', 'O-O', 'Be2', 'e5', 'd5', 'Ne7', 'Nd2'],
+        sans: ['d4', 'Nf6', 'c4', 'g6', 'Nc3', 'Bg7', 'e4', 'd6', 'Nf3', 'O-O', 'Be2', 'e5', 'd5', 'Ne8', 'Nd2'],
       },
       {
         id: 'kid-fianchetto',
@@ -1339,7 +1339,7 @@ export const OPENING_DEFINITIONS: OpeningDefinition[] = [
         id: 'goring-declined',
         name: 'Declined — d5',
         description: 'Black declines with d5 — the solid response.',
-        sans: ['e4', 'e5', 'Nf3', 'Nc6', 'd4', 'exd4', 'c3', 'd5', 'exd5', 'Qxd5', 'cxd4', 'Nc6'],
+        sans: ['e4', 'e5', 'Nf3', 'Nc6', 'd4', 'exd4', 'c3', 'd5', 'exd5', 'Qxd5', 'cxd4', 'Nf6'],
       },
       {
         id: 'goring-one-pawn',
