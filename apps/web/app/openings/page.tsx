@@ -1,11 +1,11 @@
 'use client';
 
 import { useState, useMemo } from 'react';
-import { OPENINGS } from '@firstmove/core';
 import { OpeningCard } from '@/components/openings/OpeningCard';
 import { OpeningFilters } from '@/components/openings/OpeningFilters';
 import { UserMenu } from '@/components/ui/UserMenu';
 import { useAllProgress, getOpeningMastery } from '@/hooks/useProgress';
+import { useOpenings } from '@/hooks/useOpenings';
 
 interface Filters {
   search: string;
@@ -22,10 +22,11 @@ export default function OpeningsPage() {
     inProgress: false,
   });
 
+  const { data: openings = [], isLoading } = useOpenings();
   const { data: progress } = useAllProgress();
 
   const filtered = useMemo(() => {
-    const result = OPENINGS.filter(o => {
+    const result = openings.filter(o => {
       if (filters.color === 'gambits') {
         if (!o.tags.includes('gambit')) return false;
       } else if (filters.color !== 'all' && o.color !== filters.color) return false;
@@ -50,7 +51,7 @@ export default function OpeningsPage() {
     }
 
     return result;
-  }, [filters, progress]);
+  }, [filters, openings, progress]);
 
   return (
     <div className="min-h-screen bg-[#0f1117]">
@@ -87,7 +88,11 @@ export default function OpeningsPage() {
 
       {/* Grid */}
       <div className="mx-auto max-w-6xl px-6 pb-16">
-        {filtered.length === 0 ? (
+        {isLoading ? (
+          <div className="flex items-center justify-center py-24">
+            <div className="w-6 h-6 border-2 border-amber-400/30 border-t-amber-400 rounded-full animate-spin" />
+          </div>
+        ) : filtered.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-24 text-center">
             <span className="text-5xl mb-4">♟</span>
             <p className="text-gray-400">No openings match your filters.</p>

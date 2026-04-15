@@ -3,8 +3,8 @@
 import { useState, use } from 'react';
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
-import { getOpeningById } from '@firstmove/core';
 import { PracticeBoard } from '@/components/board/PracticeBoard';
+import { useOpening } from '@/hooks/useOpenings';
 import { MoveList } from '@/components/board/MoveList';
 import { DifficultyBadge, ColorBadge, Badge } from '@/components/ui/Badge';
 import { usePracticeStore } from '@/stores/practiceStore';
@@ -18,16 +18,25 @@ interface PageProps {
 
 export default function PracticePage({ params }: PageProps) {
   const { id } = use(params);
-  const opening = getOpeningById(id);
+  const { data: opening, isLoading } = useOpening(id);
+  const { user } = useAuth();
+  const { data: progress } = useAllProgress();
+  const [selectedVariationId, setSelectedVariationId] = useState('');
+  const [showAuthPrompt, setShowAuthPrompt] = useState(false);
+  const { currentMoveIndex } = usePracticeStore();
+
+  if (isLoading) {
+    return (
+      <div className="h-screen flex items-center justify-center bg-[#0f1117]">
+        <div className="w-6 h-6 border-2 border-amber-400/30 border-t-amber-400 rounded-full animate-spin" />
+      </div>
+    );
+  }
 
   if (!opening) notFound();
 
-  const { user } = useAuth();
-  const { data: progress } = useAllProgress();
-  const [selectedVariationId, setSelectedVariationId] = useState(opening.variations[0]?.id ?? '');
-  const [showAuthPrompt, setShowAuthPrompt] = useState(false);
-  const selectedVariation = opening.variations.find(v => v.id === selectedVariationId) ?? opening.variations[0];
-  const { currentMoveIndex } = usePracticeStore();
+  const activeVariationId = selectedVariationId || opening.variations[0]?.id;
+  const selectedVariation = opening.variations.find(v => v.id === activeVariationId) ?? opening.variations[0];
 
   function handleVariationClick(variationId: string, index: number) {
     if (index > 0 && !user) {
