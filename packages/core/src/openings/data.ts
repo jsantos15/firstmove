@@ -67,17 +67,17 @@ export const OPENING_DEFINITIONS: OpeningDefinition[] = [
     description:
       'The most classic of all openings. White pressures the e5 pawn indirectly and aims for long-term positional dominance.',
     mainLine: {
-      id: 'ruy-morphy-closed',
-      name: 'Closed Variation',
-      description: 'White retreats the bishop to a4 and castles. The main theoretical battleground.',
-      sans: ['e4', 'e5', 'Nf3', 'Nc6', 'Bb5', 'a6', 'Ba4', 'Nf6', 'O-O', 'Be7', 'Re1', 'b5', 'Bb3', 'd6', 'c3', 'O-O', 'h3', 'Bb7'],
+      id: 'ruy-berlin',
+      name: 'Berlin Defense',
+      description: 'Rock-solid defense famously used by Magnus Carlsen to neutralize 1.e4. Considered Black\'s best theoretical response.',
+      sans: ['e4', 'e5', 'Nf3', 'Nc6', 'Bb5', 'Nf6', 'O-O', 'Nxe4', 'd4', 'Nd6'],
     },
     variations: [
       {
-        id: 'ruy-berlin',
-        name: 'Berlin Defense',
-        description: 'Rock-solid defense famously used by Magnus Carlsen to neutralize 1.e4.',
-        sans: ['e4', 'e5', 'Nf3', 'Nc6', 'Bb5', 'Nf6', 'O-O', 'Nxe4', 'd4', 'Nd6'],
+        id: 'ruy-morphy-closed',
+        name: 'Closed Variation',
+        description: 'White retreats the bishop to a4 and castles. The main theoretical battleground.',
+        sans: ['e4', 'e5', 'Nf3', 'Nc6', 'Bb5', 'a6', 'Ba4', 'Nf6', 'O-O', 'Be7', 'Re1', 'b5', 'Bb3', 'd6', 'c3', 'O-O', 'h3', 'Bb7'],
       },
       {
         id: 'ruy-exchange',
@@ -156,24 +156,24 @@ export const OPENING_DEFINITIONS: OpeningDefinition[] = [
   // ─── Caro-Kann Defense ───────────────────────────────────────────
   {
     id: 'caro-kann',
-    ecoCode: 'B12',
+    ecoCode: 'B15',
     name: 'Caro-Kann Defense',
     color: 'black',
     difficulty: 'intermediate',
     description:
       'A rock-solid response to 1.e4. Black establishes a strong pawn structure without locking in the light-squared bishop.',
     mainLine: {
-      id: 'caro-advance',
-      name: 'Advance Variation',
-      description: 'White gains space with e5. Black develops the bishop outside the pawn chain before it closes.',
-      sans: ['e4', 'c6', 'd4', 'd5', 'e5', 'Bf5', 'c3', 'e6', 'Nf3', 'c5', 'Bb5+', 'Nd7', 'O-O', 'a6', 'Be2', 'Ne7'],
+      id: 'caro-classical',
+      name: 'Classical Variation',
+      description: 'White plays Nc3 — the main theoretical line. Black exchanges on e4 and develops the bishop to f5.',
+      sans: ['e4', 'c6', 'd4', 'd5', 'Nc3', 'dxe4', 'Nxe4', 'Bf5', 'Ng3', 'Bg6', 'N1e2', 'Nf6', 'c3', 'Nbd7', 'h4', 'h6', 'Nf4', 'Bh7'],
     },
     variations: [
       {
-        id: 'caro-classical',
-        name: 'Classical Variation',
-        description: 'Black exchanges on e4 and develops the bishop to f5 — the most principled response.',
-        sans: ['e4', 'c6', 'd4', 'd5', 'Nc3', 'dxe4', 'Nxe4', 'Bf5', 'Ng3', 'Bg6', 'N1e2', 'Nf6', 'c3', 'Nbd7', 'h4', 'h6', 'Nf4', 'Bh7'],
+        id: 'caro-advance',
+        name: 'Advance Variation',
+        description: 'White gains space with e5. Black develops the bishop outside the pawn chain before it closes.',
+        sans: ['e4', 'c6', 'd4', 'd5', 'e5', 'Bf5', 'c3', 'e6', 'Nf3', 'c5', 'Bb5+', 'Nd7', 'O-O', 'a6', 'Be2', 'Ne7'],
       },
       {
         id: 'caro-exchange',
