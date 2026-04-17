@@ -23,7 +23,7 @@ export function MoveList({ variation, currentMoveIndex }: MoveListProps) {
   }
 
   return (
-    <div className="rounded-xl border border-white/5 bg-[#1a1d27] p-4">
+    <div className="rounded-xl border border-white/5 bg-[var(--bg-panel)] p-4">
       <h3 className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-3">
         Move sequence
       </h3>

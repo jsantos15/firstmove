@@ -6,9 +6,8 @@ import Link from 'next/link';
 import { PracticeBoard } from '@/components/board/PracticeBoard';
 import { useOpening } from '@/hooks/useOpenings';
 import { MoveList } from '@/components/board/MoveList';
-import { DifficultyBadge, ColorBadge, Badge } from '@/components/ui/Badge';
+import { DifficultyBadge, ColorBadge } from '@/components/ui/Badge';
 import { usePracticeStore } from '@/stores/practiceStore';
-import { UserMenu } from '@/components/ui/UserMenu';
 import { useAuth } from '@/app/providers';
 import { useAllProgress, MASTERY_LABELS, MASTERY_COLORS } from '@/hooks/useProgress';
 
@@ -23,11 +22,11 @@ export default function PracticePage({ params }: PageProps) {
   const { data: progress } = useAllProgress();
   const [selectedVariationId, setSelectedVariationId] = useState('');
   const [showAuthPrompt, setShowAuthPrompt] = useState(false);
-  const { currentMoveIndex } = usePracticeStore();
+  const currentMoveIndex = usePracticeStore(s => s.currentMoveIndex);
 
   if (isLoading) {
     return (
-      <div className="h-screen flex items-center justify-center bg-[#0f1117]">
+      <div className="h-full flex items-center justify-center">
         <div className="w-6 h-6 border-2 border-amber-400/30 border-t-amber-400 rounded-full animate-spin" />
       </div>
     );
@@ -48,19 +47,16 @@ export default function PracticePage({ params }: PageProps) {
   }
 
   return (
-    <div className="h-screen flex flex-col bg-[#0f1117] overflow-hidden">
+    <div className="h-full flex flex-col overflow-hidden">
 
       {/* Header */}
-      <header className="shrink-0 border-b border-white/5 bg-[#0f1117]/80 backdrop-blur z-10">
-        <div className="px-6 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <Link href="/openings" className="text-gray-400 hover:text-white transition-colors text-sm">
-              ← Library
-            </Link>
-            <span className="text-white/20">/</span>
-            <span className="text-white font-medium text-sm">{opening.name}</span>
-          </div>
-          <UserMenu />
+      <header className="shrink-0 border-b border-white/5 bg-[var(--bg-base)]/80 backdrop-blur z-10">
+        <div className="px-6 py-4 flex items-center gap-3">
+          <Link href="/openings" className="text-gray-400 hover:text-white transition-colors text-sm">
+            ← Openings
+          </Link>
+          <span className="text-white/20">/</span>
+          <span className="text-white font-medium text-sm">{opening.name}</span>
         </div>
       </header>
 
@@ -78,9 +74,8 @@ export default function PracticePage({ params }: PageProps) {
           <div className="w-64 lg:w-72 shrink-0 h-full flex flex-col gap-4 overflow-y-auto">
 
             {/* Opening info */}
-            <div className="rounded-xl border border-white/5 bg-[#1a1d27] p-5">
+            <div className="rounded-xl border border-white/5 bg-[var(--bg-panel)] p-5">
               <div className="flex items-center gap-2 flex-wrap mb-3">
-                <Badge variant="eco">{opening.ecoCode}</Badge>
                 <ColorBadge color={opening.color} />
                 <DifficultyBadge difficulty={opening.difficulty} />
               </div>
@@ -88,8 +83,13 @@ export default function PracticePage({ params }: PageProps) {
               <p className="text-sm text-gray-400 leading-relaxed">{opening.description}</p>
             </div>
 
+            {/* Move list */}
+            {selectedVariation && (
+              <MoveList variation={selectedVariation} currentMoveIndex={currentMoveIndex} />
+            )}
+
             {/* Line selector */}
-            <div className="rounded-xl border border-white/5 bg-[#1a1d27] p-4">
+            <div className="rounded-xl border border-white/5 bg-[var(--bg-panel)] p-4">
               <h3 className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-3">
                 Lines
               </h3>
@@ -103,7 +103,7 @@ export default function PracticePage({ params }: PageProps) {
                       key={variation.id}
                       onClick={() => handleVariationClick(variation.id, index)}
                       className={`w-full text-left px-3 py-2.5 rounded-lg text-sm transition-colors ${
-                        variation.id === selectedVariationId
+                        variation.id === activeVariationId
                           ? 'bg-amber-400/15 text-amber-300 border border-amber-400/20'
                           : locked
                           ? 'text-gray-600 cursor-pointer hover:bg-white/5'
@@ -146,11 +146,6 @@ export default function PracticePage({ params }: PageProps) {
                 </div>
               )}
             </div>
-
-            {/* Move list */}
-            {selectedVariation && (
-              <MoveList variation={selectedVariation} currentMoveIndex={currentMoveIndex} />
-            )}
 
           </div>
 

@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(rm \"c:\\\\Users\\\\jesnt\\\\Documents\\\\Projects\\\\FirstMove\\\\apps\\\\web\\\\app\\\\openings\\\\[id]\\\\page.tsx\")",
+      "Bash(rmdir \"c:\\\\Users\\\\jesnt\\\\Documents\\\\Projects\\\\FirstMove\\\\apps\\\\web\\\\app\\\\openings\\\\[id]\")"
+    ]
+  }
+}

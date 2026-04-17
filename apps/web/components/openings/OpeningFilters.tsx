@@ -28,11 +28,12 @@ export function OpeningFilters({ filters, onChange }: OpeningFiltersProps) {
   ];
 
   return (
-    <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+    <div className="flex items-center gap-3 flex-wrap">
+
       {/* Search */}
-      <div className="relative max-w-xs w-full">
+      <div className="relative w-56">
         <svg
-          className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-500"
+          className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-500"
           fill="none"
           stroke="currentColor"
           viewBox="0 0 24 24"
@@ -41,61 +42,59 @@ export function OpeningFilters({ filters, onChange }: OpeningFiltersProps) {
         </svg>
         <input
           type="text"
-          placeholder="Search openings..."
+          placeholder="Search…"
           value={filters.search}
           onChange={e => onChange({ ...filters, search: e.target.value })}
-          className="w-full rounded-lg border border-white/10 bg-white/5 pl-9 pr-4 py-2 text-sm text-white placeholder-gray-500 focus:border-amber-400/50 focus:outline-none focus:ring-1 focus:ring-amber-400/30"
+          className="w-full rounded-lg border border-white/10 bg-white/5 pl-8 pr-3 py-1.5 text-xs text-white placeholder-gray-500 focus:border-amber-400/50 focus:outline-none focus:ring-1 focus:ring-amber-400/30"
         />
       </div>
 
-      {/* Filter pills */}
-      <div className="flex items-center gap-3 flex-wrap">
-        {/* Color filter */}
-        <div className="flex rounded-lg border border-white/10 overflow-hidden">
-          {colorOptions.map(opt => (
-            <button
-              key={opt.value}
-              onClick={() => onChange({ ...filters, color: opt.value })}
-              className={`px-3 py-1.5 text-xs font-medium transition-colors ${
-                filters.color === opt.value
-                  ? 'bg-amber-400/20 text-amber-400'
-                  : 'text-gray-400 hover:text-white hover:bg-white/5'
-              }`}
-            >
-              {opt.label}
-            </button>
-          ))}
-        </div>
-
-        {/* Difficulty filter */}
-        <div className="flex rounded-lg border border-white/10 overflow-hidden">
-          {difficultyOptions.map(opt => (
-            <button
-              key={opt.value}
-              onClick={() => onChange({ ...filters, difficulty: opt.value })}
-              className={`px-3 py-1.5 text-xs font-medium transition-colors ${
-                filters.difficulty === opt.value
-                  ? 'bg-amber-400/20 text-amber-400'
-                  : 'text-gray-400 hover:text-white hover:bg-white/5'
-              }`}
-            >
-              {opt.label}
-            </button>
-          ))}
-        </div>
-
-        {/* In Progress toggle */}
-        <button
-          onClick={() => onChange({ ...filters, inProgress: !filters.inProgress })}
-          className={`px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors ${
-            filters.inProgress
-              ? 'border-amber-400/50 bg-amber-400/20 text-amber-400'
-              : 'border-white/10 text-gray-400 hover:text-white hover:bg-white/5'
-          }`}
-        >
-          In Progress
-        </button>
+      {/* Color filter */}
+      <div className="flex rounded-lg border border-white/10 overflow-hidden">
+        {colorOptions.map(opt => (
+          <button
+            key={opt.value}
+            onClick={() => onChange({ ...filters, color: opt.value })}
+            className={`px-3 py-1.5 text-xs font-medium transition-colors ${
+              filters.color === opt.value
+                ? 'bg-amber-400/20 text-amber-400'
+                : 'text-gray-400 hover:text-white hover:bg-white/5'
+            }`}
+          >
+            {opt.label}
+          </button>
+        ))}
       </div>
+
+      {/* Difficulty filter */}
+      <div className="flex rounded-lg border border-white/10 overflow-hidden">
+        {difficultyOptions.map(opt => (
+          <button
+            key={opt.value}
+            onClick={() => onChange({ ...filters, difficulty: opt.value })}
+            className={`px-3 py-1.5 text-xs font-medium transition-colors ${
+              filters.difficulty === opt.value
+                ? 'bg-amber-400/20 text-amber-400'
+                : 'text-gray-400 hover:text-white hover:bg-white/5'
+            }`}
+          >
+            {opt.label}
+          </button>
+        ))}
+      </div>
+
+      {/* In Progress toggle */}
+      <button
+        onClick={() => onChange({ ...filters, inProgress: !filters.inProgress })}
+        className={`px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors ${
+          filters.inProgress
+            ? 'border-amber-400/50 bg-amber-400/20 text-amber-400'
+            : 'border-white/10 text-gray-400 hover:text-white hover:bg-white/5'
+        }`}
+      >
+        Progress
+      </button>
+
     </div>
   );
 }

@@ -4,65 +4,117 @@ import { Chessboard } from 'react-chessboard';
 import Link from 'next/link';
 import type { Opening } from '@firstmove/core';
 import { getCharacteristicFen } from '@firstmove/core';
-import { DifficultyBadge, ColorBadge, Badge } from '@/components/ui/Badge';
-import { type MasteryLevel, MASTERY_LABELS, MASTERY_COLORS } from '@/hooks/useProgress';
+import { ColorBadge, DifficultyBadge } from '@/components/ui/Badge';
+import type { MasteryLevel } from '@/hooks/useProgress';
+import { useBoardSettings } from '@/hooks/useBoardSettings';
+import { getCustomPieces } from '@/lib/piecesets';
+
+// ─── Types ────────────────────────────────────────────────────────────────────
 
 interface OpeningCardProps {
   opening: Opening;
-  mastery?: MasteryLevel;
+  completedLines?: number;
+  status?: MasteryLevel;
 }
 
-export function OpeningCard({ opening, mastery }: OpeningCardProps) {
+// ─── Status chip config ───────────────────────────────────────────────────────
+
+const STATUS_CHIP: Record<Exclude<MasteryLevel, 'new'>, { label: string; cls: string }> = {
+  learning: { label: 'Learning', cls: 'text-amber-400 bg-amber-400/10 border-amber-400/20' },
+  familiar: { label: 'Familiar', cls: 'text-blue-400  bg-blue-400/10  border-blue-400/20'  },
+  mastered: { label: 'Mastered', cls: 'text-green-400 bg-green-400/10 border-green-400/20' },
+};
+
+// ─── Line progress dots ───────────────────────────────────────────────────────
+
+function LineDots({ completed, total }: { completed: number; total: number }) {
+  if (total === 0) return null;
+
+  // Up to 10 lines: individual dots
+  if (total <= 10) {
+    return (
+      <div className="flex items-center gap-1.25">
+        {Array.from({ length: total }).map((_, i) => (
+          <div
+            key={i}
+            className={`w-1.75 h-1.75 rounded-full ${
+              i < completed ? 'bg-amber-400' : 'bg-white/15'
+            }`}
+          />
+        ))}
+      </div>
+    );
+  }
+
+  // More than 10: thin progress bar + fraction text
+  const pct = (completed / total) * 100;
+  return (
+    <div className="flex items-center gap-2">
+      <div className="h-0.75 w-16 rounded-full bg-white/10 overflow-hidden">
+        <div className="h-full rounded-full bg-amber-400" style={{ width: `${pct}%` }} />
+      </div>
+      <span className="text-[11px] text-gray-500">{completed}/{total}</span>
+    </div>
+  );
+}
+
+// ─── Card ─────────────────────────────────────────────────────────────────────
+
+export function OpeningCard({ opening, completedLines = 0, status = 'new' }: OpeningCardProps) {
   const fen = getCharacteristicFen(opening);
-  const lineCount = opening.variations.length;
+  const totalLines = opening.variations.length;
+  const chip = status !== 'new' ? STATUS_CHIP[status] : null;
+  const { theme, settings } = useBoardSettings();
+  const customPieces = getCustomPieces(settings.pieceSetId);
 
   return (
-    <Link href={`/openings/${opening.id}`}>
-      <div className="group flex gap-4 rounded-xl border border-white/5 bg-[#1a1d27] p-4 transition-all duration-200 hover:border-white/15 hover:bg-[#1e2130] cursor-pointer">
-        {/* Mini Board */}
-        <div className="shrink-0 rounded-lg overflow-hidden w-[130px] h-[130px] pointer-events-none">
-          <Chessboard
-            position={fen}
-            boardWidth={130}
-            arePiecesDraggable={false}
-            boardOrientation={opening.color === 'black' ? 'black' : 'white'}
-            customBoardStyle={{ borderRadius: '8px' }}
-            customDarkSquareStyle={{ backgroundColor: '#4a7c59' }}
-            customLightSquareStyle={{ backgroundColor: '#f0d9b5' }}
-          />
+    <Link href={`/openings/${opening.id}`} className="block">
+      <div className="group rounded-xl border border-white/5 bg-[var(--bg-panel)] overflow-hidden transition-all duration-200 hover:border-amber-400/20 hover:-translate-y-0.5 hover:shadow-xl hover:shadow-black/40 cursor-pointer">
+
+        {/* Board preview — sits in a darker panel so it floats */}
+        <div className="flex items-center justify-center bg-[var(--bg-sidebar)] py-5 pointer-events-none">
+          <div className="rounded-lg overflow-hidden ring-1 ring-white/8">
+            <Chessboard
+              position={fen}
+              boardWidth={180}
+              arePiecesDraggable={false}
+              boardOrientation={opening.color === 'black' ? 'black' : 'white'}
+              customDarkSquareStyle={{ backgroundColor: theme.dark }}
+              customLightSquareStyle={{ backgroundColor: theme.light }}
+              customPieces={customPieces}
+              animationDuration={0}
+            />
+          </div>
         </div>
 
-        {/* Content */}
-        <div className="flex flex-col justify-between flex-1 min-w-0">
-          <div>
-            <div className="flex items-center gap-2 flex-wrap mb-1.5">
-              <Badge variant="eco">{opening.ecoCode}</Badge>
-              <ColorBadge color={opening.color} />
-              <DifficultyBadge difficulty={opening.difficulty} />
-            </div>
-            <h3 className="font-semibold text-white text-base leading-tight group-hover:text-amber-400 transition-colors">
-              {opening.name}
-            </h3>
-            <p className="mt-1.5 text-sm text-gray-400 leading-relaxed line-clamp-2">
-              {opening.description}
-            </p>
+        {/* Info panel */}
+        <div className="p-4">
+
+          {/* Color + difficulty */}
+          <div className="flex items-center gap-1.5 mb-2.5">
+            <ColorBadge color={opening.color} />
+            <DifficultyBadge difficulty={opening.difficulty} />
           </div>
 
-          <div className="flex items-center justify-between mt-3">
-            <span className="text-xs text-gray-500">
-              {lineCount} {lineCount === 1 ? 'line' : 'lines'}
-            </span>
-            {mastery && mastery !== 'new' ? (
-              <span className="flex items-center gap-1.5 text-xs text-gray-400">
-                <span className={`w-2 h-2 rounded-full ${MASTERY_COLORS[mastery]}`} />
-                {MASTERY_LABELS[mastery]}
+          {/* Opening name */}
+          <h3 className="font-semibold text-white text-sm leading-snug mb-3 group-hover:text-amber-400 transition-colors line-clamp-2">
+            {opening.name}
+          </h3>
+
+          {/* Progress row */}
+          <div className="flex items-center justify-between gap-2">
+            <LineDots completed={completedLines} total={totalLines} />
+            {chip ? (
+              <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-medium shrink-0 ${chip.cls}`}>
+                {chip.label}
               </span>
             ) : (
-              <span className="text-xs text-amber-400 opacity-0 group-hover:opacity-100 transition-opacity">
-                Practice →
+              <span className="text-[11px] text-gray-600 shrink-0">
+                {totalLines} {totalLines === 1 ? 'line' : 'lines'}
               </span>
             )}
           </div>
+
         </div>
       </div>
     </Link>

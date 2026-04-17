@@ -1,11 +1,14 @@
 'use client';
 
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useMemo } from 'react';
 import { Chessboard } from 'react-chessboard';
 import type { Opening, OpeningVariation } from '@firstmove/core';
 import { usePracticeStore, isUserTurn } from '@/stores/practiceStore';
 import { useRecordCompletion } from '@/hooks/useProgress';
 import { useAuth } from '@/app/providers';
+import { CompletionOverlay } from './CompletionOverlay';
+import { useBoardSettings } from '@/hooks/useBoardSettings';
+import { getCustomPieces } from '@/lib/piecesets';
 import type { Square } from 'chess.js';
 
 interface PracticeBoardProps {
@@ -14,45 +17,43 @@ interface PracticeBoardProps {
 }
 
 export function PracticeBoard({ opening, variation }: PracticeBoardProps) {
-  const {
-    chess,
-    currentMoveIndex,
-    status,
-    wrongMoveFrom,
-    wrongMoveTo,
-    startPractice,
-    attemptMove,
-    advanceComputerMove,
-    restart,
-  } = usePracticeStore();
+  const chess           = usePracticeStore(s => s.chess);
+  const currentMoveIndex = usePracticeStore(s => s.currentMoveIndex);
+  const status          = usePracticeStore(s => s.status);
+  const wrongMoveFrom   = usePracticeStore(s => s.wrongMoveFrom);
+  const wrongMoveTo     = usePracticeStore(s => s.wrongMoveTo);
+  const startPractice   = usePracticeStore(s => s.startPractice);
+  const attemptMove     = usePracticeStore(s => s.attemptMove);
+  const advanceComputerMove = usePracticeStore(s => s.advanceComputerMove);
+  const restart         = usePracticeStore(s => s.restart);
 
-  const moves = variation.moves;
+  const moves        = variation.moves;
   const expectedMove = moves[currentMoveIndex];
-  const isMyTurn = status === 'playing' && isUserTurn(currentMoveIndex, opening.color);
-  const playerColor = opening.color === 'white' ? 'w' : 'b';
+  const isMyTurn     = status === 'playing' && isUserTurn(currentMoveIndex, opening.color);
+  const playerColor  = opening.color === 'white' ? 'w' : 'b';
+
+  // ─── Board settings ──────────────────────────────────────────────────────────
+  const { theme, animationDuration: settingsAnimDuration, settings } = useBoardSettings();
+  const customPieces     = useMemo(() => getCustomPieces(settings.pieceSetId), [settings.pieceSetId]);
+  const darkSquareStyle  = useMemo(() => ({ backgroundColor: theme.dark }),  [theme.dark]);
+  const lightSquareStyle = useMemo(() => ({ backgroundColor: theme.light }), [theme.light]);
 
   // ─── Progress recording ─────────────────────────────────────────────────────
-  // Only record once per completion — ref resets when the variation changes.
   const { user } = useAuth();
   const recordCompletion = useRecordCompletion();
   const hasRecordedRef = useRef(false);
 
-  useEffect(() => {
-    hasRecordedRef.current = false;
-  }, [variation.id]);
+  useEffect(() => { hasRecordedRef.current = false; }, [variation.id]);
 
   useEffect(() => {
     if (status === 'complete' && !hasRecordedRef.current && user) {
       hasRecordedRef.current = true;
       recordCompletion.mutate({ openingSlug: opening.id, variationSlug: variation.id });
     }
-    // recordCompletion.mutate is stable; opening/variation IDs don't change mid-session.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [status, user]);
 
-  // ─── Responsive board size ──────────────────────────────────────────────────
-  // Ref is on the board-wrapper div (flex-1), so its height already excludes
-  // the status bar and controls. min(w, h) gives the largest fitting square.
+  // ─── Responsive board size ───────────────────────────────────────────────────
   const boardWrapperRef = useRef<HTMLDivElement>(null);
   const [boardSize, setBoardSize] = useState(480);
 
@@ -69,26 +70,28 @@ export function PracticeBoard({ opening, variation }: PracticeBoardProps) {
     return () => obs.disconnect();
   }, []);
 
-  // ─── Click-to-move state ────────────────────────────────────────────────────
-  // Derived-state pattern: track which move/status the selection belongs to,
-  // and reset during render (not via effect) when they change.
+  // ─── Click-to-move state ─────────────────────────────────────────────────────
   const [selectedSquare, setSelectedSquare] = useState<Square | null>(null);
-  const [optionSquares, setOptionSquares] = useState<Record<string, React.CSSProperties>>({});
-  const [selectionKey, setSelectionKey] = useState(`${currentMoveIndex}-${status}`);
+  const [optionSquares, setOptionSquares]   = useState<Record<string, React.CSSProperties>>({});
 
-  const currentKey = `${currentMoveIndex}-${status}`;
-  if (selectionKey !== currentKey) {
-    setSelectionKey(currentKey);
+  // Reset selection when move index or status changes (effect, not during render)
+  useEffect(() => {
     setSelectedSquare(null);
     setOptionSquares({});
-  }
+  }, [currentMoveIndex, status]);
 
-  // ─── Practice lifecycle ─────────────────────────────────────────────────────
+  const computerReplyDelay = 300;
 
+  // ─── Move sound ──────────────────────────────────────────────────────────────
+  const prevMoveIndexRef = useRef(currentMoveIndex);
+  useEffect(() => {
+    if (currentMoveIndex > prevMoveIndexRef.current && settings.moveSound) playMoveSound();
+    prevMoveIndexRef.current = currentMoveIndex;
+  }, [currentMoveIndex, settings.moveSound]);
+
+  // ─── Practice lifecycle ──────────────────────────────────────────────────────
   useEffect(() => {
     startPractice(opening, variation);
-    // Intentional: only re-run when the opening/variation ID changes, not on
-    // every reference change. startPractice is a stable Zustand action.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [opening.id, variation.id]);
 
@@ -96,14 +99,12 @@ export function PracticeBoard({ opening, variation }: PracticeBoardProps) {
     if (status !== 'playing') return;
     if (isUserTurn(currentMoveIndex, opening.color)) return;
     if (currentMoveIndex >= moves.length) return;
-    const timer = setTimeout(() => advanceComputerMove(), 550);
+    const timer = setTimeout(() => advanceComputerMove(), computerReplyDelay);
     return () => clearTimeout(timer);
-    // advanceComputerMove is a stable Zustand action; safe to omit.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentMoveIndex, status, opening.color, moves.length]);
+  }, [currentMoveIndex, status, opening.color, moves.length, computerReplyDelay]);
 
-  // ─── Helpers ────────────────────────────────────────────────────────────────
-  // No useCallback — React Compiler handles memoization automatically.
+  // ─── Helpers ─────────────────────────────────────────────────────────────────
 
   function buildOptionSquares(square: Square): Record<string, React.CSSProperties> {
     const legalMoves = chess.moves({ square, verbose: true });
@@ -125,20 +126,13 @@ export function PracticeBoard({ opening, variation }: PracticeBoardProps) {
     if (!isMyTurn) return false;
     let move;
     try {
-      move = chess.move({
-        from: sourceSquare as Square,
-        to: targetSquare as Square,
-        promotion: 'q',
-      });
-    } catch {
-      return false;
-    }
+      move = chess.move({ from: sourceSquare as Square, to: targetSquare as Square, promotion: 'q' });
+    } catch { return false; }
     return attemptMove(sourceSquare, targetSquare, move.san);
   }
 
   function onSquareClick(square: Square) {
     if (!isMyTurn) return;
-
     if (!selectedSquare) {
       const piece = chess.get(square);
       if (!piece || piece.color !== playerColor) return;
@@ -146,20 +140,17 @@ export function PracticeBoard({ opening, variation }: PracticeBoardProps) {
       setOptionSquares(buildOptionSquares(square));
       return;
     }
-
     if (square === selectedSquare) {
       setSelectedSquare(null);
       setOptionSquares({});
       return;
     }
-
     const piece = chess.get(square);
     if (piece && piece.color === playerColor) {
       setSelectedSquare(square);
       setOptionSquares(buildOptionSquares(square));
       return;
     }
-
     let move;
     try {
       move = chess.move({ from: selectedSquare, to: square, promotion: 'q' });
@@ -173,31 +164,47 @@ export function PracticeBoard({ opening, variation }: PracticeBoardProps) {
     attemptMove(selectedSquare, square, move.san);
   }
 
-  // ─── Square highlights ──────────────────────────────────────────────────────
+  // ─── Hint square ─────────────────────────────────────────────────────────────
+  const hintFromSquare = useMemo(() => {
+    if (!isMyTurn || !expectedMove || selectedSquare) return null;
+    return getFromSquare(chess.fen(), expectedMove.san);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isMyTurn, expectedMove?.san, selectedSquare, currentMoveIndex]);
 
-  const customSquareStyles: Record<string, React.CSSProperties> = { ...optionSquares };
+  // ─── Square highlights ───────────────────────────────────────────────────────
+  const lastMove = useMemo(() => {
+    const h = chess.history({ verbose: true });
+    return h[h.length - 1];
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentMoveIndex]);
+
+  const customSquareStyles: Record<string, React.CSSProperties> = {};
+
+  if (lastMove && status !== 'wrong') {
+    customSquareStyles[lastMove.from] = { backgroundColor: 'rgba(255, 210, 0, 0.38)' };
+    customSquareStyles[lastMove.to]   = { backgroundColor: 'rgba(255, 210, 0, 0.38)' };
+  }
+
+  Object.assign(customSquareStyles, optionSquares);
 
   if (status === 'wrong' && wrongMoveFrom && wrongMoveTo) {
     customSquareStyles[wrongMoveFrom] = { backgroundColor: 'rgba(220, 38, 38, 0.5)' };
-    customSquareStyles[wrongMoveTo] = { backgroundColor: 'rgba(220, 38, 38, 0.5)' };
+    customSquareStyles[wrongMoveTo]   = { backgroundColor: 'rgba(220, 38, 38, 0.5)' };
   }
 
-  if (isMyTurn && expectedMove && !selectedSquare) {
-    const fromSquare = getFromSquare(chess.fen(), expectedMove.san);
-    if (fromSquare) {
-      customSquareStyles[fromSquare] = {
-        ...(customSquareStyles[fromSquare] ?? {}),
-        boxShadow: 'inset 0 0 0 3px rgba(251, 191, 36, 0.3)',
-      };
-    }
+  if (isMyTurn && hintFromSquare && !selectedSquare) {
+    customSquareStyles[hintFromSquare] = {
+      ...(customSquareStyles[hintFromSquare] ?? {}),
+      boxShadow: 'inset 0 0 0 3px rgba(251, 191, 36, 0.3)',
+    };
   }
 
   const progressPct = moves.length > 0 ? (currentMoveIndex / moves.length) * 100 : 0;
 
   return (
-    <div className="h-full w-full flex flex-col gap-3">
+    <div className="relative h-full w-full flex flex-col gap-3">
 
-      {/* Status bar — matches board width */}
+      {/* Status bar */}
       <div className="shrink-0 mx-auto w-full" style={{ maxWidth: boardSize }}>
         <div className="flex items-center justify-between mb-2 text-sm">
           <span className="text-gray-400">
@@ -209,9 +216,7 @@ export function PracticeBoard({ opening, variation }: PracticeBoardProps) {
               ? `Your turn (${opening.color})`
               : 'Computer is thinking…'}
           </span>
-          <span className="text-gray-500">
-            {currentMoveIndex}/{moves.length} moves
-          </span>
+          <span className="text-gray-500">{currentMoveIndex}/{moves.length} moves</span>
         </div>
         <div className="h-1 rounded-full bg-white/10 overflow-hidden">
           <div
@@ -223,49 +228,48 @@ export function PracticeBoard({ opening, variation }: PracticeBoardProps) {
         </div>
       </div>
 
-      {/* Board wrapper — takes all remaining height; min(w, h) gives the board size */}
-      <div
-        ref={boardWrapperRef}
-        className="flex-1 min-h-0 w-full flex items-center justify-center"
-      >
-        <div
-          className={`rounded-xl overflow-hidden transition-all duration-150 ${
-            status === 'wrong' ? 'ring-2 ring-red-500/60' : 'ring-1 ring-white/10'
-          } ${status === 'complete' ? 'ring-2 ring-green-400/60' : ''}`}
-        >
+      {/* Board */}
+      <div ref={boardWrapperRef} className="flex-1 min-h-0 w-full flex items-center justify-center">
+        <div className={`rounded-xl overflow-hidden transition-all duration-150 ${
+          status === 'wrong' ? 'ring-2 ring-red-500/60' : 'ring-1 ring-white/10'
+        } ${status === 'complete' ? 'ring-2 ring-green-400/60' : ''}`}>
           <Chessboard
             position={chess.fen()}
             onPieceDrop={onPieceDrop}
             onSquareClick={onSquareClick}
             boardWidth={boardSize}
             boardOrientation={opening.color}
-            arePiecesDraggable={isMyTurn}
+            arePiecesDraggable={true}
+            arePremovesAllowed={true}
+            clearPremovesOnRightClick={true}
+            isDraggablePiece={({ piece }) => piece[0] === playerColor}
             customSquareStyles={customSquareStyles}
-            customDarkSquareStyle={{ backgroundColor: '#4a7c59' }}
-            customLightSquareStyle={{ backgroundColor: '#f0d9b5' }}
-            animationDuration={200}
+            showBoardNotation={settings.showCoordinates}
+            customDarkSquareStyle={darkSquareStyle}
+            customLightSquareStyle={lightSquareStyle}
+            animationDuration={settingsAnimDuration}
+            customPieces={customPieces}
           />
         </div>
       </div>
 
       {/* Controls */}
       <div className="shrink-0 flex items-center justify-center gap-3">
-        {status === 'complete' ? (
-          <button
-            onClick={restart}
-            className="flex items-center gap-2 rounded-lg bg-green-500/20 border border-green-500/30 px-5 py-2.5 text-sm font-medium text-green-400 hover:bg-green-500/30 transition-colors"
-          >
-            ↺ Practice again
-          </button>
-        ) : (
-          <button
-            onClick={restart}
-            className="flex items-center gap-2 rounded-lg border border-white/10 px-4 py-2 text-sm text-gray-400 hover:text-white hover:border-white/20 transition-colors"
-          >
-            ↺ Restart
-          </button>
-        )}
+        <button
+          onClick={restart}
+          className="flex items-center gap-2 rounded-lg border border-white/10 px-4 py-2 text-sm text-gray-400 hover:text-white hover:border-white/20 transition-colors"
+        >
+          ↺ Restart
+        </button>
       </div>
+
+      {status === 'complete' && (
+        <CompletionOverlay
+          variationName={variation.name}
+          moveCount={moves.length}
+          onPracticeAgain={restart}
+        />
+      )}
 
     </div>
   );
@@ -274,6 +278,36 @@ export function PracticeBoard({ opening, variation }: PracticeBoardProps) {
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 import { Chess } from 'chess.js';
+
+let _audioCtx: AudioContext | null = null;
+function getAudioCtx(): AudioContext {
+  if (!_audioCtx || _audioCtx.state === 'closed') _audioCtx = new AudioContext();
+  return _audioCtx;
+}
+
+function playMoveSound() {
+  try {
+    const ctx = getAudioCtx();
+    if (ctx.state === 'suspended') ctx.resume();
+    const bufferSize = Math.floor(ctx.sampleRate * 0.08);
+    const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < bufferSize; i++) {
+      data[i] = (Math.random() * 2 - 1) * Math.exp(-i / (bufferSize * 0.12));
+    }
+    const source = ctx.createBufferSource();
+    source.buffer = buffer;
+    const filter = ctx.createBiquadFilter();
+    filter.type = 'lowpass';
+    filter.frequency.value = 700;
+    const gain = ctx.createGain();
+    gain.gain.value = 0.5;
+    source.connect(filter);
+    filter.connect(gain);
+    gain.connect(ctx.destination);
+    source.start();
+  } catch {}
+}
 
 function getFromSquare(fen: string, san: string): string | null {
   try {

@@ -3,9 +3,9 @@
 import { useState, useMemo } from 'react';
 import { OpeningCard } from '@/components/openings/OpeningCard';
 import { OpeningFilters } from '@/components/openings/OpeningFilters';
-import { UserMenu } from '@/components/ui/UserMenu';
-import { useAllProgress, getOpeningMastery } from '@/hooks/useProgress';
+import { useAllProgress, getOpeningProgress } from '@/hooks/useProgress';
 import { useOpenings } from '@/hooks/useOpenings';
+import type { Opening } from '@firstmove/core';
 
 interface Filters {
   search: string;
@@ -43,7 +43,7 @@ export default function OpeningsPage() {
     });
 
     if (filters.inProgress) {
-      const getProgressCount = (o: typeof OPENINGS[0]) =>
+      const getProgressCount = (o: Opening) =>
         o.variations.filter(v => (progress?.get(`${o.id}/${v.id}`)?.timesCompleted ?? 0) > 0).length;
       return result
         .filter(o => getProgressCount(o) > 0)
@@ -54,36 +54,19 @@ export default function OpeningsPage() {
   }, [filters, openings, progress]);
 
   return (
-    <div className="min-h-screen bg-[#0f1117]">
-      {/* Header */}
-      <header className="border-b border-white/5 bg-[#0f1117]/80 backdrop-blur sticky top-0 z-10">
-        <div className="mx-auto max-w-6xl px-6 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <span className="text-2xl">♟</span>
-            <span className="font-bold text-white text-lg tracking-tight">FirstMove</span>
-          </div>
-          <nav className="flex items-center gap-6 text-sm text-gray-400">
-            <span className="text-white font-medium">Library</span>
-            <a href="#" className="hover:text-white transition-colors">My Progress</a>
-            <UserMenu />
-          </nav>
-        </div>
-      </header>
+    <div className="h-full overflow-y-auto bg-[var(--bg-base)]">
 
       {/* Hero */}
-      <div className="mx-auto max-w-6xl px-6 pt-12 pb-8">
-        <h1 className="text-3xl font-bold text-white mb-2">Chess Opening Courses</h1>
-        <p className="text-gray-400">
+      <div className="mx-auto max-w-6xl px-6 pt-10 pb-6">
+        <p className="text-2xl font-bold text-white mb-1">Chess Opening Courses</p>
+        <p className="text-gray-400 text-sm">
           Learn the most important openings step by step. Pick one and practice until it&apos;s muscle memory.
         </p>
       </div>
 
       {/* Filters */}
       <div className="mx-auto max-w-6xl px-6 pb-6">
-        <OpeningFilters
-          filters={filters}
-          onChange={setFilters}
-        />
+        <OpeningFilters filters={filters} onChange={setFilters} />
       </div>
 
       {/* Grid */}
@@ -104,17 +87,26 @@ export default function OpeningsPage() {
             </button>
           </div>
         ) : (
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            {filtered.map(opening => (
-              <OpeningCard
-                key={opening.id}
-                opening={opening}
-                mastery={getOpeningMastery(progress, opening.id, opening.variations.map(v => v.id))}
-              />
-            ))}
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {filtered.map(opening => {
+              const { status, completedLines } = getOpeningProgress(
+                progress,
+                opening.id,
+                opening.variations.map(v => v.id)
+              );
+              return (
+                <OpeningCard
+                  key={opening.id}
+                  opening={opening}
+                  completedLines={completedLines}
+                  status={status}
+                />
+              );
+            })}
           </div>
         )}
       </div>
+
     </div>
   );
 }

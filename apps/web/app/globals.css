@@ -4,12 +4,94 @@
   --font-geist: 'Geist', sans-serif;
 }
 
+/* ─── App themes ──────────────────────────────────────────────────────────── */
+
+:root,
+[data-theme="dark"] {
+  --bg-base:    #0f1117;
+  --bg-panel:   #1a1d27;
+  --bg-sidebar: #13151e;
+  --border:     rgba(255,255,255,0.05);
+  --text-1:     #ffffff;
+  --text-2:     #9ca3af;
+  --text-3:     #4b5563;
+}
+
+[data-theme="dusk"] {
+  --bg-base:    #1c1f2e;
+  --bg-panel:   #252838;
+  --bg-sidebar: #1a1d2a;
+  --border:     rgba(255,255,255,0.07);
+  --text-1:     #e8eaf2;
+  --text-2:     #8b95ad;
+  --text-3:     #555f75;
+}
+
+[data-theme="light"] {
+  --bg-base:    #f0f2f5;
+  --bg-panel:   #ffffff;
+  --bg-sidebar: #e4e6ed;
+  --border:     rgba(0,0,0,0.1);
+  --text-1:     #0f1117;
+  --text-2:     #374151;
+  --text-3:     #6b7280;
+}
+
+/* ─── Light-mode: override Tailwind color utilities ──────────────────────── */
+/* Flat selectors beat Tailwind's utility specificity reliably.               */
+
+/* Neutral text */
+[data-theme="light"] .text-white,
+[data-theme="light"] .text-gray-300  { color: var(--text-1); }
+[data-theme="light"] .text-gray-400  { color: var(--text-2); }
+[data-theme="light"] .text-gray-500,
+[data-theme="light"] .text-gray-600  { color: var(--text-3); }
+
+/* Neutral borders */
+[data-theme="light"] .border-white\/5,
+[data-theme="light"] .border-white\/10 { border-color: var(--border); }
+
+/* Neutral backgrounds */
+[data-theme="light"] .hover\:bg-white\/5:hover  { background-color: rgba(0,0,0,0.04); }
+[data-theme="light"] .hover\:bg-white\/10:hover { background-color: rgba(0,0,0,0.06); }
+[data-theme="light"] .bg-white\/5  { background-color: rgba(0,0,0,0.04); }
+[data-theme="light"] .bg-white\/10 { background-color: rgba(0,0,0,0.06); }
+[data-theme="light"] .bg-white\/15 { background-color: rgba(0,0,0,0.08); }
+
+/* Amber — shift to amber-700 (#b45309) for contrast on white */
+[data-theme="light"] .text-amber-400             { color: #b45309; }
+[data-theme="light"] .text-amber-300             { color: #b45309; }
+[data-theme="light"] .border-amber-400\/20       { border-color: rgba(180,83,9,0.3); }
+[data-theme="light"] .border-amber-400\/30       { border-color: rgba(180,83,9,0.4); }
+[data-theme="light"] .border-amber-400\/60       { border-color: rgba(180,83,9,0.65); }
+[data-theme="light"] .bg-amber-400\/10           { background-color: rgba(180,83,9,0.08); }
+[data-theme="light"] .bg-amber-400\/15           { background-color: rgba(180,83,9,0.12); }
+[data-theme="light"] .bg-amber-400\/20           { background-color: rgba(180,83,9,0.15); }
+
+/* Green — shift to green-700 (#15803d) */
+[data-theme="light"] .text-green-400             { color: #15803d; }
+[data-theme="light"] .border-green-400\/30       { border-color: rgba(21,128,61,0.35); }
+[data-theme="light"] .bg-green-400\/10           { background-color: rgba(21,128,61,0.1); }
+[data-theme="light"] .bg-green-500\/20           { background-color: rgba(21,128,61,0.12); }
+[data-theme="light"] .hover\:bg-green-500\/30:hover { background-color: rgba(21,128,61,0.18); }
+[data-theme="light"] .border-green-500\/30       { border-color: rgba(21,128,61,0.3); }
+
+/* Blue */
+[data-theme="light"] .text-blue-400              { color: #1d4ed8; }
+
+/* Sidebar active nav item — amber looks wrong on light sidebar, use indigo instead */
+[data-theme="light"] .bg-amber-400\/12           { background-color: rgba(99,102,241,0.12); }
+[data-theme="light"] nav .text-amber-400         { color: #4338ca; }
+
+/* ─── Base styles ─────────────────────────────────────────────────────────── */
+
 * {
   box-sizing: border-box;
 }
 
 body {
   font-family: var(--font-geist), sans-serif;
+  background-color: var(--bg-base);
 }
 
 html {
@@ -17,6 +99,6 @@ html {
 }
 
 ::-webkit-scrollbar { width: 6px; }
-::-webkit-scrollbar-track { background: #0f1117; }
-::-webkit-scrollbar-thumb { background: #2a2d3a; border-radius: 3px; }
-::-webkit-scrollbar-thumb:hover { background: #3a3d4a; }
+::-webkit-scrollbar-track { background: var(--bg-base); }
+::-webkit-scrollbar-thumb { background: var(--bg-panel); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--bg-sidebar); }
