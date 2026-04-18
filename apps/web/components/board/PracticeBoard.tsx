@@ -16,12 +16,35 @@ interface PracticeBoardProps {
 }
 
 type PracticeStatus = 'loading' | 'playing' | 'wrong' | 'complete';
+type PromotionPiece = 'q' | 'r' | 'b' | 'n';
 
-const CPU_REPLY_DELAY_MS = 300;
+interface QueuedPremove {
+  from: string;
+  to: string;
+}
+
+const CPU_REPLY_DELAY_MS = 2000;
 const WRONG_MOVE_RESET_MS = 900;
 
 function isUserTurn(moveIndex: number, openingColor: 'white' | 'black') {
   return openingColor === 'white' ? moveIndex % 2 === 0 : moveIndex % 2 === 1;
+}
+
+function isPromotionCandidate(chess: Chess, from: string, to: string) {
+  const piece = chess.get(from as Parameters<Chess['get']>[0]);
+  if (!piece || piece.type !== 'p') return false;
+  const targetRank = to[1];
+  return (piece.color === 'w' && targetRank === '8') || (piece.color === 'b' && targetRank === '1');
+}
+
+function isCaptureStyleMove(flags?: string) {
+  return Boolean(flags?.includes('c') || flags?.includes('e'));
+}
+
+function normalizePromotionPiece(piece?: string): PromotionPiece {
+  const normalized = piece?.toLowerCase();
+  if (normalized === 'q' || normalized === 'r' || normalized === 'b' || normalized === 'n') return normalized;
+  return 'q';
 }
 
 let audioCtx: AudioContext | null = null;
@@ -65,6 +88,7 @@ export function PracticeBoard({ opening, variation, onMoveIndexChange }: Practic
   const chessRef = useRef(new Chess());
   const wrapperRef = useRef<HTMLDivElement>(null);
   const wrongResetRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const clickPremoveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const hasRecordedRef = useRef(false);
   const prevMoveIndexRef = useRef(0);
 
@@ -75,6 +99,7 @@ export function PracticeBoard({ opening, variation, onMoveIndexChange }: Practic
   const [overlayDismissed, setOverlayDismissed] = useState(false);
   const [wrongMoveTo, setWrongMoveTo] = useState<string | null>(null);
   const [selectedSquare, setSelectedSquare] = useState<string | null>(null);
+  const [queuedClickPremove, setQueuedClickPremove] = useState<QueuedPremove | null>(null);
   const [boardSize, setBoardSize] = useState(480);
 
   // ─── Browse / review navigation ──────────────────────────────────────────────
@@ -120,7 +145,9 @@ export function PracticeBoard({ opening, variation, onMoveIndexChange }: Practic
 
   const resetPractice = () => {
     if (wrongResetRef.current) clearTimeout(wrongResetRef.current);
+    if (clickPremoveTimerRef.current) clearTimeout(clickPremoveTimerRef.current);
     wrongResetRef.current = null;
+    clickPremoveTimerRef.current = null;
     hasRecordedRef.current = false;
     chessRef.current = new Chess();
     setPosition(chessRef.current.fen());
@@ -129,6 +156,7 @@ export function PracticeBoard({ opening, variation, onMoveIndexChange }: Practic
     setWrongMoveFrom(null);
     setWrongMoveTo(null);
     setSelectedSquare(null);
+    setQueuedClickPremove(null);
     setViewIndex(null);
     setOverlayDismissed(false);
     chessboardRef.current?.clearPremoves?.();
@@ -138,6 +166,13 @@ export function PracticeBoard({ opening, variation, onMoveIndexChange }: Practic
     resetPractice();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [opening.id, variation.id]);
+
+  useEffect(() => {
+    return () => {
+      if (wrongResetRef.current) clearTimeout(wrongResetRef.current);
+      if (clickPremoveTimerRef.current) clearTimeout(clickPremoveTimerRef.current);
+    };
+  }, []);
 
   useEffect(() => {
     const el = wrapperRef.current;
@@ -164,6 +199,14 @@ export function PracticeBoard({ opening, variation, onMoveIndexChange }: Practic
     }
   }, [opening.id, recordCompletion, status, user, variation.id]);
 
+  useEffect(() => {
+    if (status === 'wrong' || status === 'complete' || !isLive) {
+      chessboardRef.current?.clearPremoves?.();
+      setQueuedClickPremove(null);
+      setSelectedSquare(null);
+    }
+  }, [isLive, status]);
+
   // Computer reply — only advances when live
   useEffect(() => {
     if (status !== 'playing') return;
@@ -182,11 +225,20 @@ export function PracticeBoard({ opening, variation, onMoveIndexChange }: Practic
       setStatus(nextIndex >= moves.length ? 'complete' : 'playing');
       setWrongMoveFrom(null);
       setWrongMoveTo(null);
+
+      if (queuedClickPremove && nextIndex < moves.length) {
+        if (clickPremoveTimerRef.current) clearTimeout(clickPremoveTimerRef.current);
+        clickPremoveTimerRef.current = setTimeout(() => {
+          const premoveChess = new Chess(nextChess.fen());
+          commitMove(queuedClickPremove.from, queuedClickPremove.to, 'q', nextIndex, premoveChess);
+          clickPremoveTimerRef.current = null;
+        }, animationDuration);
+      }
     }, CPU_REPLY_DELAY_MS);
 
     return () => clearTimeout(timer);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentMoveIndex, moves, opening.color, status]);
+  }, [animationDuration, currentMoveIndex, moves, opening.color, queuedClickPremove, status]);
 
   // ─── Derived display values ───────────────────────────────────────────────────
 
@@ -215,21 +267,72 @@ export function PracticeBoard({ opening, variation, onMoveIndexChange }: Practic
 
   const progressPct = moves.length > 0 ? (currentMoveIndex / moves.length) * 100 : 0;
 
+  const legalTargets = useMemo(() => {
+    if (!isLive || status !== 'playing' || !selectedSquare) return [];
+
+    const selectionChess = new Chess(chessRef.current.fen());
+    if (!isMyTurn) {
+      const opponentReply = moves[currentMoveIndex];
+      if (!opponentReply) return [];
+      try {
+        selectionChess.move(opponentReply.san);
+      } catch {
+        return [];
+      }
+    }
+
+    try {
+      return selectionChess.moves({
+        square: selectedSquare as Parameters<Chess['moves']>[0]['square'],
+        verbose: true,
+      });
+    } catch {
+      return [];
+    }
+  }, [currentMoveIndex, isLive, isMyTurn, moves, selectedSquare, status]);
+
   const customSquareStyles = useMemo(() => {
     const styles: Record<string, React.CSSProperties> = {};
     if (isLive && selectedSquare) {
-      styles[selectedSquare] = { backgroundColor: '#D8A548' };
+      styles[selectedSquare] = { background: '#D8A548' };
     }
     if (lastMove && status !== 'wrong') {
-      styles[lastMove.from] = { backgroundColor: 'rgba(255, 210, 0, 0.38)' };
-      styles[lastMove.to]   = { backgroundColor: 'rgba(255, 210, 0, 0.38)' };
+      styles[lastMove.from] = { background: 'rgba(255, 210, 0, 0.38)' };
+      styles[lastMove.to]   = { background: 'rgba(255, 210, 0, 0.38)' };
     }
     if (isLive && status === 'wrong' && wrongMoveFrom && wrongMoveTo) {
-      styles[wrongMoveFrom] = { backgroundColor: 'rgba(220, 38, 38, 0.5)' };
-      styles[wrongMoveTo]   = { backgroundColor: 'rgba(220, 38, 38, 0.5)' };
+      styles[wrongMoveFrom] = { background: 'rgba(220, 38, 38, 0.5)' };
+      styles[wrongMoveTo]   = { background: 'rgba(220, 38, 38, 0.5)' };
+    }
+    if (isLive && selectedSquare && status === 'playing') {
+      for (const move of legalTargets) {
+        const base = styles[move.to] ?? {};
+        styles[move.to] = isCaptureStyleMove(move.flags)
+          ? {
+              ...base,
+              background:
+                'radial-gradient(circle, rgba(0,0,0,0) 61%, rgba(32,32,32,0.45) 63%, rgba(32,32,32,0.45) 73%, rgba(0,0,0,0) 75%)',
+              borderRadius: '50%',
+            }
+          : {
+              ...base,
+              background:
+                'radial-gradient(circle, rgba(36, 40, 50, 0.42) 22%, rgba(0,0,0,0) 24%)',
+            };
+      }
+    }
+    if (queuedClickPremove) {
+      styles[queuedClickPremove.from] = {
+        ...(styles[queuedClickPremove.from] ?? {}),
+        background: '#D8A548',
+      };
+      styles[queuedClickPremove.to] = {
+        ...(styles[queuedClickPremove.to] ?? {}),
+        background: 'rgba(216, 165, 72, 0.58)',
+      };
     }
     return styles;
-  }, [isLive, lastMove, selectedSquare, status, wrongMoveFrom, wrongMoveTo]);
+  }, [isLive, lastMove, legalTargets, queuedClickPremove, selectedSquare, status, wrongMoveFrom, wrongMoveTo]);
 
   // ─── Input handlers (disabled while reviewing) ────────────────────────────────
 
@@ -245,25 +348,32 @@ export function PracticeBoard({ opening, variation, onMoveIndexChange }: Practic
     } catch { return false; }
   };
 
-  const attemptMove = (sourceSquare: string, targetSquare: string) => {
-    const expectedMove = moves[currentMoveIndex];
+  const commitMove = (
+    sourceSquare: string,
+    targetSquare: string,
+    promotion: PromotionPiece,
+    expectedIndex = currentMoveIndex,
+    baseChess = new Chess(chessRef.current.fen())
+  ) => {
+    const expectedMove = moves[expectedIndex];
     if (!expectedMove) return false;
-
-    const nextChess = new Chess(chessRef.current.fen());
     try {
-      const move = nextChess.move({ from: sourceSquare, to: targetSquare, promotion: 'q' });
+      const move = baseChess.move({ from: sourceSquare, to: targetSquare, promotion });
       if (move.san !== expectedMove.san) {
         setStatus('wrong');
         setWrongMoveFrom(sourceSquare);
         setWrongMoveTo(targetSquare);
         setSelectedSquare(null);
+        setQueuedClickPremove(null);
+        chessboardRef.current?.clearPremoves?.();
         resetWrongMove();
         return false;
       }
-      chessRef.current = nextChess;
-      setPosition(nextChess.fen());
+      chessRef.current = baseChess;
+      setPosition(baseChess.fen());
       setSelectedSquare(null);
-      const nextIndex = currentMoveIndex + 1;
+      setQueuedClickPremove(null);
+      const nextIndex = expectedIndex + 1;
       updateMoveIndex(nextIndex);
       setWrongMoveFrom(null);
       setWrongMoveTo(null);
@@ -274,20 +384,48 @@ export function PracticeBoard({ opening, variation, onMoveIndexChange }: Practic
     }
   };
 
+  const attemptMove = (sourceSquare: string, targetSquare: string) => {
+    const nextChess = new Chess(chessRef.current.fen());
+    if (isPromotionCandidate(nextChess, sourceSquare, targetSquare)) return false;
+    return commitMove(sourceSquare, targetSquare, 'q', currentMoveIndex, nextChess);
+  };
+
   const onPieceDrop = (sourceSquare: string, targetSquare: string) => {
     if (!isLive || status !== 'playing') return false;
     if (!isMyTurn) return validatePremove(sourceSquare, targetSquare);
     return attemptMove(sourceSquare, targetSquare);
   };
 
-  const onSquareClick = (square: string) => {
+  const onPieceClick = (piece: string, square: string) => {
     if (!isLive || status !== 'playing') return;
-    const piece = chessRef.current.get(square as Parameters<Chess['get']>[0]);
-    const isOwnPiece = piece?.color === playerColor;
+    if (piece[0] !== playerColor) return;
+
+    setSelectedSquare(current => (current === square ? null : square));
+  };
+
+  const onPieceDragBegin = (piece: string, sourceSquare: string) => {
+    if (!isLive || status !== 'playing') return;
+    if (piece[0] !== playerColor) return;
+    setSelectedSquare(sourceSquare);
+  };
+
+  const onPieceDragEnd = (piece: string, sourceSquare: string) => {
+    if (!isLive || status !== 'playing') return;
+    if (piece[0] !== playerColor) return;
+
+    const currentPiece = chessRef.current.get(sourceSquare as Parameters<Chess['get']>[0]);
+    if (currentPiece?.color === playerColor) {
+      setSelectedSquare(sourceSquare);
+    }
+  };
+
+  const onSquareClick = (square: string, piece?: string) => {
+    if (!isLive || status !== 'playing') return;
+    const isOwnPiece = piece?.[0] === playerColor;
 
     if (!selectedSquare) {
-      if (isOwnPiece) setSelectedSquare(square);
-      else setSelectedSquare(null);
+      if (isOwnPiece) return;
+      setSelectedSquare(null);
       return;
     }
 
@@ -301,10 +439,39 @@ export function PracticeBoard({ opening, variation, onMoveIndexChange }: Practic
       return;
     }
 
-    if (!isMyTurn) return;
+    if (!isMyTurn) {
+      if (validatePremove(selectedSquare, square)) {
+        setQueuedClickPremove({ from: selectedSquare, to: square });
+        setSelectedSquare(null);
+      }
+      return;
+    }
 
+    const opensPromotion = isPromotionCandidate(new Chess(chessRef.current.fen()), selectedSquare, square);
     const moved = attemptMove(selectedSquare, square);
-    if (!moved) setSelectedSquare(selectedSquare);
+    if (!moved && !opensPromotion) setSelectedSquare(selectedSquare);
+  };
+
+  const onPromotionCheck = (sourceSquare: string, targetSquare: string, piece: string) => {
+    if (!isLive || status !== 'playing' || !isMyTurn) return false;
+    if (piece[0] !== playerColor) return false;
+    return isPromotionCandidate(new Chess(chessRef.current.fen()), sourceSquare, targetSquare);
+  };
+
+  const onPromotionPieceSelect = (
+    piece?: string,
+    promoteFromSquare?: string,
+    promoteToSquare?: string
+  ) => {
+    if (!promoteFromSquare || !promoteToSquare) return false;
+    const nextChess = new Chess(chessRef.current.fen());
+    return commitMove(
+      promoteFromSquare,
+      promoteToSquare,
+      normalizePromotionPiece(piece),
+      currentMoveIndex,
+      nextChess
+    );
   };
 
   // ─── Keyboard navigation ─────────────────────────────────────────────────────
@@ -354,7 +521,12 @@ export function PracticeBoard({ opening, variation, onMoveIndexChange }: Practic
             ref={chessboardRef}
             position={displayPosition}
             onPieceDrop={onPieceDrop}
+            onPieceClick={onPieceClick}
+            onPieceDragBegin={onPieceDragBegin}
+            onPieceDragEnd={onPieceDragEnd}
             onSquareClick={onSquareClick}
+            onPromotionCheck={onPromotionCheck}
+            onPromotionPieceSelect={onPromotionPieceSelect}
             boardWidth={boardSize}
             boardOrientation={opening.color}
             arePiecesDraggable={isLive}
@@ -414,7 +586,6 @@ export function PracticeBoard({ opening, variation, onMoveIndexChange }: Practic
         <div />
 
       </div>
-
       {status === 'complete' && isLive && !overlayDismissed && (
         <CompletionOverlay
           variationName={variation.name}
