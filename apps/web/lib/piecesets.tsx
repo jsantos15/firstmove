@@ -14,14 +14,14 @@ export interface PieceSetDef {
   lichessName: string;
 }
 
+// Only sets with commercial-compatible licenses:
+// cburnett — CC BY-SA 4.0 (Colin M. L. Burnett)
+// merida   — public domain / free use
+// fantasy  — MIT
 export const PIECE_SETS: PieceSetDef[] = [
-  { id: 'cburnett', label: 'Classic',  description: 'Lichess default Staunton',          lichessName: 'cburnett' },
-  { id: 'merida',   label: 'Merida',   description: 'Traditional elegant Staunton',      lichessName: 'merida'   },
-  { id: 'alpha',    label: 'Alpha',    description: 'Flat, character-based letterforms',  lichessName: 'alpha'    },
-  { id: 'fantasy',  label: 'Fantasy',  description: 'Illustrated cartoon style',          lichessName: 'fantasy'  },
-  { id: 'maestro',  label: 'Maestro',  description: 'Refined thin-stroke Staunton',      lichessName: 'maestro'  },
-  { id: 'cardinal', label: 'Cardinal', description: 'Bold modern design',                lichessName: 'cardinal' },
-  { id: 'staunty',  label: 'Staunty',  description: 'Flat minimalist Staunton',          lichessName: 'staunty'  },
+  { id: 'cburnett', label: 'Classic', description: 'Lichess default Staunton',     lichessName: 'cburnett' },
+  { id: 'merida',   label: 'Merida',  description: 'Traditional elegant Staunton', lichessName: 'merida'   },
+  { id: 'fantasy',  label: 'Fantasy', description: 'Illustrated cartoon style',    lichessName: 'fantasy'  },
 ];
 
 const PIECE_CODES = [
@@ -45,6 +45,7 @@ export function buildCustomPieces(lichessName: string): CustomPieces {
           style={{ width: squareWidth, height: squareWidth, display: 'block' }}
           alt={code}
           draggable={false}
+          onDragStart={event => event.preventDefault()}
         />
       ),
     ])

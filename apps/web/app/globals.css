@@ -102,3 +102,9 @@ html {
 ::-webkit-scrollbar-track { background: var(--bg-base); }
 ::-webkit-scrollbar-thumb { background: var(--bg-panel); border-radius: 3px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--bg-sidebar); }
+
+.react-chessboard,
+.react-chessboard * {
+  -webkit-user-select: none;
+  user-select: none;
+}

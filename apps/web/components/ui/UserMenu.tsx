@@ -68,7 +68,7 @@ export function UserMenu() {
       <button
         onClick={() => setOpen(o => !o)}
         aria-label="Account menu"
-        className={`w-10 h-10 rounded-full flex items-center justify-center text-base font-bold select-none transition-all ${
+        className={`w-12 h-12 rounded-full flex items-center justify-center text-base font-bold select-none transition-all ${
           open
             ? 'bg-amber-400/30 border-2 border-amber-400 text-amber-400'
             : 'bg-amber-400/15 border-2 border-amber-400/30 text-amber-400 hover:bg-amber-400/25 hover:border-amber-400/50'

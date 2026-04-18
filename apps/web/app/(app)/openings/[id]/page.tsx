@@ -7,6 +7,7 @@ import { PracticeBoard } from '@/components/board/PracticeBoard';
 import { useOpening } from '@/hooks/useOpenings';
 import { MoveList } from '@/components/board/MoveList';
 import { DifficultyBadge, ColorBadge } from '@/components/ui/Badge';
+import { UserMenu } from '@/components/ui/UserMenu';
 import { useAuth } from '@/app/providers';
 import { useAllProgress, MASTERY_LABELS, MASTERY_COLORS } from '@/hooks/useProgress';
 
@@ -49,21 +50,25 @@ export default function PracticePage({ params }: PageProps) {
     <div className="h-full flex flex-col overflow-hidden">
 
       {/* Header */}
-      <header className="shrink-0 border-b border-white/5 bg-[var(--bg-base)]/80 backdrop-blur z-10">
-        <div className="px-6 py-4 flex items-center gap-3">
+      <header className="h-16 shrink-0 border-b border-white/5 bg-[var(--bg-base)]/80 backdrop-blur z-10">
+        <div className="mx-auto flex h-full w-full max-w-[1504px] items-center gap-3 px-6">
           <Link href="/openings" className="text-gray-400 hover:text-white transition-colors text-sm">
             ← Openings
           </Link>
           <span className="text-white/20">/</span>
           <span className="text-white font-medium text-sm">{opening.name}</span>
+          <div className="ml-auto shrink-0">
+            <UserMenu />
+          </div>
         </div>
       </header>
 
-      <div className="flex-1 min-h-0 flex items-center justify-center overflow-hidden p-4 lg:p-6">
-        <div className="h-full flex gap-4 lg:gap-6 w-fit max-w-full">
+      <div className="flex-1 min-h-0 overflow-hidden p-4 lg:p-6">
+        <div className="mx-auto flex h-full w-full max-w-[1504px] gap-4 lg:gap-6">
 
           {/* Board column */}
-          <div className="h-full shrink-0" style={{ aspectRatio: '1 / 1' }}>
+          <div className="flex h-full min-w-0 flex-1 justify-center">
+            <div className="h-full shrink-0" style={{ aspectRatio: '1 / 1' }}>
             {selectedVariation && (
               <PracticeBoard
                 opening={opening}
@@ -71,13 +76,14 @@ export default function PracticePage({ params }: PageProps) {
                 onMoveIndexChange={setCurrentMoveIndex}
               />
             )}
+            </div>
           </div>
 
           {/* Sidebar */}
-          <div className="w-64 lg:w-72 shrink-0 h-full flex flex-col gap-4 overflow-y-auto">
+          <div className="w-64 lg:w-72 shrink-0 h-full flex flex-col gap-4">
 
-            {/* Opening info */}
-            <div className="rounded-xl border border-white/5 bg-[var(--bg-panel)] p-5">
+            {/* Opening info — fixed */}
+            <div className="shrink-0 rounded-xl border border-white/5 bg-[var(--bg-panel)] p-5">
               <div className="flex items-center gap-2 flex-wrap mb-3">
                 <ColorBadge color={opening.color} />
                 <DifficultyBadge difficulty={opening.difficulty} />
@@ -86,17 +92,17 @@ export default function PracticePage({ params }: PageProps) {
               <p className="text-sm text-gray-400 leading-relaxed">{opening.description}</p>
             </div>
 
-            {/* Move list */}
+            {/* Move list — fixed */}
             {selectedVariation && (
               <MoveList variation={selectedVariation} currentMoveIndex={currentMoveIndex} />
             )}
 
-            {/* Line selector */}
-            <div className="rounded-xl border border-white/5 bg-[var(--bg-panel)] p-4">
-              <h3 className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-3">
+            {/* Line selector — takes remaining height, list scrolls internally */}
+            <div className="flex-1 min-h-0 flex flex-col rounded-xl border border-white/5 bg-[var(--bg-panel)]">
+              <h3 className="shrink-0 px-4 pt-4 pb-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Lines
               </h3>
-              <div className="flex flex-col gap-1.5">
+              <div className="flex-1 min-h-0 overflow-y-auto px-4 pb-4 flex flex-col gap-1.5">
                 {opening.variations.map((variation, index) => {
                   const locked = index > 0 && !user;
                   const vProgress = progress?.get(`${opening.id}/${variation.id}`);
@@ -138,7 +144,7 @@ export default function PracticePage({ params }: PageProps) {
               </div>
 
               {showAuthPrompt && (
-                <div className="mt-2 rounded-lg border border-amber-400/20 bg-amber-400/5 p-3 text-xs text-amber-300">
+                <div className="shrink-0 mx-4 mb-4 rounded-lg border border-amber-400/20 bg-amber-400/5 p-3 text-xs text-amber-300">
                   <p className="mb-2">Sign in to unlock all lines.</p>
                   <Link
                     href="/login"
@@ -150,7 +156,7 @@ export default function PracticePage({ params }: PageProps) {
               )}
             </div>
 
-          </div>
+          </div>{/* end sidebar */}
 
         </div>
       </div>
