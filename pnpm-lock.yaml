@@ -121,6 +121,9 @@ importers:
       chess.js:
         specifier: ^1.4.0
         version: 1.4.0
+      cm-chessboard:
+        specifier: ^8.12.7
+        version: 8.12.7
       next:
         specifier: 16.2.3
         version: 16.2.3(@babel/core@7.29.0)(babel-plugin-react-compiler@1.0.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
@@ -2076,6 +2079,9 @@ packages:
   clone@1.0.4:
     resolution: {integrity: sha512-JQHZ2QMW6l3aH/j6xCqQThY/9OH4D/9ls34cgkUBiEeocRTU04tHfKPBsUK1PqZCUQM7GiA0IIXJSuXHI64Kbg==}
     engines: {node: '>=0.8'}
+
+  cm-chessboard@8.12.7:
+    resolution: {integrity: sha512-QiWBtda8G3h7DkCfiFnJMiplrmwvv6Izu4gXZUiFP17LoC6TjGNVLBTSyAeXevd8QdLDaW8UnK2z5aHvnAcAuw==}
 
   color-convert@1.9.3:
     resolution: {integrity: sha512-QfAUtd+vFdAtFQcC8CCyYt1fYWxSqAiK2cSD6zDB8N3cpsEBAvRxp9zOGg6G/SHHJYAT88/az/IuDGALsNVbGg==}
@@ -6965,6 +6971,8 @@ snapshots:
       wrap-ansi: 7.0.0
 
   clone@1.0.4: {}
+
+  cm-chessboard@8.12.7: {}
 
   color-convert@1.9.3:
     dependencies:

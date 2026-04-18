@@ -7,7 +7,6 @@ import { PracticeBoard } from '@/components/board/PracticeBoard';
 import { useOpening } from '@/hooks/useOpenings';
 import { MoveList } from '@/components/board/MoveList';
 import { DifficultyBadge, ColorBadge } from '@/components/ui/Badge';
-import { usePracticeStore } from '@/stores/practiceStore';
 import { useAuth } from '@/app/providers';
 import { useAllProgress, MASTERY_LABELS, MASTERY_COLORS } from '@/hooks/useProgress';
 
@@ -22,7 +21,7 @@ export default function PracticePage({ params }: PageProps) {
   const { data: progress } = useAllProgress();
   const [selectedVariationId, setSelectedVariationId] = useState('');
   const [showAuthPrompt, setShowAuthPrompt] = useState(false);
-  const currentMoveIndex = usePracticeStore(s => s.currentMoveIndex);
+  const [currentMoveIndex, setCurrentMoveIndex] = useState(0);
 
   if (isLoading) {
     return (
@@ -66,7 +65,11 @@ export default function PracticePage({ params }: PageProps) {
           {/* Board column */}
           <div className="h-full shrink-0" style={{ aspectRatio: '1 / 1' }}>
             {selectedVariation && (
-              <PracticeBoard opening={opening} variation={selectedVariation} />
+              <PracticeBoard
+                opening={opening}
+                variation={selectedVariation}
+                onMoveIndexChange={setCurrentMoveIndex}
+              />
             )}
           </div>
 

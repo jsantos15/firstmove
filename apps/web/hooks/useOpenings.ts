@@ -1,7 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
-import { Chess } from 'chess.js';
+import { Chess, type Opening, type OpeningMove, type OpeningVariation } from '@firstmove/core';
 import { createClient } from '@/lib/supabase/client';
-import type { Opening, OpeningMove, OpeningVariation } from '@firstmove/core';
 
 // ─── Chess helpers ────────────────────────────────────────────────────────────
 
