@@ -3,7 +3,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Chessboard } from 'react-chessboard';
 import { Chess, type Opening, type OpeningVariation } from '@firstmove/core';
-import { useRecordCompletion } from '@/hooks/useProgress';
+import { useRecordCompletion, useRecordLearned } from '@/hooks/useProgress';
+
+export type PracticeMode = 'learn' | 'practice';
 import { useAuth } from '@/app/providers';
 import { CompletionOverlay } from './CompletionOverlay';
 import { useBoardSettings } from '@/hooks/useBoardSettings';
@@ -12,6 +14,7 @@ import { getCustomPieces } from '@/lib/piecesets';
 interface PracticeBoardProps {
   opening: Opening;
   variation: OpeningVariation;
+  mode: PracticeMode;
   onMoveIndexChange?: (index: number) => void;
   controlsRight?: React.ReactNode;
 }
@@ -85,11 +88,12 @@ function playMoveSound() {
   } catch {}
 }
 
-export function PracticeBoard({ opening, variation, onMoveIndexChange, controlsRight }: PracticeBoardProps) {
+export function PracticeBoard({ opening, variation, mode, onMoveIndexChange, controlsRight }: PracticeBoardProps) {
   const { theme, animationDuration, settings } = useBoardSettings();
   const customPieces = useMemo(() => getCustomPieces(settings.pieceSetId), [settings.pieceSetId]);
   const { user } = useAuth();
   const recordCompletion = useRecordCompletion();
+  const recordLearned = useRecordLearned();
 
   const chessboardRef = useRef<{ clearPremoves: (clearLastPieceColour?: boolean) => void } | null>(null);
   const chessRef = useRef(new Chess());
@@ -105,6 +109,8 @@ export function PracticeBoard({ opening, variation, onMoveIndexChange, controlsR
   const [wrongMoveFrom, setWrongMoveFrom] = useState<string | null>(null);
   const [overlayDismissed, setOverlayDismissed] = useState(false);
   const [wrongMoveTo, setWrongMoveTo] = useState<string | null>(null);
+  const [hintActive, setHintActive] = useState(false);
+  const hintUsedRef = useRef(false);
   const [selectedSquare, setSelectedSquare] = useState<string | null>(null);
   const [queuedClickPremove, setQueuedClickPremove] = useState<QueuedPremove | null>(null);
   const [boardSize, setBoardSize] = useState(480);
@@ -167,6 +173,8 @@ export function PracticeBoard({ opening, variation, onMoveIndexChange, controlsR
     setQueuedClickPremove(null);
     setViewIndex(null);
     setOverlayDismissed(false);
+    setHintActive(false);
+    hintUsedRef.current = false;
     chessboardRef.current?.clearPremoves?.();
   };
 
@@ -201,11 +209,20 @@ export function PracticeBoard({ opening, variation, onMoveIndexChange, controlsR
   }, [currentMoveIndex, settings.moveSound]);
 
   useEffect(() => {
-    if (status === 'complete' && !hasRecordedRef.current && user) {
-      hasRecordedRef.current = true;
+    if (status !== 'complete' || hasRecordedRef.current || !user) return;
+    hasRecordedRef.current = true;
+    if (mode === 'learn') {
+      recordLearned.mutate({ openingSlug: opening.id, variationSlug: variation.id });
+    } else if (!hintUsedRef.current) {
       recordCompletion.mutate({ openingSlug: opening.id, variationSlug: variation.id });
     }
-  }, [opening.id, recordCompletion, status, user, variation.id]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [status, user]);
+
+  // Clear the visual hint highlight whenever the move index advances
+  useEffect(() => {
+    setHintActive(false);
+  }, [currentMoveIndex]);
 
   useEffect(() => {
     if (status === 'wrong' || status === 'complete' || !isLive) {
@@ -252,10 +269,14 @@ export function PracticeBoard({ opening, variation, onMoveIndexChange, controlsR
 
   const statusLabel = useMemo(() => {
     if (!isLive) return `Reviewing move ${displayIndex} / ${currentMoveIndex}`;
-    if (status === 'complete') return 'Line complete!';
+    if (status === 'complete') {
+      if (mode === 'learn') return 'Line learned!';
+      if (hintUsedRef.current) return 'Done — try without hints to complete it';
+      return 'Line completed!';
+    }
     if (status === 'wrong') return 'Wrong move — try again';
     return isMyTurn ? `Your turn (${opening.color})` : 'Computer is thinking…';
-  }, [isLive, displayIndex, currentMoveIndex, isMyTurn, opening.color, status]);
+  }, [isLive, displayIndex, currentMoveIndex, isMyTurn, opening.color, status, mode]);
 
   const lastMove = useMemo(() => {
     if (displayIndex === 0) return null;
@@ -329,6 +350,21 @@ export function PracticeBoard({ opening, variation, onMoveIndexChange, controlsR
             };
       }
     }
+    // In Learn mode show a subtle guide; in Practice mode only show on explicit hint
+    if (isLive && isMyTurn && moves[currentMoveIndex]) {
+      const chess = new Chess(chessRef.current.fen());
+      const allMoves = chess.moves({ verbose: true });
+      const match = allMoves.find(m => m.san === moves[currentMoveIndex].san);
+      const fromSq = match?.from;
+      if (fromSq) {
+        if (mode === 'learn') {
+          styles[fromSq] = { ...(styles[fromSq] ?? {}), boxShadow: 'inset 0 0 0 3px rgba(251,191,36,0.35)' };
+        } else if (hintActive) {
+          styles[fromSq] = { ...(styles[fromSq] ?? {}), background: 'rgba(251,191,36,0.35)', boxShadow: 'inset 0 0 0 3px rgba(251,191,36,0.85)' };
+        }
+      }
+    }
+
     if (queuedClickPremove) {
       styles[queuedClickPremove.from] = {
         ...(styles[queuedClickPremove.from] ?? {}),
@@ -340,7 +376,7 @@ export function PracticeBoard({ opening, variation, onMoveIndexChange, controlsR
       };
     }
     return styles;
-  }, [isLive, lastMove, legalTargets, queuedClickPremove, selectedSquare, status, wrongMoveFrom, wrongMoveTo]);
+  }, [currentMoveIndex, hintActive, isLive, isMyTurn, lastMove, legalTargets, mode, moves, queuedClickPremove, selectedSquare, status, wrongMoveFrom, wrongMoveTo]);
 
   // ─── Input handlers (disabled while reviewing) ────────────────────────────────
 
@@ -554,14 +590,23 @@ export function PracticeBoard({ opening, variation, onMoveIndexChange, controlsR
       {/* Controls — 3 columns: restart left · nav center · spacer right */}
       <div className="shrink-0 mx-auto w-full grid grid-cols-3 items-center" style={{ maxWidth: boardSize }}>
 
-        {/* Restart — far left, aligns with board edge */}
-        <div>
+        {/* Restart + Hint — far left */}
+        <div className="flex items-center gap-2">
           <button
             onClick={resetPractice}
             className="rounded-lg border border-white/10 px-4 py-2 text-sm text-gray-400 transition-colors hover:border-white/20 hover:text-white"
           >
             ↺ Restart
           </button>
+          {mode === 'practice' && isMyTurn && (
+            <button
+              onClick={() => { hintUsedRef.current = true; setHintActive(true); }}
+              disabled={hintActive}
+              className="rounded-lg border border-amber-400/20 px-4 py-2 text-sm text-amber-400/80 transition-colors hover:border-amber-400/40 hover:text-amber-300 disabled:cursor-default disabled:opacity-40"
+            >
+              Hint
+            </button>
+          )}
         </div>
 
         {/* Navigation group — centered */}
