@@ -240,6 +240,7 @@ export default function PracticePage({ params }: PageProps) {
                 opening={opening}
                 variation={selectedVariation}
                 mode={mode}
+                onModeChange={setMode}
                 onMoveIndexChange={setCurrentMoveIndex}
                 controlsRight={<BoardSettingsPopover />}
               />

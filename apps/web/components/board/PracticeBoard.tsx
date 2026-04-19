@@ -15,6 +15,7 @@ interface PracticeBoardProps {
   opening: Opening;
   variation: OpeningVariation;
   mode: PracticeMode;
+  onModeChange: (mode: PracticeMode) => void;
   onMoveIndexChange?: (index: number) => void;
   controlsRight?: React.ReactNode;
 }
