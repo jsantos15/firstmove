@@ -24,7 +24,6 @@ interface QueuedPremove {
   to: string;
 }
 
-const CPU_REPLY_DELAY_MS = 2000;
 const WRONG_MOVE_RESET_MS = 900;
 
 function isUserTurn(moveIndex: number, openingColor: 'white' | 'black') {
@@ -242,7 +241,7 @@ export function PracticeBoard({ opening, variation, onMoveIndexChange, controlsR
           clickPremoveTimerRef.current = null;
         }, animationDuration);
       }
-    }, CPU_REPLY_DELAY_MS);
+    }, animationDuration);
 
     return () => clearTimeout(timer);
   // eslint-disable-next-line react-hooks/exhaustive-deps

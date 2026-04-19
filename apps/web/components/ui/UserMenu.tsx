@@ -49,8 +49,11 @@ export function UserMenu() {
     return (
       <Link
         href="/login"
-        className="rounded-lg border border-white/10 px-3 py-1.5 text-xs font-medium text-gray-400 hover:text-white hover:border-white/20 transition-colors"
+        className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-gray-400 hover:text-white hover:bg-white/5 transition-colors w-full"
       >
+        <span className="w-7 h-7 rounded-full bg-white/10 border border-white/10 flex items-center justify-center shrink-0">
+          <AccountIcon />
+        </span>
         Sign in
       </Link>
     );
@@ -68,18 +71,25 @@ export function UserMenu() {
       <button
         onClick={() => setOpen(o => !o)}
         aria-label="Account menu"
-        className={`w-12 h-12 rounded-full flex items-center justify-center text-base font-bold select-none transition-all ${
-          open
-            ? 'bg-amber-400/30 border-2 border-amber-400 text-amber-400'
-            : 'bg-amber-400/15 border-2 border-amber-400/30 text-amber-400 hover:bg-amber-400/25 hover:border-amber-400/50'
+        className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-all ${
+          open ? 'bg-white/5' : 'hover:bg-white/5'
         }`}
       >
-        {initial}
+        <span className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold select-none shrink-0 transition-all ${
+          open
+            ? 'bg-amber-400/30 border-2 border-amber-400 text-amber-400'
+            : 'bg-amber-400/15 border-2 border-amber-400/30 text-amber-400'
+        }`}>
+          {initial}
+        </span>
+        <span className="flex-1 min-w-0 text-left">
+          <span className="block text-sm font-medium text-white truncate">{displayName}</span>
+        </span>
       </button>
 
       {open && (
         <div
-          className="absolute right-0 top-full mt-2 w-56 rounded-xl border border-white/10 shadow-2xl shadow-black/40 z-50 overflow-hidden"
+          className="absolute left-0 bottom-full mb-2 w-56 rounded-xl border border-white/10 shadow-2xl shadow-black/40 z-50 overflow-hidden"
           style={{ backgroundColor: 'var(--bg-panel)' }}
         >
           {/* User info */}

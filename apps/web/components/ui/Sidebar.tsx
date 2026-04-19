@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { UserMenu } from '@/components/ui/UserMenu';
 
 // ─── Icons ────────────────────────────────────────────────────────────────────
 
@@ -91,6 +92,11 @@ export function Sidebar() {
           );
         })}
       </nav>
+
+      {/* User account — pinned to bottom */}
+      <div className="shrink-0 px-3 py-4 border-t border-white/5">
+        <UserMenu />
+      </div>
 
     </aside>
   );

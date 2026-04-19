@@ -12,7 +12,10 @@ export function useAppTheme() {
 
   useEffect(() => {
     const stored = localStorage.getItem(STORAGE_KEY) as AppTheme | null;
-    if (stored) setThemeState(stored);
+    if (stored) {
+      setThemeState(stored);
+      document.documentElement.setAttribute('data-theme', stored);
+    }
   }, []);
 
   function setTheme(t: AppTheme) {

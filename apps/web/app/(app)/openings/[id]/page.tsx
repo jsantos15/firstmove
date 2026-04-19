@@ -7,7 +7,6 @@ import { PracticeBoard } from '@/components/board/PracticeBoard';
 import { useOpening } from '@/hooks/useOpenings';
 import { MoveList } from '@/components/board/MoveList';
 import { DifficultyBadge, ColorBadge } from '@/components/ui/Badge';
-import { UserMenu } from '@/components/ui/UserMenu';
 import { useAuth } from '@/app/providers';
 import { useAllProgress, MASTERY_LABELS, MASTERY_COLORS } from '@/hooks/useProgress';
 import { BOARD_THEMES, useBoardSettings } from '@/hooks/useBoardSettings';
@@ -222,9 +221,6 @@ export default function PracticePage({ params }: PageProps) {
           </Link>
           <span className="text-white/20">/</span>
           <span className="text-white font-medium text-sm">{opening.name}</span>
-          <div className="ml-auto flex items-center gap-3 shrink-0">
-            <UserMenu />
-          </div>
         </div>
       </header>
 
