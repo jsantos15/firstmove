@@ -44,3 +44,19 @@ export async function signOut() {
   const { error } = await supabase.auth.signOut();
   if (error) throw error;
 }
+
+export async function updateDisplayName(fullName: string) {
+  const supabase = createClient();
+  const { data, error } = await supabase.auth.updateUser({
+    data: { full_name: fullName.trim() },
+  });
+  if (error) throw error;
+  return data;
+}
+
+export async function updatePassword(newPassword: string) {
+  const supabase = createClient();
+  const { data, error } = await supabase.auth.updateUser({ password: newPassword });
+  if (error) throw error;
+  return data;
+}

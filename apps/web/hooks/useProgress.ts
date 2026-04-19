@@ -77,24 +77,40 @@ export function useAllProgress() {
 }
 
 /**
- * Returns the best mastery level across all variations of a given opening.
- * Used to show a single mastery indicator on the opening card.
+ * Returns the opening-level status and line completion counts.
+ * Rules:
+ *   - learning  → at least 1 line completed
+ *   - familiar  → more than half the lines completed
+ *   - mastered  → every line completed
  */
-export function getOpeningMastery(
+export function getOpeningProgress(
   progress: Map<string, VariationProgress> | undefined,
   openingSlug: string,
   variationSlugs: string[]
-): MasteryLevel {
-  if (!progress) return 'new';
-  const order: MasteryLevel[] = ['new', 'learning', 'familiar', 'mastered'];
-  let best: MasteryLevel = 'new';
-  for (const vSlug of variationSlugs) {
-    const p = progress.get(`${openingSlug}/${vSlug}`);
-    if (p && order.indexOf(p.mastery) > order.indexOf(best)) {
-      best = p.mastery;
-    }
+): { status: MasteryLevel; completedLines: number; totalLines: number } {
+  const totalLines = variationSlugs.length;
+
+  if (!progress) {
+    return { status: 'new', completedLines: 0, totalLines };
   }
-  return best;
+
+  const completedLines = variationSlugs.filter(vSlug => {
+    const p = progress.get(`${openingSlug}/${vSlug}`);
+    return p && p.timesCompleted > 0;
+  }).length;
+
+  let status: MasteryLevel;
+  if (completedLines === 0) {
+    status = 'new';
+  } else if (completedLines === totalLines) {
+    status = 'mastered';
+  } else if (completedLines > totalLines / 2) {
+    status = 'familiar';
+  } else {
+    status = 'learning';
+  }
+
+  return { status, completedLines, totalLines };
 }
 
 /**

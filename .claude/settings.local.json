@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(curl -s -o /dev/null -w \"california: %{http_code}\\\\n\" \"https://cdn.jsdelivr.net/gh/lichess-org/lila@master/public/piece/california/wK.svg\")",
+      "Bash(curl -s -o /dev/null -w \"staunty: %{http_code}\\\\n\" \"https://cdn.jsdelivr.net/gh/lichess-org/lila@master/public/piece/staunty/wK.svg\")",
+      "Bash(curl -s -o /dev/null -w \"cardinal: %{http_code}\\\\n\" \"https://cdn.jsdelivr.net/gh/lichess-org/lila@master/public/piece/cardinal/wK.svg\")",
+      "Bash(perl -i -pe ' *)",
+      "Bash(node -e ' *)",
+      "WebFetch(domain:github.com)"
+    ]
+  }
+}
