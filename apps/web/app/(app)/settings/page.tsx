@@ -261,6 +261,22 @@ export default function SettingsPage() {
                   <p className="text-xs text-gray-500 mt-2">Show a–h and 1–8 around the board edges.</p>
                 </div>
 
+                {/* Board orientation */}
+                <div>
+                  <label className="block text-sm font-medium text-white mb-3">Flip board</label>
+                  <button
+                    onClick={() => setSettings({ flipBoard: !settings.flipBoard })}
+                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                      settings.flipBoard ? 'bg-amber-400' : 'bg-white/15'
+                    }`}
+                  >
+                    <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${
+                      settings.flipBoard ? 'translate-x-6' : 'translate-x-1'
+                    }`} />
+                  </button>
+                  <p className="text-xs text-gray-500 mt-2">Reverse the board orientation on web boards.</p>
+                </div>
+
                 {/* Move sound */}
                 <div>
                   <label className="block text-sm font-medium text-white mb-3">Move sound</label>
@@ -307,6 +323,7 @@ export default function SettingsPage() {
                     position={PREVIEW_FEN}
                     boardWidth={220}
                     arePiecesDraggable={false}
+                    boardOrientation={settings.flipBoard ? 'black' : 'white'}
                     showBoardNotation={settings.showCoordinates}
                     customDarkSquareStyle={{ backgroundColor: theme.dark }}
                     customLightSquareStyle={{ backgroundColor: theme.light }}

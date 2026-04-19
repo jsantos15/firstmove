@@ -66,6 +66,14 @@ export function OpeningCard({ opening, completedLines = 0, status = 'new' }: Ope
   const chip = status !== 'new' ? STATUS_CHIP[status] : null;
   const { theme, settings } = useBoardSettings();
   const customPieces = getCustomPieces(settings.pieceSetId);
+  const boardOrientation =
+    settings.flipBoard
+      ? opening.color === 'black'
+        ? 'white'
+        : 'black'
+      : opening.color === 'black'
+      ? 'black'
+      : 'white';
 
   return (
     <Link href={`/openings/${opening.id}`} className="block">
@@ -78,7 +86,7 @@ export function OpeningCard({ opening, completedLines = 0, status = 'new' }: Ope
               position={fen}
               boardWidth={180}
               arePiecesDraggable={false}
-              boardOrientation={opening.color === 'black' ? 'black' : 'white'}
+              boardOrientation={boardOrientation}
               customDarkSquareStyle={{ backgroundColor: theme.dark }}
               customLightSquareStyle={{ backgroundColor: theme.light }}
               customPieces={customPieces}

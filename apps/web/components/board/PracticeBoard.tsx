@@ -13,6 +13,7 @@ interface PracticeBoardProps {
   opening: Opening;
   variation: OpeningVariation;
   onMoveIndexChange?: (index: number) => void;
+  controlsRight?: React.ReactNode;
 }
 
 type PracticeStatus = 'loading' | 'playing' | 'wrong' | 'complete';
@@ -47,6 +48,12 @@ function normalizePromotionPiece(piece?: string): PromotionPiece {
   return 'q';
 }
 
+function getBoardOrientation(openingColor: 'white' | 'black', flipBoard: boolean) {
+  const baseOrientation = openingColor;
+  if (!flipBoard) return baseOrientation;
+  return baseOrientation === 'white' ? 'black' : 'white';
+}
+
 let audioCtx: AudioContext | null = null;
 
 function getAudioCtx() {
@@ -78,7 +85,7 @@ function playMoveSound() {
   } catch {}
 }
 
-export function PracticeBoard({ opening, variation, onMoveIndexChange }: PracticeBoardProps) {
+export function PracticeBoard({ opening, variation, onMoveIndexChange, controlsRight }: PracticeBoardProps) {
   const { theme, animationDuration, settings } = useBoardSettings();
   const customPieces = useMemo(() => getCustomPieces(settings.pieceSetId), [settings.pieceSetId]);
   const { user } = useAuth();
@@ -113,6 +120,7 @@ export function PracticeBoard({ opening, variation, onMoveIndexChange }: Practic
   const moves = variation.moves;
   const isMyTurn = isLive && status === 'playing' && isUserTurn(currentMoveIndex, opening.color);
   const playerColor = opening.color === 'white' ? 'w' : 'b';
+  const boardOrientation = getBoardOrientation(opening.color, settings.flipBoard);
 
   // FEN at an arbitrary move index by replaying from start
   const displayPosition = useMemo(() => {
@@ -528,7 +536,7 @@ export function PracticeBoard({ opening, variation, onMoveIndexChange }: Practic
             onPromotionCheck={onPromotionCheck}
             onPromotionPieceSelect={onPromotionPieceSelect}
             boardWidth={boardSize}
-            boardOrientation={opening.color}
+            boardOrientation={boardOrientation}
             arePiecesDraggable={isLive}
             arePremovesAllowed={isLive}
             clearPremovesOnRightClick={true}
@@ -583,7 +591,9 @@ export function PracticeBoard({ opening, variation, onMoveIndexChange }: Practic
         </div>
 
         {/* Spacer — keeps nav truly centered */}
-        <div />
+        <div className="flex justify-end">
+          {controlsRight}
+        </div>
 
       </div>
       {status === 'complete' && isLive && !overlayDismissed && (

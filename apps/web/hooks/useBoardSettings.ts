@@ -28,6 +28,7 @@ export interface BoardSettings {
   themeId: string;
   pieceSetId: string;
   showCoordinates: boolean;
+  flipBoard: boolean;
   animationSpeed: AnimationSpeed;
   moveSound: boolean;
 }
@@ -45,11 +46,14 @@ const DEFAULTS: BoardSettings = {
   themeId: 'classic',
   pieceSetId: 'cburnett',
   showCoordinates: true,
+  flipBoard: false,
   animationSpeed: 'normal',
   moveSound: true,
 };
 
 const STORAGE_KEY = 'firstmove_board_settings';
+let currentSettings: BoardSettings = DEFAULTS;
+const listeners = new Set<(settings: BoardSettings) => void>();
 
 function load(): BoardSettings {
   if (typeof window === 'undefined') return DEFAULTS;
@@ -61,24 +65,45 @@ function load(): BoardSettings {
   }
 }
 
+function persist(next: BoardSettings) {
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(next)); } catch {}
+}
+
+function emit(next: BoardSettings) {
+  currentSettings = next;
+  listeners.forEach(listener => listener(next));
+}
+
 // ─── Hook ─────────────────────────────────────────────────────────────────────
 
 export function useBoardSettings() {
-  const [settings, setSettingsState] = useState<BoardSettings>(DEFAULTS);
+  const [settings, setSettingsState] = useState<BoardSettings>(currentSettings);
   const [hydrated, setHydrated] = useState(false);
 
   // Sync from localStorage after first render (SSR-safe)
   useEffect(() => {
-    setSettingsState(load());
+    const loaded = load();
+    emit(loaded);
     setHydrated(true);
+    const listener = (next: BoardSettings) => setSettingsState(next);
+    listeners.add(listener);
+
+    function handleStorage(event: StorageEvent) {
+      if (event.key !== STORAGE_KEY) return;
+      emit(load());
+    }
+
+    window.addEventListener('storage', handleStorage);
+    return () => {
+      listeners.delete(listener);
+      window.removeEventListener('storage', handleStorage);
+    };
   }, []);
 
   const setSettings = useCallback((patch: Partial<BoardSettings>) => {
-    setSettingsState(prev => {
-      const next = { ...prev, ...patch };
-      try { localStorage.setItem(STORAGE_KEY, JSON.stringify(next)); } catch {}
-      return next;
-    });
+    const next = { ...currentSettings, ...patch };
+    persist(next);
+    emit(next);
   }, []);
 
   const theme = BOARD_THEMES.find(t => t.id === settings.themeId) ?? BOARD_THEMES[0];
