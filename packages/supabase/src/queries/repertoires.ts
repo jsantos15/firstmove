@@ -29,31 +29,31 @@ export async function createRepertoire(
 
 export async function addOpeningToRepertoire(
   repertoireId: string,
-  openingId: string
+  openingSlug: string
 ): Promise<void> {
   const { error } = await supabase
     .from('repertoire_openings')
-    .insert({ repertoire_id: repertoireId, opening_id: openingId });
+    .insert({ repertoire_id: repertoireId, opening_slug: openingSlug });
   if (error) throw error;
 }
 
 export async function removeOpeningFromRepertoire(
   repertoireId: string,
-  openingId: string
+  openingSlug: string
 ): Promise<void> {
   const { error } = await supabase
     .from('repertoire_openings')
     .delete()
     .eq('repertoire_id', repertoireId)
-    .eq('opening_id', openingId);
+    .eq('opening_slug', openingSlug);
   if (error) throw error;
 }
 
-export async function getRepertoireOpeningIds(repertoireId: string): Promise<string[]> {
+export async function getRepertoireOpeningSlugs(repertoireId: string): Promise<string[]> {
   const { data, error } = await supabase
     .from('repertoire_openings')
-    .select('opening_id')
+    .select('opening_slug')
     .eq('repertoire_id', repertoireId);
   if (error) throw error;
-  return data.map(r => r.opening_id);
+  return data.map(r => r.opening_slug);
 }

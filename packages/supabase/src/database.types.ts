@@ -7,139 +7,108 @@ export type Json =
   | Json[]
 
 export type Database = {
-  // Allows to automatically instantiate createClient with right options
-  // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
     PostgrestVersion: "14.5"
   }
   public: {
     Tables: {
-      opening_moves: {
-        Row: {
-          annotation: string | null
-          created_at: string
-          fen: string
-          id: string
-          move_number: number
-          opening_id: string
-          san: string
-        }
-        Insert: {
-          annotation?: string | null
-          created_at?: string
-          fen: string
-          id?: string
-          move_number: number
-          opening_id: string
-          san: string
-        }
-        Update: {
-          annotation?: string | null
-          created_at?: string
-          fen?: string
-          id?: string
-          move_number?: number
-          opening_id?: string
-          san?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "opening_moves_opening_id_fkey"
-            columns: ["opening_id"]
-            isOneToOne: false
-            referencedRelation: "openings"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      opening_variations: {
+      opening_lines: {
         Row: {
           created_at: string
           description: string | null
-          id: string
           name: string
-          opening_id: string
+          opening_slug: string
+          sans: string[]
+          slug: string
+          sort_order: number
         }
         Insert: {
           created_at?: string
           description?: string | null
-          id?: string
           name: string
-          opening_id: string
+          opening_slug: string
+          sans: string[]
+          slug: string
+          sort_order?: number
         }
         Update: {
           created_at?: string
           description?: string | null
-          id?: string
           name?: string
-          opening_id?: string
+          opening_slug?: string
+          sans?: string[]
+          slug?: string
+          sort_order?: number
         }
         Relationships: [
           {
-            foreignKeyName: "opening_variations_opening_id_fkey"
-            columns: ["opening_id"]
+            foreignKeyName: "opening_lines_opening_slug_fkey"
+            columns: ["opening_slug"]
             isOneToOne: false
-            referencedRelation: "openings"
-            referencedColumns: ["id"]
+            referencedRelation: "openings_catalog"
+            referencedColumns: ["slug"]
           },
         ]
       }
-      openings: {
+      openings_catalog: {
         Row: {
           color: Database["public"]["Enums"]["opening_color"]
           created_at: string
-          description: string | null
+          description: string
           difficulty: Database["public"]["Enums"]["opening_difficulty"]
           eco_code: string
-          id: string
           name: string
+          slug: string
           tags: string[]
+          updated_at: string
         }
         Insert: {
           color: Database["public"]["Enums"]["opening_color"]
           created_at?: string
-          description?: string | null
+          description?: string
           difficulty: Database["public"]["Enums"]["opening_difficulty"]
           eco_code: string
-          id?: string
           name: string
+          slug: string
           tags?: string[]
+          updated_at?: string
         }
         Update: {
           color?: Database["public"]["Enums"]["opening_color"]
           created_at?: string
-          description?: string | null
+          description?: string
           difficulty?: Database["public"]["Enums"]["opening_difficulty"]
           eco_code?: string
-          id?: string
           name?: string
+          slug?: string
           tags?: string[]
+          updated_at?: string
         }
         Relationships: []
       }
       repertoire_openings: {
         Row: {
           added_at: string
-          opening_id: string
+          opening_slug: string
           repertoire_id: string
         }
         Insert: {
           added_at?: string
-          opening_id: string
+          opening_slug: string
           repertoire_id: string
         }
         Update: {
           added_at?: string
-          opening_id?: string
+          opening_slug?: string
           repertoire_id?: string
         }
         Relationships: [
           {
-            foreignKeyName: "repertoire_openings_opening_id_fkey"
-            columns: ["opening_id"]
+            foreignKeyName: "repertoire_openings_opening_slug_fkey"
+            columns: ["opening_slug"]
             isOneToOne: false
-            referencedRelation: "openings"
-            referencedColumns: ["id"]
+            referencedRelation: "openings_catalog"
+            referencedColumns: ["slug"]
           },
           {
             foreignKeyName: "repertoire_openings_repertoire_id_fkey"
@@ -153,26 +122,26 @@ export type Database = {
       user_favorites: {
         Row: {
           added_at: string
-          opening_id: string
+          opening_slug: string
           user_id: string
         }
         Insert: {
           added_at?: string
-          opening_id: string
+          opening_slug: string
           user_id: string
         }
         Update: {
           added_at?: string
-          opening_id?: string
+          opening_slug?: string
           user_id?: string
         }
         Relationships: [
           {
-            foreignKeyName: "user_favorites_opening_id_fkey"
-            columns: ["opening_id"]
+            foreignKeyName: "user_favorites_opening_slug_fkey"
+            columns: ["opening_slug"]
             isOneToOne: false
-            referencedRelation: "openings"
-            referencedColumns: ["id"]
+            referencedRelation: "openings_catalog"
+            referencedColumns: ["slug"]
           },
         ]
       }
@@ -206,50 +175,6 @@ export type Database = {
         }
         Relationships: []
       }
-      user_progress: {
-        Row: {
-          created_at: string
-          id: string
-          last_practiced_at: string | null
-          mastery_level: Database["public"]["Enums"]["mastery_level"]
-          opening_id: string
-          success_rate: number
-          times_practiced: number
-          updated_at: string
-          user_id: string
-        }
-        Insert: {
-          created_at?: string
-          id?: string
-          last_practiced_at?: string | null
-          mastery_level?: Database["public"]["Enums"]["mastery_level"]
-          opening_id: string
-          success_rate?: number
-          times_practiced?: number
-          updated_at?: string
-          user_id: string
-        }
-        Update: {
-          created_at?: string
-          id?: string
-          last_practiced_at?: string | null
-          mastery_level?: Database["public"]["Enums"]["mastery_level"]
-          opening_id?: string
-          success_rate?: number
-          times_practiced?: number
-          updated_at?: string
-          user_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "user_progress_opening_id_fkey"
-            columns: ["opening_id"]
-            isOneToOne: false
-            referencedRelation: "openings"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       user_repertoires: {
         Row: {
           created_at: string
@@ -277,47 +202,71 @@ export type Database = {
         }
         Relationships: []
       }
-      variation_moves: {
+      user_variation_progress: {
         Row: {
-          annotation: string | null
-          fen: string
+          created_at: string
+          has_learned: boolean
           id: string
-          move_number: number
-          san: string
-          variation_id: string
+          last_practiced_at: string
+          opening_slug: string
+          times_completed: number
+          updated_at: string
+          user_id: string
+          variation_slug: string
         }
         Insert: {
-          annotation?: string | null
-          fen: string
+          created_at?: string
+          has_learned?: boolean
           id?: string
-          move_number: number
-          san: string
-          variation_id: string
+          last_practiced_at?: string
+          opening_slug: string
+          times_completed?: number
+          updated_at?: string
+          user_id: string
+          variation_slug: string
         }
         Update: {
-          annotation?: string | null
-          fen?: string
+          created_at?: string
+          has_learned?: boolean
           id?: string
-          move_number?: number
-          san?: string
-          variation_id?: string
+          last_practiced_at?: string
+          opening_slug?: string
+          times_completed?: number
+          updated_at?: string
+          user_id?: string
+          variation_slug?: string
         }
-        Relationships: [
-          {
-            foreignKeyName: "variation_moves_variation_id_fkey"
-            columns: ["variation_id"]
-            isOneToOne: false
-            referencedRelation: "opening_variations"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      handle_new_user: {
+        Args: Record<PropertyKey, never>
+        Returns: undefined
+      }
+      handle_updated_at: {
+        Args: Record<PropertyKey, never>
+        Returns: undefined
+      }
+      increment_variation_completion: {
+        Args: {
+          p_opening_slug: string
+          p_user_id: string
+          p_variation_slug: string
+        }
+        Returns: undefined
+      }
+      record_variation_learned: {
+        Args: {
+          p_opening_slug: string
+          p_user_id: string
+          p_variation_slug: string
+        }
+        Returns: undefined
+      }
     }
     Enums: {
       mastery_level: "new" | "learning" | "familiar" | "mastered"
