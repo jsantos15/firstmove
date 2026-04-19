@@ -27,14 +27,14 @@ export default function AccountPage() {
     (acc, o) => {
       const { status } = getOpeningProgress(progress, o.id, o.variations.map(v => v.id));
       if (status === 'mastered') acc.mastered++;
-      else if (status === 'familiar') acc.familiar++;
-      else if (status === 'learning') acc.learning++;
+      else if (status === 'completed') acc.completed++;
+      else if (status === 'learned') acc.learned++;
       else acc.notStarted++;
       return acc;
     },
-    { mastered: 0, familiar: 0, learning: 0, notStarted: 0 }
+    { mastered: 0, completed: 0, learned: 0, notStarted: 0 }
   );
-  const totalStarted = openingStats.mastered + openingStats.familiar + openingStats.learning;
+  const totalStarted = openingStats.mastered + openingStats.completed + openingStats.learned;
 
   // ── Name editing ──────────────────────────────────────────────────────────
   const [editingName, setEditingName] = useState(false);
@@ -111,8 +111,8 @@ export default function AccountPage() {
           </div>
           <div className="grid grid-cols-3 divide-x divide-white/5">
             {[
-              { label: 'Learning', value: openingStats.learning, color: 'text-amber-400' },
-              { label: 'Familiar', value: openingStats.familiar, color: 'text-blue-400'  },
+              { label: 'Learned',   value: openingStats.learned,   color: 'text-amber-400' },
+              { label: 'Completed', value: openingStats.completed, color: 'text-blue-400'  },
               { label: 'Mastered', value: openingStats.mastered, color: 'text-green-400' },
             ].map(stat => (
               <div key={stat.label} className="px-6 py-5 flex flex-col items-center gap-1">

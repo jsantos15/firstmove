@@ -20,9 +20,9 @@ interface OpeningCardProps {
 // ─── Status chip config ───────────────────────────────────────────────────────
 
 const STATUS_CHIP: Record<Exclude<MasteryLevel, 'new'>, { label: string; cls: string }> = {
-  learning: { label: 'Learning', cls: 'text-amber-400 bg-amber-400/10 border-amber-400/20' },
-  familiar: { label: 'Familiar', cls: 'text-blue-400  bg-blue-400/10  border-blue-400/20'  },
-  mastered: { label: 'Mastered', cls: 'text-green-400 bg-green-400/10 border-green-400/20' },
+  learned:   { label: 'Learned',   cls: 'text-amber-400 bg-amber-400/10 border-amber-400/20' },
+  completed: { label: 'Completed', cls: 'text-blue-400  bg-blue-400/10  border-blue-400/20'  },
+  mastered:  { label: 'Mastered',  cls: 'text-green-400 bg-green-400/10 border-green-400/20' },
 };
 
 // ─── Line progress dots ───────────────────────────────────────────────────────
