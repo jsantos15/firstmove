@@ -14,7 +14,7 @@ firstmove/
 │   ├── web/          → Next.js 14 App Router (Web)
 │   └── mobile/       → Expo + React Native (iOS + Android)
 ├── packages/
-│   ├── core/         → chess.js wrappers, openings data, shared types, game logic
+│   ├── core/         → chess.js wrappers, shared types, game logic
 │   └── supabase/     → Supabase client, schema, generated types, DB helpers
 ├── docs/             → Architecture decisions, API docs, decisions log
 └── scripts/          → Build, deploy, and database automation scripts
@@ -31,7 +31,7 @@ firstmove/
 | Web UI component or page | `apps/web` | Follow context.md conventions |
 | Mobile screen or component | `apps/mobile` | Follow context.md conventions |
 | Chess logic or game rules | `packages/core/src/game` | Never duplicate in apps |
-| Openings data (add/edit) | `packages/core/src/openings` | Keep JSON + TypeScript types in sync |
+| Opening generation / import | `scripts` + `packages/supabase` | Generate candidates in `scripts/`, store runtime data in Supabase |
 | Shared TypeScript types | `packages/core/src/types` | Import from `@firstmove/core` in apps |
 | Supabase schema change | `packages/supabase/migrations` | Always use a migration file, never alter prod DB directly |
 | Supabase client/helpers | `packages/supabase/src` | Both apps import from `@firstmove/supabase` |
@@ -44,7 +44,7 @@ firstmove/
 
 ## Architecture Decisions
 - **Backend:** Supabase (PostgreSQL + Auth + Edge Functions). No separate Node.js server.
-- **Openings data:** Bundled in `packages/core` as typed JSON for offline access. Also stored in Supabase for server-side updates without an app release.
+- **Openings data:** Generated in `scripts/` and stored in Supabase as the runtime source of truth. `packages/core` provides shared chess logic and types only.
 - **Chessboard:** `react-chessboard` on web. Custom SVG board via `react-native-svg` on mobile. Both consume `chess.js` from `packages/core`.
 - **Auth:** Supabase Auth — email/password + Google OAuth + Apple Sign In (required for iOS App Store).
 - **Data fetching:** TanStack Query in both apps. Zustand for local client state.
