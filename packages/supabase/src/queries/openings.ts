@@ -1,0 +1,87 @@
+import { supabase } from '../client';
+import type { Database } from '../database.types';
+
+export type OpeningCatalogRow = Database['public']['Tables']['openings_catalog']['Row'];
+export type OpeningLineRow = Database['public']['Tables']['opening_lines']['Row'];
+
+const PAGE_SIZE = 1000;
+
+export async function getOpeningsCatalog(): Promise<OpeningCatalogRow[]> {
+  const { data, error } = await supabase
+    .from('openings_catalog')
+    .select('*')
+    .order('display_tier', { ascending: true, nullsFirst: false })
+    .order('popularity_rank', { ascending: true, nullsFirst: false })
+    .order('name', { ascending: true });
+
+  if (error) {
+    throw error;
+  }
+
+  return data;
+}
+
+export async function getOpeningCatalogBySlug(
+  slug: string
+): Promise<OpeningCatalogRow | null> {
+  const { data, error } = await supabase
+    .from('openings_catalog')
+    .select('*')
+    .eq('slug', slug)
+    .maybeSingle();
+
+  if (error) {
+    throw error;
+  }
+
+  return data;
+}
+
+export async function getOpeningLines(): Promise<OpeningLineRow[]> {
+  const rows: OpeningLineRow[] = [];
+  let from = 0;
+
+  while (true) {
+    const to = from + PAGE_SIZE - 1;
+    const { data, error } = await supabase
+      .from('opening_lines')
+      .select('*')
+      .order('opening_slug', { ascending: true })
+      .order('is_main_line', { ascending: false })
+      .order('popularity_rank', { ascending: true, nullsFirst: false })
+      .order('sort_order', { ascending: true })
+      .range(from, to);
+
+    if (error) {
+      throw error;
+    }
+
+    rows.push(...data);
+
+    if (data.length < PAGE_SIZE) {
+      break;
+    }
+
+    from += PAGE_SIZE;
+  }
+
+  return rows;
+}
+
+export async function getOpeningLinesBySlug(
+  openingSlug: string
+): Promise<OpeningLineRow[]> {
+  const { data, error } = await supabase
+    .from('opening_lines')
+    .select('*')
+    .eq('opening_slug', openingSlug)
+    .order('is_main_line', { ascending: false })
+    .order('popularity_rank', { ascending: true, nullsFirst: false })
+    .order('sort_order', { ascending: true });
+
+  if (error) {
+    throw error;
+  }
+
+  return data;
+}

@@ -16,29 +16,59 @@ export type Database = {
         Row: {
           created_at: string
           description: string | null
+          full_name: string | null
+          inclusion_outcome: string | null
+          is_main_line: boolean
+          line_difficulty: Database["public"]["Enums"]["opening_difficulty"] | null
           name: string
           opening_slug: string
+          popularity_games: number | null
+          popularity_rank: number | null
+          popularity_score: number | null
+          primary_category: string | null
           sans: string[]
           slug: string
           sort_order: number
+          source_confidence: string | null
+          source_name: string | null
         }
         Insert: {
           created_at?: string
           description?: string | null
+          full_name?: string | null
+          inclusion_outcome?: string | null
+          is_main_line?: boolean
+          line_difficulty?: Database["public"]["Enums"]["opening_difficulty"] | null
           name: string
           opening_slug: string
+          popularity_games?: number | null
+          popularity_rank?: number | null
+          popularity_score?: number | null
+          primary_category?: string | null
           sans: string[]
           slug: string
           sort_order?: number
+          source_confidence?: string | null
+          source_name?: string | null
         }
         Update: {
           created_at?: string
           description?: string | null
+          full_name?: string | null
+          inclusion_outcome?: string | null
+          is_main_line?: boolean
+          line_difficulty?: Database["public"]["Enums"]["opening_difficulty"] | null
           name?: string
           opening_slug?: string
+          popularity_games?: number | null
+          popularity_rank?: number | null
+          popularity_score?: number | null
+          primary_category?: string | null
           sans?: string[]
           slug?: string
           sort_order?: number
+          source_confidence?: string | null
+          source_name?: string | null
         }
         Relationships: [
           {
@@ -55,9 +85,15 @@ export type Database = {
           color: Database["public"]["Enums"]["opening_color"]
           created_at: string
           description: string
+          display_tier: string | null
           difficulty: Database["public"]["Enums"]["opening_difficulty"]
           eco_code: string
+          has_main_line: boolean
+          is_featured: boolean | null
           name: string
+          popularity_games: number | null
+          popularity_rank: number | null
+          popularity_score: number | null
           slug: string
           tags: string[]
           updated_at: string
@@ -66,9 +102,15 @@ export type Database = {
           color: Database["public"]["Enums"]["opening_color"]
           created_at?: string
           description?: string
+          display_tier?: string | null
           difficulty: Database["public"]["Enums"]["opening_difficulty"]
           eco_code: string
+          has_main_line?: boolean
+          is_featured?: boolean | null
           name: string
+          popularity_games?: number | null
+          popularity_rank?: number | null
+          popularity_score?: number | null
           slug: string
           tags?: string[]
           updated_at?: string
@@ -77,9 +119,15 @@ export type Database = {
           color?: Database["public"]["Enums"]["opening_color"]
           created_at?: string
           description?: string
+          display_tier?: string | null
           difficulty?: Database["public"]["Enums"]["opening_difficulty"]
           eco_code?: string
+          has_main_line?: boolean
+          is_featured?: boolean | null
           name?: string
+          popularity_games?: number | null
+          popularity_rank?: number | null
+          popularity_score?: number | null
           slug?: string
           tags?: string[]
           updated_at?: string

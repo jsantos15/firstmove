@@ -7,6 +7,12 @@
 - **Stack:** Turborepo monorepo · Next.js 14 · Expo · TypeScript · Supabase · TanStack Query · Zustand · chess.js · react-chessboard (web) · react-native-svg custom board (mobile)
 - **GitHub:** https://github.com/jsantos15/firstmove
 
+## Global Rules
+These apply to every session, every request, without exception:
+- **Challenge suboptimal decisions:** If the user suggests anything — a technology, architecture, feature design, product logic, UX approach, or any other kind of decision — that you know to be suboptimal for their stated goals, say so clearly. Explain why a better option exists and recommend it. Only proceed with their original suggestion if they explicitly confirm after hearing the reasoning. This applies to all decisions, not just technical ones.
+- **No dead code or orphaned files:** When updating or replacing existing functionality, removing the old implementation is part of completing the task. Before closing out any feature, scan for unused imports, unreferenced components or screens, superseded functions, commented-out code blocks, and files no longer imported anywhere. A feature is not done until the old version is fully removed.
+- **Proactively apply well-established UX patterns:** Do not default to the obvious choice when a better pattern exists. Do not make login the landing page for consumer-facing apps — try-before-signup is the norm. Do not leave empty states unaddressed — an onboarding flow that populates the experience before the user sees it is the standard solution. Surface these proactively, do not wait to be asked.
+
 ## Monorepo Structure
 ```
 firstmove/
@@ -82,10 +88,18 @@ firstmove/
 - Merge `staging` → `main` only after user approval
 - Never force push to `main` or `staging`
 
+## Automated Git Behavior
+Claude handles branch creation, commits, and pushes automatically — no need to ask or wait to be told:
+
+- **Branch creation:** When starting work that introduces a new user-facing capability (a new screen, a new data flow, a new integration, a complete new function of the app), automatically create and switch to a `feature/*` branch before touching any code. Do not create a new branch for UI tweaks, copy changes, style adjustments, small menu additions, or anything that does not add a distinct new capability.
+- **Commit and push:** When a feature is complete and the user confirms it (explicitly or clearly implicitly — e.g. "looks good", "ship it", "that's done"), automatically commit all changes with an appropriate message and push the feature branch to the remote. Do not wait to be asked.
+- **Merging:** Never automatic. Merging feature/* into staging, or staging into main, always requires explicit user confirmation regardless of context. This is a hard rule — do not infer approval from positive feedback alone.
+
 ## How to Work on This Project
 1. Read this file first — every session, every time
-2. Identify which workspace the routing table says to touch
-3. Read that workspace's `context.md` before making any changes
-4. Create a `feature/*` branch
+2. Read `/docs/decisions.md` to understand the reasoning behind key project decisions
+3. Identify which workspace the routing table says to touch
+4. Read that workspace's `context.md` before making any changes
 5. Make changes only in the specified workspaces
-6. Summarize what changed and ask if the user wants to merge to staging
+6. If the work involves a decision that a future session would need to know to avoid a contradictory or uninformed choice, log it in `/docs/decisions.md` before closing out the task
+7. Summarize what changed

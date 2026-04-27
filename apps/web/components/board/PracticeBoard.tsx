@@ -121,9 +121,10 @@ export function PracticeBoard({ opening, variation, mode, onMoveIndexChange, con
   const isLive = viewIndex === null;
   const displayIndex = viewIndex ?? currentMoveIndex;
   const canGoBack = displayIndex > 0;
-  const canGoForward = !isLive || displayIndex < currentMoveIndex; // live tail can't go forward
-
   const moves = variation.moves;
+  const maxNavigableIndex = mode === 'learn' ? moves.length : currentMoveIndex;
+  const canGoForward = displayIndex < maxNavigableIndex;
+
   const isMyTurn = isLive && status === 'playing' && isUserTurn(currentMoveIndex, opening.color);
   const playerColor = opening.color === 'white' ? 'w' : 'b';
   const boardOrientation = getBoardOrientation(opening.color, settings.flipBoard);
@@ -139,14 +140,28 @@ export function PracticeBoard({ opening, variation, mode, onMoveIndexChange, con
   }, [isLive, displayIndex, moves, position]);
 
   const navigateTo = (index: number) => {
-    const clamped = Math.max(0, Math.min(index, currentMoveIndex));
+    const clamped = Math.max(0, Math.min(index, maxNavigableIndex));
     setViewIndex(clamped === currentMoveIndex ? null : clamped);
   };
 
   const updateMoveIndex = (nextIndex: number) => {
     setCurrentMoveIndex(nextIndex);
-    onMoveIndexChange?.(nextIndex);
   };
+
+  const highlightedMoveIndex = useMemo(() => {
+    if (moves.length === 0) return -1;
+    if (isLive) {
+      return status === 'complete'
+        ? moves.length - 1
+        : Math.min(currentMoveIndex, moves.length - 1);
+    }
+
+    return displayIndex > 0 ? Math.min(displayIndex - 1, moves.length - 1) : -1;
+  }, [currentMoveIndex, displayIndex, isLive, moves.length, status]);
+
+  useEffect(() => {
+    onMoveIndexChange?.(highlightedMoveIndex);
+  }, [highlightedMoveIndex, onMoveIndexChange]);
 
   const resetWrongMove = () => {
     if (wrongResetRef.current) clearTimeout(wrongResetRef.current);
@@ -228,6 +243,12 @@ export function PracticeBoard({ opening, variation, mode, onMoveIndexChange, con
       setSelectedSquare(null);
     }
   }, [isLive, status]);
+
+  useEffect(() => {
+    if (viewIndex === null) return;
+    if (viewIndex <= maxNavigableIndex) return;
+    setViewIndex(null);
+  }, [maxNavigableIndex, viewIndex]);
 
   // Computer reply — only advances when live
   useEffect(() => {

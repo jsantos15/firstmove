@@ -1,6 +1,13 @@
 import { useQuery } from '@tanstack/react-query';
 import { Chess, type Opening, type OpeningMove, type OpeningVariation } from '@firstmove/core';
-import { createClient } from '@/lib/supabase/client';
+import {
+  getOpeningsCatalog,
+  getOpeningCatalogBySlug,
+  getOpeningLines,
+  getOpeningLinesBySlug,
+  type OpeningCatalogRow,
+  type OpeningLineRow,
+} from '@firstmove/supabase';
 
 // ─── Chess helpers ────────────────────────────────────────────────────────────
 
@@ -20,35 +27,115 @@ function buildMoves(sans: string[]): OpeningMove[] {
 
 // ─── DB row types ─────────────────────────────────────────────────────────────
 
-interface CatalogRow {
-  slug: string;
-  eco_code: string;
-  name: string;
-  color: 'white' | 'black';
-  difficulty: 'beginner' | 'intermediate' | 'advanced';
-  description: string;
-  tags: string[];
-}
+type AppOpening = Opening & {
+  displayTier?: OpeningCatalogRow['display_tier'];
+  isFeatured?: OpeningCatalogRow['is_featured'];
+  popularityRank?: OpeningCatalogRow['popularity_rank'];
+  popularityScore?: OpeningCatalogRow['popularity_score'];
+  popularityGames?: OpeningCatalogRow['popularity_games'];
+  hasMainLine?: OpeningCatalogRow['has_main_line'];
+};
 
-interface LineRow {
-  slug: string;
-  opening_slug: string;
-  name: string;
-  description: string | null;
-  sans: string[];
-  sort_order: number;
+type AppVariation = OpeningVariation & {
+  fullName?: OpeningLineRow['full_name'];
+  primaryCategory?: OpeningLineRow['primary_category'];
+  inclusionOutcome?: OpeningLineRow['inclusion_outcome'];
+  lineDifficulty?: OpeningLineRow['line_difficulty'];
+  isMainLine?: OpeningLineRow['is_main_line'];
+  popularityRank?: OpeningLineRow['popularity_rank'];
+  popularityScore?: OpeningLineRow['popularity_score'];
+  popularityGames?: OpeningLineRow['popularity_games'];
+  sourceName?: OpeningLineRow['source_name'];
+  sourceConfidence?: OpeningLineRow['source_confidence'];
+};
+
+function buildVariationStub(line: OpeningLineRow): AppVariation {
+  return {
+    id: line.slug,
+    name: line.name,
+    description: line.description ?? undefined,
+    moves: [],
+    fullName: line.full_name ?? undefined,
+    primaryCategory: line.primary_category ?? undefined,
+    inclusionOutcome: line.inclusion_outcome ?? undefined,
+    lineDifficulty: line.line_difficulty ?? undefined,
+    isMainLine: line.is_main_line,
+    popularityRank: line.popularity_rank ?? undefined,
+    popularityScore: line.popularity_score ?? undefined,
+    popularityGames: line.popularity_games ?? undefined,
+    sourceName: line.source_name ?? undefined,
+    sourceConfidence: line.source_confidence ?? undefined,
+  };
 }
 
 // ─── Builder ──────────────────────────────────────────────────────────────────
 
-function buildOpening(catalog: CatalogRow, lines: LineRow[]): Opening {
-  const sorted = [...lines].sort((a, b) => a.sort_order - b.sort_order);
-  const variations: OpeningVariation[] = sorted.map(line => ({
-    id: line.slug,
-    name: line.name,
-    description: line.description ?? undefined,
-    moves: buildMoves(line.sans),
-  }));
+function compareCatalogRows(left: OpeningCatalogRow, right: OpeningCatalogRow) {
+  const tierRank = { core: 1, extended: 2, other: 3 } as const;
+  const leftTier =
+    left.display_tier && left.display_tier in tierRank
+      ? tierRank[left.display_tier as keyof typeof tierRank]
+      : 99;
+  const rightTier =
+    right.display_tier && right.display_tier in tierRank
+      ? tierRank[right.display_tier as keyof typeof tierRank]
+      : 99;
+
+  if (leftTier !== rightTier) {
+    return leftTier - rightTier;
+  }
+
+  const leftFeatured = left.is_featured ? 1 : 0;
+  const rightFeatured = right.is_featured ? 1 : 0;
+  if (leftFeatured !== rightFeatured) {
+    return rightFeatured - leftFeatured;
+  }
+
+  const leftPopularity = left.popularity_rank ?? Number.POSITIVE_INFINITY;
+  const rightPopularity = right.popularity_rank ?? Number.POSITIVE_INFINITY;
+  if (leftPopularity !== rightPopularity) {
+    return leftPopularity - rightPopularity;
+  }
+
+  return left.name.localeCompare(right.name);
+}
+
+function compareLineRows(left: OpeningLineRow, right: OpeningLineRow) {
+  const leftMain = left.is_main_line ? 1 : 0;
+  const rightMain = right.is_main_line ? 1 : 0;
+  if (leftMain !== rightMain) {
+    return rightMain - leftMain;
+  }
+
+  const leftPopularity = left.popularity_rank ?? Number.POSITIVE_INFINITY;
+  const rightPopularity = right.popularity_rank ?? Number.POSITIVE_INFINITY;
+  if (leftPopularity !== rightPopularity) {
+    return leftPopularity - rightPopularity;
+  }
+
+  if (left.sort_order !== right.sort_order) {
+    return left.sort_order - right.sort_order;
+  }
+
+  return left.name.localeCompare(right.name);
+}
+
+function buildOpening(
+  catalog: OpeningCatalogRow,
+  lines: OpeningLineRow[],
+  options?: { includeVariationMoves?: boolean }
+): AppOpening {
+  const sorted = [...lines].sort(compareLineRows);
+  const includeVariationMoves = options?.includeVariationMoves ?? true;
+  const variations: AppVariation[] = sorted.map(line =>
+    includeVariationMoves
+      ? {
+          ...buildVariationStub(line),
+          moves: buildMoves(line.sans),
+        }
+      : buildVariationStub(line)
+  );
+  const mainLine = sorted[0];
 
   return {
     id: catalog.slug,
@@ -58,8 +145,14 @@ function buildOpening(catalog: CatalogRow, lines: LineRow[]): Opening {
     difficulty: catalog.difficulty,
     description: catalog.description,
     tags: catalog.tags,
-    moves: variations[0]?.moves ?? [],
+    moves: mainLine ? buildMoves(mainLine.sans) : [],
     variations,
+    displayTier: catalog.display_tier ?? undefined,
+    isFeatured: catalog.is_featured ?? undefined,
+    popularityRank: catalog.popularity_rank ?? undefined,
+    popularityScore: catalog.popularity_score ?? undefined,
+    popularityGames: catalog.popularity_games ?? undefined,
+    hasMainLine: catalog.has_main_line,
   };
 }
 
@@ -70,29 +163,26 @@ function buildOpening(catalog: CatalogRow, lines: LineRow[]): Opening {
  * for the session — opening catalog data doesn't change at runtime.
  */
 export function useOpenings() {
-  return useQuery<Opening[]>({
+  return useQuery<AppOpening[]>({
     queryKey: ['openings'],
     staleTime: Infinity,
     queryFn: async () => {
-      const supabase = createClient();
-
-      const [catalogRes, linesRes] = await Promise.all([
-        supabase.from('openings_catalog').select('*'),
-        supabase.from('opening_lines').select('*').order('sort_order'),
+      const [catalogRows, lineRows] = await Promise.all([
+        getOpeningsCatalog(),
+        getOpeningLines(),
       ]);
 
-      if (catalogRes.error) throw catalogRes.error;
-      if (linesRes.error) throw linesRes.error;
-
-      const linesByOpening = new Map<string, LineRow[]>();
-      for (const line of (linesRes.data ?? []) as LineRow[]) {
+      const linesByOpening = new Map<string, OpeningLineRow[]>();
+      for (const line of lineRows) {
         const arr = linesByOpening.get(line.opening_slug) ?? [];
         arr.push(line);
         linesByOpening.set(line.opening_slug, arr);
       }
 
-      return ((catalogRes.data ?? []) as CatalogRow[]).map(row =>
-        buildOpening(row, linesByOpening.get(row.slug) ?? [])
+      return [...catalogRows].sort(compareCatalogRows).map(row =>
+        buildOpening(row, linesByOpening.get(row.slug) ?? [], {
+          includeVariationMoves: false,
+        })
       );
     },
   });
@@ -103,21 +193,22 @@ export function useOpenings() {
  * useOpenings so TanStack Query deduplicates requests automatically.
  */
 export function useOpening(slug: string) {
-  return useQuery<Opening | null>({
+  return useQuery<AppOpening | null>({
     queryKey: ['openings', slug],
     staleTime: Infinity,
     queryFn: async () => {
-      const supabase = createClient();
-
-      const [catalogRes, linesRes] = await Promise.all([
-        supabase.from('openings_catalog').select('*').eq('slug', slug).single(),
-        supabase.from('opening_lines').select('*').eq('opening_slug', slug).order('sort_order'),
+      const [catalogRow, lineRows] = await Promise.all([
+        getOpeningCatalogBySlug(slug),
+        getOpeningLinesBySlug(slug),
       ]);
 
-      if (catalogRes.error) return null;
-      if (linesRes.error) throw linesRes.error;
+      if (!catalogRow) {
+        return null;
+      }
 
-      return buildOpening(catalogRes.data as CatalogRow, (linesRes.data ?? []) as LineRow[]);
+      return buildOpening(catalogRow, lineRows, {
+        includeVariationMoves: true,
+      });
     },
   });
 }

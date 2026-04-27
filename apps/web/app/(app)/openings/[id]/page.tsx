@@ -3,6 +3,7 @@
 import { useState, use, useEffect, useRef } from 'react';
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
+import type { OpeningDifficulty, OpeningVariation } from '@firstmove/core';
 import { PracticeBoard, type PracticeMode } from '@/components/board/PracticeBoard';
 import { useOpening } from '@/hooks/useOpenings';
 import { MoveList } from '@/components/board/MoveList';
@@ -14,6 +15,20 @@ import { PIECE_SETS } from '@/lib/piecesets';
 
 interface PageProps {
   params: Promise<{ id: string }>;
+}
+
+type VariationWithMeta = OpeningVariation & {
+  isMainLine?: boolean;
+  lineDifficulty?: OpeningDifficulty;
+};
+
+function asVariationWithMeta(variation: OpeningVariation): VariationWithMeta {
+  return variation as VariationWithMeta;
+}
+
+function formatDifficultyLabel(value?: OpeningDifficulty) {
+  if (!value) return null;
+  return value.charAt(0).toUpperCase() + value.slice(1);
 }
 
 function BoardSettingsPopover() {
@@ -186,7 +201,7 @@ export default function PracticePage({ params }: PageProps) {
   const { data: progress } = useAllProgress();
   const [selectedVariationId, setSelectedVariationId] = useState('');
   const [showAuthPrompt, setShowAuthPrompt] = useState(false);
-  const [currentMoveIndex, setCurrentMoveIndex] = useState(0);
+  const [currentMoveIndex, setCurrentMoveIndex] = useState(-1);
   const [mode, setMode] = useState<PracticeMode>('learn');
 
   if (isLoading) {
@@ -273,6 +288,7 @@ export default function PracticePage({ params }: PageProps) {
               </h3>
               <div className="flex-1 min-h-0 overflow-y-auto px-4 pb-4 flex flex-col gap-1.5">
                 {opening.variations.map((variation, index) => {
+                  const variationMeta = asVariationWithMeta(variation);
                   const locked = index > 0 && !user;
                   const vProgress = progress?.get(`${opening.id}/${variation.id}`);
                   const mastery = vProgress?.mastery;
@@ -289,7 +305,22 @@ export default function PracticePage({ params }: PageProps) {
                       }`}
                     >
                       <div className="flex items-center justify-between gap-2">
-                        <span className="font-medium">{variation.name}</span>
+                        <div className="min-w-0">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="font-medium">{variation.name}</span>
+                            {variationMeta.isMainLine ? (
+                              <span className="rounded-full border border-amber-400/20 bg-amber-400/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-300">
+                                Main
+                              </span>
+                            ) : null}
+                            {variationMeta.lineDifficulty &&
+                            variationMeta.lineDifficulty !== opening.difficulty ? (
+                              <span className="rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-gray-400">
+                                {formatDifficultyLabel(variationMeta.lineDifficulty)}
+                              </span>
+                            ) : null}
+                          </div>
+                        </div>
                         {locked ? (
                           <span className="text-xs shrink-0">🔒</span>
                         ) : mastery && mastery !== 'new' ? (
