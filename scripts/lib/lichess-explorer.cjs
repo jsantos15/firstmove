@@ -1,4 +1,37 @@
 const DEFAULT_BASE_URL = "https://explorer.lichess.ovh/lichess";
+const { loadScriptEnv } = require("./local-env.cjs");
+
+function buildExplorerHeaders(options = {}) {
+  loadScriptEnv();
+
+  const bearerToken =
+    options.token ??
+    process.env.LICHESS_API_TOKEN ??
+    process.env.LICHESS_TOKEN ??
+    null;
+  const cookie =
+    options.cookie ??
+    process.env.LICHESS_EXPLORER_COOKIE ??
+    process.env.LICHESS_COOKIE ??
+    null;
+
+  const headers = {
+    Accept: "application/json",
+    Origin: "https://lichess.org",
+    Referer: "https://lichess.org/analysis",
+    "User-Agent": "FirstMove/1.0 (opening line sourcing)",
+  };
+
+  if (cookie) {
+    headers.Cookie = cookie;
+  }
+
+  if (bearerToken) {
+    headers.Authorization = `Bearer ${bearerToken}`;
+  }
+
+  return headers;
+}
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -21,9 +54,7 @@ async function fetchLichessExplorer(fen, options = {}) {
 
   const url = `${options.baseUrl ?? DEFAULT_BASE_URL}?${params.toString()}`;
   const response = await fetch(url, {
-    headers: {
-      "User-Agent": "FirstMove/1.0 (opening line sourcing)",
-    },
+    headers: buildExplorerHeaders(options),
   });
 
   if (!response.ok) {
@@ -55,6 +86,7 @@ async function fetchWithRetry(fen, options = {}) {
 }
 
 module.exports = {
+  buildExplorerHeaders,
   fetchLichessExplorer: fetchWithRetry,
   totalGames,
 };

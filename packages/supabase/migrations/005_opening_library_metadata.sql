@@ -44,9 +44,7 @@ alter table public.opening_lines
     primary_category in (
       'setup',
       'strategic',
-      'trap',
-      'gambit',
-      'punishment',
+      'tactical_payoff',
       'forcing'
     ) or primary_category is null
   );

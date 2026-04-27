@@ -2,7 +2,7 @@
 
 interface Filters {
   search: string;
-  color: 'all' | 'white' | 'black' | 'gambits';
+  color: 'all' | 'white' | 'black';
   difficulty: 'all' | 'beginner' | 'intermediate' | 'advanced';
   inProgress: boolean;
 }
@@ -17,7 +17,6 @@ export function OpeningFilters({ filters, onChange }: OpeningFiltersProps) {
     { value: 'all', label: 'All' },
     { value: 'white', label: '♔ White' },
     { value: 'black', label: '♚ Black' },
-    { value: 'gambits', label: '⚔ Gambits' },
   ];
 
   const difficultyOptions: { value: Filters['difficulty']; label: string }[] = [
@@ -98,3 +97,4 @@ export function OpeningFilters({ filters, onChange }: OpeningFiltersProps) {
     </div>
   );
 }
+

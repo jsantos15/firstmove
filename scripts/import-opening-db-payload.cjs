@@ -2,6 +2,7 @@
 
 const fs = require("fs");
 const path = require("path");
+const { loadEnvFile, loadScriptEnv } = require("./lib/local-env.cjs");
 
 const DEFAULT_INPUT = path.resolve(
   __dirname,
@@ -31,25 +32,6 @@ function parseArgs(argv) {
   }
 
   return args;
-}
-
-function loadEnvFile(filePath) {
-  if (!fs.existsSync(filePath)) {
-    return;
-  }
-
-  for (const line of fs.readFileSync(filePath, "utf8").split(/\r?\n/)) {
-    const match = line.match(/^([^#=]+)=(.*)$/);
-    if (!match) {
-      continue;
-    }
-
-    const key = match[1].trim();
-    const value = match[2].trim();
-    if (!process.env[key]) {
-      process.env[key] = value;
-    }
-  }
 }
 
 function readPayload(filePath) {
@@ -125,6 +107,7 @@ async function upsert(table, rows, headers, supabaseUrl) {
 
 async function main() {
   const args = parseArgs(process.argv.slice(2));
+  loadScriptEnv();
   loadEnvFile(path.join(__dirname, "..", "apps", "web", ".env.local"));
 
   const payload = readPayload(args.input);

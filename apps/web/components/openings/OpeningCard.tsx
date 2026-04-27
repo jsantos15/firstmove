@@ -4,7 +4,6 @@ import { useEffect, useRef, useState } from 'react';
 import { Chessboard } from 'react-chessboard';
 import Link from 'next/link';
 import type { Opening } from '@firstmove/core';
-import { getCharacteristicFen } from '@firstmove/core';
 import { ColorBadge, DifficultyBadge } from '@/components/ui/Badge';
 import type { MasteryLevel } from '@/hooks/useProgress';
 import { useBoardSettings } from '@/hooks/useBoardSettings';
@@ -16,6 +15,11 @@ interface OpeningCardProps {
   opening: Opening;
   completedLines?: number;
   status?: MasteryLevel;
+}
+
+function getCharacteristicFen(opening: Opening): string {
+  const lastMove = opening.moves[opening.moves.length - 1];
+  return lastMove?.fen ?? 'start';
 }
 
 // ─── Status chip config ───────────────────────────────────────────────────────

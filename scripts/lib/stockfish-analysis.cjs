@@ -1,4 +1,4 @@
-const { Chess } = require("chess.js");
+const { Chess } = require("./chess-js.cjs");
 const {
   createStockfishEngine,
   parseInfoLine,

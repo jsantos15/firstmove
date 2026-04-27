@@ -2,6 +2,7 @@
 
 const fs = require("fs");
 const path = require("path");
+const { loadEnvFile, loadScriptEnv } = require("./lib/local-env.cjs");
 
 const DEFAULT_INPUT = path.resolve(
   __dirname,
@@ -43,25 +44,6 @@ function parseArgs(argv) {
   return args;
 }
 
-function loadEnvFile(filePath) {
-  if (!fs.existsSync(filePath)) {
-    return;
-  }
-
-  for (const line of fs.readFileSync(filePath, "utf8").split(/\r?\n/)) {
-    const match = line.match(/^([^#=]+)=(.*)$/);
-    if (!match) {
-      continue;
-    }
-
-    const key = match[1].trim();
-    const value = match[2].trim();
-    if (!process.env[key]) {
-      process.env[key] = value;
-    }
-  }
-}
-
 function readPayload(filePath) {
   if (!fs.existsSync(filePath)) {
     throw new Error(`Missing payload file: ${filePath}`);
@@ -71,6 +53,7 @@ function readPayload(filePath) {
 }
 
 function getEnv() {
+  loadScriptEnv();
   loadEnvFile(path.join(__dirname, "..", "apps", "web", ".env.local"));
 
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -100,11 +83,10 @@ async function fetchAllRows(table, select, headers, supabaseUrl) {
   while (true) {
     const url = new URL(`${supabaseUrl}/rest/v1/${table}`);
     url.searchParams.set("select", select);
+    url.searchParams.set("limit", String(pageSize));
+    url.searchParams.set("offset", String(offset));
     const response = await fetch(url, {
-      headers: {
-        ...headers,
-        Range: `${offset}-${offset + pageSize - 1}`,
-      },
+      headers,
     });
 
     if (!response.ok) {

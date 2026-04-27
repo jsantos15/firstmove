@@ -9,7 +9,7 @@ import type { Opening } from '@firstmove/core';
 
 interface Filters {
   search: string;
-  color: 'all' | 'white' | 'black' | 'gambits';
+  color: 'all' | 'white' | 'black';
   difficulty: 'all' | 'beginner' | 'intermediate' | 'advanced';
   inProgress: boolean;
 }
@@ -27,9 +27,7 @@ export default function OpeningsPage() {
 
   const filtered = useMemo(() => {
     const result = openings.filter(o => {
-      if (filters.color === 'gambits') {
-        if (!o.tags.includes('gambit')) return false;
-      } else if (filters.color !== 'all' && o.color !== filters.color) return false;
+      if (filters.color !== 'all' && o.color !== filters.color) return false;
       if (filters.difficulty !== 'all' && o.difficulty !== filters.difficulty) return false;
       if (filters.search) {
         const q = filters.search.toLowerCase();
@@ -110,3 +108,4 @@ export default function OpeningsPage() {
     </div>
   );
 }
+

@@ -29,12 +29,20 @@ Follow these steps once to set up your Supabase project.
 
 1. Go to **Settings → API**
 2. Copy **Project URL** and **anon/public key**
-3. Copy them into `apps/web/.env.local`:
+3. Copy them into `apps/web/.env.local` for the app and `scripts/.env` for generation/import scripts:
 
 ```
 NEXT_PUBLIC_SUPABASE_URL=https://your-project-ref.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
 NEXT_PUBLIC_APP_URL=http://localhost:3000
+```
+
+`scripts/.env` should include:
+
+```
+NEXT_PUBLIC_SUPABASE_URL=https://your-project-ref.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
+LICHESS_API_TOKEN=your-lichess-personal-token
 ```
 
 ## 5. Generate TypeScript types (after schema is applied)

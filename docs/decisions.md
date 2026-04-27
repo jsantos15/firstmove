@@ -28,14 +28,6 @@
 
 ---
 
-## 2026-04-10 - Openings data bundled as TypeScript + mirrored in Supabase
-
-**Decision:** Store the openings library as typed JSON in `packages/core/src/openings/index.ts` and in Supabase.
-
-**Reason:** Bundling enables offline access and instant load on first open. Supabase mirroring enables content updates without requiring an app release. On launch, the app can check for a newer dataset version from the server and update the local cache silently.
-
----
-
 ## 2026-04-10 - TanStack Query for server state
 
 **Decision:** Use TanStack Query in both apps for all server data fetching.
@@ -76,14 +68,6 @@
 
 ---
 
-## 2026-04-19 - Classify opening lines by teaching purpose
-
-**Decision:** Classify each FirstMove opening line under a single primary teaching category: `setup`, `strategic`, `trap`, `gambit`, `punishment`, or `forcing`, with optional secondary tags for context.
-
-**Reason:** The same stopping rule cannot be interpreted identically across all lines. A quiet tabiya, a tactical trap, and a sacrificial attacking line each become "complete" for different reasons. A shared category system makes line review, sourcing, and future testing more consistent.
-
----
-
 ## 2026-04-19 - Use human opening sources first and Stockfish second
 
 **Decision:** Source FirstMove opening lines from richer human opening data first, then use Stockfish as a secondary tool for validation, final-position evaluation, and selective gap-filling when a line still stops too early.
@@ -121,22 +105,6 @@
 **Decision:** Regenerate the opening library from a backup-preserved seed inventory and classify included lines into named, practical, and future `Others` buckets at the data-model level before promoting any rebuilt dataset.
 
 **Reason:** FirstMove needs broad real-world coverage without turning the library into a flat, messy list. Some branches should be authoritative named variations, some should be practical learner-facing branches, and some may be useful fallback branches that are worth storing now even if the app does not yet expose an `Others` section in the UI.
-
----
-
-## 2026-04-20 - Use repo-side JSON export as the first opening-library backup format
-
-**Decision:** Before regenerating the opening library, export the current repo dataset into timestamped JSON backup files under `scripts/output/backups/opening-library/`, with one opening-oriented export and one flattened line-oriented export.
-
-**Reason:** The rebuild should not depend on live DB access to preserve the current library. A timestamped repo-side backup is simple, reviewable, diffable, and enough to protect the current opening families, line IDs, names, descriptions, and SAN sequences before the first generated replacement pass.
-
----
-
-## 2026-04-20 - Use ChessDB as the first operational continuation source for regeneration
-
-**Decision:** For the first full library regeneration, use `lichess-org/chess-openings` as the naming authority and `ChessDB` as the operational continuation source, with Stockfish validating the final candidate lines.
-
-**Reason:** FirstMove needs a continuation source that is scriptable and usable now. The static Lichess naming dataset works well for authoritative names, but it does not provide sufficient line depth by itself. ChessDB is already close to the repo's existing workflow and can provide broad practical continuation candidates while the framework still controls inclusion, naming, and stopping decisions.
 
 ---
 
@@ -201,3 +169,27 @@
 **Decision:** Supersede the earlier rebuild/import generation logic that extended named source lines mainly through a single continuation workflow. The new opening-line generation model should start from known named variation anchors, generate one main line per variation, and then create post-anchor teaching branches using human-popular opponent moves, best-practical responses, depth-aware branching limits, and payoff-based stopping.
 
 **Reason:** The previous rebuild logic was strong at preserving naming authority and teaching-value stopping, but it still treated continuation generation too linearly for the product direction FirstMove now wants. The revised model preserves official opening structure while better matching how users actually learn openings: know the variation, recognize common opponent branches, and learn the practical conversion, punishment, setup, or strategic payoff inside that variation. This also makes it possible to keep a richer DB representation than the app may immediately show, while deprecating the older import algorithm as the active target going forward.
+
+---
+
+## 2026-04-27 - Retire the bundled core opening library in favor of Supabase-only opening content
+
+**Decision:** Remove the old bundled `packages/core/src/openings` dataset and the scripts that fetched, applied, seeded, audited, or backed it up. Keep `@firstmove/core` focused on shared chess logic and shared types, while treating Supabase as the only active opening-library runtime source.
+
+**Reason:** The app already reads openings from `openings_catalog` and `opening_lines`, and keeping the old bundled library alive created conflicting truths, stale generation scripts, and dead maintenance paths. Removing that branch makes the current architecture honest: openings live in Supabase, generation happens in `scripts/`, and `@firstmove/core` supplies logic and types only.
+
+---
+
+## 2026-04-27 - Replace the old six-category line model with the new four-category model
+
+**Decision:** Supersede the earlier primary-category model (`setup`, `strategic`, `trap`, `gambit`, `punishment`, `forcing`) with the active Phase 1 model: `setup`, `strategic`, `tactical_payoff`, and `forcing`.
+
+**Reason:** The newer generator and stopping model treat traps, gambits, punishments, and similar concrete payoffs as one practical family with the same stopping standard: keep going until the payoff is visible, then stop before deeper moves become mostly conversion. The four-category model is cleaner, matches the implemented generator, and removes the need to force tactical lines into multiple overlapping older buckets.
+
+---
+
+## 2026-04-27 - Replace ChessDB with authenticated Lichess Explorer for continuation sourcing
+
+**Decision:** Use `lichess-org/chess-openings` as naming authority, authenticated `Lichess Explorer` as the human continuation source, and `Stockfish` as the trained-side move and validation source for the active generator.
+
+**Reason:** The current FirstMove model needs practical human continuation data, not generic engine-tree depth. Lichess Explorer provides popularity, node sample counts, and the real practical opponent-move model that the stopping and continuation policies now rely on. ChessDB no longer matches the active generation algorithm and was removed from the live pipeline.

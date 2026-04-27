@@ -1,124 +1,106 @@
-# FirstMove Opening Continuation Source Decision
+# FirstMove Opening Continuation Source
 
 ## Purpose
 
-This document defines the practical continuation source strategy for the first
-full opening-library regeneration.
+This document defines the active continuation-source stack for the rebuilt
+opening generator.
 
-The naming question and the continuation-depth question are not the same.
+Naming authority and continuation authority are different jobs.
 
-- `lichess-org/chess-openings` is the naming authority
-- this document defines how we obtain longer move sequences
+- `lichess-org/chess-openings` defines opening and variation names
+- `Lichess Explorer` defines practical human move popularity
+- `Stockfish` defines trained-side best play and final validation
 
-## Current Practical Decision
+## Active Source Stack
 
-For the first regeneration pass, use this continuation-source stack:
+For the current generator, use:
 
-1. `lichess-org/chess-openings` for opening family and variation identity
-2. `ChessDB` for operational continuation depth generation
-3. `Stockfish 17.1` for validation, evaluation, and short gap-filling
-4. manual review for edge cases, move-order weirdness, and family placement
+1. `lichess-org/chess-openings` for opening family and named variation anchors
+2. authenticated `Lichess Explorer` for opponent continuation popularity and
+   node sample counts
+3. `Stockfish` for trained-side best moves, short-horizon checks, and final
+   position analysis
 
-## Why This Is The Current Choice
+## Why This Is The Active Choice
 
-In an ideal version of the pipeline, FirstMove would use a richer human game
-tree source for long continuation depth.
+This matches the current FirstMove generation model:
 
-However, for the current rebuild, we need a source that is:
+- preserve official opening and variation structure
+- follow real human opponent play after the named anchor
+- keep the teaching side on strong, engine-validated moves
+- stop based on the FirstMove closing algorithm rather than raw tree depth
 
-- reachable from this environment
-- scriptable now
-- already close to the existing repo workflow
-- good enough to start producing broad coverage quickly
+`Lichess Explorer` is now the continuation source because it directly answers
+the product question:
 
-`ChessDB` satisfies those operational requirements today.
+- what do humans actually play here?
 
-`lichess-org/chess-openings` remains the naming authority because it provides
-clean opening-family and variation naming, but it does not provide the deeper
-continuation depth needed by itself.
+`Stockfish` remains essential, but it is no longer the source of opponent move
+selection.
 
-## Constraint Noted On April 20, 2026
+## Authentication Requirement
 
-During this rebuild setup, live requests to the Lichess Opening Explorer were
-not reliably usable from the current environment. The static
-`lichess-org/chess-openings` dataset was reachable and worked well for naming,
-but the live explorer path was not suitable as the immediate automation source
-for the rebuild.
+Lichess Opening Explorer now requires authenticated access.
 
-Because of that, the first practical rebuild should not depend on live Lichess
-Explorer availability.
+For local script usage:
 
-## What ChessDB Is Responsible For
+- create a personal Lichess API token
+- store it locally as `LICHESS_API_TOKEN`
+- never commit that token to the repo
 
-Use ChessDB to:
+The generator reads that token from local environment configuration and uses it
+for Explorer requests.
 
-- extend known named lines beyond their shortest identifying sequence
-- recover likely continuation moves for broad practical coverage
-- generate candidate tails for current and newly discovered lines
-- support full-library generation when deeper human-tree automation is not yet
-  ready
+## Responsibility Split
 
-Do not let ChessDB decide naming or line inclusion by itself.
+### `lichess-org/chess-openings`
 
-## What ChessDB Is Not Responsible For
+Responsible for:
 
-Do not use ChessDB alone to decide:
+- opening names
+- variation names
+- variation nesting
+- anchor PGN / SAN identity
 
-- whether a branch deserves inclusion
-- what the line should be called
-- whether a broad family or subvariation is the correct label
-- whether the final depth is pedagogically right without framework review
+Not responsible for:
 
-Those decisions must still come from:
+- practical continuation depth
+- popularity counts
+- stopping logic
 
-- the inclusion policy
-- the category system
-- the stop rubric
-- the naming authority
-- Stockfish review
+### `Lichess Explorer`
 
-## Practical Generation Flow
+Responsible for:
 
-For each candidate line:
+- opponent move popularity
+- node game counts
+- practical branch confidence
+- continuation-policy filtering for human play
 
-1. Identify the opening family and best available variation name from
-   `lichess-org/chess-openings`.
-2. Start from the shortest known branch sequence.
-3. Extend the line with ChessDB to generate a practical continuation candidate.
-4. Apply FirstMove stop rules to decide whether to stop, shorten, or extend.
-5. Use Stockfish to validate the final candidate line and final position.
-6. Mark the line as authoritative, practical, app-label, or future `Others`.
+Not responsible for:
 
-## Confidence Model
+- naming
+- category assignment by itself
+- trained-side best play
 
-Use these source-confidence guidelines:
+### `Stockfish`
 
-- `high`
-  - authoritative name from Lichess opening dataset
-  - continuation is stable and Stockfish-checked
-- `medium`
-  - continuation mainly sourced from ChessDB and confirmed by Stockfish
-- `low`
-  - family fit, move order, or teaching value still needs human review
+Responsible for:
 
-## Future Upgrade Path
+- trained-side continuation move choice in Phase 1
+- MultiPV analysis
+- top-move gap
+- eval stability
+- short-horizon upgrade checks
+- final line validation
 
-This is the practical source choice for the first rebuild, not the final ideal
-architecture.
+Not responsible for:
 
-Future upgrades may replace or augment the continuation layer with:
-
-- a reachable human opening explorer API
-- an imported game-tree dataset
-- a curated PGN opening source
-- popularity-weighted branch mining from a large PGN corpus
-
-If that happens, naming authority can stay the same while continuation depth
-generation improves.
+- opponent popularity modeling
+- naming
 
 ## One-Sentence Project Rule
 
-For the first full FirstMove library regeneration, use `lichess-org/chess-openings`
-for naming and `ChessDB` plus Stockfish for practical continuation generation,
-while keeping final inclusion and stopping decisions under the FirstMove
-framework.
+Use `lichess-org/chess-openings` for naming, authenticated `Lichess Explorer`
+for human opponent continuations, and `Stockfish` for trained-side best play and
+validation.

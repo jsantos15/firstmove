@@ -7,7 +7,7 @@ FirstMove.
 
 This policy is separate from the stopping rules.
 
-- `opening-line-spec.md` answers: where should a line end?
+- `opening-line-generation-algorithm.md` answers: where should a line end?
 - this document answers: should this line exist as a distinct line at all?
 
 The goal is broad useful coverage, not minimal coverage.

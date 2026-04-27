@@ -9,18 +9,10 @@ const DEFAULT_OUTPUT = path.resolve(
   "generated-opening-candidates-merged.json"
 );
 
-const DEFAULT_INPUTS = [
-  path.resolve(__dirname, "output", "generated-opening-candidates-A.json"),
-  path.resolve(__dirname, "output", "generated-opening-candidates-B.json"),
-  path.resolve(__dirname, "output", "generated-opening-candidates-C.json"),
-  path.resolve(__dirname, "output", "generated-opening-candidates-D.json"),
-  path.resolve(__dirname, "output", "generated-opening-candidates-E.json"),
-];
-
 function parseArgs(argv) {
   const args = {
     output: DEFAULT_OUTPUT,
-    inputs: [...DEFAULT_INPUTS],
+    inputs: [],
   };
 
   for (let index = 0; index < argv.length; index += 1) {
@@ -37,6 +29,12 @@ function parseArgs(argv) {
       index += 1;
       continue;
     }
+  }
+
+  if (args.inputs.length === 0) {
+    throw new Error(
+      "merge-opening-candidates requires at least one --input file."
+    );
   }
 
   return args;
@@ -178,7 +176,8 @@ function main() {
     status: "complete",
     source: {
       naming: "lichess-org/chess-openings",
-      continuation: "ChessDB",
+      continuation: "Lichess Explorer",
+      trainedSideModel: "Stockfish",
       chunks: args.inputs.map((filePath) => path.basename(filePath)),
     },
     count: mergedResults.length,

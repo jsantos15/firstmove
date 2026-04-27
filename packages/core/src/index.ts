@@ -4,4 +4,3 @@
 export { Chess } from 'chess.js';
 export * from './types';
 export * from './game';
-export * from './openings';

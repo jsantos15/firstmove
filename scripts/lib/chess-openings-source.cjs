@@ -1,4 +1,4 @@
-const { Chess } = require("chess.js");
+const { Chess } = require("./chess-js.cjs");
 
 const SOURCE_FILES = ["a", "b", "c", "d", "e"];
 const DEFAULT_BASE_URL =

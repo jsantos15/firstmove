@@ -78,7 +78,7 @@ if the payoff is quiet.
 A practical lesson line inside a variation. It branches after the variation
 anchor and exists to teach:
 
-- a tactical punishment
+- a tactical payoff
 - a strategic setup
 - a structural edge
 - a compensation pattern
@@ -283,7 +283,7 @@ Allow a non-top engine move only if all of these are true:
 Use:
 
 - quiet/strategic positions: max eval loss `0.20`
-- tactical/punishment/gambit positions: max eval loss `0.35`
+- tactical-payoff positions: max eval loss `0.35`
 
 This override behavior is later work. It should not be used by the Phase 1
 generator until it is explicitly implemented and tested.
@@ -482,7 +482,7 @@ That means:
 Recommended app ranking order:
 
 1. main line
-2. traps and punishments
+2. tactical-payoff lines
 3. tactical winning branches
 4. strategic or structural branches
 5. quieter reference lines

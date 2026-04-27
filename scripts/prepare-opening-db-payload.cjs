@@ -141,7 +141,8 @@ function buildOpeningTags(opening, color) {
     "display:pending-popularity",
     "source:regenerated",
     "source:naming:lichess-org-chess-openings",
-    "source:continuation:chessdb",
+    "source:continuation:lichess-explorer",
+    "source:trained-side:stockfish",
   ]);
 
   if (opening.lines.some((line) => line.isMainLine)) {
