@@ -4,7 +4,7 @@ import { useState, use, useEffect, useRef } from 'react';
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import type { OpeningDifficulty, OpeningVariation } from '@firstmove/core';
-import { PracticeBoard, primeMoveSound, type PracticeMode } from '@/components/board/PracticeBoard';
+import { PracticeBoard, type PracticeMode } from '@/components/board/PracticeBoard';
 import { useOpening } from '@/hooks/useOpenings';
 import { MoveList } from '@/components/board/MoveList';
 import { DifficultyBadge, ColorBadge } from '@/components/ui/Badge';
@@ -203,7 +203,6 @@ export default function PracticePage({ params }: PageProps) {
   const { data: opening, isLoading } = useOpening(id);
   const { user } = useAuth();
   const { data: progress } = useAllProgress();
-  const { settings } = useBoardSettings();
   const [selectedVariationId, setSelectedVariationId] = useState('');
   const [showAuthPrompt, setShowAuthPrompt] = useState(false);
   const [currentMoveIndex, setCurrentMoveIndex] = useState(-1);
@@ -227,7 +226,6 @@ export default function PracticePage({ params }: PageProps) {
       setShowAuthPrompt(true);
       return;
     }
-    if (settings.moveSound) primeMoveSound();
     setShowAuthPrompt(false);
     setSelectedVariationId(variationId);
   }
