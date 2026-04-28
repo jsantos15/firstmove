@@ -134,25 +134,46 @@ function ModeButton({
 
 let audioCtx: AudioContext | null = null;
 let audioResumePromise: Promise<void> | null = null;
+let audioPrimed = false;
 
 function getAudioCtx() {
-  if (!audioCtx || audioCtx.state === 'closed') audioCtx = new AudioContext();
+  if (!audioCtx || audioCtx.state === 'closed') {
+    audioCtx = new AudioContext();
+    audioPrimed = false;
+  }
   return audioCtx;
+}
+
+function playSilentUnlockBuffer(ctx: AudioContext) {
+  const buffer = ctx.createBuffer(1, 1, ctx.sampleRate);
+  const source = ctx.createBufferSource();
+  const gain = ctx.createGain();
+  gain.gain.value = 0;
+  source.buffer = buffer;
+  source.connect(gain);
+  gain.connect(ctx.destination);
+  source.start();
 }
 
 async function ensureAudioContextRunning() {
   const ctx = getAudioCtx();
   const state = ctx.state as AudioContextState;
-  if (state === 'running') return ctx;
 
-  if (state !== 'closed') {
+  if (state !== 'running' && state !== 'closed') {
     audioResumePromise ??= ctx.resume().finally(() => {
       audioResumePromise = null;
     });
     await audioResumePromise;
   }
 
-  return (ctx.state as AudioContextState) === 'running' ? ctx : null;
+  if ((ctx.state as AudioContextState) !== 'running') return null;
+
+  if (!audioPrimed) {
+    playSilentUnlockBuffer(ctx);
+    audioPrimed = true;
+  }
+
+  return ctx;
 }
 
 export function primeMoveSound() {
