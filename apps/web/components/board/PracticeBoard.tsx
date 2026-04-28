@@ -111,17 +111,36 @@ function EvalBar({
 }
 
 let audioCtx: AudioContext | null = null;
+let audioResumePromise: Promise<void> | null = null;
 
 function getAudioCtx() {
   if (!audioCtx || audioCtx.state === 'closed') audioCtx = new AudioContext();
   return audioCtx;
 }
 
+async function ensureAudioContextRunning() {
+  const ctx = getAudioCtx();
+  const state = ctx.state as AudioContextState;
+  if (state === 'running') return ctx;
+
+  if (state !== 'closed') {
+    audioResumePromise ??= ctx.resume().finally(() => {
+      audioResumePromise = null;
+    });
+    await audioResumePromise;
+  }
+
+  return (ctx.state as AudioContextState) === 'running' ? ctx : null;
+}
+
+export function primeMoveSound() {
+  void ensureAudioContextRunning().catch(() => {});
+}
+
 async function playMoveSound() {
   try {
-    const ctx = getAudioCtx();
-    if (ctx.state === 'suspended') await ctx.resume();
-    if (ctx.state !== 'running') return;
+    const ctx = await ensureAudioContextRunning();
+    if (!ctx) return;
 
     const bufferSize = Math.floor(ctx.sampleRate * 0.08);
     const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
@@ -182,6 +201,9 @@ export function PracticeBoard({ opening, variation, mode, onMoveIndexChange, con
   const isMyTurn = isLive && status === 'playing' && isUserTurn(currentMoveIndex, opening.color);
   const playerColor = opening.color === 'white' ? 'w' : 'b';
   const boardOrientation = getBoardOrientation(opening.color, settings.flipBoard);
+  const primeSoundIfEnabled = () => {
+    if (settings.moveSound) primeMoveSound();
+  };
 
   // FEN at an arbitrary move index by replaying from start
   const displayPosition = useMemo(() => {
@@ -532,12 +554,14 @@ export function PracticeBoard({ opening, variation, mode, onMoveIndexChange, con
     if (!isLive || status !== 'playing') return;
     if (piece[0] !== playerColor) return;
 
+    primeSoundIfEnabled();
     setSelectedSquare(current => (current === square ? null : square));
   };
 
   const onPieceDragBegin = (piece: string, sourceSquare: string) => {
     if (!isLive || status !== 'playing') return;
     if (piece[0] !== playerColor) return;
+    primeSoundIfEnabled();
     setSelectedSquare(sourceSquare);
   };
 
@@ -553,6 +577,7 @@ export function PracticeBoard({ opening, variation, mode, onMoveIndexChange, con
 
   const onSquareClick = (square: string, piece?: string) => {
     if (!isLive || status !== 'playing') return;
+    primeSoundIfEnabled();
     const isOwnPiece = piece?.[0] === playerColor;
 
     if (!selectedSquare) {
@@ -618,7 +643,10 @@ export function PracticeBoard({ opening, variation, mode, onMoveIndexChange, con
   }, [displayIndex, currentMoveIndex]);
 
   return (
-    <div className="relative flex h-full w-full select-none flex-col gap-3">
+    <div
+      className="relative flex h-full w-full select-none flex-col gap-3"
+      onPointerDownCapture={primeSoundIfEnabled}
+    >
 
       {/* Status + progress */}
       <div className="mx-auto w-full shrink-0" style={{ maxWidth: boardSize }}>
