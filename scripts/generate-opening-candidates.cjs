@@ -284,18 +284,6 @@ function inferMainLineStatus(entry) {
     };
   }
 
-  if (
-    variation.includes("classical variation") ||
-    variation.includes("closed variation") ||
-    variation.includes("open variation")
-  ) {
-    return {
-      isMainLine: true,
-      mainLineConfidence: "provisional",
-      mainLineSource: "This branch is being treated as the canonical line for ordering.",
-    };
-  }
-
   return {
     isMainLine: false,
     mainLineConfidence: "none",

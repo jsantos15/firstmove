@@ -271,6 +271,10 @@ theory without extra generated continuation. Practical payoff generation starts
 from parent named variation nodes, so deeper reference lines do not override the
 teaching value of gambits, attacks, and other earlier named nodes.
 
+Only root entries and explicit `Main Line` source entries should be flagged as
+main lines. Descriptive names such as `Classical Variation`, `Open Variation`,
+or `Closed Variation` should not be promoted to main-line status by heuristic.
+
 ## Best Practical Move Selection
 
 The side being taught should use the `best practical move`.
