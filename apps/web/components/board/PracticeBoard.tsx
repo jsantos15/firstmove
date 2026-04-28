@@ -117,10 +117,12 @@ function getAudioCtx() {
   return audioCtx;
 }
 
-function playMoveSound() {
+async function playMoveSound() {
   try {
     const ctx = getAudioCtx();
-    if (ctx.state === 'suspended') void ctx.resume();
+    if (ctx.state === 'suspended') await ctx.resume();
+    if (ctx.state !== 'running') return;
+
     const bufferSize = Math.floor(ctx.sampleRate * 0.08);
     const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
     const data = buffer.getChannelData(0);
@@ -155,7 +157,6 @@ export function PracticeBoard({ opening, variation, mode, onMoveIndexChange, con
   const clickPremoveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const hasRecordedRef = useRef(false);
   const hintUsedRef = useRef(false);
-  const prevMoveIndexRef = useRef(0);
 
   const [position, setPosition] = useState(chessRef.current.fen());
   const [currentMoveIndex, setCurrentMoveIndex] = useState(0);
@@ -194,6 +195,7 @@ export function PracticeBoard({ opening, variation, mode, onMoveIndexChange, con
 
   const navigateTo = (index: number) => {
     const clamped = Math.max(0, Math.min(index, maxNavigableIndex));
+    if (clamped !== displayIndex && settings.moveSound) void playMoveSound();
     setViewIndex(clamped === currentMoveIndex ? null : clamped);
   };
 
@@ -272,11 +274,6 @@ export function PracticeBoard({ opening, variation, mode, onMoveIndexChange, con
   }, []);
 
   useEffect(() => {
-    if (currentMoveIndex > prevMoveIndexRef.current && settings.moveSound) playMoveSound();
-    prevMoveIndexRef.current = currentMoveIndex;
-  }, [currentMoveIndex, settings.moveSound]);
-
-  useEffect(() => {
     if (status === 'complete' && !hasRecordedRef.current && user) {
       hasRecordedRef.current = true;
       if (mode === 'learn') {
@@ -318,6 +315,7 @@ export function PracticeBoard({ opening, variation, mode, onMoveIndexChange, con
       setPosition(nextChess.fen());
       const nextIndex = currentMoveIndex + 1;
       updateMoveIndex(nextIndex);
+      if (settings.moveSound) void playMoveSound();
       setStatus(nextIndex >= moves.length ? 'complete' : 'playing');
       setWrongMoveFrom(null);
       setWrongMoveTo(null);
@@ -334,7 +332,7 @@ export function PracticeBoard({ opening, variation, mode, onMoveIndexChange, con
 
     return () => clearTimeout(timer);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [animationDuration, currentMoveIndex, moves, opening.color, queuedClickPremove, status]);
+  }, [animationDuration, currentMoveIndex, moves, opening.color, queuedClickPremove, settings.moveSound, status]);
 
   // ─── Derived display values ───────────────────────────────────────────────────
 
@@ -508,6 +506,7 @@ export function PracticeBoard({ opening, variation, mode, onMoveIndexChange, con
       setQueuedClickPremove(null);
       const nextIndex = expectedIndex + 1;
       updateMoveIndex(nextIndex);
+      if (settings.moveSound) void playMoveSound();
       setWrongMoveFrom(null);
       setWrongMoveTo(null);
       setStatus(nextIndex >= moves.length ? 'complete' : 'playing');
