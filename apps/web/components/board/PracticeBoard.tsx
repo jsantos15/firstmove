@@ -139,11 +139,14 @@ function getAudioCtx() {
   return audioCtx;
 }
 
-function playMoveSound(enabled: boolean) {
+async function playMoveSound(enabled: boolean) {
   if (!enabled) return;
 
   try {
     const ctx = getAudioCtx();
+    if (ctx.state === 'suspended') await ctx.resume();
+    if (ctx.state !== 'running') return;
+
     const bufferSize = Math.floor(ctx.sampleRate * 0.08);
     const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
     const data = buffer.getChannelData(0);
@@ -161,8 +164,6 @@ function playMoveSound(enabled: boolean) {
     filter.connect(gain);
     gain.connect(ctx.destination);
     source.start();
-
-    if (ctx.state === 'suspended') void ctx.resume();
   } catch {}
 }
 
@@ -218,7 +219,7 @@ export function PracticeBoard({ opening, variation, mode, onModeChange, onMoveIn
 
   const navigateTo = (index: number) => {
     const clamped = Math.max(0, Math.min(index, maxNavigableIndex));
-    if (clamped !== displayIndex) playMoveSound(settings.moveSound);
+    if (clamped !== displayIndex) void playMoveSound(settings.moveSound);
     setViewIndex(clamped === currentMoveIndex ? null : clamped);
   };
 
@@ -338,7 +339,7 @@ export function PracticeBoard({ opening, variation, mode, onModeChange, onMoveIn
       setPosition(nextChess.fen());
       const nextIndex = currentMoveIndex + 1;
       updateMoveIndex(nextIndex);
-      playMoveSound(settings.moveSound);
+      void playMoveSound(settings.moveSound);
       setStatus(nextIndex >= moves.length ? 'complete' : 'playing');
       setWrongMoveFrom(null);
       setWrongMoveTo(null);
@@ -529,7 +530,7 @@ export function PracticeBoard({ opening, variation, mode, onModeChange, onMoveIn
       setQueuedClickPremove(null);
       const nextIndex = expectedIndex + 1;
       updateMoveIndex(nextIndex);
-      playMoveSound(settings.moveSound);
+      void playMoveSound(settings.moveSound);
       setWrongMoveFrom(null);
       setWrongMoveTo(null);
       setStatus(nextIndex >= moves.length ? 'complete' : 'playing');
