@@ -110,6 +110,28 @@ function EvalBar({
   );
 }
 
+function ModeButton({
+  active,
+  onClick,
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`px-4 py-1.5 text-sm font-medium transition-colors ${
+        active ? 'bg-amber-400/15 text-amber-300' : 'text-gray-400 hover:bg-white/5 hover:text-white'
+      }`}
+    >
+      {children}
+    </button>
+  );
+}
+
 let audioCtx: AudioContext | null = null;
 let audioResumePromise: Promise<void> | null = null;
 
@@ -162,7 +184,7 @@ async function playMoveSound() {
   } catch {}
 }
 
-export function PracticeBoard({ opening, variation, mode, onMoveIndexChange, controlsRight }: PracticeBoardProps) {
+export function PracticeBoard({ opening, variation, mode, onModeChange, onMoveIndexChange, controlsRight }: PracticeBoardProps) {
   const { theme, animationDuration, settings } = useBoardSettings();
   const customPieces = useMemo(() => getCustomPieces(settings.pieceSetId), [settings.pieceSetId]);
   const { user } = useAuth();
@@ -273,7 +295,7 @@ export function PracticeBoard({ opening, variation, mode, onMoveIndexChange, con
   useEffect(() => {
     resetPractice();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [opening.id, variation.id]);
+  }, [mode, opening.id, variation.id]);
 
   useEffect(() => {
     return () => {
@@ -648,11 +670,17 @@ export function PracticeBoard({ opening, variation, mode, onMoveIndexChange, con
       onPointerDownCapture={primeSoundIfEnabled}
     >
 
-      {/* Status + progress */}
+      {/* Status + mode */}
       <div className="mx-auto w-full shrink-0" style={{ maxWidth: boardSize }}>
-        <div className="mb-2 flex items-center justify-between text-sm">
-          <span className={`${!isLive ? 'text-blue-400' : 'text-gray-400'}`}>{statusLabel}</span>
-          <span className="text-gray-500">{currentMoveIndex}/{moves.length} moves</span>
+        <div className="mb-2 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3 text-sm">
+          <span className={`min-w-0 truncate ${!isLive ? 'text-blue-400' : 'text-gray-400'}`}>{statusLabel}</span>
+          <div className="flex justify-center">
+            <div className="flex overflow-hidden rounded-lg border border-white/10">
+              <ModeButton active={mode === 'learn'} onClick={() => onModeChange('learn')}>Learn</ModeButton>
+              <ModeButton active={mode === 'practice'} onClick={() => onModeChange('practice')}>Practice</ModeButton>
+            </div>
+          </div>
+          <span className="min-w-0 truncate text-right text-gray-500">{currentMoveIndex}/{moves.length} moves</span>
         </div>
         <div className="h-1 overflow-hidden rounded-full bg-white/10">
           <div

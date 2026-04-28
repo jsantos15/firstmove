@@ -243,10 +243,6 @@ export default function PracticePage({ params }: PageProps) {
           </Link>
           <span className="text-white/20">/</span>
           <span className="text-white font-medium text-sm">{opening.name}</span>
-          <div className="ml-auto flex overflow-hidden rounded-lg border border-white/10">
-            <ModeButton active={mode === 'learn'} onClick={() => setMode('learn')}>Learn</ModeButton>
-            <ModeButton active={mode === 'practice'} onClick={() => setMode('practice')}>Practice</ModeButton>
-          </div>
         </div>
       </header>
 
@@ -368,18 +364,5 @@ export default function PracticePage({ params }: PageProps) {
       </div>
 
     </div>
-  );
-}
-
-function ModeButton({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
-  return (
-    <button
-      onClick={onClick}
-      className={`px-4 py-1.5 text-sm font-medium transition-colors ${
-        active ? 'bg-amber-400/15 text-amber-300' : 'text-gray-400 hover:text-white hover:bg-white/5'
-      }`}
-    >
-      {children}
-    </button>
   );
 }
