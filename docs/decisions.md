@@ -193,3 +193,19 @@
 **Decision:** Use `lichess-org/chess-openings` as naming authority, authenticated `Lichess Explorer` as the human continuation source, and `Stockfish` as the trained-side move and validation source for the active generator.
 
 **Reason:** The current FirstMove model needs practical human continuation data, not generic engine-tree depth. Lichess Explorer provides popularity, node sample counts, and the real practical opponent-move model that the stopping and continuation policies now rely on. ChessDB no longer matches the active generation algorithm and was removed from the live pipeline.
+
+---
+
+## 2026-04-27 - Standardize opening-generation scripts on `scripts/.env`
+
+**Decision:** Treat `scripts/.env` as the canonical environment file for opening-generation, payload-preparation, and Supabase import/sync scripts. Allow `apps/web/.env.local` as a compatibility fallback, but keep script auth and service-role configuration centered in `scripts/.env`.
+
+**Reason:** The active opening pipeline now depends on both a Lichess personal API token and Supabase service-role credentials. Keeping those script-only secrets in `scripts/.env` decouples generation/import tooling from the web app runtime and gives future sessions one stable place to look when the opening pipeline needs to run.
+
+---
+
+## 2026-04-27 - Keep fresh schema bootstrap aligned to the active opening category model
+
+**Decision:** Bake the active opening-line category set directly into `packages/supabase/migrations/005_opening_library_metadata.sql` instead of relying on a later corrective migration. A fresh database should land immediately on `setup`, `strategic`, `tactical_payoff`, and `forcing`.
+
+**Reason:** The project now treats the old six-category model as retired, not transitional. Keeping the initial metadata migration aligned to the live generator avoids reintroducing obsolete categories during a clean bootstrap and keeps the repo honest about what the active database schema is supposed to be.
