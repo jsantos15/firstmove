@@ -26,6 +26,7 @@ const DEFAULT_OUTPUT = path.resolve(
 const SCORE_MATE_CP = 100000;
 const STOCKFISH_CP_CLEAR = 120;
 const STOCKFISH_CP_STRONG = 200;
+const DEFAULT_MIN_GAMES_AT_NODE = 250;
 
 function parseArgs(argv) {
   const args = {
@@ -41,7 +42,7 @@ function parseArgs(argv) {
     stockfishEngine: "lite-single",
     checkpointEvery: 10,
     resume: false,
-    minGamesAtNode: 500,
+    minGamesAtNode: DEFAULT_MIN_GAMES_AT_NODE,
     multipvCount: 3,
     shortHorizonPlies: 4,
     shortHorizonMaxPlies: 6,
@@ -781,7 +782,10 @@ function computeRawSignals({
 
 function coreSafetyPasses(signals, args) {
   const nodeConfidencePass =
-    signals.nodeSampleGames >= args.minGamesAtNode || signals.payoffSignals.strongMaterial;
+    signals.nodeSampleGames >= args.minGamesAtNode ||
+    signals.payoffSignals.strongMaterial ||
+    signals.payoffSignals.clearCompensation ||
+    (signals.payoffSignals.clearMaterial && signals.payoffSignals.clearEval);
 
   return (
     signals.tacticalVolatilityBand !== "high" &&
@@ -883,7 +887,7 @@ function categoryCompletion(signals, category) {
 function endpointQualityScore(signals, category, completion) {
   let score = 0;
 
-  if (coreSafetyPasses(signals, { minGamesAtNode: 500 })) {
+  if (coreSafetyPasses(signals, { minGamesAtNode: DEFAULT_MIN_GAMES_AT_NODE })) {
     score += 2;
   }
 

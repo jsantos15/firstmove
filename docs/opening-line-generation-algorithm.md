@@ -169,7 +169,7 @@ These are the recommended v1 defaults.
 
 ### Confidence Defaults
 
-- `min_games_at_node = 500`
+- `min_games_at_node = 250`
 - `min_games_for_branch_move = 100`
 
 These should be treated as initial defaults, not permanent truths.
@@ -764,7 +764,7 @@ Total number of Lichess games at the current node.
 
 Suggested default:
 
-- `minNodeSampleGames = 500`
+- `minNodeSampleGames = 250`
 
 Interpretation:
 
@@ -965,7 +965,7 @@ A line stops only if all are true:
 - `topMoveGapTacticalMaxCp = 120`
 - `playableMoveWindowQuietCp = 75`
 - `playableMoveWindowTacticalCp = 50`
-- `minNodeSampleGames = 500`
+- `minNodeSampleGames = 250`
 - `shortHorizonPlies = 4`
 - `shortHorizonMaxPlies = 6`
 

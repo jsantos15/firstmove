@@ -209,3 +209,11 @@
 **Decision:** Bake the active opening-line category set directly into `packages/supabase/migrations/005_opening_library_metadata.sql` instead of relying on a later corrective migration. A fresh database should land immediately on `setup`, `strategic`, `tactical_payoff`, and `forcing`.
 
 **Reason:** The project now treats the old six-category model as retired, not transitional. Keeping the initial metadata migration aligned to the live generator avoids reintroducing obsolete categories during a clean bootstrap and keeps the repo honest about what the active database schema is supposed to be.
+
+---
+
+## 2026-04-28 - Tune opening continuation confidence for rare named branches
+
+**Decision:** Lower the opening generator's default Lichess node confidence floor from `500` games to `250` games, while still allowing an already-visible payoff to satisfy the stop guard when material plus eval, strong material, or clear compensation is present.
+
+**Reason:** Auditing the Italian Game and Caro-Kann payload showed that `500` was too conservative for rare but useful named branches. Lines with only a handful of games should still stop as reference continuations, but nodes in the 250-400 game range often had enough practical signal to continue toward a teachable endpoint instead of stopping before the payoff was visible.
