@@ -217,3 +217,19 @@
 **Decision:** Lower the opening generator's default Lichess node confidence floor from `500` games to `250` games, while still allowing an already-visible payoff to satisfy the stop guard when material plus eval, strong material, or clear compensation is present.
 
 **Reason:** Auditing the Italian Game and Caro-Kann payload showed that `500` was too conservative for rare but useful named branches. Lines with only a handful of games should still stop as reference continuations, but nodes in the 250-400 game range often had enough practical signal to continue toward a teachable endpoint instead of stopping before the payoff was visible.
+
+---
+
+## 2026-04-28 - Preserve parent named-node teaching lines alongside main-line references
+
+**Decision:** Treat source entries labeled as `Main Line` as reference theory rows without generated extension, and generate practical teaching continuations from non-main named variation nodes. Rank generated tactical and forcing teaching lines ahead of deeper reference leaves during merge and normalization so parent gambit and attack nodes are not hidden by later main-line entries.
+
+**Reason:** Auditing the Evans Gambit showed that deeper named main-line rows can otherwise replace earlier gambit nodes in the final capped payload. FirstMove needs both: main-line reference theory and practical payoff lines from the point where a named variation starts, especially when common opponent moves create large teaching opportunities.
+
+---
+
+## 2026-04-28 - Remove the default DB normalization line cap
+
+**Decision:** Stop applying a default per-opening cap during opening-candidate normalization. Keep all generated named-node and reference lines in the database payload unless an explicit `--max-lines-per-opening` cap is passed for review exports.
+
+**Reason:** A hard `20`-line database cap hid valuable parent teaching lines in dense openings such as the Italian Game. FirstMove should generate and store broader coverage, then use app-side ranking and filtering to decide which subset is visible to learners.

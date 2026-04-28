@@ -56,9 +56,45 @@ function difficultyRank(value) {
   return { beginner: 1, intermediate: 2, advanced: 3 }[value] ?? 0;
 }
 
+function normalizeText(value) {
+  return String(value ?? "")
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+}
+
+function teachingPriority(line) {
+  if (normalizeText(line.lineName) === normalizeText(line.openingName)) {
+    return 100;
+  }
+
+  if (line.isTeachingLine && line.primaryCategory === "tactical_payoff") {
+    return 90;
+  }
+
+  if (line.isTeachingLine && line.primaryCategory === "forcing") {
+    return 85;
+  }
+
+  if (line.isTeachingLine) {
+    return 75;
+  }
+
+  if (line.isMainLine) {
+    return 70;
+  }
+
+  if (line.primaryCategory === "tactical_payoff") {
+    return 65;
+  }
+
+  return 50;
+}
+
 function compareLines(left, right) {
-  if (left.isMainLine !== right.isMainLine) {
-    return left.isMainLine ? -1 : 1;
+  const priorityDiff = teachingPriority(right) - teachingPriority(left);
+  if (priorityDiff !== 0) {
+    return priorityDiff;
   }
 
   const confidenceDiff =
@@ -78,6 +114,11 @@ function compareLines(left, right) {
     difficultyRank(left.lineDifficulty) - difficultyRank(right.lineDifficulty);
   if (difficultyDiff !== 0) {
     return difficultyDiff;
+  }
+
+  const depthDiff = (left.variationDepth ?? 0) - (right.variationDepth ?? 0);
+  if (depthDiff !== 0) {
+    return depthDiff;
   }
 
   return left.lineName.localeCompare(right.lineName);

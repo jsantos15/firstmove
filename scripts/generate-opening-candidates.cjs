@@ -303,6 +303,10 @@ function inferMainLineStatus(entry) {
   };
 }
 
+function isSourceMainLineEntry(entry) {
+  return normalizeText(entry.variation || "").includes("main line");
+}
+
 function buildLineDifficulty({
   category,
   generatedSans,
@@ -1348,6 +1352,30 @@ async function extendMainVariationLine(entry, args, caches) {
     signals: null,
   };
 
+  if (isSourceMainLineEntry(entry)) {
+    const finalAnalysis = await analyzePosition(chess.fen(), args, caches.analysis);
+
+    return {
+      openingColor,
+      primaryCategory: category,
+      sourcePlies,
+      variationAnchorFen,
+      generatedSans,
+      continuationSans: [],
+      stopReason:
+        "Stored as the source main-line reference; practical continuation is generated from the parent named variation node.",
+      finalPositionSummary:
+        "This line preserves the naming-source main line as reference theory.",
+      advantageTypePrimary: "reference",
+      advantageTypeSecondary: [],
+      stopSignals: null,
+      extension: [],
+      finalFen: chess.fen(),
+      stockfish: finalAnalysis,
+      sourceReferenceOnly: true,
+    };
+  }
+
   for (let addedPlies = 0; addedPlies <= args.maxAddedPlies; addedPlies += 1) {
     if (generatedSans.length >= args.maxTotalPlies) {
       finalStop = {
@@ -1480,6 +1508,7 @@ function buildCandidateRecord(entry, generated) {
   const ids = buildOpeningIds(entry);
   const mainLine = inferMainLineStatus(entry);
   const variationPath = splitVariationSegments(entry);
+  const sourceMainLine = isSourceMainLineEntry(entry);
   const difficulty = buildLineDifficulty({
     category: generated.primaryCategory,
     generatedSans: generated.generatedSans,
@@ -1494,7 +1523,7 @@ function buildCandidateRecord(entry, generated) {
     lineName: entry.variation || entry.family,
     fullName: entry.name,
     lineDisplayName: entry.name,
-    lineType: "main_variation_line",
+    lineType: sourceMainLine ? "main_line_reference" : "main_variation_line",
     variationName: entry.variation || entry.family,
     variationDepth: variationPath.length - 1,
       variationPath,
@@ -1509,8 +1538,8 @@ function buildCandidateRecord(entry, generated) {
     ecoCode: entry.eco,
     primaryCategory: generated.primaryCategory,
     openingColor: generated.openingColor,
-    isMainVariationLine: true,
-    isTeachingLine: false,
+    isMainVariationLine: !sourceMainLine,
+    isTeachingLine: !sourceMainLine && generated.continuationSans.length > 0,
     isCustomVariation: false,
     transposesToVariationId: null,
     branchDepth: 0,
@@ -1553,6 +1582,7 @@ function buildCandidateRecord(entry, generated) {
     generation: {
       sourcePlies: generated.sourcePlies,
       addedPlies: Math.max(generated.generatedSans.length - generated.sourcePlies, 0),
+      sourceReferenceOnly: generated.sourceReferenceOnly ?? false,
       extension: generated.extension,
       stopSignals: generated.stopSignals,
     },

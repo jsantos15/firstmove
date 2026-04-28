@@ -21,7 +21,8 @@ This document currently defines the Phase 1 generator target.
 Phase 1 includes:
 
 - all named variation anchors
-- one generated main continuation per variation
+- one generated practical continuation per non-main named variation
+- source main-line entries stored as reference theory
 - direct stopping logic based on raw practical signals
 
 Phase 1 does not yet include:
@@ -38,8 +39,8 @@ dependency for the Phase 1 generator.
 FirstMove should generate opening content in this order:
 
 1. Load known named variation anchors.
-2. Store one generated main continuation per variation anchor.
-3. Continue forward from each anchor.
+2. Store source main-line entries as reference theory.
+3. Continue forward from each non-main named anchor.
 4. Create post-anchor teaching branches only when branch rules are satisfied.
 5. Continue each accepted line until the payoff is visible.
 6. Store both structural and teaching metadata so the app can later decide what
@@ -151,7 +152,8 @@ These are the recommended v1 defaults.
 ### Structural Defaults
 
 - `include_all_named_variations = true`
-- `store_one_main_line_per_variation = true`
+- `store_source_main_line_references = true`
+- `store_one_practical_line_per_named_node = true`
 - `allow_custom_variations = false` in Phase 1
 
 ### Branching Defaults
@@ -186,6 +188,7 @@ These do not control generation, but they are likely useful later:
 
 - `max_visible_lines_per_opening = 10`
 - `always_show_main_line = true`
+- no database-generation cap by default; cap only the app-visible subset
 
 ## Depth Bands
 
@@ -247,9 +250,9 @@ Important:
   variation, continue it until the name appears
 - the deeper named variation should become the new active structural anchor
 
-### Step 2. Create One Main Line Per Variation
+### Step 2. Create Reference And Practical Lines
 
-For every accepted variation anchor:
+For every accepted non-main variation anchor:
 
 1. initialize a line at the official variation anchor position
 2. continue forward using:
@@ -257,11 +260,16 @@ For every accepted variation anchor:
    - opponent: most popular human move
 3. stop using the line stop rules
 
-This line should be stored even if:
+This practical line should be stored even if:
 
 - the payoff is quiet
 - the position is mainly structural
 - the line is not especially flashy
+
+Named source entries labeled as `Main Line` should be stored as reference
+theory without extra generated continuation. Practical payoff generation starts
+from parent named variation nodes, so deeper reference lines do not override the
+teaching value of gambits, attacks, and other earlier named nodes.
 
 ## Best Practical Move Selection
 
@@ -478,6 +486,8 @@ That means:
 
 - keep more valid lines in the DB
 - show a stricter subset in the app
+- avoid trimming named-node teaching lines during normalization unless an
+  explicit review/export cap is requested
 
 Recommended app ranking order:
 
@@ -494,7 +504,8 @@ Implement this in phases.
 ### Phase 1
 
 - load named variation anchors
-- store one generated main continuation per variation
+- store source main-line entries as reference theory
+- store one generated practical continuation per non-main named variation
 - use direct closing logic from raw signals
 - no recursive teaching branches yet
 

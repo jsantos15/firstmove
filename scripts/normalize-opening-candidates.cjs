@@ -151,7 +151,7 @@ function parseArgs(argv) {
   const args = {
     input: DEFAULT_INPUT,
     output: DEFAULT_OUTPUT,
-    maxLinesPerOpening: 20,
+    maxLinesPerOpening: null,
   };
 
   for (let index = 0; index < argv.length; index += 1) {
@@ -183,9 +183,38 @@ function confidenceRank(value) {
   return { authoritative: 3, provisional: 2, none: 1 }[value] ?? 0;
 }
 
+function teachingPriority(line) {
+  if (normalizeSegment(line.lineName) === normalizeSegment(line.openingName)) {
+    return 100;
+  }
+
+  if (line.isTeachingLine && line.primaryCategory === "tactical_payoff") {
+    return 90;
+  }
+
+  if (line.isTeachingLine && line.primaryCategory === "forcing") {
+    return 85;
+  }
+
+  if (line.isTeachingLine) {
+    return 75;
+  }
+
+  if (line.isMainLine) {
+    return 70;
+  }
+
+  if (line.primaryCategory === "tactical_payoff") {
+    return 65;
+  }
+
+  return 50;
+}
+
 function compareLines(left, right) {
-  if (left.isMainLine !== right.isMainLine) {
-    return left.isMainLine ? -1 : 1;
+  const priorityDiff = teachingPriority(right) - teachingPriority(left);
+  if (priorityDiff !== 0) {
+    return priorityDiff;
   }
 
   const mainConfidenceDiff =
@@ -205,6 +234,11 @@ function compareLines(left, right) {
     difficultyRank(left.lineDifficulty) - difficultyRank(right.lineDifficulty);
   if (difficultyDiff !== 0) {
     return difficultyDiff;
+  }
+
+  const depthDiff = (left.variationDepth ?? 0) - (right.variationDepth ?? 0);
+  if (depthDiff !== 0) {
+    return depthDiff;
   }
 
   return left.lineName.localeCompare(right.lineName);
@@ -352,19 +386,24 @@ function buildOpenings(results, maxLinesPerOpening) {
   const openings = Array.from(grouped.values())
     .map((opening) => {
       const sortedLines = [...opening.lines].sort(compareLines);
-      const keptLines = sortedLines.slice(0, maxLinesPerOpening).map((line, index) => ({
+      const hasCap =
+        Number.isFinite(maxLinesPerOpening) && maxLinesPerOpening > 0;
+      const keptSourceLines = hasCap
+        ? sortedLines.slice(0, maxLinesPerOpening)
+        : sortedLines;
+      const keptLines = keptSourceLines.map((line, index) => ({
         ...line,
         popularityRankWithinOpening:
           line.popularityRankWithinOpening ?? index + 1,
       }));
 
-      const removedLines = sortedLines.slice(maxLinesPerOpening);
+      const removedLines = hasCap ? sortedLines.slice(maxLinesPerOpening) : [];
       for (const removedLine of removedLines) {
         trimmed.push({
           fullName: removedLine.fullName,
           openingId: opening.openingId,
           openingName: opening.openingName,
-          reason: `Exceeded the final ${maxLinesPerOpening}-line cap for this normalized opening family.`,
+          reason: `Exceeded the optional ${maxLinesPerOpening}-line cap for this normalized opening family.`,
         });
       }
 
@@ -435,13 +474,17 @@ function main() {
     "utf8"
   );
 
-  const overCap = openings
-    .filter((opening) => opening.lineCount > args.maxLinesPerOpening)
-    .map((opening) => ({
-      openingId: opening.openingId,
-      openingName: opening.openingName,
-      lineCount: opening.lineCount,
-    }));
+  const hasCap =
+    Number.isFinite(args.maxLinesPerOpening) && args.maxLinesPerOpening > 0;
+  const overCap = hasCap
+    ? openings
+        .filter((opening) => opening.lineCount > args.maxLinesPerOpening)
+        .map((opening) => ({
+          openingId: opening.openingId,
+          openingName: opening.openingName,
+          lineCount: opening.lineCount,
+        }))
+    : [];
 
   console.log(`Wrote normalized opening candidates to ${args.output}`);
   console.log(
