@@ -233,3 +233,11 @@
 **Decision:** Stop applying a default per-opening cap during opening-candidate normalization. Keep all generated named-node and reference lines in the database payload unless an explicit `--max-lines-per-opening` cap is passed for review exports.
 
 **Reason:** A hard `20`-line database cap hid valuable parent teaching lines in dense openings such as the Italian Game. FirstMove should generate and store broader coverage, then use app-side ranking and filtering to decide which subset is visible to learners.
+
+---
+
+## 2026-04-28 - Store per-ply opening evals for practice navigation
+
+**Decision:** Store Stockfish centipawn evaluations for every ply in an opening line as `opening_lines.eval_cp_by_ply`, using White-perspective values regardless of whose turn it is. Keep `final_eval_cp` aligned to the last per-ply value.
+
+**Reason:** A practice-board eval bar should update as the learner navigates through the line, not only summarize the final position. Stockfish/UCI reports scores from the side-to-move perspective, so normalizing to White perspective at generation time gives the app a standard, stable eval-bar convention.

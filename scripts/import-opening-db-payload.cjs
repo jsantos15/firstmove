@@ -73,6 +73,7 @@ function buildLineRows(payload, options = {}) {
     ])
   );
   const includeEngineEval = options.includeEngineEval ?? true;
+  const includeEvalByPly = options.includeEvalByPly ?? true;
 
   return (payload.currentSchema?.openingLinesRows ?? []).map((row) => {
     const metadata = metadataBySlug.get(`${row.opening_slug}::${row.slug}`);
@@ -97,6 +98,10 @@ function buildLineRows(payload, options = {}) {
       lineRow.engine_checked = metadata?.engineChecked ?? false;
     }
 
+    if (includeEvalByPly) {
+      lineRow.eval_cp_by_ply = metadata?.evalCpByPly ?? null;
+    }
+
     return lineRow;
   });
 }
@@ -107,6 +112,18 @@ async function hasOpeningLineEngineEvalColumns(headers, supabaseUrl) {
     "select",
     "final_eval_cp,final_eval_perspective,engine_checked"
   );
+  url.searchParams.set("limit", "1");
+
+  const response = await fetch(url, {
+    headers,
+  });
+
+  return response.ok;
+}
+
+async function hasOpeningLineEvalByPlyColumn(headers, supabaseUrl) {
+  const url = new URL(`${supabaseUrl}/rest/v1/opening_lines`);
+  url.searchParams.set("select", "eval_cp_by_ply");
   url.searchParams.set("limit", "1");
 
   const response = await fetch(url, {
@@ -172,11 +189,14 @@ async function main() {
     Prefer: "resolution=merge-duplicates",
   };
 
-  const includeEngineEval = await hasOpeningLineEngineEvalColumns(
-    headers,
-    supabaseUrl
-  );
-  const lineRows = buildLineRows(payload, { includeEngineEval });
+  const [includeEngineEval, includeEvalByPly] = await Promise.all([
+    hasOpeningLineEngineEvalColumns(headers, supabaseUrl),
+    hasOpeningLineEvalByPlyColumn(headers, supabaseUrl),
+  ]);
+  const lineRows = buildLineRows(payload, {
+    includeEngineEval,
+    includeEvalByPly,
+  });
 
   await upsert("openings_catalog", catalogRows, headers, supabaseUrl);
 
@@ -197,6 +217,7 @@ async function main() {
         openings: catalogRows.length,
         lines: lineRows.length,
         engineEvalImported: includeEngineEval,
+        evalByPlyImported: includeEvalByPly,
       },
       null,
       2

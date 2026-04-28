@@ -17,6 +17,7 @@ export type Database = {
           created_at: string
           description: string | null
           engine_checked: boolean
+          eval_cp_by_ply: number[] | null
           final_eval_cp: number | null
           final_eval_perspective: Database["public"]["Enums"]["opening_color"] | null
           full_name: string | null
@@ -39,6 +40,7 @@ export type Database = {
           created_at?: string
           description?: string | null
           engine_checked?: boolean
+          eval_cp_by_ply?: number[] | null
           final_eval_cp?: number | null
           final_eval_perspective?: Database["public"]["Enums"]["opening_color"] | null
           full_name?: string | null
@@ -61,6 +63,7 @@ export type Database = {
           created_at?: string
           description?: string | null
           engine_checked?: boolean
+          eval_cp_by_ply?: number[] | null
           final_eval_cp?: number | null
           final_eval_perspective?: Database["public"]["Enums"]["opening_color"] | null
           full_name?: string | null

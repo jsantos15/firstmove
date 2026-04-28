@@ -38,6 +38,7 @@ type AppOpening = Opening & {
 
 type AppVariation = OpeningVariation & {
   engineChecked?: OpeningLineRow['engine_checked'];
+  evalCpByPly?: OpeningLineRow['eval_cp_by_ply'];
   finalEvalCp?: OpeningLineRow['final_eval_cp'];
   finalEvalPerspective?: OpeningLineRow['final_eval_perspective'];
   fullName?: OpeningLineRow['full_name'];
@@ -59,6 +60,7 @@ function buildVariationStub(line: OpeningLineRow): AppVariation {
     description: line.description ?? undefined,
     moves: [],
     engineChecked: line.engine_checked,
+    evalCpByPly: line.eval_cp_by_ply ?? undefined,
     finalEvalCp: line.final_eval_cp ?? undefined,
     finalEvalPerspective: line.final_eval_perspective ?? undefined,
     fullName: line.full_name ?? undefined,

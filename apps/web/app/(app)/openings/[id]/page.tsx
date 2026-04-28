@@ -19,6 +19,7 @@ interface PageProps {
 
 type VariationWithMeta = OpeningVariation & {
   engineChecked?: boolean;
+  evalCpByPly?: number[];
   finalEvalCp?: number;
   finalEvalPerspective?: 'white' | 'black';
   isMainLine?: boolean;

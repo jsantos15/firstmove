@@ -15,6 +15,7 @@ interface PracticeBoardProps {
   opening: Opening;
   variation: OpeningVariation & {
     engineChecked?: boolean;
+    evalCpByPly?: number[];
     finalEvalCp?: number;
     finalEvalPerspective?: 'white' | 'black';
   };
@@ -79,27 +80,22 @@ function toWhiteEvalCp(
 }
 
 function EvalBar({
-  finalEvalCp,
-  perspective,
-  openingColor,
+  evalCp,
 }: {
-  finalEvalCp?: number;
-  perspective?: 'white' | 'black';
-  openingColor: 'white' | 'black';
+  evalCp?: number;
 }) {
-  const whiteEvalCp = toWhiteEvalCp(finalEvalCp, perspective, openingColor);
-  if (whiteEvalCp == null) return null;
+  if (typeof evalCp !== 'number' || !Number.isFinite(evalCp)) return null;
 
-  const clamped = Math.max(-EVAL_BAR_CP_LIMIT, Math.min(EVAL_BAR_CP_LIMIT, whiteEvalCp));
+  const clamped = Math.max(-EVAL_BAR_CP_LIMIT, Math.min(EVAL_BAR_CP_LIMIT, evalCp));
   const whiteHeight = 50 + (clamped / EVAL_BAR_CP_LIMIT) * 45;
-  const label = formatEvalLabel(whiteEvalCp);
-  const labelOnWhite = whiteEvalCp < 0;
+  const label = formatEvalLabel(evalCp);
+  const labelOnWhite = evalCp < 0;
 
   return (
     <div
       className="relative mr-2 hidden h-full w-7 shrink-0 overflow-hidden rounded-md border border-white/15 bg-[#181818] shadow-inner shadow-black/40 sm:block"
-      title={`Final engine evaluation: ${label}`}
-      aria-label={`Final engine evaluation ${label}`}
+      title={`Engine evaluation: ${label}`}
+      aria-label={`Engine evaluation ${label}`}
     >
       <div className="absolute inset-x-0 bottom-0 bg-zinc-100 transition-[height] duration-300" style={{ height: `${whiteHeight}%` }} />
       <div className="pointer-events-none absolute inset-x-0 top-1/2 h-px bg-amber-400/45" />
@@ -369,6 +365,29 @@ export function PracticeBoard({ opening, variation, mode, onMoveIndexChange, con
   }, [isLive, displayIndex, moves, position]);
 
   const progressPct = moves.length > 0 ? (currentMoveIndex / moves.length) * 100 : 0;
+  const displayedEvalCp = useMemo(() => {
+    const evalByPly = variation.evalCpByPly;
+    if (Array.isArray(evalByPly) && typeof evalByPly[displayIndex] === 'number') {
+      return evalByPly[displayIndex];
+    }
+
+    if (displayIndex === moves.length) {
+      return toWhiteEvalCp(
+        variation.finalEvalCp,
+        variation.finalEvalPerspective,
+        opening.color
+      ) ?? undefined;
+    }
+
+    return undefined;
+  }, [
+    displayIndex,
+    moves.length,
+    opening.color,
+    variation.evalCpByPly,
+    variation.finalEvalCp,
+    variation.finalEvalPerspective,
+  ]);
 
   const legalTargets = useMemo(() => {
     if (!isLive || status !== 'playing' || !selectedSquare) return [];
@@ -621,9 +640,7 @@ export function PracticeBoard({ opening, variation, mode, onMoveIndexChange, con
       {/* Board */}
       <div ref={wrapperRef} className="flex min-h-0 flex-1 items-center justify-center">
         <EvalBar
-          finalEvalCp={variation.finalEvalCp}
-          perspective={variation.finalEvalPerspective}
-          openingColor={opening.color}
+          evalCp={displayedEvalCp}
         />
         <div
           className={`overflow-hidden rounded-xl transition-all duration-150 ${
