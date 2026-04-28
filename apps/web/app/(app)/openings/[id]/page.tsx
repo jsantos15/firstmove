@@ -235,12 +235,16 @@ export default function PracticePage({ params }: PageProps) {
 
       {/* Header */}
       <header className="h-16 shrink-0 border-b border-white/5 bg-[var(--bg-base)]/80 backdrop-blur z-10">
-        <div className="mx-auto flex h-full w-full max-w-[1504px] items-center gap-3 px-6">
+        <div className="relative mx-auto flex h-full w-full max-w-[1504px] items-center gap-3 px-6">
           <Link href="/openings" className="text-gray-400 hover:text-white transition-colors text-sm">
             ← Openings
           </Link>
           <span className="text-white/20">/</span>
           <span className="text-white font-medium text-sm">{opening.name}</span>
+          <div className="absolute left-1/2 flex -translate-x-1/2 overflow-hidden rounded-lg border border-white/10">
+            <ModeButton active={mode === 'learn'} onClick={() => setMode('learn')}>Learn</ModeButton>
+            <ModeButton active={mode === 'practice'} onClick={() => setMode('practice')}>Practice</ModeButton>
+          </div>
         </div>
       </header>
 
@@ -255,7 +259,6 @@ export default function PracticePage({ params }: PageProps) {
                 opening={opening}
                 variation={selectedVariation}
                 mode={mode}
-                onModeChange={setMode}
                 onMoveIndexChange={setCurrentMoveIndex}
                 controlsRight={<BoardSettingsPopover />}
               />
@@ -362,5 +365,19 @@ export default function PracticePage({ params }: PageProps) {
       </div>
 
     </div>
+  );
+}
+
+function ModeButton({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`px-4 py-1.5 text-sm font-medium transition-colors ${
+        active ? 'bg-amber-400/15 text-amber-300' : 'text-gray-400 hover:bg-white/5 hover:text-white'
+      }`}
+    >
+      {children}
+    </button>
   );
 }
