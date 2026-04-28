@@ -16,6 +16,9 @@ export type Database = {
         Row: {
           created_at: string
           description: string | null
+          engine_checked: boolean
+          final_eval_cp: number | null
+          final_eval_perspective: Database["public"]["Enums"]["opening_color"] | null
           full_name: string | null
           inclusion_outcome: string | null
           is_main_line: boolean
@@ -35,6 +38,9 @@ export type Database = {
         Insert: {
           created_at?: string
           description?: string | null
+          engine_checked?: boolean
+          final_eval_cp?: number | null
+          final_eval_perspective?: Database["public"]["Enums"]["opening_color"] | null
           full_name?: string | null
           inclusion_outcome?: string | null
           is_main_line?: boolean
@@ -54,6 +60,9 @@ export type Database = {
         Update: {
           created_at?: string
           description?: string | null
+          engine_checked?: boolean
+          final_eval_cp?: number | null
+          final_eval_perspective?: Database["public"]["Enums"]["opening_color"] | null
           full_name?: string | null
           inclusion_outcome?: string | null
           is_main_line?: boolean

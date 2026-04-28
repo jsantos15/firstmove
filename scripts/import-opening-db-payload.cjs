@@ -65,18 +65,19 @@ function buildCatalogRows(payload) {
   });
 }
 
-function buildLineRows(payload) {
+function buildLineRows(payload, options = {}) {
   const metadataBySlug = new Map(
     (payload.futureMetadata?.lineStudyMetadata ?? []).map((entry) => [
       `${entry.openingSlug}::${entry.slug}`,
       entry,
     ])
   );
+  const includeEngineEval = options.includeEngineEval ?? true;
 
   return (payload.currentSchema?.openingLinesRows ?? []).map((row) => {
     const metadata = metadataBySlug.get(`${row.opening_slug}::${row.slug}`);
 
-    return {
+    const lineRow = {
       ...row,
       full_name: metadata?.fullName ?? null,
       primary_category: metadata?.primaryCategory ?? null,
@@ -89,7 +90,30 @@ function buildLineRows(payload) {
       source_name: metadata?.sourceName ?? null,
       source_confidence: metadata?.sourceConfidence ?? null,
     };
+
+    if (includeEngineEval) {
+      lineRow.final_eval_cp = metadata?.finalEvalCp ?? null;
+      lineRow.final_eval_perspective = metadata?.finalEvalPerspective ?? null;
+      lineRow.engine_checked = metadata?.engineChecked ?? false;
+    }
+
+    return lineRow;
   });
+}
+
+async function hasOpeningLineEngineEvalColumns(headers, supabaseUrl) {
+  const url = new URL(`${supabaseUrl}/rest/v1/opening_lines`);
+  url.searchParams.set(
+    "select",
+    "final_eval_cp,final_eval_perspective,engine_checked"
+  );
+  url.searchParams.set("limit", "1");
+
+  const response = await fetch(url, {
+    headers,
+  });
+
+  return response.ok;
 }
 
 async function upsert(table, rows, headers, supabaseUrl) {
@@ -112,9 +136,9 @@ async function main() {
 
   const payload = readPayload(args.input);
   const catalogRows = buildCatalogRows(payload);
-  const lineRows = buildLineRows(payload);
 
   if (args.dryRun) {
+    const lineRows = buildLineRows(payload);
     console.log(
       JSON.stringify(
         {
@@ -148,6 +172,12 @@ async function main() {
     Prefer: "resolution=merge-duplicates",
   };
 
+  const includeEngineEval = await hasOpeningLineEngineEvalColumns(
+    headers,
+    supabaseUrl
+  );
+  const lineRows = buildLineRows(payload, { includeEngineEval });
+
   await upsert("openings_catalog", catalogRows, headers, supabaseUrl);
 
   const chunkSize = 500;
@@ -166,6 +196,7 @@ async function main() {
         imported: true,
         openings: catalogRows.length,
         lines: lineRows.length,
+        engineEvalImported: includeEngineEval,
       },
       null,
       2

@@ -13,7 +13,11 @@ export type PracticeMode = 'learn' | 'practice';
 
 interface PracticeBoardProps {
   opening: Opening;
-  variation: OpeningVariation;
+  variation: OpeningVariation & {
+    engineChecked?: boolean;
+    finalEvalCp?: number;
+    finalEvalPerspective?: 'white' | 'black';
+  };
   mode: PracticeMode;
   onModeChange: (mode: PracticeMode) => void;
   onMoveIndexChange?: (index: number) => void;
@@ -29,6 +33,7 @@ interface QueuedPremove {
 }
 
 const WRONG_MOVE_RESET_MS = 900;
+const EVAL_BAR_CP_LIMIT = 600;
 
 function isUserTurn(moveIndex: number, openingColor: 'white' | 'black') {
   return openingColor === 'white' ? moveIndex % 2 === 0 : moveIndex % 2 === 1;
@@ -55,6 +60,58 @@ function getBoardOrientation(openingColor: 'white' | 'black', flipBoard: boolean
   const baseOrientation = openingColor;
   if (!flipBoard) return baseOrientation;
   return baseOrientation === 'white' ? 'black' : 'white';
+}
+
+function formatEvalLabel(whiteEvalCp: number) {
+  if (Math.abs(whiteEvalCp) < 10) return '0.0';
+  const pawns = Math.abs(whiteEvalCp) / 100;
+  return `${whiteEvalCp > 0 ? '+' : '-'}${pawns.toFixed(1)}`;
+}
+
+function toWhiteEvalCp(
+  finalEvalCp: number | undefined,
+  perspective: 'white' | 'black' | undefined,
+  fallbackPerspective: 'white' | 'black'
+) {
+  if (typeof finalEvalCp !== 'number' || !Number.isFinite(finalEvalCp)) return null;
+  const evalPerspective = perspective ?? fallbackPerspective;
+  return evalPerspective === 'white' ? finalEvalCp : -finalEvalCp;
+}
+
+function EvalBar({
+  finalEvalCp,
+  perspective,
+  openingColor,
+}: {
+  finalEvalCp?: number;
+  perspective?: 'white' | 'black';
+  openingColor: 'white' | 'black';
+}) {
+  const whiteEvalCp = toWhiteEvalCp(finalEvalCp, perspective, openingColor);
+  if (whiteEvalCp == null) return null;
+
+  const clamped = Math.max(-EVAL_BAR_CP_LIMIT, Math.min(EVAL_BAR_CP_LIMIT, whiteEvalCp));
+  const whiteHeight = 50 + (clamped / EVAL_BAR_CP_LIMIT) * 45;
+  const label = formatEvalLabel(whiteEvalCp);
+  const labelOnWhite = whiteEvalCp < 0;
+
+  return (
+    <div
+      className="relative mr-2 hidden h-full w-7 shrink-0 overflow-hidden rounded-md border border-white/15 bg-[#181818] shadow-inner shadow-black/40 sm:block"
+      title={`Final engine evaluation: ${label}`}
+      aria-label={`Final engine evaluation ${label}`}
+    >
+      <div className="absolute inset-x-0 bottom-0 bg-zinc-100 transition-[height] duration-300" style={{ height: `${whiteHeight}%` }} />
+      <div className="pointer-events-none absolute inset-x-0 top-1/2 h-px bg-amber-400/45" />
+      <div
+        className={`pointer-events-none absolute left-1/2 -translate-x-1/2 text-[10px] font-semibold tabular-nums ${
+          labelOnWhite ? 'bottom-1 text-zinc-950' : 'top-1 text-zinc-100'
+        }`}
+      >
+        {label}
+      </div>
+    </div>
+  );
 }
 
 let audioCtx: AudioContext | null = null;
@@ -563,6 +620,11 @@ export function PracticeBoard({ opening, variation, mode, onMoveIndexChange, con
 
       {/* Board */}
       <div ref={wrapperRef} className="flex min-h-0 flex-1 items-center justify-center">
+        <EvalBar
+          finalEvalCp={variation.finalEvalCp}
+          perspective={variation.finalEvalPerspective}
+          openingColor={opening.color}
+        />
         <div
           className={`overflow-hidden rounded-xl transition-all duration-150 ${
             !isLive

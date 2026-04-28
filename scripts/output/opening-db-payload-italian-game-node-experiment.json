@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-04-28T15:26:50.697Z",
+  "generatedAt": "2026-04-28T16:10:13.133Z",
   "sourceArtifact": "generated-opening-candidates-italian-game-node-normalized.json",
   "compatibility": {
     "openingsCatalogTable": "public.openings_catalog",
@@ -4197,6 +4197,9 @@
         "popularityRankWithinOpening": 1,
         "popularityScore": null,
         "popularityGames": null,
+        "finalEvalCp": 249,
+        "finalEvalPerspective": "white",
+        "engineChecked": true,
         "stopReason": "Stopped because the Lichess node sample became too thin to trust further continuation.",
         "sourceName": "lichess-org/chess-openings + Lichess Explorer + Stockfish",
         "sourceConfidence": "medium"
@@ -4214,6 +4217,9 @@
         "popularityRankWithinOpening": 2,
         "popularityScore": null,
         "popularityGames": null,
+        "finalEvalCp": 21,
+        "finalEvalPerspective": "white",
+        "engineChecked": true,
         "stopReason": "Stopped because the Lichess node sample became too thin to trust further continuation.",
         "sourceName": "lichess-org/chess-openings + Lichess Explorer + Stockfish",
         "sourceConfidence": "medium"
@@ -4231,6 +4237,9 @@
         "popularityRankWithinOpening": 3,
         "popularityScore": null,
         "popularityGames": null,
+        "finalEvalCp": -19,
+        "finalEvalPerspective": "white",
+        "engineChecked": true,
         "stopReason": "Stopped because the Lichess node sample became too thin to trust further continuation.",
         "sourceName": "lichess-org/chess-openings + Lichess Explorer + Stockfish",
         "sourceConfidence": "medium"
@@ -4248,6 +4257,9 @@
         "popularityRankWithinOpening": 4,
         "popularityScore": null,
         "popularityGames": null,
+        "finalEvalCp": 86,
+        "finalEvalPerspective": "white",
+        "engineChecked": true,
         "stopReason": "Stopped because the Lichess node sample became too thin to trust further continuation.",
         "sourceName": "lichess-org/chess-openings + Lichess Explorer + Stockfish",
         "sourceConfidence": "medium"
@@ -4265,6 +4277,9 @@
         "popularityRankWithinOpening": 5,
         "popularityScore": null,
         "popularityGames": null,
+        "finalEvalCp": 1,
+        "finalEvalPerspective": "white",
+        "engineChecked": true,
         "stopReason": "Stopped because the Lichess node sample became too thin to trust further continuation.",
         "sourceName": "lichess-org/chess-openings + Lichess Explorer + Stockfish",
         "sourceConfidence": "medium"
@@ -4282,6 +4297,9 @@
         "popularityRankWithinOpening": 6,
         "popularityScore": null,
         "popularityGames": null,
+        "finalEvalCp": 28,
+        "finalEvalPerspective": "white",
+        "engineChecked": true,
         "stopReason": "Stopped because the Lichess node sample became too thin to trust further continuation.",
         "sourceName": "lichess-org/chess-openings + Lichess Explorer + Stockfish",
         "sourceConfidence": "medium"
@@ -4299,6 +4317,9 @@
         "popularityRankWithinOpening": 7,
         "popularityScore": null,
         "popularityGames": null,
+        "finalEvalCp": -41,
+        "finalEvalPerspective": "white",
+        "engineChecked": true,
         "stopReason": "Stopped because the Lichess node sample became too thin to trust further continuation.",
         "sourceName": "lichess-org/chess-openings + Lichess Explorer + Stockfish",
         "sourceConfidence": "medium"
@@ -4316,6 +4337,9 @@
         "popularityRankWithinOpening": 8,
         "popularityScore": null,
         "popularityGames": null,
+        "finalEvalCp": -40,
+        "finalEvalPerspective": "white",
+        "engineChecked": true,
         "stopReason": "Stopped because the Lichess node sample became too thin to trust further continuation.",
         "sourceName": "lichess-org/chess-openings + Lichess Explorer + Stockfish",
         "sourceConfidence": "medium"
@@ -4333,6 +4357,9 @@
         "popularityRankWithinOpening": 9,
         "popularityScore": null,
         "popularityGames": null,
+        "finalEvalCp": 158,
+        "finalEvalPerspective": "white",
+        "engineChecked": true,
         "stopReason": "Stopped at the earliest position where the instructional payoff was visible without unnecessary continuation.",
         "sourceName": "lichess-org/chess-openings + Lichess Explorer + Stockfish",
         "sourceConfidence": "medium"
@@ -4350,6 +4377,9 @@
         "popularityRankWithinOpening": 10,
         "popularityScore": null,
         "popularityGames": null,
+        "finalEvalCp": 73,
+        "finalEvalPerspective": "white",
+        "engineChecked": true,
         "stopReason": "Stopped at the earliest position where the instructional payoff was visible without unnecessary continuation.",
         "sourceName": "lichess-org/chess-openings + Lichess Explorer + Stockfish",
         "sourceConfidence": "medium"
@@ -4367,6 +4397,9 @@
         "popularityRankWithinOpening": 11,
         "popularityScore": null,
         "popularityGames": null,
+        "finalEvalCp": -17,
+        "finalEvalPerspective": "white",
+        "engineChecked": true,
         "stopReason": "Stopped because the Lichess node sample became too thin to trust further continuation.",
         "sourceName": "lichess-org/chess-openings + Lichess Explorer + Stockfish",
         "sourceConfidence": "medium"
@@ -4384,6 +4417,9 @@
         "popularityRankWithinOpening": 12,
         "popularityScore": null,
         "popularityGames": null,
+        "finalEvalCp": 140,
+        "finalEvalPerspective": "white",
+        "engineChecked": true,
         "stopReason": "Stopped because the Lichess node sample became too thin to trust further continuation.",
         "sourceName": "lichess-org/chess-openings + Lichess Explorer + Stockfish",
         "sourceConfidence": "medium"
@@ -4401,6 +4437,9 @@
         "popularityRankWithinOpening": 13,
         "popularityScore": null,
         "popularityGames": null,
+        "finalEvalCp": 41,
+        "finalEvalPerspective": "white",
+        "engineChecked": true,
         "stopReason": "Stopped because the Lichess node sample became too thin to trust further continuation.",
         "sourceName": "lichess-org/chess-openings + Lichess Explorer + Stockfish",
         "sourceConfidence": "medium"
@@ -4418,6 +4457,9 @@
         "popularityRankWithinOpening": 14,
         "popularityScore": null,
         "popularityGames": null,
+        "finalEvalCp": -3,
+        "finalEvalPerspective": "white",
+        "engineChecked": true,
         "stopReason": "Stopped because the Lichess node sample became too thin to trust further continuation.",
         "sourceName": "lichess-org/chess-openings + Lichess Explorer + Stockfish",
         "sourceConfidence": "medium"
@@ -4435,6 +4477,9 @@
         "popularityRankWithinOpening": 15,
         "popularityScore": null,
         "popularityGames": null,
+        "finalEvalCp": 26,
+        "finalEvalPerspective": "white",
+        "engineChecked": true,
         "stopReason": "Stopped because the Lichess node sample became too thin to trust further continuation.",
         "sourceName": "lichess-org/chess-openings + Lichess Explorer + Stockfish",
         "sourceConfidence": "medium"
@@ -4452,6 +4497,9 @@
         "popularityRankWithinOpening": 16,
         "popularityScore": null,
         "popularityGames": null,
+        "finalEvalCp": -55,
+        "finalEvalPerspective": "white",
+        "engineChecked": true,
         "stopReason": "Stopped at the earliest position where the instructional payoff was visible without unnecessary continuation.",
         "sourceName": "lichess-org/chess-openings + Lichess Explorer + Stockfish",
         "sourceConfidence": "medium"
@@ -4469,6 +4517,9 @@
         "popularityRankWithinOpening": 17,
         "popularityScore": null,
         "popularityGames": null,
+        "finalEvalCp": -14,
+        "finalEvalPerspective": "white",
+        "engineChecked": true,
         "stopReason": "Stopped because the Lichess node sample became too thin to trust further continuation.",
         "sourceName": "lichess-org/chess-openings + Lichess Explorer + Stockfish",
         "sourceConfidence": "medium"
@@ -4486,6 +4537,9 @@
         "popularityRankWithinOpening": 18,
         "popularityScore": null,
         "popularityGames": null,
+        "finalEvalCp": 106,
+        "finalEvalPerspective": "white",
+        "engineChecked": true,
         "stopReason": "Stopped because the Lichess node sample became too thin to trust further continuation.",
         "sourceName": "lichess-org/chess-openings + Lichess Explorer + Stockfish",
         "sourceConfidence": "medium"
@@ -4503,6 +4557,9 @@
         "popularityRankWithinOpening": 19,
         "popularityScore": null,
         "popularityGames": null,
+        "finalEvalCp": 0,
+        "finalEvalPerspective": "white",
+        "engineChecked": true,
         "stopReason": "Stopped at the earliest position where the instructional payoff was visible without unnecessary continuation.",
         "sourceName": "lichess-org/chess-openings + Lichess Explorer + Stockfish",
         "sourceConfidence": "medium"
@@ -4520,6 +4577,9 @@
         "popularityRankWithinOpening": 20,
         "popularityScore": null,
         "popularityGames": null,
+        "finalEvalCp": 242,
+        "finalEvalPerspective": "white",
+        "engineChecked": true,
         "stopReason": "Stopped because the Lichess node sample became too thin to trust further continuation.",
         "sourceName": "lichess-org/chess-openings + Lichess Explorer + Stockfish",
         "sourceConfidence": "medium"
@@ -4537,6 +4597,9 @@
         "popularityRankWithinOpening": 21,
         "popularityScore": null,
         "popularityGames": null,
+        "finalEvalCp": 173,
+        "finalEvalPerspective": "white",
+        "engineChecked": true,
         "stopReason": "Stopped because the Lichess node sample became too thin to trust further continuation.",
         "sourceName": "lichess-org/chess-openings + Lichess Explorer + Stockfish",
         "sourceConfidence": "medium"
@@ -4554,6 +4617,9 @@
         "popularityRankWithinOpening": 22,
         "popularityScore": null,
         "popularityGames": null,
+        "finalEvalCp": 51,
+        "finalEvalPerspective": "white",
+        "engineChecked": true,
         "stopReason": "Stopped because the Lichess node sample became too thin to trust further continuation.",
         "sourceName": "lichess-org/chess-openings + Lichess Explorer + Stockfish",
         "sourceConfidence": "medium"
@@ -4571,6 +4637,9 @@
         "popularityRankWithinOpening": 23,
         "popularityScore": null,
         "popularityGames": null,
+        "finalEvalCp": 382,
+        "finalEvalPerspective": "white",
+        "engineChecked": true,
         "stopReason": "Stopped because the Lichess node sample became too thin to trust further continuation.",
         "sourceName": "lichess-org/chess-openings + Lichess Explorer + Stockfish",
         "sourceConfidence": "medium"
@@ -4588,6 +4657,9 @@
         "popularityRankWithinOpening": 24,
         "popularityScore": null,
         "popularityGames": null,
+        "finalEvalCp": 172,
+        "finalEvalPerspective": "white",
+        "engineChecked": true,
         "stopReason": "Stopped because the Lichess node sample became too thin to trust further continuation.",
         "sourceName": "lichess-org/chess-openings + Lichess Explorer + Stockfish",
         "sourceConfidence": "medium"
@@ -4605,6 +4677,9 @@
         "popularityRankWithinOpening": 25,
         "popularityScore": null,
         "popularityGames": null,
+        "finalEvalCp": 24,
+        "finalEvalPerspective": "white",
+        "engineChecked": true,
         "stopReason": "Stopped at the earliest position where the instructional payoff was visible without unnecessary continuation.",
         "sourceName": "lichess-org/chess-openings + Lichess Explorer + Stockfish",
         "sourceConfidence": "medium"
@@ -4622,6 +4697,9 @@
         "popularityRankWithinOpening": 26,
         "popularityScore": null,
         "popularityGames": null,
+        "finalEvalCp": 156,
+        "finalEvalPerspective": "white",
+        "engineChecked": true,
         "stopReason": "Stopped because the Lichess node sample became too thin to trust further continuation.",
         "sourceName": "lichess-org/chess-openings + Lichess Explorer + Stockfish",
         "sourceConfidence": "medium"
@@ -4639,6 +4717,9 @@
         "popularityRankWithinOpening": 27,
         "popularityScore": null,
         "popularityGames": null,
+        "finalEvalCp": -64,
+        "finalEvalPerspective": "white",
+        "engineChecked": true,
         "stopReason": "Stopped because the Lichess node sample became too thin to trust further continuation.",
         "sourceName": "lichess-org/chess-openings + Lichess Explorer + Stockfish",
         "sourceConfidence": "medium"
@@ -4656,6 +4737,9 @@
         "popularityRankWithinOpening": 28,
         "popularityScore": null,
         "popularityGames": null,
+        "finalEvalCp": 89,
+        "finalEvalPerspective": "white",
+        "engineChecked": true,
         "stopReason": "Stopped because the Lichess node sample became too thin to trust further continuation.",
         "sourceName": "lichess-org/chess-openings + Lichess Explorer + Stockfish",
         "sourceConfidence": "medium"
@@ -4673,6 +4757,9 @@
         "popularityRankWithinOpening": 29,
         "popularityScore": null,
         "popularityGames": null,
+        "finalEvalCp": 55,
+        "finalEvalPerspective": "white",
+        "engineChecked": true,
         "stopReason": "Stopped because the Lichess node sample became too thin to trust further continuation.",
         "sourceName": "lichess-org/chess-openings + Lichess Explorer + Stockfish",
         "sourceConfidence": "medium"
@@ -4690,6 +4777,9 @@
         "popularityRankWithinOpening": 30,
         "popularityScore": null,
         "popularityGames": null,
+        "finalEvalCp": 12,
+        "finalEvalPerspective": "white",
+        "engineChecked": true,
         "stopReason": "Stopped because the Lichess node sample became too thin to trust further continuation.",
         "sourceName": "lichess-org/chess-openings + Lichess Explorer + Stockfish",
         "sourceConfidence": "medium"
@@ -4707,6 +4797,9 @@
         "popularityRankWithinOpening": 31,
         "popularityScore": null,
         "popularityGames": null,
+        "finalEvalCp": 0,
+        "finalEvalPerspective": "white",
+        "engineChecked": true,
         "stopReason": "Stopped because the Lichess node sample became too thin to trust further continuation.",
         "sourceName": "lichess-org/chess-openings + Lichess Explorer + Stockfish",
         "sourceConfidence": "medium"
@@ -4724,6 +4817,9 @@
         "popularityRankWithinOpening": 32,
         "popularityScore": null,
         "popularityGames": null,
+        "finalEvalCp": -47,
+        "finalEvalPerspective": "white",
+        "engineChecked": true,
         "stopReason": "Stopped because the Lichess node sample became too thin to trust further continuation.",
         "sourceName": "lichess-org/chess-openings + Lichess Explorer + Stockfish",
         "sourceConfidence": "medium"
@@ -4741,6 +4837,9 @@
         "popularityRankWithinOpening": 33,
         "popularityScore": null,
         "popularityGames": null,
+        "finalEvalCp": 45,
+        "finalEvalPerspective": "white",
+        "engineChecked": true,
         "stopReason": "Stopped because the Lichess node sample became too thin to trust further continuation.",
         "sourceName": "lichess-org/chess-openings + Lichess Explorer + Stockfish",
         "sourceConfidence": "medium"
@@ -4758,6 +4857,9 @@
         "popularityRankWithinOpening": 34,
         "popularityScore": null,
         "popularityGames": null,
+        "finalEvalCp": -24,
+        "finalEvalPerspective": "white",
+        "engineChecked": true,
         "stopReason": "Stopped because the Lichess node sample became too thin to trust further continuation.",
         "sourceName": "lichess-org/chess-openings + Lichess Explorer + Stockfish",
         "sourceConfidence": "medium"
@@ -4775,6 +4877,9 @@
         "popularityRankWithinOpening": 35,
         "popularityScore": null,
         "popularityGames": null,
+        "finalEvalCp": 77,
+        "finalEvalPerspective": "white",
+        "engineChecked": true,
         "stopReason": "Stopped because the Lichess node sample became too thin to trust further continuation.",
         "sourceName": "lichess-org/chess-openings + Lichess Explorer + Stockfish",
         "sourceConfidence": "medium"
@@ -4792,6 +4897,9 @@
         "popularityRankWithinOpening": 36,
         "popularityScore": null,
         "popularityGames": null,
+        "finalEvalCp": 26,
+        "finalEvalPerspective": "white",
+        "engineChecked": true,
         "stopReason": "Stopped because the Lichess node sample became too thin to trust further continuation.",
         "sourceName": "lichess-org/chess-openings + Lichess Explorer + Stockfish",
         "sourceConfidence": "medium"
@@ -4809,6 +4917,9 @@
         "popularityRankWithinOpening": 37,
         "popularityScore": null,
         "popularityGames": null,
+        "finalEvalCp": 274,
+        "finalEvalPerspective": "white",
+        "engineChecked": true,
         "stopReason": "Stopped at the earliest position where the instructional payoff was visible without unnecessary continuation.",
         "sourceName": "lichess-org/chess-openings + Lichess Explorer + Stockfish",
         "sourceConfidence": "medium"
@@ -4826,6 +4937,9 @@
         "popularityRankWithinOpening": 38,
         "popularityScore": null,
         "popularityGames": null,
+        "finalEvalCp": 42,
+        "finalEvalPerspective": "white",
+        "engineChecked": true,
         "stopReason": "Stopped because the Lichess node sample became too thin to trust further continuation.",
         "sourceName": "lichess-org/chess-openings + Lichess Explorer + Stockfish",
         "sourceConfidence": "medium"
@@ -4843,6 +4957,9 @@
         "popularityRankWithinOpening": 39,
         "popularityScore": null,
         "popularityGames": null,
+        "finalEvalCp": 6,
+        "finalEvalPerspective": "white",
+        "engineChecked": true,
         "stopReason": "Stopped because the Lichess node sample became too thin to trust further continuation.",
         "sourceName": "lichess-org/chess-openings + Lichess Explorer + Stockfish",
         "sourceConfidence": "medium"
@@ -4860,6 +4977,9 @@
         "popularityRankWithinOpening": 40,
         "popularityScore": null,
         "popularityGames": null,
+        "finalEvalCp": 150,
+        "finalEvalPerspective": "white",
+        "engineChecked": true,
         "stopReason": "Stopped because the Lichess node sample became too thin to trust further continuation.",
         "sourceName": "lichess-org/chess-openings + Lichess Explorer + Stockfish",
         "sourceConfidence": "medium"
@@ -4877,6 +4997,9 @@
         "popularityRankWithinOpening": 41,
         "popularityScore": null,
         "popularityGames": null,
+        "finalEvalCp": 166,
+        "finalEvalPerspective": "white",
+        "engineChecked": true,
         "stopReason": "Stopped at the earliest position where the instructional payoff was visible without unnecessary continuation.",
         "sourceName": "lichess-org/chess-openings + Lichess Explorer + Stockfish",
         "sourceConfidence": "medium"
@@ -4894,6 +5017,9 @@
         "popularityRankWithinOpening": 42,
         "popularityScore": null,
         "popularityGames": null,
+        "finalEvalCp": 50,
+        "finalEvalPerspective": "white",
+        "engineChecked": true,
         "stopReason": "Stopped because the Lichess node sample became too thin to trust further continuation.",
         "sourceName": "lichess-org/chess-openings + Lichess Explorer + Stockfish",
         "sourceConfidence": "medium"
@@ -4911,6 +5037,9 @@
         "popularityRankWithinOpening": 43,
         "popularityScore": null,
         "popularityGames": null,
+        "finalEvalCp": 17,
+        "finalEvalPerspective": "white",
+        "engineChecked": true,
         "stopReason": "Stopped because the Lichess node sample became too thin to trust further continuation.",
         "sourceName": "lichess-org/chess-openings + Lichess Explorer + Stockfish",
         "sourceConfidence": "medium"
@@ -4928,6 +5057,9 @@
         "popularityRankWithinOpening": 44,
         "popularityScore": null,
         "popularityGames": null,
+        "finalEvalCp": 87,
+        "finalEvalPerspective": "white",
+        "engineChecked": true,
         "stopReason": "Stopped because the Lichess node sample became too thin to trust further continuation.",
         "sourceName": "lichess-org/chess-openings + Lichess Explorer + Stockfish",
         "sourceConfidence": "medium"
@@ -4945,6 +5077,9 @@
         "popularityRankWithinOpening": 45,
         "popularityScore": null,
         "popularityGames": null,
+        "finalEvalCp": 19,
+        "finalEvalPerspective": "white",
+        "engineChecked": true,
         "stopReason": "Stopped because the Lichess node sample became too thin to trust further continuation.",
         "sourceName": "lichess-org/chess-openings + Lichess Explorer + Stockfish",
         "sourceConfidence": "medium"
@@ -4962,6 +5097,9 @@
         "popularityRankWithinOpening": 46,
         "popularityScore": null,
         "popularityGames": null,
+        "finalEvalCp": 275,
+        "finalEvalPerspective": "white",
+        "engineChecked": true,
         "stopReason": "Stopped because the Lichess node sample became too thin to trust further continuation.",
         "sourceName": "lichess-org/chess-openings + Lichess Explorer + Stockfish",
         "sourceConfidence": "medium"
@@ -4979,6 +5117,9 @@
         "popularityRankWithinOpening": 47,
         "popularityScore": null,
         "popularityGames": null,
+        "finalEvalCp": -80,
+        "finalEvalPerspective": "white",
+        "engineChecked": true,
         "stopReason": "Stopped because the Lichess node sample became too thin to trust further continuation.",
         "sourceName": "lichess-org/chess-openings + Lichess Explorer + Stockfish",
         "sourceConfidence": "medium"
@@ -4996,6 +5137,9 @@
         "popularityRankWithinOpening": 48,
         "popularityScore": null,
         "popularityGames": null,
+        "finalEvalCp": -79,
+        "finalEvalPerspective": "white",
+        "engineChecked": true,
         "stopReason": "Stopped because the Lichess node sample became too thin to trust further continuation.",
         "sourceName": "lichess-org/chess-openings + Lichess Explorer + Stockfish",
         "sourceConfidence": "medium"
@@ -5013,6 +5157,9 @@
         "popularityRankWithinOpening": 49,
         "popularityScore": null,
         "popularityGames": null,
+        "finalEvalCp": -194,
+        "finalEvalPerspective": "white",
+        "engineChecked": true,
         "stopReason": "Stopped because the Lichess node sample became too thin to trust further continuation.",
         "sourceName": "lichess-org/chess-openings + Lichess Explorer + Stockfish",
         "sourceConfidence": "medium"
@@ -5030,6 +5177,9 @@
         "popularityRankWithinOpening": 50,
         "popularityScore": null,
         "popularityGames": null,
+        "finalEvalCp": 155,
+        "finalEvalPerspective": "white",
+        "engineChecked": true,
         "stopReason": "Stopped because the Lichess node sample became too thin to trust further continuation.",
         "sourceName": "lichess-org/chess-openings + Lichess Explorer + Stockfish",
         "sourceConfidence": "medium"
@@ -5047,6 +5197,9 @@
         "popularityRankWithinOpening": 51,
         "popularityScore": null,
         "popularityGames": null,
+        "finalEvalCp": 10,
+        "finalEvalPerspective": "white",
+        "engineChecked": true,
         "stopReason": "Stopped because the Lichess node sample became too thin to trust further continuation.",
         "sourceName": "lichess-org/chess-openings + Lichess Explorer + Stockfish",
         "sourceConfidence": "medium"
@@ -5064,6 +5217,9 @@
         "popularityRankWithinOpening": 52,
         "popularityScore": null,
         "popularityGames": null,
+        "finalEvalCp": -6,
+        "finalEvalPerspective": "white",
+        "engineChecked": true,
         "stopReason": "Stopped at the current added-ply cap for the generated continuation.",
         "sourceName": "lichess-org/chess-openings + Lichess Explorer + Stockfish",
         "sourceConfidence": "medium"
@@ -5081,6 +5237,9 @@
         "popularityRankWithinOpening": 53,
         "popularityScore": null,
         "popularityGames": null,
+        "finalEvalCp": 1,
+        "finalEvalPerspective": "white",
+        "engineChecked": true,
         "stopReason": "Stopped because the Lichess node sample became too thin to trust further continuation.",
         "sourceName": "lichess-org/chess-openings + Lichess Explorer + Stockfish",
         "sourceConfidence": "medium"
@@ -5098,6 +5257,9 @@
         "popularityRankWithinOpening": 54,
         "popularityScore": null,
         "popularityGames": null,
+        "finalEvalCp": 23,
+        "finalEvalPerspective": "white",
+        "engineChecked": true,
         "stopReason": "Stopped because the Lichess node sample became too thin to trust further continuation.",
         "sourceName": "lichess-org/chess-openings + Lichess Explorer + Stockfish",
         "sourceConfidence": "medium"
@@ -5115,6 +5277,9 @@
         "popularityRankWithinOpening": 55,
         "popularityScore": null,
         "popularityGames": null,
+        "finalEvalCp": 342,
+        "finalEvalPerspective": "white",
+        "engineChecked": true,
         "stopReason": "Stopped because the Lichess node sample became too thin to trust further continuation.",
         "sourceName": "lichess-org/chess-openings + Lichess Explorer + Stockfish",
         "sourceConfidence": "medium"
@@ -5132,6 +5297,9 @@
         "popularityRankWithinOpening": 56,
         "popularityScore": null,
         "popularityGames": null,
+        "finalEvalCp": 2,
+        "finalEvalPerspective": "white",
+        "engineChecked": true,
         "stopReason": "Stopped at the current added-ply cap for the generated continuation.",
         "sourceName": "lichess-org/chess-openings + Lichess Explorer + Stockfish",
         "sourceConfidence": "medium"
@@ -5149,6 +5317,9 @@
         "popularityRankWithinOpening": 57,
         "popularityScore": null,
         "popularityGames": null,
+        "finalEvalCp": 208,
+        "finalEvalPerspective": "white",
+        "engineChecked": true,
         "stopReason": "Stopped at the earliest position where the instructional payoff was visible without unnecessary continuation.",
         "sourceName": "lichess-org/chess-openings + Lichess Explorer + Stockfish",
         "sourceConfidence": "medium"
@@ -5166,6 +5337,9 @@
         "popularityRankWithinOpening": 58,
         "popularityScore": null,
         "popularityGames": null,
+        "finalEvalCp": 377,
+        "finalEvalPerspective": "white",
+        "engineChecked": true,
         "stopReason": "Stopped because the Lichess node sample became too thin to trust further continuation.",
         "sourceName": "lichess-org/chess-openings + Lichess Explorer + Stockfish",
         "sourceConfidence": "medium"
@@ -5183,6 +5357,9 @@
         "popularityRankWithinOpening": 59,
         "popularityScore": null,
         "popularityGames": null,
+        "finalEvalCp": 68,
+        "finalEvalPerspective": "white",
+        "engineChecked": true,
         "stopReason": "Stopped because the Lichess node sample became too thin to trust further continuation.",
         "sourceName": "lichess-org/chess-openings + Lichess Explorer + Stockfish",
         "sourceConfidence": "medium"
@@ -5200,6 +5377,9 @@
         "popularityRankWithinOpening": 60,
         "popularityScore": null,
         "popularityGames": null,
+        "finalEvalCp": 149,
+        "finalEvalPerspective": "white",
+        "engineChecked": true,
         "stopReason": "Stopped because the Lichess node sample became too thin to trust further continuation.",
         "sourceName": "lichess-org/chess-openings + Lichess Explorer + Stockfish",
         "sourceConfidence": "medium"
@@ -5217,6 +5397,9 @@
         "popularityRankWithinOpening": 61,
         "popularityScore": null,
         "popularityGames": null,
+        "finalEvalCp": -89,
+        "finalEvalPerspective": "white",
+        "engineChecked": true,
         "stopReason": "Stopped because the Lichess node sample became too thin to trust further continuation.",
         "sourceName": "lichess-org/chess-openings + Lichess Explorer + Stockfish",
         "sourceConfidence": "medium"
@@ -5234,6 +5417,9 @@
         "popularityRankWithinOpening": 62,
         "popularityScore": null,
         "popularityGames": null,
+        "finalEvalCp": 208,
+        "finalEvalPerspective": "white",
+        "engineChecked": true,
         "stopReason": "Stopped because the Lichess node sample became too thin to trust further continuation.",
         "sourceName": "lichess-org/chess-openings + Lichess Explorer + Stockfish",
         "sourceConfidence": "medium"
@@ -5251,6 +5437,9 @@
         "popularityRankWithinOpening": 63,
         "popularityScore": null,
         "popularityGames": null,
+        "finalEvalCp": 6,
+        "finalEvalPerspective": "white",
+        "engineChecked": true,
         "stopReason": "Stopped because the Lichess node sample became too thin to trust further continuation.",
         "sourceName": "lichess-org/chess-openings + Lichess Explorer + Stockfish",
         "sourceConfidence": "medium"
@@ -5268,6 +5457,9 @@
         "popularityRankWithinOpening": 64,
         "popularityScore": null,
         "popularityGames": null,
+        "finalEvalCp": 310,
+        "finalEvalPerspective": "white",
+        "engineChecked": true,
         "stopReason": "Stopped at the earliest position where the instructional payoff was visible without unnecessary continuation.",
         "sourceName": "lichess-org/chess-openings + Lichess Explorer + Stockfish",
         "sourceConfidence": "medium"
@@ -5285,6 +5477,9 @@
         "popularityRankWithinOpening": 65,
         "popularityScore": null,
         "popularityGames": null,
+        "finalEvalCp": 0,
+        "finalEvalPerspective": "white",
+        "engineChecked": true,
         "stopReason": "Stopped because the Lichess node sample became too thin to trust further continuation.",
         "sourceName": "lichess-org/chess-openings + Lichess Explorer + Stockfish",
         "sourceConfidence": "medium"
@@ -5302,6 +5497,9 @@
         "popularityRankWithinOpening": 66,
         "popularityScore": null,
         "popularityGames": null,
+        "finalEvalCp": -21,
+        "finalEvalPerspective": "white",
+        "engineChecked": true,
         "stopReason": "Stopped because the Lichess node sample became too thin to trust further continuation.",
         "sourceName": "lichess-org/chess-openings + Lichess Explorer + Stockfish",
         "sourceConfidence": "medium"
@@ -5319,6 +5517,9 @@
         "popularityRankWithinOpening": 67,
         "popularityScore": null,
         "popularityGames": null,
+        "finalEvalCp": 199,
+        "finalEvalPerspective": "white",
+        "engineChecked": true,
         "stopReason": "Stopped because the Lichess node sample became too thin to trust further continuation.",
         "sourceName": "lichess-org/chess-openings + Lichess Explorer + Stockfish",
         "sourceConfidence": "medium"
@@ -5336,6 +5537,9 @@
         "popularityRankWithinOpening": 68,
         "popularityScore": null,
         "popularityGames": null,
+        "finalEvalCp": 16,
+        "finalEvalPerspective": "white",
+        "engineChecked": true,
         "stopReason": "Stopped because the Lichess node sample became too thin to trust further continuation.",
         "sourceName": "lichess-org/chess-openings + Lichess Explorer + Stockfish",
         "sourceConfidence": "medium"
@@ -5353,6 +5557,9 @@
         "popularityRankWithinOpening": 69,
         "popularityScore": null,
         "popularityGames": null,
+        "finalEvalCp": 118,
+        "finalEvalPerspective": "white",
+        "engineChecked": true,
         "stopReason": "Stopped because the Lichess node sample became too thin to trust further continuation.",
         "sourceName": "lichess-org/chess-openings + Lichess Explorer + Stockfish",
         "sourceConfidence": "medium"
@@ -5370,6 +5577,9 @@
         "popularityRankWithinOpening": 70,
         "popularityScore": null,
         "popularityGames": null,
+        "finalEvalCp": -16,
+        "finalEvalPerspective": "white",
+        "engineChecked": true,
         "stopReason": "Stopped at the earliest position where the instructional payoff was visible without unnecessary continuation.",
         "sourceName": "lichess-org/chess-openings + Lichess Explorer + Stockfish",
         "sourceConfidence": "medium"
@@ -5387,6 +5597,9 @@
         "popularityRankWithinOpening": 71,
         "popularityScore": null,
         "popularityGames": null,
+        "finalEvalCp": 122,
+        "finalEvalPerspective": "white",
+        "engineChecked": true,
         "stopReason": "Stopped at the earliest position where the instructional payoff was visible without unnecessary continuation.",
         "sourceName": "lichess-org/chess-openings + Lichess Explorer + Stockfish",
         "sourceConfidence": "medium"
@@ -5404,6 +5617,9 @@
         "popularityRankWithinOpening": 72,
         "popularityScore": null,
         "popularityGames": null,
+        "finalEvalCp": 76,
+        "finalEvalPerspective": "white",
+        "engineChecked": true,
         "stopReason": "Stopped at the earliest position where the instructional payoff was visible without unnecessary continuation.",
         "sourceName": "lichess-org/chess-openings + Lichess Explorer + Stockfish",
         "sourceConfidence": "medium"
@@ -5421,6 +5637,9 @@
         "popularityRankWithinOpening": 73,
         "popularityScore": null,
         "popularityGames": null,
+        "finalEvalCp": 69,
+        "finalEvalPerspective": "white",
+        "engineChecked": true,
         "stopReason": "Stopped because the Lichess node sample became too thin to trust further continuation.",
         "sourceName": "lichess-org/chess-openings + Lichess Explorer + Stockfish",
         "sourceConfidence": "medium"
@@ -5438,6 +5657,9 @@
         "popularityRankWithinOpening": 74,
         "popularityScore": null,
         "popularityGames": null,
+        "finalEvalCp": 75,
+        "finalEvalPerspective": "white",
+        "engineChecked": true,
         "stopReason": "Stopped because the Lichess node sample became too thin to trust further continuation.",
         "sourceName": "lichess-org/chess-openings + Lichess Explorer + Stockfish",
         "sourceConfidence": "medium"
@@ -5455,6 +5677,9 @@
         "popularityRankWithinOpening": 75,
         "popularityScore": null,
         "popularityGames": null,
+        "finalEvalCp": 116,
+        "finalEvalPerspective": "white",
+        "engineChecked": true,
         "stopReason": "Stopped because the Lichess node sample became too thin to trust further continuation.",
         "sourceName": "lichess-org/chess-openings + Lichess Explorer + Stockfish",
         "sourceConfidence": "medium"
@@ -5472,6 +5697,9 @@
         "popularityRankWithinOpening": 76,
         "popularityScore": null,
         "popularityGames": null,
+        "finalEvalCp": 10,
+        "finalEvalPerspective": "white",
+        "engineChecked": true,
         "stopReason": "Stopped at the earliest position where the instructional payoff was visible without unnecessary continuation.",
         "sourceName": "lichess-org/chess-openings + Lichess Explorer + Stockfish",
         "sourceConfidence": "medium"
@@ -5489,6 +5717,9 @@
         "popularityRankWithinOpening": 77,
         "popularityScore": null,
         "popularityGames": null,
+        "finalEvalCp": -20,
+        "finalEvalPerspective": "white",
+        "engineChecked": true,
         "stopReason": "Stopped at the earliest position where the instructional payoff was visible without unnecessary continuation.",
         "sourceName": "lichess-org/chess-openings + Lichess Explorer + Stockfish",
         "sourceConfidence": "medium"
@@ -5506,6 +5737,9 @@
         "popularityRankWithinOpening": 78,
         "popularityScore": null,
         "popularityGames": null,
+        "finalEvalCp": 23,
+        "finalEvalPerspective": "white",
+        "engineChecked": true,
         "stopReason": "Stopped at the earliest position where the instructional payoff was visible without unnecessary continuation.",
         "sourceName": "lichess-org/chess-openings + Lichess Explorer + Stockfish",
         "sourceConfidence": "medium"
@@ -5523,6 +5757,9 @@
         "popularityRankWithinOpening": 79,
         "popularityScore": null,
         "popularityGames": null,
+        "finalEvalCp": 186,
+        "finalEvalPerspective": "white",
+        "engineChecked": true,
         "stopReason": "Stopped because the Lichess node sample became too thin to trust further continuation.",
         "sourceName": "lichess-org/chess-openings + Lichess Explorer + Stockfish",
         "sourceConfidence": "medium"
@@ -5540,6 +5777,9 @@
         "popularityRankWithinOpening": 80,
         "popularityScore": null,
         "popularityGames": null,
+        "finalEvalCp": 25,
+        "finalEvalPerspective": "white",
+        "engineChecked": true,
         "stopReason": "Stopped at the earliest position where the instructional payoff was visible without unnecessary continuation.",
         "sourceName": "lichess-org/chess-openings + Lichess Explorer + Stockfish",
         "sourceConfidence": "medium"
@@ -5557,6 +5797,9 @@
         "popularityRankWithinOpening": 81,
         "popularityScore": null,
         "popularityGames": null,
+        "finalEvalCp": 51,
+        "finalEvalPerspective": "white",
+        "engineChecked": true,
         "stopReason": "Stopped because the Lichess node sample became too thin to trust further continuation.",
         "sourceName": "lichess-org/chess-openings + Lichess Explorer + Stockfish",
         "sourceConfidence": "medium"
@@ -5574,6 +5817,9 @@
         "popularityRankWithinOpening": 82,
         "popularityScore": null,
         "popularityGames": null,
+        "finalEvalCp": 54,
+        "finalEvalPerspective": "white",
+        "engineChecked": true,
         "stopReason": "Stopped at the earliest position where the instructional payoff was visible without unnecessary continuation.",
         "sourceName": "lichess-org/chess-openings + Lichess Explorer + Stockfish",
         "sourceConfidence": "medium"
@@ -5591,6 +5837,9 @@
         "popularityRankWithinOpening": 83,
         "popularityScore": null,
         "popularityGames": null,
+        "finalEvalCp": 1,
+        "finalEvalPerspective": "white",
+        "engineChecked": true,
         "stopReason": "Stopped because the Lichess node sample became too thin to trust further continuation.",
         "sourceName": "lichess-org/chess-openings + Lichess Explorer + Stockfish",
         "sourceConfidence": "medium"
@@ -5608,6 +5857,9 @@
         "popularityRankWithinOpening": 84,
         "popularityScore": null,
         "popularityGames": null,
+        "finalEvalCp": 34,
+        "finalEvalPerspective": "white",
+        "engineChecked": true,
         "stopReason": "Stopped at the earliest position where the instructional payoff was visible without unnecessary continuation.",
         "sourceName": "lichess-org/chess-openings + Lichess Explorer + Stockfish",
         "sourceConfidence": "medium"
@@ -5625,6 +5877,9 @@
         "popularityRankWithinOpening": 85,
         "popularityScore": null,
         "popularityGames": null,
+        "finalEvalCp": 51,
+        "finalEvalPerspective": "white",
+        "engineChecked": true,
         "stopReason": "Stopped at the earliest position where the instructional payoff was visible without unnecessary continuation.",
         "sourceName": "lichess-org/chess-openings + Lichess Explorer + Stockfish",
         "sourceConfidence": "medium"
@@ -5642,6 +5897,9 @@
         "popularityRankWithinOpening": 86,
         "popularityScore": null,
         "popularityGames": null,
+        "finalEvalCp": 402,
+        "finalEvalPerspective": "white",
+        "engineChecked": true,
         "stopReason": "Stopped because the Lichess node sample became too thin to trust further continuation.",
         "sourceName": "lichess-org/chess-openings + Lichess Explorer + Stockfish",
         "sourceConfidence": "medium"
@@ -5659,6 +5917,9 @@
         "popularityRankWithinOpening": 87,
         "popularityScore": null,
         "popularityGames": null,
+        "finalEvalCp": -20,
+        "finalEvalPerspective": "white",
+        "engineChecked": true,
         "stopReason": "Stopped at the earliest position where the instructional payoff was visible without unnecessary continuation.",
         "sourceName": "lichess-org/chess-openings + Lichess Explorer + Stockfish",
         "sourceConfidence": "medium"
@@ -5676,6 +5937,9 @@
         "popularityRankWithinOpening": 88,
         "popularityScore": null,
         "popularityGames": null,
+        "finalEvalCp": 33,
+        "finalEvalPerspective": "white",
+        "engineChecked": true,
         "stopReason": "Stopped at the earliest position where the instructional payoff was visible without unnecessary continuation.",
         "sourceName": "lichess-org/chess-openings + Lichess Explorer + Stockfish",
         "sourceConfidence": "medium"
@@ -5693,6 +5957,9 @@
         "popularityRankWithinOpening": 89,
         "popularityScore": null,
         "popularityGames": null,
+        "finalEvalCp": 33,
+        "finalEvalPerspective": "white",
+        "engineChecked": true,
         "stopReason": "Stopped at the earliest position where the instructional payoff was visible without unnecessary continuation.",
         "sourceName": "lichess-org/chess-openings + Lichess Explorer + Stockfish",
         "sourceConfidence": "medium"
@@ -5710,6 +5977,9 @@
         "popularityRankWithinOpening": 90,
         "popularityScore": null,
         "popularityGames": null,
+        "finalEvalCp": 97,
+        "finalEvalPerspective": "white",
+        "engineChecked": true,
         "stopReason": "Stopped at the earliest position where the instructional payoff was visible without unnecessary continuation.",
         "sourceName": "lichess-org/chess-openings + Lichess Explorer + Stockfish",
         "sourceConfidence": "medium"
@@ -5727,6 +5997,9 @@
         "popularityRankWithinOpening": 91,
         "popularityScore": null,
         "popularityGames": null,
+        "finalEvalCp": 77,
+        "finalEvalPerspective": "white",
+        "engineChecked": true,
         "stopReason": "Stopped because the Lichess node sample became too thin to trust further continuation.",
         "sourceName": "lichess-org/chess-openings + Lichess Explorer + Stockfish",
         "sourceConfidence": "medium"
@@ -5744,6 +6017,9 @@
         "popularityRankWithinOpening": 92,
         "popularityScore": null,
         "popularityGames": null,
+        "finalEvalCp": -32,
+        "finalEvalPerspective": "white",
+        "engineChecked": true,
         "stopReason": "Stopped because the Lichess node sample became too thin to trust further continuation.",
         "sourceName": "lichess-org/chess-openings + Lichess Explorer + Stockfish",
         "sourceConfidence": "medium"
@@ -5761,6 +6037,9 @@
         "popularityRankWithinOpening": 93,
         "popularityScore": null,
         "popularityGames": null,
+        "finalEvalCp": 161,
+        "finalEvalPerspective": "white",
+        "engineChecked": true,
         "stopReason": "Stopped at the earliest position where the instructional payoff was visible without unnecessary continuation.",
         "sourceName": "lichess-org/chess-openings + Lichess Explorer + Stockfish",
         "sourceConfidence": "medium"
@@ -5778,6 +6057,9 @@
         "popularityRankWithinOpening": 94,
         "popularityScore": null,
         "popularityGames": null,
+        "finalEvalCp": -70,
+        "finalEvalPerspective": "white",
+        "engineChecked": true,
         "stopReason": "Stopped at the earliest position where the instructional payoff was visible without unnecessary continuation.",
         "sourceName": "lichess-org/chess-openings + Lichess Explorer + Stockfish",
         "sourceConfidence": "medium"
@@ -5795,6 +6077,9 @@
         "popularityRankWithinOpening": 95,
         "popularityScore": null,
         "popularityGames": null,
+        "finalEvalCp": -64,
+        "finalEvalPerspective": "white",
+        "engineChecked": true,
         "stopReason": "Stopped because the Lichess node sample became too thin to trust further continuation.",
         "sourceName": "lichess-org/chess-openings + Lichess Explorer + Stockfish",
         "sourceConfidence": "medium"
@@ -5812,6 +6097,9 @@
         "popularityRankWithinOpening": 96,
         "popularityScore": null,
         "popularityGames": null,
+        "finalEvalCp": 106,
+        "finalEvalPerspective": "white",
+        "engineChecked": true,
         "stopReason": "Stopped at the earliest position where the instructional payoff was visible without unnecessary continuation.",
         "sourceName": "lichess-org/chess-openings + Lichess Explorer + Stockfish",
         "sourceConfidence": "medium"
@@ -5829,6 +6117,9 @@
         "popularityRankWithinOpening": 97,
         "popularityScore": null,
         "popularityGames": null,
+        "finalEvalCp": 109,
+        "finalEvalPerspective": "white",
+        "engineChecked": true,
         "stopReason": "Stopped at the earliest position where the instructional payoff was visible without unnecessary continuation.",
         "sourceName": "lichess-org/chess-openings + Lichess Explorer + Stockfish",
         "sourceConfidence": "medium"
@@ -5846,6 +6137,9 @@
         "popularityRankWithinOpening": 98,
         "popularityScore": null,
         "popularityGames": null,
+        "finalEvalCp": 91,
+        "finalEvalPerspective": "white",
+        "engineChecked": true,
         "stopReason": "Stopped at the earliest position where the instructional payoff was visible without unnecessary continuation.",
         "sourceName": "lichess-org/chess-openings + Lichess Explorer + Stockfish",
         "sourceConfidence": "medium"
@@ -5863,6 +6157,9 @@
         "popularityRankWithinOpening": 99,
         "popularityScore": null,
         "popularityGames": null,
+        "finalEvalCp": -104,
+        "finalEvalPerspective": "white",
+        "engineChecked": true,
         "stopReason": "Stopped because the Lichess node sample became too thin to trust further continuation.",
         "sourceName": "lichess-org/chess-openings + Lichess Explorer + Stockfish",
         "sourceConfidence": "medium"
@@ -5880,6 +6177,9 @@
         "popularityRankWithinOpening": 100,
         "popularityScore": null,
         "popularityGames": null,
+        "finalEvalCp": 86,
+        "finalEvalPerspective": "white",
+        "engineChecked": true,
         "stopReason": "Stopped because the Lichess node sample is too thin to trust further continuation.",
         "sourceName": "lichess-org/chess-openings + Lichess Explorer + Stockfish",
         "sourceConfidence": "medium"
@@ -5897,6 +6197,9 @@
         "popularityRankWithinOpening": 101,
         "popularityScore": null,
         "popularityGames": null,
+        "finalEvalCp": 388,
+        "finalEvalPerspective": "white",
+        "engineChecked": true,
         "stopReason": "Stopped because the Lichess node sample became too thin to trust further continuation.",
         "sourceName": "lichess-org/chess-openings + Lichess Explorer + Stockfish",
         "sourceConfidence": "medium"
@@ -5914,6 +6217,9 @@
         "popularityRankWithinOpening": 102,
         "popularityScore": null,
         "popularityGames": null,
+        "finalEvalCp": -49,
+        "finalEvalPerspective": "white",
+        "engineChecked": true,
         "stopReason": "Stopped because the Lichess node sample became too thin to trust further continuation.",
         "sourceName": "lichess-org/chess-openings + Lichess Explorer + Stockfish",
         "sourceConfidence": "medium"
@@ -5931,6 +6237,9 @@
         "popularityRankWithinOpening": 103,
         "popularityScore": null,
         "popularityGames": null,
+        "finalEvalCp": 204,
+        "finalEvalPerspective": "white",
+        "engineChecked": true,
         "stopReason": "Stopped because the Lichess node sample became too thin to trust further continuation.",
         "sourceName": "lichess-org/chess-openings + Lichess Explorer + Stockfish",
         "sourceConfidence": "medium"
@@ -5948,6 +6257,9 @@
         "popularityRankWithinOpening": 104,
         "popularityScore": null,
         "popularityGames": null,
+        "finalEvalCp": 45,
+        "finalEvalPerspective": "white",
+        "engineChecked": true,
         "stopReason": "Stopped because the Lichess node sample became too thin to trust further continuation.",
         "sourceName": "lichess-org/chess-openings + Lichess Explorer + Stockfish",
         "sourceConfidence": "medium"
@@ -5965,6 +6277,9 @@
         "popularityRankWithinOpening": 105,
         "popularityScore": null,
         "popularityGames": null,
+        "finalEvalCp": 26,
+        "finalEvalPerspective": "white",
+        "engineChecked": true,
         "stopReason": "Stopped at the earliest position where the instructional payoff was visible without unnecessary continuation.",
         "sourceName": "lichess-org/chess-openings + Lichess Explorer + Stockfish",
         "sourceConfidence": "medium"
@@ -5982,6 +6297,9 @@
         "popularityRankWithinOpening": 106,
         "popularityScore": null,
         "popularityGames": null,
+        "finalEvalCp": 62,
+        "finalEvalPerspective": "white",
+        "engineChecked": true,
         "stopReason": "Stopped because the Lichess node sample is too thin to trust further continuation.",
         "sourceName": "lichess-org/chess-openings + Lichess Explorer + Stockfish",
         "sourceConfidence": "medium"
@@ -5999,6 +6317,9 @@
         "popularityRankWithinOpening": 107,
         "popularityScore": null,
         "popularityGames": null,
+        "finalEvalCp": 160,
+        "finalEvalPerspective": "white",
+        "engineChecked": true,
         "stopReason": "Stopped at the earliest position where the instructional payoff was visible without unnecessary continuation.",
         "sourceName": "lichess-org/chess-openings + Lichess Explorer + Stockfish",
         "sourceConfidence": "medium"
@@ -6016,6 +6337,9 @@
         "popularityRankWithinOpening": 108,
         "popularityScore": null,
         "popularityGames": null,
+        "finalEvalCp": 162,
+        "finalEvalPerspective": "white",
+        "engineChecked": true,
         "stopReason": "Stopped because the Lichess node sample became too thin to trust further continuation.",
         "sourceName": "lichess-org/chess-openings + Lichess Explorer + Stockfish",
         "sourceConfidence": "medium"
@@ -6033,6 +6357,9 @@
         "popularityRankWithinOpening": 109,
         "popularityScore": null,
         "popularityGames": null,
+        "finalEvalCp": 394,
+        "finalEvalPerspective": "white",
+        "engineChecked": true,
         "stopReason": "Stopped because the Lichess node sample is too thin to trust further continuation.",
         "sourceName": "lichess-org/chess-openings + Lichess Explorer + Stockfish",
         "sourceConfidence": "medium"
@@ -6050,6 +6377,9 @@
         "popularityRankWithinOpening": 110,
         "popularityScore": null,
         "popularityGames": null,
+        "finalEvalCp": 112,
+        "finalEvalPerspective": "white",
+        "engineChecked": true,
         "stopReason": "Stopped because the Lichess node sample became too thin to trust further continuation.",
         "sourceName": "lichess-org/chess-openings + Lichess Explorer + Stockfish",
         "sourceConfidence": "medium"
@@ -6067,6 +6397,9 @@
         "popularityRankWithinOpening": 111,
         "popularityScore": null,
         "popularityGames": null,
+        "finalEvalCp": 45,
+        "finalEvalPerspective": "white",
+        "engineChecked": true,
         "stopReason": "Stopped at the earliest position where the instructional payoff was visible without unnecessary continuation.",
         "sourceName": "lichess-org/chess-openings + Lichess Explorer + Stockfish",
         "sourceConfidence": "medium"
@@ -6084,6 +6417,9 @@
         "popularityRankWithinOpening": 112,
         "popularityScore": null,
         "popularityGames": null,
+        "finalEvalCp": 71,
+        "finalEvalPerspective": "white",
+        "engineChecked": true,
         "stopReason": "Stopped because the Lichess node sample became too thin to trust further continuation.",
         "sourceName": "lichess-org/chess-openings + Lichess Explorer + Stockfish",
         "sourceConfidence": "medium"
@@ -6101,6 +6437,9 @@
         "popularityRankWithinOpening": 113,
         "popularityScore": null,
         "popularityGames": null,
+        "finalEvalCp": 8,
+        "finalEvalPerspective": "white",
+        "engineChecked": true,
         "stopReason": "Stopped at the earliest position where the instructional payoff was visible without unnecessary continuation.",
         "sourceName": "lichess-org/chess-openings + Lichess Explorer + Stockfish",
         "sourceConfidence": "medium"
@@ -6118,6 +6457,9 @@
         "popularityRankWithinOpening": 114,
         "popularityScore": null,
         "popularityGames": null,
+        "finalEvalCp": -158,
+        "finalEvalPerspective": "white",
+        "engineChecked": true,
         "stopReason": "Stopped because the Lichess node sample became too thin to trust further continuation.",
         "sourceName": "lichess-org/chess-openings + Lichess Explorer + Stockfish",
         "sourceConfidence": "medium"
@@ -6135,6 +6477,9 @@
         "popularityRankWithinOpening": 115,
         "popularityScore": null,
         "popularityGames": null,
+        "finalEvalCp": -42,
+        "finalEvalPerspective": "white",
+        "engineChecked": true,
         "stopReason": "Stopped because the Lichess node sample is too thin to trust further continuation.",
         "sourceName": "lichess-org/chess-openings + Lichess Explorer + Stockfish",
         "sourceConfidence": "medium"
@@ -6152,6 +6497,9 @@
         "popularityRankWithinOpening": 116,
         "popularityScore": null,
         "popularityGames": null,
+        "finalEvalCp": -19,
+        "finalEvalPerspective": "white",
+        "engineChecked": true,
         "stopReason": "Stopped at the earliest position where the instructional payoff was visible without unnecessary continuation.",
         "sourceName": "lichess-org/chess-openings + Lichess Explorer + Stockfish",
         "sourceConfidence": "medium"
@@ -6169,6 +6517,9 @@
         "popularityRankWithinOpening": 117,
         "popularityScore": null,
         "popularityGames": null,
+        "finalEvalCp": 11,
+        "finalEvalPerspective": "white",
+        "engineChecked": true,
         "stopReason": "Stored as the source main-line reference; practical continuation is generated from the parent named variation node.",
         "sourceName": "lichess-org/chess-openings + Lichess Explorer + Stockfish",
         "sourceConfidence": "medium"
@@ -6186,6 +6537,9 @@
         "popularityRankWithinOpening": 118,
         "popularityScore": null,
         "popularityGames": null,
+        "finalEvalCp": -27,
+        "finalEvalPerspective": "white",
+        "engineChecked": true,
         "stopReason": "Stored as the source main-line reference; practical continuation is generated from the parent named variation node.",
         "sourceName": "lichess-org/chess-openings + Lichess Explorer + Stockfish",
         "sourceConfidence": "medium"
@@ -6203,6 +6557,9 @@
         "popularityRankWithinOpening": 119,
         "popularityScore": null,
         "popularityGames": null,
+        "finalEvalCp": 99,
+        "finalEvalPerspective": "white",
+        "engineChecked": true,
         "stopReason": "Stored as the source main-line reference; practical continuation is generated from the parent named variation node.",
         "sourceName": "lichess-org/chess-openings + Lichess Explorer + Stockfish",
         "sourceConfidence": "medium"
@@ -6220,6 +6577,9 @@
         "popularityRankWithinOpening": 120,
         "popularityScore": null,
         "popularityGames": null,
+        "finalEvalCp": 11,
+        "finalEvalPerspective": "white",
+        "engineChecked": true,
         "stopReason": "Stored as the source main-line reference; practical continuation is generated from the parent named variation node.",
         "sourceName": "lichess-org/chess-openings + Lichess Explorer + Stockfish",
         "sourceConfidence": "medium"
@@ -6237,6 +6597,9 @@
         "popularityRankWithinOpening": 121,
         "popularityScore": null,
         "popularityGames": null,
+        "finalEvalCp": 16,
+        "finalEvalPerspective": "white",
+        "engineChecked": true,
         "stopReason": "Stored as the source main-line reference; practical continuation is generated from the parent named variation node.",
         "sourceName": "lichess-org/chess-openings + Lichess Explorer + Stockfish",
         "sourceConfidence": "medium"
@@ -6254,6 +6617,9 @@
         "popularityRankWithinOpening": 122,
         "popularityScore": null,
         "popularityGames": null,
+        "finalEvalCp": -88,
+        "finalEvalPerspective": "white",
+        "engineChecked": true,
         "stopReason": "Stored as the source main-line reference; practical continuation is generated from the parent named variation node.",
         "sourceName": "lichess-org/chess-openings + Lichess Explorer + Stockfish",
         "sourceConfidence": "medium"
@@ -6271,6 +6637,9 @@
         "popularityRankWithinOpening": 123,
         "popularityScore": null,
         "popularityGames": null,
+        "finalEvalCp": -92,
+        "finalEvalPerspective": "white",
+        "engineChecked": true,
         "stopReason": "Stopped because the Lichess node sample is too thin to trust further continuation.",
         "sourceName": "lichess-org/chess-openings + Lichess Explorer + Stockfish",
         "sourceConfidence": "medium"
@@ -6288,6 +6657,9 @@
         "popularityRankWithinOpening": 124,
         "popularityScore": null,
         "popularityGames": null,
+        "finalEvalCp": 45,
+        "finalEvalPerspective": "white",
+        "engineChecked": true,
         "stopReason": "Stopped at the earliest position where the instructional payoff was visible without unnecessary continuation.",
         "sourceName": "lichess-org/chess-openings + Lichess Explorer + Stockfish",
         "sourceConfidence": "medium"
@@ -6305,6 +6677,9 @@
         "popularityRankWithinOpening": 125,
         "popularityScore": null,
         "popularityGames": null,
+        "finalEvalCp": 77,
+        "finalEvalPerspective": "white",
+        "engineChecked": true,
         "stopReason": "Stopped at the earliest position where the instructional payoff was visible without unnecessary continuation.",
         "sourceName": "lichess-org/chess-openings + Lichess Explorer + Stockfish",
         "sourceConfidence": "medium"
@@ -6322,6 +6697,9 @@
         "popularityRankWithinOpening": 126,
         "popularityScore": null,
         "popularityGames": null,
+        "finalEvalCp": 21,
+        "finalEvalPerspective": "white",
+        "engineChecked": true,
         "stopReason": "Stopped because the Lichess node sample is too thin to trust further continuation.",
         "sourceName": "lichess-org/chess-openings + Lichess Explorer + Stockfish",
         "sourceConfidence": "medium"
@@ -6339,6 +6717,9 @@
         "popularityRankWithinOpening": 127,
         "popularityScore": null,
         "popularityGames": null,
+        "finalEvalCp": 60,
+        "finalEvalPerspective": "white",
+        "engineChecked": true,
         "stopReason": "Stopped because the Lichess node sample is too thin to trust further continuation.",
         "sourceName": "lichess-org/chess-openings + Lichess Explorer + Stockfish",
         "sourceConfidence": "medium"
@@ -6356,6 +6737,9 @@
         "popularityRankWithinOpening": 128,
         "popularityScore": null,
         "popularityGames": null,
+        "finalEvalCp": -17,
+        "finalEvalPerspective": "white",
+        "engineChecked": true,
         "stopReason": "Stopped because the Lichess node sample is too thin to trust further continuation.",
         "sourceName": "lichess-org/chess-openings + Lichess Explorer + Stockfish",
         "sourceConfidence": "medium"
@@ -6373,6 +6757,9 @@
         "popularityRankWithinOpening": 129,
         "popularityScore": null,
         "popularityGames": null,
+        "finalEvalCp": 20,
+        "finalEvalPerspective": "white",
+        "engineChecked": true,
         "stopReason": "Stopped because the Lichess node sample is too thin to trust further continuation.",
         "sourceName": "lichess-org/chess-openings + Lichess Explorer + Stockfish",
         "sourceConfidence": "medium"
@@ -6390,6 +6777,9 @@
         "popularityRankWithinOpening": 130,
         "popularityScore": null,
         "popularityGames": null,
+        "finalEvalCp": 51,
+        "finalEvalPerspective": "white",
+        "engineChecked": true,
         "stopReason": "Stopped at the earliest position where the instructional payoff was visible without unnecessary continuation.",
         "sourceName": "lichess-org/chess-openings + Lichess Explorer + Stockfish",
         "sourceConfidence": "medium"
@@ -6407,6 +6797,9 @@
         "popularityRankWithinOpening": 131,
         "popularityScore": null,
         "popularityGames": null,
+        "finalEvalCp": 79,
+        "finalEvalPerspective": "white",
+        "engineChecked": true,
         "stopReason": "Stopped at the earliest position where the instructional payoff was visible without unnecessary continuation.",
         "sourceName": "lichess-org/chess-openings + Lichess Explorer + Stockfish",
         "sourceConfidence": "medium"
@@ -6424,6 +6817,9 @@
         "popularityRankWithinOpening": 132,
         "popularityScore": null,
         "popularityGames": null,
+        "finalEvalCp": 85,
+        "finalEvalPerspective": "white",
+        "engineChecked": true,
         "stopReason": "Stopped at the earliest position where the instructional payoff was visible without unnecessary continuation.",
         "sourceName": "lichess-org/chess-openings + Lichess Explorer + Stockfish",
         "sourceConfidence": "medium"
@@ -6441,6 +6837,9 @@
         "popularityRankWithinOpening": 133,
         "popularityScore": null,
         "popularityGames": null,
+        "finalEvalCp": 59,
+        "finalEvalPerspective": "white",
+        "engineChecked": true,
         "stopReason": "Stopped at the earliest position where the instructional payoff was visible without unnecessary continuation.",
         "sourceName": "lichess-org/chess-openings + Lichess Explorer + Stockfish",
         "sourceConfidence": "medium"
@@ -6458,6 +6857,9 @@
         "popularityRankWithinOpening": 134,
         "popularityScore": null,
         "popularityGames": null,
+        "finalEvalCp": -94,
+        "finalEvalPerspective": "white",
+        "engineChecked": true,
         "stopReason": "Stopped at the earliest position where the instructional payoff was visible without unnecessary continuation.",
         "sourceName": "lichess-org/chess-openings + Lichess Explorer + Stockfish",
         "sourceConfidence": "medium"
@@ -6475,6 +6877,9 @@
         "popularityRankWithinOpening": 135,
         "popularityScore": null,
         "popularityGames": null,
+        "finalEvalCp": 6,
+        "finalEvalPerspective": "white",
+        "engineChecked": true,
         "stopReason": "Stopped because the Lichess node sample is too thin to trust further continuation.",
         "sourceName": "lichess-org/chess-openings + Lichess Explorer + Stockfish",
         "sourceConfidence": "medium"
@@ -6492,6 +6897,9 @@
         "popularityRankWithinOpening": 136,
         "popularityScore": null,
         "popularityGames": null,
+        "finalEvalCp": 113,
+        "finalEvalPerspective": "white",
+        "engineChecked": true,
         "stopReason": "Stopped because the Lichess node sample is too thin to trust further continuation.",
         "sourceName": "lichess-org/chess-openings + Lichess Explorer + Stockfish",
         "sourceConfidence": "medium"
@@ -6509,6 +6917,9 @@
         "popularityRankWithinOpening": 137,
         "popularityScore": null,
         "popularityGames": null,
+        "finalEvalCp": 47,
+        "finalEvalPerspective": "white",
+        "engineChecked": true,
         "stopReason": "Stopped because the Lichess node sample is too thin to trust further continuation.",
         "sourceName": "lichess-org/chess-openings + Lichess Explorer + Stockfish",
         "sourceConfidence": "medium"
@@ -6526,6 +6937,9 @@
         "popularityRankWithinOpening": 138,
         "popularityScore": null,
         "popularityGames": null,
+        "finalEvalCp": 32,
+        "finalEvalPerspective": "white",
+        "engineChecked": true,
         "stopReason": "Stopped at the earliest position where the instructional payoff was visible without unnecessary continuation.",
         "sourceName": "lichess-org/chess-openings + Lichess Explorer + Stockfish",
         "sourceConfidence": "medium"
@@ -6543,6 +6957,9 @@
         "popularityRankWithinOpening": 139,
         "popularityScore": null,
         "popularityGames": null,
+        "finalEvalCp": 38,
+        "finalEvalPerspective": "white",
+        "engineChecked": true,
         "stopReason": "Stopped at the earliest position where the instructional payoff was visible without unnecessary continuation.",
         "sourceName": "lichess-org/chess-openings + Lichess Explorer + Stockfish",
         "sourceConfidence": "medium"
@@ -6560,6 +6977,9 @@
         "popularityRankWithinOpening": 140,
         "popularityScore": null,
         "popularityGames": null,
+        "finalEvalCp": 51,
+        "finalEvalPerspective": "white",
+        "engineChecked": true,
         "stopReason": "Stopped at the earliest position where the instructional payoff was visible without unnecessary continuation.",
         "sourceName": "lichess-org/chess-openings + Lichess Explorer + Stockfish",
         "sourceConfidence": "medium"
@@ -6577,6 +6997,9 @@
         "popularityRankWithinOpening": 141,
         "popularityScore": null,
         "popularityGames": null,
+        "finalEvalCp": 139,
+        "finalEvalPerspective": "white",
+        "engineChecked": true,
         "stopReason": "Stopped because the Lichess node sample is too thin to trust further continuation.",
         "sourceName": "lichess-org/chess-openings + Lichess Explorer + Stockfish",
         "sourceConfidence": "medium"
@@ -6594,6 +7017,9 @@
         "popularityRankWithinOpening": 142,
         "popularityScore": null,
         "popularityGames": null,
+        "finalEvalCp": 70,
+        "finalEvalPerspective": "white",
+        "engineChecked": true,
         "stopReason": "Stopped at the earliest position where the instructional payoff was visible without unnecessary continuation.",
         "sourceName": "lichess-org/chess-openings + Lichess Explorer + Stockfish",
         "sourceConfidence": "medium"
@@ -6611,6 +7037,9 @@
         "popularityRankWithinOpening": 143,
         "popularityScore": null,
         "popularityGames": null,
+        "finalEvalCp": 13,
+        "finalEvalPerspective": "white",
+        "engineChecked": true,
         "stopReason": "Stopped at the earliest position where the instructional payoff was visible without unnecessary continuation.",
         "sourceName": "lichess-org/chess-openings + Lichess Explorer + Stockfish",
         "sourceConfidence": "medium"
@@ -6661,7 +7090,10 @@
             "Bg5",
             "f6"
           ],
-          "sortOrder": 1
+          "sortOrder": 1,
+          "finalEvalCp": 249,
+          "finalEvalPerspective": "white",
+          "engineChecked": true
         },
         {
           "id": "italian-game-evans-gambit-declined",
@@ -6684,7 +7116,10 @@
             "exd4",
             "c3"
           ],
-          "sortOrder": 2
+          "sortOrder": 2,
+          "finalEvalCp": 21,
+          "finalEvalPerspective": "white",
+          "engineChecked": true
         },
         {
           "id": "italian-game-evans-gambit-declined-cordel-variation",
@@ -6708,7 +7143,10 @@
             "d4",
             "exd4"
           ],
-          "sortOrder": 3
+          "sortOrder": 3,
+          "finalEvalCp": -19,
+          "finalEvalPerspective": "white",
+          "engineChecked": true
         },
         {
           "id": "italian-game-evans-gambit-declined-hirschbach-variation",
@@ -6729,7 +7167,10 @@
             "Qg5",
             "Bxf7+"
           ],
-          "sortOrder": 4
+          "sortOrder": 4,
+          "finalEvalCp": 86,
+          "finalEvalPerspective": "white",
+          "engineChecked": true
         },
         {
           "id": "italian-game-evans-gambit-declined-showalter-variation",
@@ -6754,7 +7195,10 @@
             "axb5",
             "axb5"
           ],
-          "sortOrder": 5
+          "sortOrder": 5,
+          "finalEvalCp": 1,
+          "finalEvalPerspective": "white",
+          "engineChecked": true
         },
         {
           "id": "italian-game-evans-gambit-alapin-steinitz-variation",
@@ -6778,7 +7222,10 @@
             "Bb5",
             "a6"
           ],
-          "sortOrder": 6
+          "sortOrder": 6,
+          "finalEvalCp": 28,
+          "finalEvalPerspective": "white",
+          "engineChecked": true
         },
         {
           "id": "italian-game-evans-gambit-anderssen-variation-cordel-line",
@@ -6803,7 +7250,10 @@
             "c6",
             "O-O"
           ],
-          "sortOrder": 7
+          "sortOrder": 7,
+          "finalEvalCp": -41,
+          "finalEvalPerspective": "white",
+          "engineChecked": true
         },
         {
           "id": "italian-game-evans-gambit-dufresne-defense",
@@ -6826,7 +7276,10 @@
             "d3",
             "Bg5"
           ],
-          "sortOrder": 8
+          "sortOrder": 8,
+          "finalEvalCp": -40,
+          "finalEvalPerspective": "white",
+          "engineChecked": true
         },
         {
           "id": "italian-game-evans-gambit-fontaine-countergambit",
@@ -6845,7 +7298,10 @@
             "Kxf7",
             "bxc5"
           ],
-          "sortOrder": 9
+          "sortOrder": 9,
+          "finalEvalCp": 158,
+          "finalEvalPerspective": "white",
+          "engineChecked": true
         },
         {
           "id": "italian-game-evans-gambit-hein-countergambit",
@@ -6866,7 +7322,10 @@
             "Nf6",
             "Nxe5"
           ],
-          "sortOrder": 10
+          "sortOrder": 10,
+          "finalEvalCp": 73,
+          "finalEvalPerspective": "white",
+          "engineChecked": true
         },
         {
           "id": "italian-game-evans-gambit-johner-defense",
@@ -6889,7 +7348,10 @@
             "b5",
             "Bxf7+"
           ],
-          "sortOrder": 11
+          "sortOrder": 11,
+          "finalEvalCp": -17,
+          "finalEvalPerspective": "white",
+          "engineChecked": true
         },
         {
           "id": "italian-game-evans-gambit-mayet-defense",
@@ -6914,7 +7376,10 @@
             "Bg4",
             "Qb3"
           ],
-          "sortOrder": 12
+          "sortOrder": 12,
+          "finalEvalCp": 140,
+          "finalEvalPerspective": "white",
+          "engineChecked": true
         },
         {
           "id": "italian-game-evans-gambit-morphy-attack",
@@ -6941,7 +7406,10 @@
             "Bg4",
             "Bg5"
           ],
-          "sortOrder": 13
+          "sortOrder": 13,
+          "finalEvalCp": 41,
+          "finalEvalPerspective": "white",
+          "engineChecked": true
         },
         {
           "id": "italian-game-evans-gambit-richardson-attack",
@@ -6965,7 +7433,10 @@
             "Nxe5",
             "Nxe5"
           ],
-          "sortOrder": 14
+          "sortOrder": 14,
+          "finalEvalCp": -3,
+          "finalEvalPerspective": "white",
+          "engineChecked": true
         },
         {
           "id": "italian-game-evans-gambit-sanders-alapin-variation",
@@ -6990,7 +7461,10 @@
             "Qe7",
             "dxe5"
           ],
-          "sortOrder": 15
+          "sortOrder": 15,
+          "finalEvalCp": 26,
+          "finalEvalPerspective": "white",
+          "engineChecked": true
         },
         {
           "id": "italian-game-evans-gambit-sokolsky-variation",
@@ -7013,7 +7487,10 @@
             "Nf6",
             "Bxf6"
           ],
-          "sortOrder": 16
+          "sortOrder": 16,
+          "finalEvalCp": -55,
+          "finalEvalPerspective": "white",
+          "engineChecked": true
         },
         {
           "id": "italian-game-evans-gambit-stone-ware-variation",
@@ -7036,7 +7513,10 @@
             "O-O",
             "Bb3"
           ],
-          "sortOrder": 17
+          "sortOrder": 17,
+          "finalEvalCp": -14,
+          "finalEvalPerspective": "white",
+          "engineChecked": true
         },
         {
           "id": "italian-game-evans-gambit-waller-attack",
@@ -7066,7 +7546,10 @@
             "Bd2",
             "Nh6"
           ],
-          "sortOrder": 18
+          "sortOrder": 18,
+          "finalEvalCp": 106,
+          "finalEvalPerspective": "white",
+          "engineChecked": true
         },
         {
           "id": "italian-game-two-knights-defense-knight-attack-normal-variation",
@@ -7084,7 +7567,10 @@
             "exd5",
             "Na5"
           ],
-          "sortOrder": 19
+          "sortOrder": 19,
+          "finalEvalCp": 0,
+          "finalEvalPerspective": "white",
+          "engineChecked": true
         },
         {
           "id": "italian-game-two-knights-defense-ponziani-steinitz-gambit",
@@ -7107,7 +7593,10 @@
             "Nc6",
             "Bd5"
           ],
-          "sortOrder": 20
+          "sortOrder": 20,
+          "finalEvalCp": 242,
+          "finalEvalPerspective": "white",
+          "engineChecked": true
         },
         {
           "id": "italian-game-anti-fried-liver-defense",
@@ -7133,7 +7622,10 @@
             "Be3",
             "Na5"
           ],
-          "sortOrder": 21
+          "sortOrder": 21,
+          "finalEvalCp": 173,
+          "finalEvalPerspective": "white",
+          "engineChecked": true
         },
         {
           "id": "italian-game-bird-s-attack",
@@ -7163,7 +7655,10 @@
             "Re1",
             "Bxc4"
           ],
-          "sortOrder": 22
+          "sortOrder": 22,
+          "finalEvalCp": 51,
+          "finalEvalPerspective": "white",
+          "engineChecked": true
         },
         {
           "id": "italian-game-blackburne-kostic-gambit",
@@ -7190,7 +7685,10 @@
             "g6",
             "e5"
           ],
-          "sortOrder": 23
+          "sortOrder": 23,
+          "finalEvalCp": 382,
+          "finalEvalPerspective": "white",
+          "engineChecked": true
         },
         {
           "id": "italian-game-classical-variation-albin-gambit",
@@ -7222,7 +7720,10 @@
             "Re1",
             "Qf6"
           ],
-          "sortOrder": 24
+          "sortOrder": 24,
+          "finalEvalCp": 172,
+          "finalEvalPerspective": "white",
+          "engineChecked": true
         },
         {
           "id": "italian-game-classical-variation-greco-gambit-anderssen-variation",
@@ -7251,7 +7752,10 @@
             "Bg4",
             "Bxc6"
           ],
-          "sortOrder": 25
+          "sortOrder": 25,
+          "finalEvalCp": 24,
+          "finalEvalPerspective": "white",
+          "engineChecked": true
         },
         {
           "id": "italian-game-classical-variation-greco-gambit-greco-variation",
@@ -7282,7 +7786,10 @@
             "Kxf7",
             "Ne5+"
           ],
-          "sortOrder": 26
+          "sortOrder": 26,
+          "finalEvalCp": 156,
+          "finalEvalPerspective": "white",
+          "engineChecked": true
         },
         {
           "id": "italian-game-classical-variation-greco-gambit-modern-line",
@@ -7314,7 +7821,10 @@
             "Qxe3+",
             "Qe7"
           ],
-          "sortOrder": 27
+          "sortOrder": 27,
+          "finalEvalCp": -64,
+          "finalEvalPerspective": "white",
+          "engineChecked": true
         },
         {
           "id": "italian-game-classical-variation-greco-gambit-moeller-bayonet-attack",
@@ -7349,7 +7859,10 @@
             "g6",
             "Qb3"
           ],
-          "sortOrder": 28
+          "sortOrder": 28,
+          "finalEvalCp": 89,
+          "finalEvalPerspective": "white",
+          "engineChecked": true
         },
         {
           "id": "italian-game-classical-variation-greco-gambit-moeller-therkatz-attack",
@@ -7388,7 +7901,10 @@
             "Be6",
             "Bb3"
           ],
-          "sortOrder": 29
+          "sortOrder": 29,
+          "finalEvalCp": 55,
+          "finalEvalPerspective": "white",
+          "engineChecked": true
         },
         {
           "id": "italian-game-classical-variation-greco-gambit-traditional-line",
@@ -7421,7 +7937,10 @@
             "cxd6",
             "Rad1"
           ],
-          "sortOrder": 30
+          "sortOrder": 30,
+          "finalEvalCp": 12,
+          "finalEvalPerspective": "white",
+          "engineChecked": true
         },
         {
           "id": "italian-game-deutz-gambit",
@@ -7448,7 +7967,10 @@
             "O-O",
             "Ng5"
           ],
-          "sortOrder": 31
+          "sortOrder": 31,
+          "finalEvalCp": 0,
+          "finalEvalPerspective": "white",
+          "engineChecked": true
         },
         {
           "id": "italian-game-evans-gambit-anderssen-defense",
@@ -7484,7 +8006,10 @@
             "Re5",
             "Qd7"
           ],
-          "sortOrder": 32
+          "sortOrder": 32,
+          "finalEvalCp": -47,
+          "finalEvalPerspective": "white",
+          "engineChecked": true
         },
         {
           "id": "italian-game-evans-gambit-anderssen-variation",
@@ -7511,7 +8036,10 @@
             "Kf8",
             "Qa3"
           ],
-          "sortOrder": 33
+          "sortOrder": 33,
+          "finalEvalCp": 45,
+          "finalEvalPerspective": "white",
+          "engineChecked": true
         },
         {
           "id": "italian-game-evans-gambit-bronstein-defense",
@@ -7538,7 +8066,10 @@
             "Be6",
             "a4"
           ],
-          "sortOrder": 34
+          "sortOrder": 34,
+          "finalEvalCp": -24,
+          "finalEvalPerspective": "white",
+          "engineChecked": true
         },
         {
           "id": "italian-game-evans-gambit-compromised-defense",
@@ -7571,7 +8102,10 @@
             "Nc5",
             "Ng5"
           ],
-          "sortOrder": 35
+          "sortOrder": 35,
+          "finalEvalCp": 77,
+          "finalEvalPerspective": "white",
+          "engineChecked": true
         },
         {
           "id": "italian-game-evans-gambit-harding-variation",
@@ -7600,7 +8134,10 @@
             "Bd7",
             "Qb3"
           ],
-          "sortOrder": 36
+          "sortOrder": 36,
+          "finalEvalCp": 26,
+          "finalEvalPerspective": "white",
+          "engineChecked": true
         },
         {
           "id": "italian-game-evans-gambit-laroche-variation",
@@ -7626,7 +8163,10 @@
             "Qxe4",
             "d6"
           ],
-          "sortOrder": 37
+          "sortOrder": 37,
+          "finalEvalCp": 274,
+          "finalEvalPerspective": "white",
+          "engineChecked": true
         },
         {
           "id": "italian-game-evans-gambit-lasker-defense",
@@ -7656,7 +8196,10 @@
             "Nd2",
             "Nf6"
           ],
-          "sortOrder": 38
+          "sortOrder": 38,
+          "finalEvalCp": 42,
+          "finalEvalPerspective": "white",
+          "engineChecked": true
         },
         {
           "id": "italian-game-evans-gambit-leonhardt-countergambit",
@@ -7687,7 +8230,10 @@
             "Ne7",
             "Nd2"
           ],
-          "sortOrder": 39
+          "sortOrder": 39,
+          "finalEvalCp": 6,
+          "finalEvalPerspective": "white",
+          "engineChecked": true
         },
         {
           "id": "italian-game-evans-gambit-mcdonnell-defense",
@@ -7718,7 +8264,10 @@
             "d6",
             "Qc4"
           ],
-          "sortOrder": 40
+          "sortOrder": 40,
+          "finalEvalCp": 150,
+          "finalEvalPerspective": "white",
+          "engineChecked": true
         },
         {
           "id": "italian-game-evans-gambit-mieses-defense",
@@ -7747,7 +8296,10 @@
             "Rxf7",
             "Qxf7+"
           ],
-          "sortOrder": 41
+          "sortOrder": 41,
+          "finalEvalCp": 166,
+          "finalEvalPerspective": "white",
+          "engineChecked": true
         },
         {
           "id": "italian-game-evans-gambit-mortimer-evans-gambit",
@@ -7782,7 +8334,10 @@
             "Kxf7",
             "e5"
           ],
-          "sortOrder": 42
+          "sortOrder": 42,
+          "finalEvalCp": 50,
+          "finalEvalPerspective": "white",
+          "engineChecked": true
         },
         {
           "id": "italian-game-evans-gambit-paulsen-variation",
@@ -7811,7 +8366,10 @@
             "Ne7",
             "Bxg7"
           ],
-          "sortOrder": 43
+          "sortOrder": 43,
+          "finalEvalCp": 17,
+          "finalEvalPerspective": "white",
+          "engineChecked": true
         },
         {
           "id": "italian-game-evans-gambit-pierce-defense",
@@ -7842,7 +8400,10 @@
             "Qb4",
             "Qd3"
           ],
-          "sortOrder": 44
+          "sortOrder": 44,
+          "finalEvalCp": 87,
+          "finalEvalPerspective": "white",
+          "engineChecked": true
         },
         {
           "id": "italian-game-evans-gambit-tartakower-attack",
@@ -7871,7 +8432,10 @@
             "Ba7",
             "Na3"
           ],
-          "sortOrder": 45
+          "sortOrder": 45,
+          "finalEvalCp": 19,
+          "finalEvalPerspective": "white",
+          "engineChecked": true
         },
         {
           "id": "italian-game-giuoco-pianissimo-lucchini-gambit",
@@ -7895,7 +8459,10 @@
             "Nc3",
             "Nce7"
           ],
-          "sortOrder": 46
+          "sortOrder": 46,
+          "finalEvalCp": 275,
+          "finalEvalPerspective": "white",
+          "engineChecked": true
         },
         {
           "id": "italian-game-giuoco-piano-greco-s-attack",
@@ -7924,7 +8491,10 @@
             "d5",
             "h3"
           ],
-          "sortOrder": 47
+          "sortOrder": 47,
+          "finalEvalCp": -80,
+          "finalEvalPerspective": "white",
+          "engineChecked": true
         },
         {
           "id": "italian-game-giuoco-piano-holzhausen-attack",
@@ -7953,7 +8523,10 @@
             "c6",
             "Rf2"
           ],
-          "sortOrder": 48
+          "sortOrder": 48,
+          "finalEvalCp": -79,
+          "finalEvalPerspective": "white",
+          "engineChecked": true
         },
         {
           "id": "italian-game-jerome-gambit",
@@ -7981,7 +8554,10 @@
             "Bg5",
             "Kg8"
           ],
-          "sortOrder": 49
+          "sortOrder": 49,
+          "finalEvalCp": -194,
+          "finalEvalPerspective": "white",
+          "engineChecked": true
         },
         {
           "id": "italian-game-rosentreter-gambit",
@@ -8012,7 +8588,10 @@
             "Bg4",
             "Nd4"
           ],
-          "sortOrder": 50
+          "sortOrder": 50,
+          "finalEvalCp": 155,
+          "finalEvalPerspective": "white",
+          "engineChecked": true
         },
         {
           "id": "italian-game-rousseau-gambit",
@@ -8041,7 +8620,10 @@
             "Kd8",
             "Bd5"
           ],
-          "sortOrder": 51
+          "sortOrder": 51,
+          "finalEvalCp": 10,
+          "finalEvalPerspective": "white",
+          "engineChecked": true
         },
         {
           "id": "italian-game-scotch-gambit",
@@ -8078,7 +8660,10 @@
             "Nxd4",
             "Qxd4"
           ],
-          "sortOrder": 52
+          "sortOrder": 52,
+          "finalEvalCp": -6,
+          "finalEvalPerspective": "white",
+          "engineChecked": true
         },
         {
           "id": "italian-game-scotch-gambit-anderssen-attack",
@@ -8119,7 +8704,10 @@
             "d5",
             "Rec1"
           ],
-          "sortOrder": 53
+          "sortOrder": 53,
+          "finalEvalCp": 1,
+          "finalEvalPerspective": "white",
+          "engineChecked": true
         },
         {
           "id": "italian-game-scotch-gambit-canal-variation",
@@ -8152,7 +8740,10 @@
             "Re8",
             "Bd2"
           ],
-          "sortOrder": 54
+          "sortOrder": 54,
+          "finalEvalCp": 23,
+          "finalEvalPerspective": "white",
+          "engineChecked": true
         },
         {
           "id": "italian-game-scotch-gambit-de-riviere-defense",
@@ -8179,7 +8770,10 @@
             "Qxe7",
             "Qxg5"
           ],
-          "sortOrder": 55
+          "sortOrder": 55,
+          "finalEvalCp": 342,
+          "finalEvalPerspective": "white",
+          "engineChecked": true
         },
         {
           "id": "italian-game-scotch-gambit-double-gambit-accepted",
@@ -8217,7 +8811,10 @@
             "Qxd4",
             "Qxd4"
           ],
-          "sortOrder": 56
+          "sortOrder": 56,
+          "finalEvalCp": 2,
+          "finalEvalPerspective": "white",
+          "engineChecked": true
         },
         {
           "id": "italian-game-scotch-gambit-janowski-defense",
@@ -8247,7 +8844,10 @@
             "Qb3",
             "b5"
           ],
-          "sortOrder": 57
+          "sortOrder": 57,
+          "finalEvalCp": 208,
+          "finalEvalPerspective": "white",
+          "engineChecked": true
         },
         {
           "id": "italian-game-scotch-gambit-max-lange-attack-accepted",
@@ -8290,7 +8890,10 @@
             "Rd7",
             "Qb4+"
           ],
-          "sortOrder": 58
+          "sortOrder": 58,
+          "finalEvalCp": 377,
+          "finalEvalPerspective": "white",
+          "engineChecked": true
         },
         {
           "id": "italian-game-scotch-gambit-max-lange-attack-long-variation",
@@ -8329,7 +8932,10 @@
             "e5",
             "Qf3"
           ],
-          "sortOrder": 59
+          "sortOrder": 59,
+          "finalEvalCp": 68,
+          "finalEvalPerspective": "white",
+          "engineChecked": true
         },
         {
           "id": "italian-game-scotch-gambit-max-lange-attack-spielmann-defense",
@@ -8358,7 +8964,10 @@
             "d6",
             "b4"
           ],
-          "sortOrder": 60
+          "sortOrder": 60,
+          "finalEvalCp": 149,
+          "finalEvalPerspective": "white",
+          "engineChecked": true
         },
         {
           "id": "italian-game-scotch-gambit-nakhmanson-gambit",
@@ -8385,7 +8994,10 @@
             "Bd7",
             "Rb1"
           ],
-          "sortOrder": 61
+          "sortOrder": 61,
+          "finalEvalCp": -89,
+          "finalEvalPerspective": "white",
+          "engineChecked": true
         },
         {
           "id": "italian-game-scotch-gambit-walbrodt-baird-gambit",
@@ -8418,7 +9030,10 @@
             "Ngxe5",
             "Nxe5"
           ],
-          "sortOrder": 62
+          "sortOrder": 62,
+          "finalEvalCp": 208,
+          "finalEvalPerspective": "white",
+          "engineChecked": true
         },
         {
           "id": "italian-game-two-knights-defense-fegatello-attack-leonhardt-variation",
@@ -8449,7 +9064,10 @@
             "Nc7",
             "Qf3"
           ],
-          "sortOrder": 63
+          "sortOrder": 63,
+          "finalEvalCp": 6,
+          "finalEvalPerspective": "white",
+          "engineChecked": true
         },
         {
           "id": "italian-game-two-knights-defense-lolli-attack",
@@ -8480,7 +9098,10 @@
             "c6",
             "Bc4"
           ],
-          "sortOrder": 64
+          "sortOrder": 64,
+          "finalEvalCp": 310,
+          "finalEvalPerspective": "white",
+          "engineChecked": true
         },
         {
           "id": "italian-game-two-knights-defense-max-lange-attack",
@@ -8507,7 +9128,10 @@
             "O-O",
             "Ng5"
           ],
-          "sortOrder": 65
+          "sortOrder": 65,
+          "finalEvalCp": 0,
+          "finalEvalPerspective": "white",
+          "engineChecked": true
         },
         {
           "id": "italian-game-two-knights-defense-max-lange-attack-berger-variation",
@@ -8546,7 +9170,10 @@
             "Qxf5",
             "Nxf7"
           ],
-          "sortOrder": 66
+          "sortOrder": 66,
+          "finalEvalCp": -21,
+          "finalEvalPerspective": "white",
+          "engineChecked": true
         },
         {
           "id": "italian-game-two-knights-defense-max-lange-attack-krause-variation",
@@ -8576,7 +9203,10 @@
             "Nxc3",
             "fxg5"
           ],
-          "sortOrder": 67
+          "sortOrder": 67,
+          "finalEvalCp": 199,
+          "finalEvalPerspective": "white",
+          "engineChecked": true
         },
         {
           "id": "italian-game-two-knights-defense-max-lange-attack-loman-defense",
@@ -8607,7 +9237,10 @@
             "Qd6",
             "Qg4"
           ],
-          "sortOrder": 68
+          "sortOrder": 68,
+          "finalEvalCp": 16,
+          "finalEvalPerspective": "white",
+          "engineChecked": true
         },
         {
           "id": "italian-game-two-knights-defense-max-lange-attack-rubinstein-variation",
@@ -8641,7 +9274,10 @@
             "Ng5+",
             "Kg8"
           ],
-          "sortOrder": 69
+          "sortOrder": 69,
+          "finalEvalCp": 118,
+          "finalEvalPerspective": "white",
+          "engineChecked": true
         },
         {
           "id": "italian-game-two-knights-defense-traxler-counterattack-king-march-line",
@@ -8664,7 +9300,10 @@
             "Qh4",
             "Qf3"
           ],
-          "sortOrder": 70
+          "sortOrder": 70,
+          "finalEvalCp": -16,
+          "finalEvalPerspective": "white",
+          "engineChecked": true
         },
         {
           "id": "italian-game-two-knights-defense-traxler-counterattack-knight-sacrifice-line",
@@ -8689,7 +9328,10 @@
             "Rf8",
             "d3"
           ],
-          "sortOrder": 71
+          "sortOrder": 71,
+          "finalEvalCp": 122,
+          "finalEvalPerspective": "white",
+          "engineChecked": true
         },
         {
           "id": "italian-game-two-knights-defense-ulvestad-variation-kurkin-gambit",
@@ -8712,7 +9354,10 @@
             "Kxf7",
             "dxc6"
           ],
-          "sortOrder": 72
+          "sortOrder": 72,
+          "finalEvalCp": 76,
+          "finalEvalPerspective": "white",
+          "engineChecked": true
         },
         {
           "id": "italian-game-two-knights-defense-yurdansky-attack",
@@ -8748,7 +9393,10 @@
             "b5",
             "Qxf6"
           ],
-          "sortOrder": 73
+          "sortOrder": 73,
+          "finalEvalCp": 69,
+          "finalEvalPerspective": "white",
+          "engineChecked": true
         },
         {
           "id": "italian-game-classical-variation-closed-variation",
@@ -8769,7 +9417,10 @@
             "a6",
             "d4"
           ],
-          "sortOrder": 74
+          "sortOrder": 74,
+          "finalEvalCp": 75,
+          "finalEvalPerspective": "white",
+          "engineChecked": true
         },
         {
           "id": "italian-game-classical-variation-eisinger-variation",
@@ -8792,7 +9443,10 @@
             "cxd6",
             "Ng5"
           ],
-          "sortOrder": 75
+          "sortOrder": 75,
+          "finalEvalCp": 116,
+          "finalEvalPerspective": "white",
+          "engineChecked": true
         },
         {
           "id": "italian-game-classical-variation-giuoco-pianissimo",
@@ -8814,7 +9468,10 @@
             "b4",
             "Bb6"
           ],
-          "sortOrder": 76
+          "sortOrder": 76,
+          "finalEvalCp": 10,
+          "finalEvalPerspective": "white",
+          "engineChecked": true
         },
         {
           "id": "italian-game-classical-variation-giuoco-pianissimo-albin-variation",
@@ -8835,7 +9492,10 @@
             "Bb6",
             "O-O"
           ],
-          "sortOrder": 77
+          "sortOrder": 77,
+          "finalEvalCp": -20,
+          "finalEvalPerspective": "white",
+          "engineChecked": true
         },
         {
           "id": "italian-game-classical-variation-mestel-variation",
@@ -8858,7 +9518,10 @@
             "Nb8",
             "O-O"
           ],
-          "sortOrder": 78
+          "sortOrder": 78,
+          "finalEvalCp": 23,
+          "finalEvalPerspective": "white",
+          "engineChecked": true
         },
         {
           "id": "italian-game-giuoco-pianissimo-dubois-variation",
@@ -8880,7 +9543,10 @@
             "Qh5+",
             "Kf8"
           ],
-          "sortOrder": 79
+          "sortOrder": 79,
+          "finalEvalCp": 186,
+          "finalEvalPerspective": "white",
+          "engineChecked": true
         },
         {
           "id": "italian-game-classical-variation",
@@ -8911,7 +9577,10 @@
             "Ne7",
             "d6"
           ],
-          "sortOrder": 80
+          "sortOrder": 80,
+          "finalEvalCp": 25,
+          "finalEvalPerspective": "white",
+          "engineChecked": true
         },
         {
           "id": "italian-game-classical-variation-center-holding-variation",
@@ -8936,7 +9605,10 @@
             "Ba7",
             "d6"
           ],
-          "sortOrder": 81
+          "sortOrder": 81,
+          "finalEvalCp": 51,
+          "finalEvalPerspective": "white",
+          "engineChecked": true
         },
         {
           "id": "italian-game-classical-variation-ghulam-kassim-variation",
@@ -8963,7 +9635,10 @@
             "cxb2",
             "Bxb2"
           ],
-          "sortOrder": 82
+          "sortOrder": 82,
+          "finalEvalCp": 54,
+          "finalEvalPerspective": "white",
+          "engineChecked": true
         },
         {
           "id": "italian-game-classical-variation-giuoco-pianissimo-with-a6",
@@ -8986,7 +9661,10 @@
             "Bb4+",
             "Nbd2"
           ],
-          "sortOrder": 83
+          "sortOrder": 83,
+          "finalEvalCp": 1,
+          "finalEvalPerspective": "white",
+          "engineChecked": true
         },
         {
           "id": "italian-game-classical-variation-giuoco-pianissimo-with-h6",
@@ -9010,7 +9688,10 @@
             "cxd4",
             "Bb6"
           ],
-          "sortOrder": 84
+          "sortOrder": 84,
+          "finalEvalCp": 34,
+          "finalEvalPerspective": "white",
+          "engineChecked": true
         },
         {
           "id": "italian-game-classical-variation-la-bourdonnais-variation",
@@ -9037,7 +9718,10 @@
             "f6",
             "Be3"
           ],
-          "sortOrder": 85
+          "sortOrder": 85,
+          "finalEvalCp": 51,
+          "finalEvalPerspective": "white",
+          "engineChecked": true
         },
         {
           "id": "italian-game-classical-variation-with-d5",
@@ -9067,7 +9751,10 @@
             "Qxc6+",
             "Kf8"
           ],
-          "sortOrder": 86
+          "sortOrder": 86,
+          "finalEvalCp": 402,
+          "finalEvalPerspective": "white",
+          "engineChecked": true
         },
         {
           "id": "italian-game-giuoco-pianissimo-canal-variation",
@@ -9092,7 +9779,10 @@
             "Qd8",
             "O-O"
           ],
-          "sortOrder": 87
+          "sortOrder": 87,
+          "finalEvalCp": -20,
+          "finalEvalPerspective": "white",
+          "engineChecked": true
         },
         {
           "id": "italian-game-giuoco-pianissimo-italian-four-knights-variation",
@@ -9116,7 +9806,10 @@
             "Nxb6",
             "axb6"
           ],
-          "sortOrder": 88
+          "sortOrder": 88,
+          "finalEvalCp": 33,
+          "finalEvalPerspective": "white",
+          "engineChecked": true
         },
         {
           "id": "italian-game-giuoco-pianissimo-normal",
@@ -9140,7 +9833,10 @@
             "Nxb6",
             "axb6"
           ],
-          "sortOrder": 89
+          "sortOrder": 89,
+          "finalEvalCp": 33,
+          "finalEvalPerspective": "white",
+          "engineChecked": true
         },
         {
           "id": "italian-game-giuoco-piano-aitken-variation",
@@ -9175,7 +9871,10 @@
             "c6",
             "dxc6"
           ],
-          "sortOrder": 90
+          "sortOrder": 90,
+          "finalEvalCp": 97,
+          "finalEvalPerspective": "white",
+          "engineChecked": true
         },
         {
           "id": "italian-game-giuoco-piano-bernstein-variation",
@@ -9206,7 +9905,10 @@
             "dxc4",
             "d5"
           ],
-          "sortOrder": 91
+          "sortOrder": 91,
+          "finalEvalCp": 77,
+          "finalEvalPerspective": "white",
+          "engineChecked": true
         },
         {
           "id": "italian-game-giuoco-piano-cracow-variation",
@@ -9237,7 +9939,10 @@
             "O-O",
             "h4"
           ],
-          "sortOrder": 92
+          "sortOrder": 92,
+          "finalEvalCp": -32,
+          "finalEvalPerspective": "white",
+          "engineChecked": true
         },
         {
           "id": "italian-game-giuoco-piano-rosentreter-variation",
@@ -9263,7 +9968,10 @@
             "f4",
             "gxh4"
           ],
-          "sortOrder": 93
+          "sortOrder": 93,
+          "finalEvalCp": 161,
+          "finalEvalPerspective": "white",
+          "engineChecked": true
         },
         {
           "id": "italian-game-giuoco-piano-steinitz-variation",
@@ -9291,7 +9999,10 @@
             "Ba3",
             "dxc4"
           ],
-          "sortOrder": 94
+          "sortOrder": 94,
+          "finalEvalCp": -70,
+          "finalEvalPerspective": "white",
+          "engineChecked": true
         },
         {
           "id": "italian-game-giuoco-piano-therkatz-herzog-variation",
@@ -9332,7 +10043,10 @@
             "f5",
             "g3"
           ],
-          "sortOrder": 95
+          "sortOrder": 95,
+          "finalEvalCp": -64,
+          "finalEvalPerspective": "white",
+          "engineChecked": true
         },
         {
           "id": "italian-game-hungarian-defense",
@@ -9361,7 +10075,10 @@
             "Be6",
             "Qb5"
           ],
-          "sortOrder": 96
+          "sortOrder": 96,
+          "finalEvalCp": 106,
+          "finalEvalPerspective": "white",
+          "engineChecked": true
         },
         {
           "id": "italian-game-hungarian-defense-tartakower-variation",
@@ -9386,7 +10103,10 @@
             "Ne6",
             "Nc3"
           ],
-          "sortOrder": 97
+          "sortOrder": 97,
+          "finalEvalCp": 109,
+          "finalEvalPerspective": "white",
+          "engineChecked": true
         },
         {
           "id": "italian-game-paris-defense",
@@ -9416,7 +10136,10 @@
             "Qc4",
             "Qd7"
           ],
-          "sortOrder": 98
+          "sortOrder": 98,
+          "finalEvalCp": 91,
+          "finalEvalPerspective": "white",
+          "engineChecked": true
         },
         {
           "id": "italian-game-two-knights-defense-blackburne-variation",
@@ -9445,7 +10168,10 @@
             "Nc6",
             "a4"
           ],
-          "sortOrder": 99
+          "sortOrder": 99,
+          "finalEvalCp": -104,
+          "finalEvalPerspective": "white",
+          "engineChecked": true
         },
         {
           "id": "italian-game-two-knights-defense-colman-variation",
@@ -9474,7 +10200,10 @@
             "Nd5",
             "d4"
           ],
-          "sortOrder": 100
+          "sortOrder": 100,
+          "finalEvalCp": 86,
+          "finalEvalPerspective": "white",
+          "engineChecked": true
         },
         {
           "id": "italian-game-two-knights-defense-fritz-variation",
@@ -9507,7 +10236,10 @@
             "Be7",
             "Qxe7+"
           ],
-          "sortOrder": 101
+          "sortOrder": 101,
+          "finalEvalCp": 388,
+          "finalEvalPerspective": "white",
+          "engineChecked": true
         },
         {
           "id": "italian-game-two-knights-defense-fritz-gruber-variation",
@@ -9536,7 +10268,10 @@
             "Qxd7",
             "Qf3"
           ],
-          "sortOrder": 102
+          "sortOrder": 102,
+          "finalEvalCp": -49,
+          "finalEvalPerspective": "white",
+          "engineChecked": true
         },
         {
           "id": "italian-game-two-knights-defense-keidansky-variation",
@@ -9569,7 +10304,10 @@
             "Nxh1+",
             "Kg1"
           ],
-          "sortOrder": 103
+          "sortOrder": 103,
+          "finalEvalCp": 204,
+          "finalEvalPerspective": "white",
+          "engineChecked": true
         },
         {
           "id": "italian-game-two-knights-defense-maroczy-variation",
@@ -9598,7 +10336,10 @@
             "O-O",
             "Be3"
           ],
-          "sortOrder": 104
+          "sortOrder": 104,
+          "finalEvalCp": 45,
+          "finalEvalPerspective": "white",
+          "engineChecked": true
         },
         {
           "id": "italian-game-two-knights-defense-open-variation",
@@ -9618,7 +10359,10 @@
             "Re1",
             "d5"
           ],
-          "sortOrder": 105
+          "sortOrder": 105,
+          "finalEvalCp": 26,
+          "finalEvalPerspective": "white",
+          "engineChecked": true
         },
         {
           "id": "italian-game-two-knights-defense-paoli-variation",
@@ -9647,7 +10391,10 @@
             "Nd5",
             "Ng3"
           ],
-          "sortOrder": 106
+          "sortOrder": 106,
+          "finalEvalCp": 62,
+          "finalEvalPerspective": "white",
+          "engineChecked": true
         },
         {
           "id": "italian-game-two-knights-defense-perreux-variation",
@@ -9674,7 +10421,10 @@
             "g6",
             "Bxd5+"
           ],
-          "sortOrder": 107
+          "sortOrder": 107,
+          "finalEvalCp": 160,
+          "finalEvalPerspective": "white",
+          "engineChecked": true
         },
         {
           "id": "italian-game-two-knights-defense-pincus-variation",
@@ -9702,7 +10452,10 @@
             "Bxd5+",
             "Be6"
           ],
-          "sortOrder": 108
+          "sortOrder": 108,
+          "finalEvalCp": 162,
+          "finalEvalPerspective": "white",
+          "engineChecked": true
         },
         {
           "id": "italian-game-two-knights-defense-polerio-defense-bishop-check-line",
@@ -9739,7 +10492,10 @@
             "g6",
             "Qf3"
           ],
-          "sortOrder": 109
+          "sortOrder": 109,
+          "finalEvalCp": 394,
+          "finalEvalPerspective": "white",
+          "engineChecked": true
         },
         {
           "id": "italian-game-two-knights-defense-polerio-defense-bogoljubow-variation",
@@ -9772,7 +10528,10 @@
             "O-O",
             "Nc3"
           ],
-          "sortOrder": 110
+          "sortOrder": 110,
+          "finalEvalCp": 112,
+          "finalEvalPerspective": "white",
+          "engineChecked": true
         },
         {
           "id": "italian-game-two-knights-defense-polerio-defense-goring-variation",
@@ -9806,7 +10565,10 @@
             "Nd2",
             "O-O"
           ],
-          "sortOrder": 111
+          "sortOrder": 111,
+          "finalEvalCp": 45,
+          "finalEvalPerspective": "white",
+          "engineChecked": true
         },
         {
           "id": "italian-game-two-knights-defense-polerio-defense-kieseritzky-variation",
@@ -9836,7 +10598,10 @@
             "Be3",
             "Re8"
           ],
-          "sortOrder": 112
+          "sortOrder": 112,
+          "finalEvalCp": 71,
+          "finalEvalPerspective": "white",
+          "engineChecked": true
         },
         {
           "id": "italian-game-two-knights-defense-polerio-defense-suhle-defense",
@@ -9869,7 +10634,10 @@
             "O-O",
             "Nc3"
           ],
-          "sortOrder": 113
+          "sortOrder": 113,
+          "finalEvalCp": 8,
+          "finalEvalPerspective": "white",
+          "engineChecked": true
         },
         {
           "id": "italian-game-two-knights-defense-polerio-defense-yankovich-variation",
@@ -9901,7 +10669,10 @@
             "fxe3",
             "Bxe3"
           ],
-          "sortOrder": 114
+          "sortOrder": 114,
+          "finalEvalCp": -158,
+          "finalEvalPerspective": "white",
+          "engineChecked": true
         },
         {
           "id": "italian-game-two-knights-defense-steinitz-variation",
@@ -9932,7 +10703,10 @@
             "O-O",
             "c3"
           ],
-          "sortOrder": 115
+          "sortOrder": 115,
+          "finalEvalCp": -42,
+          "finalEvalPerspective": "white",
+          "engineChecked": true
         },
         {
           "id": "italian-game-two-knights-defense-ulvestad-variation",
@@ -9956,7 +10730,10 @@
             "O-O",
             "Bb7"
           ],
-          "sortOrder": 116
+          "sortOrder": 116,
+          "finalEvalCp": -19,
+          "finalEvalPerspective": "white",
+          "engineChecked": true
         },
         {
           "id": "italian-game-classical-variation-giuoco-pianissimo-main-line",
@@ -9981,7 +10758,10 @@
             "Ba7",
             "h3"
           ],
-          "sortOrder": 117
+          "sortOrder": 117,
+          "finalEvalCp": 11,
+          "finalEvalPerspective": "white",
+          "engineChecked": true
         },
         {
           "id": "italian-game-evans-gambit-main-line",
@@ -9999,7 +10779,10 @@
             "c3",
             "Ba5"
           ],
-          "sortOrder": 118
+          "sortOrder": 118,
+          "finalEvalCp": -27,
+          "finalEvalPerspective": "white",
+          "engineChecked": true
         },
         {
           "id": "italian-game-evans-gambit-mcdonnell-defense-main-line",
@@ -10023,7 +10806,10 @@
             "cxd4",
             "Bb6"
           ],
-          "sortOrder": 119
+          "sortOrder": 119,
+          "finalEvalCp": 99,
+          "finalEvalPerspective": "white",
+          "engineChecked": true
         },
         {
           "id": "italian-game-classical-variation-greco-gambit-main-line",
@@ -10047,7 +10833,10 @@
             "O-O",
             "Bxc3"
           ],
-          "sortOrder": 120
+          "sortOrder": 120,
+          "finalEvalCp": 11,
+          "finalEvalPerspective": "white",
+          "engineChecked": true
         },
         {
           "id": "italian-game-evans-gambit-compromised-defense-main-line",
@@ -10076,7 +10865,10 @@
             "Nge7",
             "Ba3"
           ],
-          "sortOrder": 121
+          "sortOrder": 121,
+          "finalEvalCp": 16,
+          "finalEvalPerspective": "white",
+          "engineChecked": true
         },
         {
           "id": "italian-game-scotch-gambit-anderssen-attack-main-line",
@@ -10105,7 +10897,10 @@
             "Qd5",
             "Bg5"
           ],
-          "sortOrder": 122
+          "sortOrder": 122,
+          "finalEvalCp": -88,
+          "finalEvalPerspective": "white",
+          "engineChecked": true
         },
         {
           "id": "italian-game-evans-gambit-declined-hicken-variation",
@@ -10130,7 +10925,10 @@
             "Kd8",
             "Bb2"
           ],
-          "sortOrder": 123
+          "sortOrder": 123,
+          "finalEvalCp": -92,
+          "finalEvalPerspective": "white",
+          "engineChecked": true
         },
         {
           "id": "italian-game-evans-gambit-declined-lange-variation",
@@ -10150,7 +10948,10 @@
             "Nxe5",
             "Nh6"
           ],
-          "sortOrder": 124
+          "sortOrder": 124,
+          "finalEvalCp": 45,
+          "finalEvalPerspective": "white",
+          "engineChecked": true
         },
         {
           "id": "italian-game-evans-gambit-declined-vasquez-variation",
@@ -10173,7 +10974,10 @@
             "Ke7",
             "Qh5"
           ],
-          "sortOrder": 125
+          "sortOrder": 125,
+          "finalEvalCp": 77,
+          "finalEvalPerspective": "white",
+          "engineChecked": true
         },
         {
           "id": "italian-game-evans-gambit-fraser-attack",
@@ -10200,7 +11004,10 @@
             "Bg4",
             "Qa4"
           ],
-          "sortOrder": 126
+          "sortOrder": 126,
+          "finalEvalCp": 21,
+          "finalEvalPerspective": "white",
+          "engineChecked": true
         },
         {
           "id": "italian-game-evans-gambit-goring-attack",
@@ -10227,7 +11034,10 @@
             "Na5",
             "Bg5"
           ],
-          "sortOrder": 127
+          "sortOrder": 127,
+          "finalEvalCp": 60,
+          "finalEvalPerspective": "white",
+          "engineChecked": true
         },
         {
           "id": "italian-game-evans-gambit-steinitz-variation",
@@ -10256,7 +11066,10 @@
             "f6",
             "Be3"
           ],
-          "sortOrder": 128
+          "sortOrder": 128,
+          "finalEvalCp": -17,
+          "finalEvalPerspective": "white",
+          "engineChecked": true
         },
         {
           "id": "italian-game-evans-gambit-ulvestad-variation",
@@ -10283,7 +11096,10 @@
             "Na5",
             "Bb2"
           ],
-          "sortOrder": 129
+          "sortOrder": 129,
+          "finalEvalCp": 20,
+          "finalEvalPerspective": "white",
+          "engineChecked": true
         },
         {
           "id": "italian-game-two-knights-defense-fried-liver-attack",
@@ -10302,7 +11118,10 @@
             "Nxd5",
             "Nxf7"
           ],
-          "sortOrder": 130
+          "sortOrder": 130,
+          "finalEvalCp": 51,
+          "finalEvalPerspective": "white",
+          "engineChecked": true
         },
         {
           "id": "italian-game-two-knights-defense-kloss-gambit",
@@ -10320,7 +11139,10 @@
             "exd5",
             "Nb4"
           ],
-          "sortOrder": 131
+          "sortOrder": 131,
+          "finalEvalCp": 79,
+          "finalEvalPerspective": "white",
+          "engineChecked": true
         },
         {
           "id": "italian-game-two-knights-defense-traxler-counterattack-bishop-sacrifice-line",
@@ -10337,7 +11159,10 @@
             "Bc5",
             "Bxf7+"
           ],
-          "sortOrder": 132
+          "sortOrder": 132,
+          "finalEvalCp": 85,
+          "finalEvalPerspective": "white",
+          "engineChecked": true
         },
         {
           "id": "italian-game-two-knights-defense-traxler-variation-trencianske-teplice-gambit",
@@ -10356,7 +11181,10 @@
             "Ke7",
             "d4"
           ],
-          "sortOrder": 133
+          "sortOrder": 133,
+          "finalEvalCp": 59,
+          "finalEvalPerspective": "white",
+          "engineChecked": true
         },
         {
           "id": "italian-game-evans-gambit-declined-pavlov-variation",
@@ -10387,7 +11215,10 @@
             "Qg5",
             "Nd2"
           ],
-          "sortOrder": 134
+          "sortOrder": 134,
+          "finalEvalCp": -94,
+          "finalEvalPerspective": "white",
+          "engineChecked": true
         },
         {
           "id": "italian-game-evans-gambit-compromised-defense-potter-variation",
@@ -10416,7 +11247,10 @@
             "Nge7",
             "Rd1"
           ],
-          "sortOrder": 135
+          "sortOrder": 135,
+          "finalEvalCp": 6,
+          "finalEvalPerspective": "white",
+          "engineChecked": true
         },
         {
           "id": "italian-game-evans-gambit-fraser-mortimer-attack",
@@ -10449,7 +11283,10 @@
             "Kf8",
             "Qc2"
           ],
-          "sortOrder": 136
+          "sortOrder": 136,
+          "finalEvalCp": 113,
+          "finalEvalPerspective": "white",
+          "engineChecked": true
         },
         {
           "id": "italian-game-evans-gambit-levenfish-variation",
@@ -10478,7 +11315,10 @@
             "Na5",
             "Nxe5"
           ],
-          "sortOrder": 137
+          "sortOrder": 137,
+          "finalEvalCp": 47,
+          "finalEvalPerspective": "white",
+          "engineChecked": true
         },
         {
           "id": "italian-game-classical-variation-giuoco-pianissimo-with-a4-a5",
@@ -10500,7 +11340,10 @@
             "a4",
             "a5"
           ],
-          "sortOrder": 138
+          "sortOrder": 138,
+          "finalEvalCp": 32,
+          "finalEvalPerspective": "white",
+          "engineChecked": true
         },
         {
           "id": "italian-game-classical-variation-giuoco-pianissimo-with-a5",
@@ -10519,7 +11362,10 @@
             "a5",
             "c3"
           ],
-          "sortOrder": 139
+          "sortOrder": 139,
+          "finalEvalCp": 38,
+          "finalEvalPerspective": "white",
+          "engineChecked": true
         },
         {
           "id": "italian-game-classical-variation-tarrasch-variation",
@@ -10544,7 +11390,10 @@
             "Nf6",
             "Re1"
           ],
-          "sortOrder": 140
+          "sortOrder": 140,
+          "finalEvalCp": 51,
+          "finalEvalPerspective": "white",
+          "engineChecked": true
         },
         {
           "id": "italian-game-giuoco-piano-krause-variation",
@@ -10575,7 +11424,10 @@
             "Kf6",
             "f3"
           ],
-          "sortOrder": 141
+          "sortOrder": 141,
+          "finalEvalCp": 139,
+          "finalEvalPerspective": "white",
+          "engineChecked": true
         },
         {
           "id": "italian-game-scotch-invitation-declined",
@@ -10591,7 +11443,10 @@
             "d4",
             "d6"
           ],
-          "sortOrder": 142
+          "sortOrder": 142,
+          "finalEvalCp": 70,
+          "finalEvalPerspective": "white",
+          "engineChecked": true
         },
         {
           "id": "italian-game-two-knights-defense-knorre-variation",
@@ -10622,7 +11477,10 @@
             "Qc7",
             "Bd2"
           ],
-          "sortOrder": 143
+          "sortOrder": 143,
+          "finalEvalCp": 13,
+          "finalEvalPerspective": "white",
+          "engineChecked": true
         }
       ]
     }

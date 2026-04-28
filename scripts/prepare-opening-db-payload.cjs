@@ -240,6 +240,9 @@ function buildLineMetadata(line) {
     popularityRankWithinOpening: line.popularityRankWithinOpening,
     popularityScore: line.popularityScore,
     popularityGames: line.popularityGames,
+    finalEvalCp: line.finalEvalCp,
+    finalEvalPerspective: line.finalEvalPerspective,
+    engineChecked: line.engineChecked,
     stopReason: line.stopReason,
     sourceName: line.sourceName,
     sourceConfidence: line.sourceConfidence,
@@ -264,6 +267,9 @@ function buildSeedOpening(opening) {
       description: buildLineDescription(line),
       sans: line.generatedSans,
       sortOrder: line.popularityRankWithinOpening ?? null,
+      finalEvalCp: line.finalEvalCp,
+      finalEvalPerspective: line.finalEvalPerspective,
+      engineChecked: line.engineChecked,
     })),
   };
 }

@@ -18,6 +18,9 @@ interface PageProps {
 }
 
 type VariationWithMeta = OpeningVariation & {
+  engineChecked?: boolean;
+  finalEvalCp?: number;
+  finalEvalPerspective?: 'white' | 'black';
   isMainLine?: boolean;
   lineDifficulty?: OpeningDifficulty;
 };
