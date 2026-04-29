@@ -3,6 +3,7 @@
 import { useState, use, useEffect, useRef } from 'react';
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
+import Image from 'next/image';
 import type { OpeningDifficulty, OpeningVariation } from '@firstmove/core';
 import { PracticeBoard, type PracticeMode } from '@/components/board/PracticeBoard';
 import { useOpening } from '@/hooks/useOpenings';
@@ -232,7 +233,7 @@ export default function PracticePage({ params }: PageProps) {
   const activeVariationId = selectedVariationId || opening.variations[0]?.id;
   const selectedVariation = opening.variations.find(v => v.id === activeVariationId) ?? opening.variations[0];
   const coachBubbleText = coachFeedback?.message ?? opening.description;
-  const coachBubbleLabel = coachFeedback?.label ?? 'Coach';
+  const coachBubbleLabel = coachFeedback?.label ?? 'Jazmin';
   const coachBubbleTitle = coachFeedback?.title ?? opening.name;
   const coachToneClass = coachFeedback ? COACH_TONE_STYLES[coachFeedback.tone] : COACH_TONE_STYLES.neutral;
 
@@ -303,11 +304,18 @@ export default function PracticePage({ params }: PageProps) {
                 <DifficultyBadge difficulty={opening.difficulty} />
               </div>
               <div className="flex items-start gap-3">
-                <div
-                  className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full border border-white/10 bg-white/5 text-xs font-semibold text-gray-400"
-                  aria-label="Coach avatar placeholder"
-                >
-                  Coach
+                <div className="flex shrink-0 flex-col items-center gap-1">
+                  <div className="relative h-16 w-16 overflow-hidden rounded-full border border-white/15 bg-white shadow-lg shadow-black/20">
+                    <Image
+                      src="/coaches/jazmin.svg"
+                      alt="Jazmin, your opening coach"
+                      fill
+                      sizes="64px"
+                      className="object-cover object-top"
+                      priority
+                    />
+                  </div>
+                  <span className="text-xs font-semibold text-gray-300">Jazmin</span>
                 </div>
                 <div className="relative min-w-0 flex-1 rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-zinc-900 shadow-lg shadow-black/20">
                   <div className="absolute left-[-7px] top-5 h-4 w-4 rotate-45 border-b border-l border-zinc-200 bg-white" />
