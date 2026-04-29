@@ -24,6 +24,7 @@ const isWebBrowser =
 
 export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey, {
   auth: {
+    storageKey: isWebBrowser ? 'firstmove-shared-query-client' : undefined,
     persistSession: !isWebBrowser,
     autoRefreshToken: !isWebBrowser,
     detectSessionInUrl: !isWebBrowser,

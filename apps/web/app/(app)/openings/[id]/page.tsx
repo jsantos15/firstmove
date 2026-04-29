@@ -261,7 +261,7 @@ export default function PracticePage({ params }: PageProps) {
           </div>
 
           <div className="pointer-events-none absolute inset-x-4 flex justify-center lg:inset-x-6">
-            <div className="grid w-full max-w-[1504px] grid-cols-[minmax(0,1fr)_22.5rem] gap-4 lg:grid-cols-[minmax(0,1fr)_25rem] lg:gap-6">
+            <div className="grid w-full max-w-[1504px] grid-cols-[minmax(0,1fr)_22.5rem] gap-[48px] lg:grid-cols-[minmax(0,1fr)_25rem] lg:gap-[72px]">
               <div className="flex justify-center sm:translate-x-[18px]">
                 <div className="pointer-events-auto flex overflow-hidden rounded-xl border border-white/10">
                   <ModeButton active={mode === 'learn'} onClick={() => setMode('learn')}>Learn</ModeButton>
@@ -275,7 +275,7 @@ export default function PracticePage({ params }: PageProps) {
       </header>
 
       <div className="flex-1 min-h-0 overflow-hidden p-4 lg:p-6">
-        <div className="mx-auto flex h-full w-full max-w-[1504px] gap-4 lg:gap-6">
+        <div className="mx-auto flex h-full w-full max-w-[1504px] gap-[48px] lg:gap-[72px]">
 
           {/* Board column */}
           <div className="flex h-full min-w-0 flex-1 justify-end">
