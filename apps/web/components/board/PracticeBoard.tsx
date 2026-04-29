@@ -449,10 +449,18 @@ export function PracticeBoard({ opening, variation, mode, onMoveIndexChange, con
       const hintChess = new Chess(chessRef.current.fen());
       const match = hintChess.moves({ verbose: true }).find(m => m.san === moves[currentMoveIndex].san);
       if (match?.from) {
+        const existingStyle = styles[match.from] ?? {};
         if (mode === 'learn') {
-          styles[match.from] = { boxShadow: 'inset 0 0 0 3px rgba(251,191,36,0.35)' };
+          styles[match.from] = {
+            ...existingStyle,
+            boxShadow: 'inset 0 0 0 5px rgba(251,191,36,0.65)',
+          };
         } else if (hintActive) {
-          styles[match.from] = { background: 'rgba(251,191,36,0.35)', boxShadow: 'inset 0 0 0 3px rgba(251,191,36,0.85)' };
+          styles[match.from] = {
+            ...existingStyle,
+            background: 'rgba(251,191,36,0.35)',
+            boxShadow: 'inset 0 0 0 3px rgba(251,191,36,0.85)',
+          };
         }
       }
     }
@@ -622,10 +630,10 @@ export function PracticeBoard({ opening, variation, mode, onMoveIndexChange, con
   }, [displayIndex, currentMoveIndex]);
 
   return (
-    <div className="relative flex h-full w-full select-none flex-col gap-3">
+    <div className="relative flex h-full w-full select-none flex-col gap-1">
 
       {/* Status + progress */}
-      <div className={`${boardAlignedClassName} shrink-0`} style={{ maxWidth: boardSize }}>
+      <div className={`${boardAlignedClassName} -mt-2 shrink-0`} style={{ maxWidth: boardSize }}>
         <div className="mb-2 flex items-center justify-between gap-3 text-sm">
           <span className={`min-w-0 truncate ${!isLive ? 'text-blue-400' : 'text-gray-400'}`}>{statusLabel}</span>
           <span className="min-w-0 truncate text-right text-gray-500">{currentMoveIndex}/{moves.length} moves</span>
@@ -683,7 +691,7 @@ export function PracticeBoard({ opening, variation, mode, onMoveIndexChange, con
       </div>
 
       {/* Controls — 3 columns: restart left · nav center · spacer right */}
-      <div className={`${boardAlignedClassName} grid shrink-0 grid-cols-3 items-center`} style={{ maxWidth: boardSize }}>
+      <div className={`${boardAlignedClassName} grid translate-y-2 shrink-0 grid-cols-3 items-center`} style={{ maxWidth: boardSize }}>
 
         {/* Restart + Hint — far left */}
         <div className="flex items-center gap-2">
