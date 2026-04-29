@@ -13,7 +13,7 @@ import { useAuth } from '@/app/providers';
 import { useAllProgress, MASTERY_LABELS, MASTERY_COLORS } from '@/hooks/useProgress';
 import { BOARD_THEMES, useBoardSettings } from '@/hooks/useBoardSettings';
 import { PIECE_SETS } from '@/lib/piecesets';
-import type { CoachFeedback, CoachFeedbackTone } from '@/lib/coachFeedback';
+import type { CoachFeedback } from '@/lib/coachFeedback';
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -26,15 +26,6 @@ type VariationWithMeta = OpeningVariation & {
   finalEvalPerspective?: 'white' | 'black';
   isMainLine?: boolean;
   lineDifficulty?: OpeningDifficulty;
-};
-
-const COACH_TONE_STYLES: Record<CoachFeedbackTone, string> = {
-  neutral: 'border-sky-200/70 bg-sky-50 text-sky-700',
-  positive: 'border-emerald-200/80 bg-emerald-50 text-emerald-700',
-  payoff: 'border-amber-200/90 bg-amber-50 text-amber-700',
-  warning: 'border-orange-200/90 bg-orange-50 text-orange-700',
-  negative: 'border-red-200/90 bg-red-50 text-red-700',
-  complete: 'border-green-200/90 bg-green-50 text-green-700',
 };
 
 function asVariationWithMeta(variation: OpeningVariation): VariationWithMeta {
@@ -233,9 +224,6 @@ export default function PracticePage({ params }: PageProps) {
   const activeVariationId = selectedVariationId || opening.variations[0]?.id;
   const selectedVariation = opening.variations.find(v => v.id === activeVariationId) ?? opening.variations[0];
   const coachBubbleText = coachFeedback?.message ?? opening.description;
-  const coachBubbleLabel = coachFeedback?.label ?? 'Jazmin';
-  const coachBubbleTitle = coachFeedback?.title ?? opening.name;
-  const coachToneClass = coachFeedback ? COACH_TONE_STYLES[coachFeedback.tone] : COACH_TONE_STYLES.neutral;
 
   function handleVariationClick(variationId: string, index: number) {
     if (index > 0 && !user) {
@@ -303,8 +291,8 @@ export default function PracticePage({ params }: PageProps) {
                 <ColorBadge color={opening.color} />
                 <DifficultyBadge difficulty={opening.difficulty} />
               </div>
-              <div className="flex items-start gap-3">
-                <div className="flex shrink-0 flex-col items-center gap-1">
+              <div className="flex items-stretch gap-3">
+                <div className="flex w-20 shrink-0 items-end">
                   <div className="relative h-24 w-20">
                     <Image
                       src="/coaches/jazmin.png"
@@ -315,15 +303,10 @@ export default function PracticePage({ params }: PageProps) {
                       priority
                     />
                   </div>
-                  <span className="text-xs font-semibold text-gray-300">Jazmin</span>
                 </div>
-                <div className="relative min-w-0 flex-1 rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-zinc-900 shadow-lg shadow-black/20">
+                <div className="relative min-w-0 flex-1 rounded-2xl border border-zinc-200 bg-white px-5 py-4 text-zinc-900 shadow-lg shadow-black/20">
                   <div className="absolute left-[-7px] top-5 h-4 w-4 rotate-45 border-b border-l border-zinc-200 bg-white" />
-                  <span className={`mb-2 inline-flex rounded-md border px-2 py-0.5 text-[11px] font-semibold ${coachToneClass}`}>
-                    {coachBubbleLabel}
-                  </span>
-                  <h1 className="text-base font-bold text-zinc-950">{coachBubbleTitle}</h1>
-                  <p className="mt-2 text-sm leading-relaxed text-zinc-700">{coachBubbleText}</p>
+                  <p className="text-sm leading-relaxed text-zinc-700">{coachBubbleText}</p>
                 </div>
               </div>
             </div>
