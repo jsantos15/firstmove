@@ -177,7 +177,7 @@ export function PracticeBoard({ opening, variation, mode, onMoveIndexChange, con
   const displayIndex = viewIndex ?? currentMoveIndex;
   const canGoBack = displayIndex > 0;
   const moves = variation.moves;
-  const maxNavigableIndex = mode === 'learn' ? moves.length : currentMoveIndex;
+  const maxNavigableIndex = currentMoveIndex;
   const canGoForward = displayIndex < maxNavigableIndex;
 
   const isMyTurn = isLive && status === 'playing' && isUserTurn(currentMoveIndex, opening.color);

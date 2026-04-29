@@ -234,7 +234,7 @@ export default function PracticePage({ params }: PageProps) {
     <div className="h-full flex flex-col overflow-hidden">
 
       {/* Header */}
-      <header className="h-16 shrink-0 border-b border-white/5 bg-[var(--bg-base)]/80 backdrop-blur z-10">
+      <header className="h-14 shrink-0 bg-[var(--bg-base)]/80 backdrop-blur z-10">
         <div className="flex h-full items-center px-4 lg:px-6">
           <div className="flex min-w-0 items-center gap-3">
             <Link href="/openings" className="text-gray-400 hover:text-white transition-colors text-sm">
