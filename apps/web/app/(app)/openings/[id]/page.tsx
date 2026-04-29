@@ -261,7 +261,7 @@ export default function PracticePage({ params }: PageProps) {
           </div>
 
           <div className="pointer-events-none absolute inset-x-4 flex justify-center lg:inset-x-6">
-            <div className="grid w-full max-w-[1504px] grid-cols-[minmax(0,1fr)_22.5rem] gap-[48px] lg:grid-cols-[minmax(0,1fr)_25rem] lg:gap-[72px]">
+            <div className="grid w-full max-w-[1640px] grid-cols-[minmax(0,1fr)_24rem] gap-[36px] lg:grid-cols-[minmax(0,1fr)_27rem] lg:gap-[52px]">
               <div className="flex justify-center sm:translate-x-[18px]">
                 <div className="pointer-events-auto flex overflow-hidden rounded-xl border border-white/10">
                   <ModeButton active={mode === 'learn'} onClick={() => setMode('learn')}>Learn</ModeButton>
@@ -274,8 +274,8 @@ export default function PracticePage({ params }: PageProps) {
         </div>
       </header>
 
-      <div className="flex-1 min-h-0 overflow-hidden p-4 lg:p-6">
-        <div className="mx-auto flex h-full w-full max-w-[1504px] gap-[48px] lg:gap-[72px]">
+      <div className="flex-1 min-h-0 overflow-hidden px-4 pb-3 pt-2 lg:px-6 lg:pb-4 lg:pt-3">
+        <div className="mx-auto flex h-full w-full max-w-[1640px] gap-[36px] lg:gap-[52px]">
 
           {/* Board column */}
           <div className="flex h-full min-w-0 flex-1 justify-end">
@@ -294,7 +294,7 @@ export default function PracticePage({ params }: PageProps) {
           </div>
 
           {/* Sidebar */}
-          <div className="w-[22.5rem] lg:w-[25rem] shrink-0 h-full flex flex-col gap-4">
+          <div className="w-[24rem] lg:w-[27rem] shrink-0 h-full flex flex-col gap-4">
 
             {/* Opening info — fixed */}
             <div className="shrink-0 rounded-xl border border-white/5 bg-[var(--bg-panel)] p-5">

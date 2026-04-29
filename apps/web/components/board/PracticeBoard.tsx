@@ -679,11 +679,11 @@ export function PracticeBoard({
   }, [displayIndex, currentMoveIndex]);
 
   return (
-    <div className="relative flex h-full w-full select-none flex-col gap-1">
+    <div className="relative flex h-full w-full select-none flex-col">
 
       {/* Status + progress */}
-      <div className={`${boardAlignedClassName} -mt-2 shrink-0`} style={{ maxWidth: boardSize }}>
-        <div className="mb-2 flex items-center justify-between gap-3 text-sm">
+      <div className={`${boardAlignedClassName} -mt-1 shrink-0`} style={{ maxWidth: boardSize }}>
+        <div className="mb-1.5 flex items-center justify-between gap-3 text-sm">
           <span className={`min-w-0 truncate ${!isLive ? 'text-blue-400' : 'text-gray-400'}`}>{statusLabel}</span>
           <span className="min-w-0 truncate text-right text-gray-500">{currentMoveIndex}/{moves.length} moves</span>
         </div>
@@ -742,7 +742,7 @@ export function PracticeBoard({
       </div>
 
       {/* Controls — 3 columns: restart left · nav center · spacer right */}
-      <div className={`${boardAlignedClassName} grid translate-y-2 shrink-0 grid-cols-3 items-center`} style={{ maxWidth: boardSize }}>
+      <div className={`${boardAlignedClassName} grid shrink-0 grid-cols-3 items-center`} style={{ maxWidth: boardSize }}>
 
         {/* Restart + Hint — far left */}
         <div className="flex items-center gap-2">
