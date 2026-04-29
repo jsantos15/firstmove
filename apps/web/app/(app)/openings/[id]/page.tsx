@@ -307,7 +307,7 @@ export default function PracticePage({ params }: PageProps) {
                 <div className="flex shrink-0 flex-col items-center gap-1">
                   <div className="relative h-16 w-16 overflow-hidden rounded-full border border-white/15 bg-white shadow-lg shadow-black/20">
                     <Image
-                      src="/coaches/jazmin.svg"
+                      src="/coaches/jazmin.jpg"
                       alt="Jazmin, your opening coach"
                       fill
                       sizes="64px"
