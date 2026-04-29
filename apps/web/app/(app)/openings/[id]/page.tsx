@@ -235,12 +235,26 @@ export default function PracticePage({ params }: PageProps) {
 
       {/* Header */}
       <header className="h-16 shrink-0 border-b border-white/5 bg-[var(--bg-base)]/80 backdrop-blur z-10">
-        <div className="mx-auto flex h-full w-full max-w-[1504px] items-center gap-3 px-6">
-          <Link href="/openings" className="text-gray-400 hover:text-white transition-colors text-sm">
-            ← Openings
-          </Link>
-          <span className="text-white/20">/</span>
-          <span className="text-white font-medium text-sm">{opening.name}</span>
+        <div className="flex h-full items-center px-4 lg:px-6">
+          <div className="flex min-w-0 items-center gap-3">
+            <Link href="/openings" className="text-gray-400 hover:text-white transition-colors text-sm">
+              ← Openings
+            </Link>
+            <span className="text-white/20">/</span>
+            <span className="truncate text-white font-medium text-sm">{opening.name}</span>
+          </div>
+
+          <div className="pointer-events-none absolute inset-x-4 flex justify-center lg:inset-x-6">
+            <div className="grid w-full max-w-[1504px] grid-cols-[minmax(0,1fr)_16rem] gap-4 lg:grid-cols-[minmax(0,1fr)_18rem] lg:gap-6">
+              <div className="flex justify-center sm:translate-x-[18px]">
+                <div className="pointer-events-auto flex overflow-hidden rounded-xl border border-white/10">
+                  <ModeButton active={mode === 'learn'} onClick={() => setMode('learn')}>Learn</ModeButton>
+                  <ModeButton active={mode === 'practice'} onClick={() => setMode('practice')}>Practice</ModeButton>
+                </div>
+              </div>
+              <div />
+            </div>
+          </div>
         </div>
       </header>
 
@@ -255,7 +269,6 @@ export default function PracticePage({ params }: PageProps) {
                 opening={opening}
                 variation={selectedVariation}
                 mode={mode}
-                onModeChange={setMode}
                 onMoveIndexChange={setCurrentMoveIndex}
                 controlsRight={<BoardSettingsPopover />}
               />
@@ -362,5 +375,19 @@ export default function PracticePage({ params }: PageProps) {
       </div>
 
     </div>
+  );
+}
+
+function ModeButton({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`min-w-28 px-7 py-3 text-base font-semibold transition-colors ${
+        active ? 'bg-amber-400/15 text-amber-300' : 'text-gray-400 hover:bg-white/5 hover:text-white'
+      }`}
+    >
+      {children}
+    </button>
   );
 }

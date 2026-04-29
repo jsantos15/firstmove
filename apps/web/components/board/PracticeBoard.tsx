@@ -20,7 +20,6 @@ interface PracticeBoardProps {
     finalEvalPerspective?: 'white' | 'black';
   };
   mode: PracticeMode;
-  onModeChange: (mode: PracticeMode) => void;
   onMoveIndexChange?: (index: number) => void;
   controlsRight?: React.ReactNode;
 }
@@ -35,7 +34,6 @@ interface QueuedPremove {
 
 const WRONG_MOVE_RESET_MS = 900;
 const EVAL_BAR_CP_LIMIT = 600;
-const MOVE_SOUND_START_DELAY_SECONDS = 0.03;
 
 function isUserTurn(moveIndex: number, openingColor: 'white' | 'black') {
   return openingColor === 'white' ? moveIndex % 2 === 0 : moveIndex % 2 === 1;
@@ -111,28 +109,6 @@ function EvalBar({
   );
 }
 
-function ModeButton({
-  active,
-  onClick,
-  children,
-}: {
-  active: boolean;
-  onClick: () => void;
-  children: React.ReactNode;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`min-w-28 px-7 py-3 text-base font-semibold transition-colors ${
-        active ? 'bg-amber-400/15 text-amber-300' : 'text-gray-400 hover:bg-white/5 hover:text-white'
-      }`}
-    >
-      {children}
-    </button>
-  );
-}
-
 let audioCtx: AudioContext | null = null;
 
 function getAudioCtx() {
@@ -164,11 +140,11 @@ async function playMoveSound(enabled: boolean) {
     source.connect(filter);
     filter.connect(gain);
     gain.connect(ctx.destination);
-    source.start(ctx.currentTime + MOVE_SOUND_START_DELAY_SECONDS);
+    source.start();
   } catch {}
 }
 
-export function PracticeBoard({ opening, variation, mode, onModeChange, onMoveIndexChange, controlsRight }: PracticeBoardProps) {
+export function PracticeBoard({ opening, variation, mode, onMoveIndexChange, controlsRight }: PracticeBoardProps) {
   const { theme, animationDuration, settings } = useBoardSettings();
   const customPieces = useMemo(() => getCustomPieces(settings.pieceSetId), [settings.pieceSetId]);
   const { user } = useAuth();
@@ -645,16 +621,10 @@ export function PracticeBoard({ opening, variation, mode, onModeChange, onMoveIn
   return (
     <div className="relative flex h-full w-full select-none flex-col gap-3">
 
-      {/* Status + mode */}
+      {/* Status + progress */}
       <div className="mx-auto w-full shrink-0" style={{ maxWidth: boardSize }}>
-        <div className="mb-3 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3 text-sm">
+        <div className="mb-2 flex items-center justify-between gap-3 text-sm">
           <span className={`min-w-0 truncate ${!isLive ? 'text-blue-400' : 'text-gray-400'}`}>{statusLabel}</span>
-          <div className="flex -translate-y-1 justify-center sm:translate-x-[18px]">
-            <div className="flex overflow-hidden rounded-xl border border-white/10">
-              <ModeButton active={mode === 'learn'} onClick={() => onModeChange('learn')}>Learn</ModeButton>
-              <ModeButton active={mode === 'practice'} onClick={() => onModeChange('practice')}>Practice</ModeButton>
-            </div>
-          </div>
           <span className="min-w-0 truncate text-right text-gray-500">{currentMoveIndex}/{moves.length} moves</span>
         </div>
         <div className="h-1 overflow-hidden rounded-full bg-white/10">
