@@ -8,7 +8,6 @@ import type { OpeningDifficulty, OpeningVariation } from '@firstmove/core';
 import { PracticeBoard, type PracticeMode } from '@/components/board/PracticeBoard';
 import { useOpening } from '@/hooks/useOpenings';
 import { MoveList } from '@/components/board/MoveList';
-import { DifficultyBadge, ColorBadge } from '@/components/ui/Badge';
 import { useAuth } from '@/app/providers';
 import { useAllProgress, MASTERY_LABELS, MASTERY_COLORS } from '@/hooks/useProgress';
 import { BOARD_THEMES, useBoardSettings } from '@/hooks/useBoardSettings';
@@ -285,17 +284,13 @@ export default function PracticePage({ params }: PageProps) {
           {/* Sidebar */}
           <div className="w-[24rem] lg:w-[27rem] shrink-0 h-full flex flex-col gap-4">
 
-            {/* Opening info — fixed */}
+            {/* Coach — fixed */}
             <div className="shrink-0 rounded-xl border border-white/5 bg-[var(--bg-panel)] p-5">
-              <div className="flex items-center gap-2 flex-wrap mb-3">
-                <ColorBadge color={opening.color} />
-                <DifficultyBadge difficulty={opening.difficulty} />
-              </div>
               <div className="flex items-stretch gap-3">
                 <div className="flex w-20 shrink-0 items-end">
                   <div className="relative h-24 w-20">
                     <Image
-                      src="/coaches/jazmin.png"
+                      src="/coaches/jazmin.png?v=2"
                       alt="Jazmin, your opening coach"
                       fill
                       sizes="80px"
@@ -305,7 +300,7 @@ export default function PracticePage({ params }: PageProps) {
                   </div>
                 </div>
                 <div className="relative min-w-0 flex-1 rounded-2xl border border-zinc-200 bg-white px-5 py-4 text-zinc-900 shadow-lg shadow-black/20">
-                  <div className="absolute left-[-7px] top-5 h-4 w-4 rotate-45 border-b border-l border-zinc-200 bg-white" />
+                  <div className="absolute bottom-9 left-[-7px] h-4 w-4 rotate-45 border-b border-l border-zinc-200 bg-white" />
                   <p className="text-sm leading-relaxed text-zinc-700">{coachBubbleText}</p>
                 </div>
               </div>
