@@ -249,3 +249,9 @@
 **Decision:** Implement FirstMove's initial move coach as a deterministic web-side handler that combines expected-line moves, per-ply Stockfish evals, trained-side color, and line category metadata into short coaching messages. Define the full move-classification vocabulary up front (`book`, `setup`, `forcing`, `payoff`, `best`, `excellent`, `good`, `inaccuracy`, `mistake`, `blunder`, `miss`, `wrong`, `complete`) while only emitting labels that the current opening-line data can honestly support. Keep the handler separate from the board component and use browser text-to-speech as an optional playback layer.
 
 **Reason:** Stockfish supplies engine facts, not human coaching text. A small template-first layer fits the opening-practice product better than importing a generic game-review tool, keeps messages predictable for learners, and leaves room to replace or enrich the explanation source later without rewiring the board.
+
+## 2026-04-29 - Prepare coach narration for AI without depending on live AI
+
+**Decision:** Expand the coach move vocabulary toward a Chess.com-style analysis set by adding `brilliant` and `great`, while keeping opening practice conservative about when those labels are emitted. Add an AI-ready narration payload containing opening, move, classification, line category, trained-side eval before/after, and style constraints. Keep phrase samples versioned in app code for now; later Supabase should cache final generated messages by stable move/position/context key rather than act as the editing source for first-pass templates.
+
+**Reason:** The coach should eventually explain more than openings, but live AI calls are paid, slower, and less deterministic. A structured payload lets a future model write friendlier text from facts supplied by FirstMove, while deterministic local narration and cached generated messages keep the current app reliable and inexpensive.
