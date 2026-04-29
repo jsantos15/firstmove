@@ -363,7 +363,8 @@ export function PracticeBoard({ opening, variation, mode, onMoveIndexChange, con
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isLive, displayIndex, moves, position]);
 
-  const progressPct = moves.length > 0 ? (currentMoveIndex / moves.length) * 100 : 0;
+  const progressPct = moves.length > 0 ? (displayIndex / moves.length) * 100 : 0;
+  const isViewingLineEnd = displayIndex >= moves.length && moves.length > 0;
   const displayedEvalCp = useMemo(() => {
     const evalByPly = variation.evalCpByPly;
     if (Array.isArray(evalByPly) && typeof evalByPly[displayIndex] === 'number') {
@@ -733,7 +734,7 @@ export function PracticeBoard({ opening, variation, mode, onMoveIndexChange, con
         </div>
 
       </div>
-      {status === 'complete' && isLive && !overlayDismissed && (
+      {((status === 'complete' && isLive) || (mode === 'learn' && isViewingLineEnd)) && !overlayDismissed && (
         <CompletionOverlay
           variationName={variation.name}
           moveCount={moves.length}
