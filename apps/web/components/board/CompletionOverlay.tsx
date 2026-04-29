@@ -77,7 +77,7 @@ export function CompletionOverlay({
           onClick={onPracticeAgain}
           className="mt-6 w-full rounded-lg border border-green-500/30 bg-green-500/20 px-5 py-2.5 text-sm font-medium text-green-400 transition-colors hover:bg-green-500/30"
         >
-          Practice again
+          Try Again
         </button>
       </div>
     </div>

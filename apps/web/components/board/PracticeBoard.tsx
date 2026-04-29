@@ -388,6 +388,8 @@ export function PracticeBoard({ opening, variation, mode, onMoveIndexChange, con
     variation.finalEvalCp,
     variation.finalEvalPerspective,
   ]);
+  const hasVisibleEvalBar = typeof displayedEvalCp === 'number' && Number.isFinite(displayedEvalCp);
+  const boardAlignedClassName = `mx-auto w-full ${hasVisibleEvalBar ? 'sm:translate-x-[18px]' : ''}`;
 
   const legalTargets = useMemo(() => {
     if (!isLive || status !== 'playing' || !selectedSquare) return [];
@@ -623,7 +625,7 @@ export function PracticeBoard({ opening, variation, mode, onMoveIndexChange, con
     <div className="relative flex h-full w-full select-none flex-col gap-3">
 
       {/* Status + progress */}
-      <div className="mx-auto w-full shrink-0" style={{ maxWidth: boardSize }}>
+      <div className={`${boardAlignedClassName} shrink-0`} style={{ maxWidth: boardSize }}>
         <div className="mb-2 flex items-center justify-between gap-3 text-sm">
           <span className={`min-w-0 truncate ${!isLive ? 'text-blue-400' : 'text-gray-400'}`}>{statusLabel}</span>
           <span className="min-w-0 truncate text-right text-gray-500">{currentMoveIndex}/{moves.length} moves</span>
@@ -681,7 +683,7 @@ export function PracticeBoard({ opening, variation, mode, onMoveIndexChange, con
       </div>
 
       {/* Controls — 3 columns: restart left · nav center · spacer right */}
-      <div className="shrink-0 mx-auto w-full grid grid-cols-3 items-center" style={{ maxWidth: boardSize }}>
+      <div className={`${boardAlignedClassName} grid shrink-0 grid-cols-3 items-center`} style={{ maxWidth: boardSize }}>
 
         {/* Restart + Hint — far left */}
         <div className="flex items-center gap-2">
