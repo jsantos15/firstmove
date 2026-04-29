@@ -241,3 +241,11 @@
 **Decision:** Store Stockfish centipawn evaluations for every ply in an opening line as `opening_lines.eval_cp_by_ply`, using White-perspective values regardless of whose turn it is. Keep `final_eval_cp` aligned to the last per-ply value.
 
 **Reason:** A practice-board eval bar should update as the learner navigates through the line, not only summarize the final position. Stockfish/UCI reports scores from the side-to-move perspective, so normalizing to White perspective at generation time gives the app a standard, stable eval-bar convention.
+
+---
+
+## 2026-04-29 - Add a template-first opening coach layer
+
+**Decision:** Implement FirstMove's initial move coach as a deterministic web-side handler that combines expected-line moves, per-ply Stockfish evals, trained-side color, and line category metadata into short coaching messages. Define the full move-classification vocabulary up front (`book`, `setup`, `forcing`, `payoff`, `best`, `excellent`, `good`, `inaccuracy`, `mistake`, `blunder`, `miss`, `wrong`, `complete`) while only emitting labels that the current opening-line data can honestly support. Keep the handler separate from the board component and use browser text-to-speech as an optional playback layer.
+
+**Reason:** Stockfish supplies engine facts, not human coaching text. A small template-first layer fits the opening-practice product better than importing a generic game-review tool, keeps messages predictable for learners, and leaves room to replace or enrich the explanation source later without rewiring the board.

@@ -8,6 +8,12 @@ import { useAuth } from '@/app/providers';
 import { CompletionOverlay } from './CompletionOverlay';
 import { useBoardSettings } from '@/hooks/useBoardSettings';
 import { getCustomPieces } from '@/lib/piecesets';
+import { CoachFeedbackCard } from './CoachFeedbackCard';
+import {
+  buildMoveCoachFeedback,
+  buildWrongMoveCoachFeedback,
+  type CoachFeedback,
+} from '@/lib/coachFeedback';
 
 export type PracticeMode = 'learn' | 'practice';
 
@@ -18,6 +24,7 @@ interface PracticeBoardProps {
     evalCpByPly?: number[];
     finalEvalCp?: number;
     finalEvalPerspective?: 'white' | 'black';
+    primaryCategory?: string;
   };
   mode: PracticeMode;
   onMoveIndexChange?: (index: number) => void;
@@ -168,6 +175,7 @@ export function PracticeBoard({ opening, variation, mode, onMoveIndexChange, con
   const [wrongMoveTo, setWrongMoveTo] = useState<string | null>(null);
   const [selectedSquare, setSelectedSquare] = useState<string | null>(null);
   const [queuedClickPremove, setQueuedClickPremove] = useState<QueuedPremove | null>(null);
+  const [coachFeedback, setCoachFeedback] = useState<CoachFeedback | null>(null);
   const [boardSize, setBoardSize] = useState(480);
 
   // ─── Browse / review navigation ──────────────────────────────────────────────
@@ -244,6 +252,7 @@ export function PracticeBoard({ opening, variation, mode, onMoveIndexChange, con
     setWrongMoveTo(null);
     setSelectedSquare(null);
     setQueuedClickPremove(null);
+    setCoachFeedback(null);
     setViewIndex(null);
     setOverlayDismissed(false);
     chessboardRef.current?.clearPremoves?.();
@@ -391,6 +400,23 @@ export function PracticeBoard({ opening, variation, mode, onMoveIndexChange, con
   const hasVisibleEvalBar = typeof displayedEvalCp === 'number' && Number.isFinite(displayedEvalCp);
   const boardAlignedClassName = `mx-auto w-full ${hasVisibleEvalBar ? 'sm:translate-x-[18px]' : ''}`;
 
+  const getEvalAtPly = (ply: number) => {
+    const evalByPly = variation.evalCpByPly;
+    if (Array.isArray(evalByPly) && typeof evalByPly[ply] === 'number') {
+      return evalByPly[ply];
+    }
+
+    if (ply === moves.length) {
+      return toWhiteEvalCp(
+        variation.finalEvalCp,
+        variation.finalEvalPerspective,
+        opening.color
+      ) ?? undefined;
+    }
+
+    return undefined;
+  };
+
   const legalTargets = useMemo(() => {
     if (!isLive || status !== 'playing' || !selectedSquare) return [];
 
@@ -503,6 +529,12 @@ export function PracticeBoard({ opening, variation, mode, onMoveIndexChange, con
     try {
       const move = baseChess.move({ from: sourceSquare, to: targetSquare, promotion });
       if (move.san !== expectedMove.san) {
+        setCoachFeedback(buildWrongMoveCoachFeedback({
+          attemptedSan: move.san,
+          expectedSan: expectedMove.san,
+          variationName: variation.name,
+          moveIndex: expectedIndex,
+        }));
         setStatus('wrong');
         setWrongMoveFrom(sourceSquare);
         setWrongMoveTo(targetSquare);
@@ -519,6 +551,17 @@ export function PracticeBoard({ opening, variation, mode, onMoveIndexChange, con
       const nextIndex = expectedIndex + 1;
       updateMoveIndex(nextIndex);
       void playMoveSound(settings.moveSound);
+      setCoachFeedback(buildMoveCoachFeedback({
+        openingColor: opening.color,
+        variationName: variation.name,
+        moveSan: move.san,
+        moveIndex: expectedIndex,
+        moveCount: moves.length,
+        beforeEvalCp: getEvalAtPly(expectedIndex),
+        afterEvalCp: getEvalAtPly(nextIndex),
+        primaryCategory: variation.primaryCategory,
+        isFinalMove: nextIndex >= moves.length,
+      }));
       setWrongMoveFrom(null);
       setWrongMoveTo(null);
       setStatus(nextIndex >= moves.length ? 'complete' : 'playing');
@@ -653,40 +696,48 @@ export function PracticeBoard({ opening, variation, mode, onMoveIndexChange, con
         <EvalBar
           evalCp={displayedEvalCp}
         />
-        <div
-          className={`overflow-hidden rounded-xl transition-all duration-150 ${
-            !isLive
-              ? 'ring-2 ring-blue-500/40'
-              : status === 'wrong'
-              ? 'ring-2 ring-red-500/60'
-              : status === 'complete'
-              ? 'ring-2 ring-green-400/60'
-              : 'ring-1 ring-white/10'
-          }`}
-        >
-          <Chessboard
-            ref={chessboardRef}
-            position={displayPosition}
-            onPieceDrop={onPieceDrop}
-            onPieceClick={onPieceClick}
-            onPieceDragBegin={onPieceDragBegin}
-            onPieceDragEnd={onPieceDragEnd}
-            onSquareClick={onSquareClick}
-            onPromotionCheck={onPromotionCheck}
-            onPromotionPieceSelect={onPromotionPieceSelect}
-            boardWidth={boardSize}
-            boardOrientation={boardOrientation}
-            arePiecesDraggable={isLive}
-            arePremovesAllowed={isLive}
-            clearPremovesOnRightClick={true}
-            isDraggablePiece={({ piece }) => isLive && piece[0] === playerColor}
-            customSquareStyles={customSquareStyles}
-            showBoardNotation={settings.showCoordinates}
-            customDarkSquareStyle={{ backgroundColor: theme.dark }}
-            customLightSquareStyle={{ backgroundColor: theme.light }}
-            animationDuration={animationDuration}
-            customPieces={customPieces}
-          />
+        <div className="relative">
+          <div
+            className={`overflow-hidden rounded-xl transition-all duration-150 ${
+              !isLive
+                ? 'ring-2 ring-blue-500/40'
+                : status === 'wrong'
+                ? 'ring-2 ring-red-500/60'
+                : status === 'complete'
+                ? 'ring-2 ring-green-400/60'
+                : 'ring-1 ring-white/10'
+            }`}
+          >
+            <Chessboard
+              ref={chessboardRef}
+              position={displayPosition}
+              onPieceDrop={onPieceDrop}
+              onPieceClick={onPieceClick}
+              onPieceDragBegin={onPieceDragBegin}
+              onPieceDragEnd={onPieceDragEnd}
+              onSquareClick={onSquareClick}
+              onPromotionCheck={onPromotionCheck}
+              onPromotionPieceSelect={onPromotionPieceSelect}
+              boardWidth={boardSize}
+              boardOrientation={boardOrientation}
+              arePiecesDraggable={isLive}
+              arePremovesAllowed={isLive}
+              clearPremovesOnRightClick={true}
+              isDraggablePiece={({ piece }) => isLive && piece[0] === playerColor}
+              customSquareStyles={customSquareStyles}
+              showBoardNotation={settings.showCoordinates}
+              customDarkSquareStyle={{ backgroundColor: theme.dark }}
+              customLightSquareStyle={{ backgroundColor: theme.light }}
+              animationDuration={animationDuration}
+              customPieces={customPieces}
+            />
+          </div>
+          {coachFeedback && isLive && (
+            <CoachFeedbackCard
+              feedback={coachFeedback}
+              onDismiss={() => setCoachFeedback(null)}
+            />
+          )}
         </div>
       </div>
 
