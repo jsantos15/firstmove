@@ -8,7 +8,6 @@ import { useAuth } from '@/app/providers';
 import { CompletionOverlay } from './CompletionOverlay';
 import { useBoardSettings } from '@/hooks/useBoardSettings';
 import { getCustomPieces } from '@/lib/piecesets';
-import { CoachFeedbackCard } from './CoachFeedbackCard';
 import {
   buildMoveCoachFeedback,
   buildWrongMoveCoachFeedback,
@@ -28,6 +27,7 @@ interface PracticeBoardProps {
   };
   mode: PracticeMode;
   onMoveIndexChange?: (index: number) => void;
+  onCoachFeedbackChange?: (feedback: CoachFeedback | null) => void;
   controlsRight?: React.ReactNode;
 }
 
@@ -151,7 +151,14 @@ async function playMoveSound(enabled: boolean) {
   } catch {}
 }
 
-export function PracticeBoard({ opening, variation, mode, onMoveIndexChange, controlsRight }: PracticeBoardProps) {
+export function PracticeBoard({
+  opening,
+  variation,
+  mode,
+  onMoveIndexChange,
+  onCoachFeedbackChange,
+  controlsRight,
+}: PracticeBoardProps) {
   const { theme, animationDuration, settings } = useBoardSettings();
   const customPieces = useMemo(() => getCustomPieces(settings.pieceSetId), [settings.pieceSetId]);
   const { user } = useAuth();
@@ -175,7 +182,6 @@ export function PracticeBoard({ opening, variation, mode, onMoveIndexChange, con
   const [wrongMoveTo, setWrongMoveTo] = useState<string | null>(null);
   const [selectedSquare, setSelectedSquare] = useState<string | null>(null);
   const [queuedClickPremove, setQueuedClickPremove] = useState<QueuedPremove | null>(null);
-  const [coachFeedback, setCoachFeedback] = useState<CoachFeedback | null>(null);
   const [boardSize, setBoardSize] = useState(480);
 
   // ─── Browse / review navigation ──────────────────────────────────────────────
@@ -252,7 +258,7 @@ export function PracticeBoard({ opening, variation, mode, onMoveIndexChange, con
     setWrongMoveTo(null);
     setSelectedSquare(null);
     setQueuedClickPremove(null);
-    setCoachFeedback(null);
+    onCoachFeedbackChange?.(null);
     setViewIndex(null);
     setOverlayDismissed(false);
     chessboardRef.current?.clearPremoves?.();
@@ -529,7 +535,7 @@ export function PracticeBoard({ opening, variation, mode, onMoveIndexChange, con
     try {
       const move = baseChess.move({ from: sourceSquare, to: targetSquare, promotion });
       if (move.san !== expectedMove.san) {
-        setCoachFeedback(buildWrongMoveCoachFeedback({
+        onCoachFeedbackChange?.(buildWrongMoveCoachFeedback({
           attemptedSan: move.san,
           expectedSan: expectedMove.san,
           variationName: variation.name,
@@ -551,7 +557,7 @@ export function PracticeBoard({ opening, variation, mode, onMoveIndexChange, con
       const nextIndex = expectedIndex + 1;
       updateMoveIndex(nextIndex);
       void playMoveSound(settings.moveSound);
-      setCoachFeedback(buildMoveCoachFeedback({
+      onCoachFeedbackChange?.(buildMoveCoachFeedback({
         openingColor: opening.color,
         variationName: variation.name,
         moveSan: move.san,
@@ -732,12 +738,6 @@ export function PracticeBoard({ opening, variation, mode, onMoveIndexChange, con
               customPieces={customPieces}
             />
           </div>
-          {coachFeedback && isLive && (
-            <CoachFeedbackCard
-              feedback={coachFeedback}
-              onDismiss={() => setCoachFeedback(null)}
-            />
-          )}
         </div>
       </div>
 

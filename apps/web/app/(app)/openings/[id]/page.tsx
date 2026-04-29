@@ -12,6 +12,7 @@ import { useAuth } from '@/app/providers';
 import { useAllProgress, MASTERY_LABELS, MASTERY_COLORS } from '@/hooks/useProgress';
 import { BOARD_THEMES, useBoardSettings } from '@/hooks/useBoardSettings';
 import { PIECE_SETS } from '@/lib/piecesets';
+import type { CoachFeedback, CoachFeedbackTone } from '@/lib/coachFeedback';
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -24,6 +25,15 @@ type VariationWithMeta = OpeningVariation & {
   finalEvalPerspective?: 'white' | 'black';
   isMainLine?: boolean;
   lineDifficulty?: OpeningDifficulty;
+};
+
+const COACH_TONE_STYLES: Record<CoachFeedbackTone, string> = {
+  neutral: 'border-sky-200/70 bg-sky-50 text-sky-700',
+  positive: 'border-emerald-200/80 bg-emerald-50 text-emerald-700',
+  payoff: 'border-amber-200/90 bg-amber-50 text-amber-700',
+  warning: 'border-orange-200/90 bg-orange-50 text-orange-700',
+  negative: 'border-red-200/90 bg-red-50 text-red-700',
+  complete: 'border-green-200/90 bg-green-50 text-green-700',
 };
 
 function asVariationWithMeta(variation: OpeningVariation): VariationWithMeta {
@@ -207,6 +217,7 @@ export default function PracticePage({ params }: PageProps) {
   const [showAuthPrompt, setShowAuthPrompt] = useState(false);
   const [currentMoveIndex, setCurrentMoveIndex] = useState(-1);
   const [mode, setMode] = useState<PracticeMode>('learn');
+  const [coachFeedback, setCoachFeedback] = useState<CoachFeedback | null>(null);
 
   if (isLoading) {
     return (
@@ -220,6 +231,10 @@ export default function PracticePage({ params }: PageProps) {
 
   const activeVariationId = selectedVariationId || opening.variations[0]?.id;
   const selectedVariation = opening.variations.find(v => v.id === activeVariationId) ?? opening.variations[0];
+  const coachBubbleText = coachFeedback?.message ?? opening.description;
+  const coachBubbleLabel = coachFeedback?.label ?? 'Coach';
+  const coachBubbleTitle = coachFeedback?.title ?? opening.name;
+  const coachToneClass = coachFeedback ? COACH_TONE_STYLES[coachFeedback.tone] : COACH_TONE_STYLES.neutral;
 
   function handleVariationClick(variationId: string, index: number) {
     if (index > 0 && !user) {
@@ -228,6 +243,7 @@ export default function PracticePage({ params }: PageProps) {
     }
     setShowAuthPrompt(false);
     setSelectedVariationId(variationId);
+    setCoachFeedback(null);
   }
 
   return (
@@ -245,7 +261,7 @@ export default function PracticePage({ params }: PageProps) {
           </div>
 
           <div className="pointer-events-none absolute inset-x-4 flex justify-center lg:inset-x-6">
-            <div className="grid w-full max-w-[1504px] grid-cols-[minmax(0,1fr)_16rem] gap-4 lg:grid-cols-[minmax(0,1fr)_18rem] lg:gap-6">
+            <div className="grid w-full max-w-[1504px] grid-cols-[minmax(0,1fr)_22.5rem] gap-4 lg:grid-cols-[minmax(0,1fr)_25rem] lg:gap-6">
               <div className="flex justify-center sm:translate-x-[18px]">
                 <div className="pointer-events-auto flex overflow-hidden rounded-xl border border-white/10">
                   <ModeButton active={mode === 'learn'} onClick={() => setMode('learn')}>Learn</ModeButton>
@@ -270,6 +286,7 @@ export default function PracticePage({ params }: PageProps) {
                 variation={selectedVariation}
                 mode={mode}
                 onMoveIndexChange={setCurrentMoveIndex}
+                onCoachFeedbackChange={setCoachFeedback}
                 controlsRight={<BoardSettingsPopover />}
               />
             )}
@@ -277,7 +294,7 @@ export default function PracticePage({ params }: PageProps) {
           </div>
 
           {/* Sidebar */}
-          <div className="w-64 lg:w-72 shrink-0 h-full flex flex-col gap-4">
+          <div className="w-[22.5rem] lg:w-[25rem] shrink-0 h-full flex flex-col gap-4">
 
             {/* Opening info — fixed */}
             <div className="shrink-0 rounded-xl border border-white/5 bg-[var(--bg-panel)] p-5">
@@ -285,8 +302,22 @@ export default function PracticePage({ params }: PageProps) {
                 <ColorBadge color={opening.color} />
                 <DifficultyBadge difficulty={opening.difficulty} />
               </div>
-              <h1 className="text-xl font-bold text-white mb-2">{opening.name}</h1>
-              <p className="text-sm text-gray-400 leading-relaxed">{opening.description}</p>
+              <div className="flex items-start gap-3">
+                <div
+                  className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full border border-white/10 bg-white/5 text-xs font-semibold text-gray-400"
+                  aria-label="Coach avatar placeholder"
+                >
+                  Coach
+                </div>
+                <div className="relative min-w-0 flex-1 rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-zinc-900 shadow-lg shadow-black/20">
+                  <div className="absolute left-[-7px] top-5 h-4 w-4 rotate-45 border-b border-l border-zinc-200 bg-white" />
+                  <span className={`mb-2 inline-flex rounded-md border px-2 py-0.5 text-[11px] font-semibold ${coachToneClass}`}>
+                    {coachBubbleLabel}
+                  </span>
+                  <h1 className="text-base font-bold text-zinc-950">{coachBubbleTitle}</h1>
+                  <p className="mt-2 text-sm leading-relaxed text-zinc-700">{coachBubbleText}</p>
+                </div>
+              </div>
             </div>
 
             {/* Move list — only in Learn mode */}
