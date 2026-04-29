@@ -6,9 +6,13 @@ import type { Database } from '@firstmove/supabase';
  * components and middleware can read the session.
  * Use this in Client Components and hooks.
  */
+let browserClient: ReturnType<typeof createBrowserClient<Database>> | null = null;
+
 export function createClient() {
-  return createBrowserClient<Database>(
+  browserClient ??= createBrowserClient<Database>(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
   );
+
+  return browserClient;
 }

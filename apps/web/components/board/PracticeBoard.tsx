@@ -649,7 +649,7 @@ export function PracticeBoard({ opening, variation, mode, onModeChange, onMoveIn
       <div className="mx-auto w-full shrink-0" style={{ maxWidth: boardSize }}>
         <div className="mb-3 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3 text-sm">
           <span className={`min-w-0 truncate ${!isLive ? 'text-blue-400' : 'text-gray-400'}`}>{statusLabel}</span>
-          <div className="flex justify-center">
+          <div className="flex -translate-y-1 justify-center sm:translate-x-[18px]">
             <div className="flex overflow-hidden rounded-xl border border-white/10">
               <ModeButton active={mode === 'learn'} onClick={() => onModeChange('learn')}>Learn</ModeButton>
               <ModeButton active={mode === 'practice'} onClick={() => onModeChange('practice')}>Practice</ModeButton>
