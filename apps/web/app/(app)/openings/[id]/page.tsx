@@ -305,13 +305,13 @@ export default function PracticePage({ params }: PageProps) {
               </div>
               <div className="flex items-start gap-3">
                 <div className="flex shrink-0 flex-col items-center gap-1">
-                  <div className="relative h-16 w-16 overflow-hidden rounded-full border border-white/15 bg-white shadow-lg shadow-black/20">
+                  <div className="relative h-24 w-20">
                     <Image
-                      src="/coaches/jazmin.jpg"
+                      src="/coaches/jazmin.png"
                       alt="Jazmin, your opening coach"
                       fill
-                      sizes="64px"
-                      className="object-cover object-top"
+                      sizes="80px"
+                      className="object-contain object-bottom drop-shadow-lg"
                       priority
                     />
                   </div>
