@@ -278,8 +278,8 @@ export default function PracticePage({ params }: PageProps) {
         <div className="mx-auto flex h-full w-full max-w-[1504px] gap-4 lg:gap-6">
 
           {/* Board column */}
-          <div className="flex h-full min-w-0 flex-1 justify-center">
-            <div className="h-full shrink-0" style={{ aspectRatio: '1 / 1' }}>
+          <div className="flex h-full min-w-0 flex-1 justify-end">
+            <div className="h-full max-w-full shrink" style={{ aspectRatio: '1 / 1' }}>
             {selectedVariation && (
               <PracticeBoard
                 opening={opening}
