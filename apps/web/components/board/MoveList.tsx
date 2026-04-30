@@ -62,11 +62,11 @@ export function MoveList({ variation, currentMoveIndex }: MoveListProps) {
   const pairs = toPairs(variation);
 
   return (
-    <div className="rounded-xl border border-white/5 bg-[var(--bg-panel)] p-4">
-      <h3 className="mb-3 text-xs font-medium uppercase tracking-wider text-gray-500">
+    <div className="flex h-[17.5rem] shrink-0 flex-col rounded-xl border border-white/5 bg-[var(--bg-panel)] p-4">
+      <h3 className="mb-3 shrink-0 text-xs font-medium uppercase tracking-wider text-gray-500">
         Move sequence
       </h3>
-      <div className="space-y-0.5 font-mono text-sm">
+      <div className="min-h-0 flex-1 space-y-0.5 overflow-y-auto pr-1 font-mono text-sm">
         {pairs.map(pair => (
           <div key={pair.moveNumber} className="flex items-center gap-1">
             <span className="w-6 text-right text-gray-600">{pair.moveNumber}.</span>

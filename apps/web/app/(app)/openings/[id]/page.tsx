@@ -249,7 +249,7 @@ export default function PracticePage({ params }: PageProps) {
           </div>
 
           <div className="pointer-events-none absolute inset-x-4 flex justify-center lg:inset-x-6">
-            <div className="grid w-full max-w-[1640px] grid-cols-[minmax(0,1fr)_24rem] gap-[36px] lg:grid-cols-[minmax(0,1fr)_27rem] lg:gap-[52px]">
+            <div className="grid w-full max-w-[1640px] grid-cols-[minmax(0,1fr)_24rem] gap-[18px] lg:grid-cols-[minmax(0,1fr)_27rem] lg:gap-[26px]">
               <div className="flex justify-center sm:translate-x-[18px]">
                 <div className="pointer-events-auto flex overflow-hidden rounded-xl border border-white/10">
                   <ModeButton active={mode === 'learn'} onClick={() => setMode('learn')}>Learn</ModeButton>
@@ -263,7 +263,7 @@ export default function PracticePage({ params }: PageProps) {
       </header>
 
       <div className="flex-1 min-h-0 overflow-hidden px-4 pb-3 pt-2 lg:px-6 lg:pb-4 lg:pt-3">
-        <div className="mx-auto flex h-full w-full max-w-[1640px] gap-[36px] lg:gap-[52px]">
+        <div className="mx-auto flex h-full w-full max-w-[1640px] gap-[18px] lg:gap-[26px]">
 
           {/* Board column */}
           <div className="flex h-full min-w-0 flex-1 justify-end">
@@ -282,11 +282,11 @@ export default function PracticePage({ params }: PageProps) {
           </div>
 
           {/* Sidebar */}
-          <div className="w-[24rem] lg:w-[27rem] shrink-0 h-full flex flex-col gap-4">
+          <div className="w-[24rem] lg:w-[27rem] shrink-0 h-full flex flex-col gap-3">
 
             {/* Coach — fixed */}
-            <div className="h-36 shrink-0">
-              <div className="flex h-full items-start gap-4">
+            <div className="h-32 shrink-0">
+              <div className="flex h-full items-start gap-2">
                 <div className="flex w-24 shrink-0 items-start">
                   <div className="relative h-28 w-24">
                     <Image
@@ -300,9 +300,9 @@ export default function PracticePage({ params }: PageProps) {
                     />
                   </div>
                 </div>
-                <div className="relative h-[6.75rem] min-w-0 flex-1 rounded-2xl border border-zinc-200 bg-white px-6 py-4 text-zinc-900 shadow-lg shadow-black/20">
-                  <div className="absolute left-[-7px] top-10 h-4 w-4 rotate-45 border-b border-l border-zinc-200 bg-white" />
-                  <p className="max-h-full overflow-y-auto text-base leading-6 text-zinc-700">{coachBubbleText}</p>
+                <div className="relative h-[5.75rem] min-w-0 flex-1 rounded-2xl border border-zinc-200 bg-white px-5 py-4 text-zinc-900 shadow-lg shadow-black/20">
+                  <div className="absolute left-[-7px] top-8 h-4 w-4 rotate-45 border-b border-l border-zinc-200 bg-white" />
+                  <p className="max-h-full overflow-y-auto text-sm leading-5 text-zinc-700">{coachBubbleText}</p>
                 </div>
               </div>
             </div>
