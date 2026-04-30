@@ -249,7 +249,7 @@ export default function PracticePage({ params }: PageProps) {
           </div>
 
           <div className="pointer-events-none absolute inset-x-4 flex justify-center lg:inset-x-6">
-            <div className="grid w-full max-w-[1640px] grid-cols-[minmax(0,1fr)_24rem] gap-[18px] lg:grid-cols-[minmax(0,1fr)_27rem] lg:gap-[26px]">
+            <div className="grid w-full max-w-[1640px] grid-cols-[minmax(0,1fr)_24rem] gap-3 lg:grid-cols-[minmax(0,1fr)_27rem] lg:gap-3">
               <div className="flex justify-center sm:translate-x-[18px]">
                 <div className="pointer-events-auto flex overflow-hidden rounded-xl border border-white/10">
                   <ModeButton active={mode === 'learn'} onClick={() => setMode('learn')}>Learn</ModeButton>
@@ -263,7 +263,7 @@ export default function PracticePage({ params }: PageProps) {
       </header>
 
       <div className="flex-1 min-h-0 overflow-hidden px-4 pb-3 pt-2 lg:px-6 lg:pb-4 lg:pt-3">
-        <div className="mx-auto flex h-full w-full max-w-[1640px] gap-[18px] lg:gap-[26px]">
+        <div className="mx-auto flex h-full w-full max-w-[1640px] gap-3 lg:gap-3">
 
           {/* Board column */}
           <div className="flex h-full min-w-0 flex-1 justify-end">
@@ -285,10 +285,10 @@ export default function PracticePage({ params }: PageProps) {
           <div className="w-[24rem] lg:w-[27rem] shrink-0 h-full flex flex-col gap-3">
 
             {/* Coach — fixed */}
-            <div className="h-32 shrink-0">
+            <div className="h-[5.75rem] shrink-0">
               <div className="flex h-full items-start gap-2">
                 <div className="flex w-24 shrink-0 items-start">
-                  <div className="relative h-28 w-24">
+                  <div className="relative h-[5.75rem] w-24">
                     <Image
                       src="/coaches/jazmin.png"
                       alt="Jazmin, your opening coach"
