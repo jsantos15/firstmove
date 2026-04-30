@@ -285,23 +285,23 @@ export default function PracticePage({ params }: PageProps) {
           <div className="w-[24rem] lg:w-[27rem] shrink-0 h-full flex flex-col gap-4">
 
             {/* Coach — fixed */}
-            <div className="shrink-0 rounded-xl border border-white/5 bg-[var(--bg-panel)] p-5">
-              <div className="flex items-stretch gap-3">
-                <div className="flex w-20 shrink-0 items-end">
-                  <div className="relative h-24 w-20">
+            <div className="h-44 shrink-0">
+              <div className="flex h-full items-end gap-4">
+                <div className="flex w-24 shrink-0 items-end">
+                  <div className="relative h-32 w-24">
                     <Image
                       src="/coaches/jazmin-v3.png"
                       alt="Jazmin, your opening coach"
                       fill
-                      sizes="80px"
+                      sizes="96px"
                       className="object-contain object-bottom drop-shadow-lg"
                       priority
                     />
                   </div>
                 </div>
-                <div className="relative min-w-0 flex-1 rounded-2xl border border-zinc-200 bg-white px-5 py-4 text-zinc-900 shadow-lg shadow-black/20">
-                  <div className="absolute bottom-9 left-[-7px] h-4 w-4 rotate-45 border-b border-l border-zinc-200 bg-white" />
-                  <p className="text-sm leading-relaxed text-zinc-700">{coachBubbleText}</p>
+                <div className="relative h-36 min-w-0 flex-1 rounded-2xl border border-zinc-200 bg-white px-6 py-5 text-zinc-900 shadow-lg shadow-black/20">
+                  <div className="absolute bottom-[3.25rem] left-[-7px] h-4 w-4 rotate-45 border-b border-l border-zinc-200 bg-white" />
+                  <p className="max-h-full overflow-y-auto text-base leading-relaxed text-zinc-700">{coachBubbleText}</p>
                 </div>
               </div>
             </div>

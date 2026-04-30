@@ -53,6 +53,28 @@ type AppVariation = OpeningVariation & {
   sourceConfidence?: OpeningLineRow['source_confidence'];
 };
 
+const OPENING_INTRO_COPY: Record<string, string> = {
+  'italian-game':
+    "The Italian Game develops quickly with Bc4, aiming at Black's f7 square while building a strong center and preparing to castle. It teaches active piece play, early pressure, and when to turn development into tactics.",
+  'caro-kann-defense':
+    'The Caro-Kann Defense is a solid answer to 1.e4 where Black supports ...d5 with ...c6. It teaches sturdy pawn structures, patient development, and clean counterplay without weakening the king.',
+};
+
+function normalizeOpeningDescription(catalog: OpeningCatalogRow) {
+  const curated = OPENING_INTRO_COPY[catalog.slug];
+  if (curated) return curated;
+
+  const description = catalog.description.trim();
+  if (
+    description.includes('regenerated from authoritative naming') ||
+    description.includes('staged for study')
+  ) {
+    return `${catalog.name} is part of your opening study plan. Focus on the main ideas first, then use each line to learn the typical plans and tactical moments.`;
+  }
+
+  return description;
+}
+
 function buildVariationStub(line: OpeningLineRow): AppVariation {
   return {
     id: line.slug,
@@ -151,7 +173,7 @@ function buildOpening(
     name: catalog.name,
     color: catalog.color,
     difficulty: catalog.difficulty,
-    description: catalog.description,
+    description: normalizeOpeningDescription(catalog),
     tags: catalog.tags,
     moves: mainLine ? buildMoves(mainLine.sans) : [],
     variations,

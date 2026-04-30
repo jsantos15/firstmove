@@ -124,14 +124,15 @@ function resolveOpeningLines(opening) {
 }
 
 function buildOpeningDescription(opening) {
-  const lineCount = opening.lineCount;
-  const mainLine = opening.lines.find((line) => line.isMainLine);
-
-  if (mainLine) {
-    return `${opening.openingName} regenerated from authoritative naming and continuation sources. Includes ${lineCount} line${lineCount === 1 ? "" : "s"} staged for study, anchored by the main line ${mainLine.lineName}.`;
+  if (opening.openingId === "italian-game") {
+    return "The Italian Game develops quickly with Bc4, aiming at Black's f7 square while building a strong center and preparing to castle. It teaches active piece play, early pressure, and when to turn development into tactics.";
   }
 
-  return `${opening.openingName} regenerated from authoritative naming and continuation sources. Includes ${lineCount} line${lineCount === 1 ? "" : "s"} staged for study.`;
+  if (opening.openingId === "caro-kann-defense") {
+    return "The Caro-Kann Defense is a solid answer to 1.e4 where Black supports ...d5 with ...c6. It teaches sturdy pawn structures, patient development, and clean counterplay without weakening the king.";
+  }
+
+  return `${opening.openingName} is part of your opening study plan. Focus on the main ideas first, then use each line to learn the typical plans and tactical moments.`;
 }
 
 function buildOpeningTags(opening, color) {
