@@ -290,7 +290,7 @@ export default function PracticePage({ params }: PageProps) {
                 <div className="flex w-24 shrink-0 items-end">
                   <div className="relative h-32 w-24">
                     <Image
-                      src="/coaches/jazmin-v3.png"
+                      src="/coaches/jazmin.png"
                       alt="Jazmin, your opening coach"
                       fill
                       sizes="96px"
