@@ -4,7 +4,6 @@ import { useState, use, useEffect, useRef } from 'react';
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
-import type { OpeningDifficulty, OpeningVariation } from '@firstmove/core';
 import { PracticeBoard, type PracticeMode } from '@/components/board/PracticeBoard';
 import { useOpening } from '@/hooks/useOpenings';
 import { MoveList } from '@/components/board/MoveList';
@@ -16,24 +15,6 @@ import type { CoachFeedback } from '@/lib/coachFeedback';
 
 interface PageProps {
   params: Promise<{ id: string }>;
-}
-
-type VariationWithMeta = OpeningVariation & {
-  engineChecked?: boolean;
-  evalCpByPly?: number[];
-  finalEvalCp?: number;
-  finalEvalPerspective?: 'white' | 'black';
-  isMainLine?: boolean;
-  lineDifficulty?: OpeningDifficulty;
-};
-
-function asVariationWithMeta(variation: OpeningVariation): VariationWithMeta {
-  return variation as VariationWithMeta;
-}
-
-function formatDifficultyLabel(value?: OpeningDifficulty) {
-  if (!value) return null;
-  return value.charAt(0).toUpperCase() + value.slice(1);
 }
 
 function BoardSettingsPopover() {
@@ -286,8 +267,8 @@ export default function PracticePage({ params }: PageProps) {
 
             {/* Coach — fixed */}
             <div className="h-[5.75rem] shrink-0">
-              <div className="flex h-full items-start gap-2">
-                <div className="flex w-24 shrink-0 items-start">
+              <div className="flex h-full items-start gap-1">
+                <div className="flex w-[5.5rem] shrink-0 items-start">
                   <div className="relative h-[5.75rem] w-24">
                     <Image
                       src="/coaches/jazmin.png"
@@ -302,7 +283,7 @@ export default function PracticePage({ params }: PageProps) {
                 </div>
                 <div className="relative h-[5.75rem] min-w-0 flex-1 rounded-2xl border border-zinc-200 bg-white px-5 py-4 text-zinc-900 shadow-lg shadow-black/20">
                   <div className="absolute left-[-7px] top-8 h-4 w-4 rotate-45 border-b border-l border-zinc-200 bg-white" />
-                  <p className="max-h-full overflow-y-auto text-sm leading-5 text-zinc-700">{coachBubbleText}</p>
+                  <p className="max-h-full overflow-hidden text-sm leading-5 text-zinc-700">{coachBubbleText}</p>
                 </div>
               </div>
             </div>
@@ -319,7 +300,6 @@ export default function PracticePage({ params }: PageProps) {
               </h3>
               <div className="flex-1 min-h-0 overflow-y-auto px-4 pb-4 flex flex-col gap-1.5">
                 {opening.variations.map((variation, index) => {
-                  const variationMeta = asVariationWithMeta(variation);
                   const locked = index > 0 && !user;
                   const vProgress = progress?.get(`${opening.id}/${variation.id}`);
                   const mastery = vProgress?.mastery;
@@ -337,20 +317,7 @@ export default function PracticePage({ params }: PageProps) {
                     >
                       <div className="flex items-center justify-between gap-2">
                         <div className="min-w-0">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <span className="font-medium">{variation.name}</span>
-                            {variationMeta.isMainLine ? (
-                              <span className="rounded-full border border-amber-400/20 bg-amber-400/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-300">
-                                Main
-                              </span>
-                            ) : null}
-                            {variationMeta.lineDifficulty &&
-                            variationMeta.lineDifficulty !== opening.difficulty ? (
-                              <span className="rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-gray-400">
-                                {formatDifficultyLabel(variationMeta.lineDifficulty)}
-                              </span>
-                            ) : null}
-                          </div>
+                          <span className="font-medium">{variation.name}</span>
                         </div>
                         {locked ? (
                           <span className="text-xs shrink-0">🔒</span>
@@ -361,9 +328,6 @@ export default function PracticePage({ params }: PageProps) {
                           </span>
                         ) : null}
                       </div>
-                      {variation.description && (
-                        <div className="text-xs opacity-60 mt-0.5 line-clamp-2">{variation.description}</div>
-                      )}
                       {vProgress && (
                         <div className="text-xs text-gray-600 mt-1">
                           {vProgress.timesCompleted} {vProgress.timesCompleted === 1 ? 'completion' : 'completions'}
