@@ -17,6 +17,188 @@ interface PageProps {
   params: Promise<{ id: string }>;
 }
 
+// ─── Variation grouping ───────────────────────────────────────────────────────
+
+interface VariationGroup {
+  id: string;
+  displayName: string;
+  lines: { id: string; name: string; isMainLine?: boolean | null; primaryCategory?: string | null; lineDifficulty?: string | null }[];
+}
+
+interface DummyBranch {
+  id: string;
+  title: string;
+  punishMove: string;
+}
+
+function extractGroupName(fullName: string | undefined, openingName: string): string {
+  if (!fullName) return openingName;
+  const prefix = `${openingName}: `;
+  const remainder = fullName.startsWith(prefix) ? fullName.slice(prefix.length) : fullName;
+  const commaIdx = remainder.indexOf(',');
+  return commaIdx === -1 ? remainder : remainder.slice(0, commaIdx).trim();
+}
+
+function slugifyGroup(value: string) {
+  return value.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+}
+
+function groupVariations(
+  variations: { id: string; name: string; fullName?: string | null; isMainLine?: boolean | null; primaryCategory?: string | null; lineDifficulty?: string | null }[],
+  openingName: string,
+): VariationGroup[] {
+  const map = new Map<string, VariationGroup>();
+  for (const v of variations) {
+    const displayName = extractGroupName(v.fullName ?? undefined, openingName);
+    const key = slugifyGroup(displayName) || v.id;
+    const group = map.get(key);
+    if (group) {
+      group.lines.push(v);
+    } else {
+      map.set(key, { id: key, displayName, lines: [v] });
+    }
+  }
+  return Array.from(map.values()).sort((a, b) => {
+    const aMain = a.lines.some(l => l.isMainLine) ? -1 : 1;
+    const bMain = b.lines.some(l => l.isMainLine) ? -1 : 1;
+    if (aMain !== bMain) return aMain - bMain;
+    return a.displayName.localeCompare(b.displayName);
+  });
+}
+
+const CATEGORY_META: Record<string, { label: string; classes: string }> = {
+  tactical_payoff: { label: 'Tactical',  classes: 'bg-orange-400/10 text-orange-400' },
+  forcing:         { label: 'Forcing',   classes: 'bg-amber-400/10  text-amber-400'  },
+  strategic:       { label: 'Strategic', classes: 'bg-sky-400/10    text-sky-400'    },
+  setup:           { label: 'Setup',     classes: 'bg-teal-400/10   text-teal-400'   },
+};
+
+function getDummyBranches(openingName: string, groupName: string): DummyBranch[] {
+  if (openingName.toLowerCase() !== 'italian game') return [];
+  if (!groupName.toLowerCase().includes('giuoco piano')) return [];
+  return [
+    { id: 'punish-a6',  title: 'Punish queenside tempo loss',    punishMove: 'vs …a6?!'  },
+    { id: 'punish-be6', title: 'Punish premature bishop trade',  punishMove: 'vs …Be6?!' },
+    { id: 'punish-nd4', title: 'Punish knight outpost attempt',  punishMove: 'vs …Nd4?!' },
+  ];
+}
+
+// ─── Accordion group row ──────────────────────────────────────────────────────
+
+function GroupHeader({
+  group,
+  isOpen,
+  onToggle,
+}: {
+  group: VariationGroup;
+  isOpen: boolean;
+  onToggle: () => void;
+}) {
+  const hasMainLine = group.lines.some(l => l.isMainLine);
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      className={`w-full flex items-center gap-3 px-4 py-2.5 text-left transition-colors ${
+        isOpen ? 'text-white' : 'text-gray-400 hover:text-white hover:bg-white/5'
+      }`}
+    >
+      <svg
+        xmlns="http://www.w3.org/2000/svg"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth={2}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        className={`h-3 w-3 shrink-0 text-gray-600 transition-transform duration-150 ${isOpen ? 'rotate-90' : ''}`}
+      >
+        <path d="m9 18 6-6-6-6" />
+      </svg>
+      <div className="min-w-0 flex-1">
+        <span className="block truncate text-sm font-medium">{group.displayName}</span>
+        {hasMainLine && (
+          <span className="text-[10px] text-amber-400/60">includes main line</span>
+        )}
+      </div>
+      <span className="shrink-0 rounded-full bg-white/5 px-2 py-0.5 text-[11px] text-gray-500">
+        {group.lines.length}
+      </span>
+    </button>
+  );
+}
+
+function BranchRow({
+  line,
+  globalIndex,
+  isActive,
+  user,
+  mastery,
+  completions,
+  onClick,
+}: {
+  line: VariationGroup['lines'][number];
+  globalIndex: number;
+  isActive: boolean;
+  user: unknown;
+  mastery?: string;
+  completions?: number;
+  onClick: () => void;
+}) {
+  const locked = globalIndex > 0 && !user;
+  const cat = line.isMainLine ? null : CATEGORY_META[line.primaryCategory ?? ''];
+
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`w-full rounded-lg px-3 py-2 text-left text-xs transition-colors ${
+        isActive
+          ? 'border border-amber-400/20 bg-amber-400/15 text-amber-300'
+          : locked
+          ? 'text-gray-600 hover:bg-white/5'
+          : 'text-gray-400 hover:bg-white/5 hover:text-white'
+      }`}
+    >
+      <div className="flex items-center gap-2">
+        <div className="min-w-0 flex-1">
+          <span className="block truncate font-medium leading-tight">{line.name}</span>
+          {completions != null && completions > 0 && (
+            <span className="text-[10px] text-gray-600">
+              {completions} {completions === 1 ? 'completion' : 'completions'}
+            </span>
+          )}
+        </div>
+        <div className="flex shrink-0 items-center gap-1.5">
+          {line.isMainLine && (
+            <span className="rounded bg-white/5 px-1.5 py-0.5 text-[10px] text-gray-500">Ref</span>
+          )}
+          {cat && (
+            <span className={`rounded px-1.5 py-0.5 text-[10px] ${cat.classes}`}>{cat.label}</span>
+          )}
+          {locked ? (
+            <span className="text-[11px]">🔒</span>
+          ) : mastery && mastery !== 'new' ? (
+            <span className={`h-1.5 w-1.5 rounded-full ${MASTERY_COLORS[mastery as keyof typeof MASTERY_COLORS]}`} />
+          ) : null}
+        </div>
+      </div>
+    </button>
+  );
+}
+
+function DummyBranchRow({ branch }: { branch: DummyBranch }) {
+  return (
+    <div className="flex items-center gap-2 rounded-lg border border-dashed border-white/10 px-3 py-2 text-xs opacity-50">
+      <div className="min-w-0 flex-1">
+        <span className="block truncate font-medium text-gray-500 leading-tight">{branch.title}</span>
+        <span className="text-[10px] text-gray-600">{branch.punishMove}</span>
+      </div>
+      <span className="shrink-0 rounded bg-amber-400/10 px-1.5 py-0.5 text-[10px] text-amber-400/70">Soon</span>
+    </div>
+  );
+}
+
 function BoardSettingsPopover() {
   const { settings, setSettings } = useBoardSettings();
   const [open, setOpen] = useState(false);
@@ -186,6 +368,7 @@ export default function PracticePage({ params }: PageProps) {
   const { user } = useAuth();
   const { data: progress } = useAllProgress();
   const [selectedVariationId, setSelectedVariationId] = useState('');
+  const [openGroupId, setOpenGroupId] = useState('');
   const [showAuthPrompt, setShowAuthPrompt] = useState(false);
   const [currentMoveIndex, setCurrentMoveIndex] = useState(-1);
   const [mode, setMode] = useState<PracticeMode>('learn');
@@ -293,63 +476,88 @@ export default function PracticePage({ params }: PageProps) {
               <MoveList variation={selectedVariation} currentMoveIndex={currentMoveIndex} />
             )}
 
-            {/* Line selector — takes remaining height, list scrolls internally */}
-            <div className="flex-1 min-h-0 flex flex-col rounded-xl border border-white/5 bg-[var(--bg-panel)]">
-              <h3 className="shrink-0 px-4 pt-4 pb-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Lines
-              </h3>
-              <div className="flex-1 min-h-0 overflow-y-auto px-4 pb-4 flex flex-col gap-1.5">
-                {opening.variations.map((variation, index) => {
-                  const locked = index > 0 && !user;
-                  const vProgress = progress?.get(`${opening.id}/${variation.id}`);
-                  const mastery = vProgress?.mastery;
-                  return (
-                    <button
-                      key={variation.id}
-                      onClick={() => handleVariationClick(variation.id, index)}
-                      className={`w-full text-left px-3 py-2.5 rounded-lg text-sm transition-colors ${
-                        variation.id === activeVariationId
-                          ? 'bg-amber-400/15 text-amber-300 border border-amber-400/20'
-                          : locked
-                          ? 'text-gray-600 cursor-pointer hover:bg-white/5'
-                          : 'text-gray-400 hover:text-white hover:bg-white/5'
-                      }`}
-                    >
-                      <div className="flex items-center justify-between gap-2">
-                        <div className="min-w-0">
-                          <span className="font-medium">{variation.name}</span>
-                        </div>
-                        {locked ? (
-                          <span className="text-xs shrink-0">🔒</span>
-                        ) : mastery && mastery !== 'new' ? (
-                          <span className="flex items-center gap-1 text-xs text-gray-500 shrink-0">
-                            <span className={`w-1.5 h-1.5 rounded-full ${MASTERY_COLORS[mastery]}`} />
-                            {MASTERY_LABELS[mastery]}
-                          </span>
-                        ) : null}
-                      </div>
-                      {vProgress && (
-                        <div className="text-xs text-gray-600 mt-1">
-                          {vProgress.timesCompleted} {vProgress.timesCompleted === 1 ? 'completion' : 'completions'}
-                        </div>
-                      )}
-                    </button>
-                  );
-                })}
-              </div>
+            {/* Line selector — accordion grouped by variation */}
+            {(() => {
+              const groups = groupVariations(opening.variations, opening.name);
+              const activeGroupId = openGroupId ||
+                groups.find(g => g.lines.some(l => l.id === activeVariationId))?.id ||
+                groups[0]?.id;
 
-              {showAuthPrompt && (
-                <div className="shrink-0 mx-4 mb-4 rounded-lg border border-amber-400/20 bg-amber-400/5 p-3 text-xs text-amber-300">
-                  <p className="mb-2">Sign in to unlock all lines.</p>
-                  <Link
-                    href="/login"
-                    className="inline-block rounded-md bg-amber-400 px-3 py-1.5 text-xs font-semibold text-[#0f1117] hover:bg-amber-300 transition-colors"
-                  >
-                    Sign in
-                  </Link>
+              function handleGroupToggle(group: VariationGroup) {
+                const isNowOpen = activeGroupId !== group.id;
+                setOpenGroupId(isNowOpen ? group.id : '__collapsed__');
+                if (isNowOpen) {
+                  const first = group.lines[0];
+                  if (!first) return;
+                  const globalIndex = opening!.variations.findIndex(v => v.id === first.id);
+                  handleVariationClick(first.id, globalIndex);
+                }
+              }
+
+              return (
+                <div className="flex-1 min-h-0 flex flex-col rounded-xl border border-white/5 bg-(--bg-panel)">
+                  {/* Header */}
+                  <div className="shrink-0 flex items-center justify-between px-4 pt-4 pb-3 border-b border-white/5">
+                    <h3 className="text-xs font-medium text-gray-500 uppercase tracking-wider">Lines</h3>
+                    <span className="text-[11px] text-gray-600">
+                      {groups.length} var · {opening.variations.length} lines
+                    </span>
+                  </div>
+
+                  {/* Accordion */}
+                  <div className="flex-1 min-h-0 overflow-y-auto py-1">
+                    {groups.map(group => {
+                      const isOpen = activeGroupId === group.id;
+                      const dummies = getDummyBranches(opening!.name, group.displayName);
+                      return (
+                        <div key={group.id}>
+                          <GroupHeader
+                            group={group}
+                            isOpen={isOpen}
+                            onToggle={() => handleGroupToggle(group)}
+                          />
+                          {isOpen && (
+                            <div className="px-3 pb-2 flex flex-col gap-1">
+                              {group.lines.map(line => {
+                                const globalIndex = opening!.variations.findIndex(v => v.id === line.id);
+                                const vProgress = progress?.get(`${opening!.id}/${line.id}`);
+                                return (
+                                  <BranchRow
+                                    key={line.id}
+                                    line={line}
+                                    globalIndex={globalIndex}
+                                    isActive={line.id === activeVariationId}
+                                    user={user}
+                                    mastery={vProgress?.mastery}
+                                    completions={vProgress?.timesCompleted}
+                                    onClick={() => handleVariationClick(line.id, globalIndex)}
+                                  />
+                                );
+                              })}
+                              {dummies.map(branch => (
+                                <DummyBranchRow key={branch.id} branch={branch} />
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {showAuthPrompt && (
+                    <div className="shrink-0 mx-4 mb-4 rounded-lg border border-amber-400/20 bg-amber-400/5 p-3 text-xs text-amber-300">
+                      <p className="mb-2">Sign in to unlock all lines.</p>
+                      <Link
+                        href="/login"
+                        className="inline-block rounded-md bg-amber-400 px-3 py-1.5 text-xs font-semibold text-[#0f1117] hover:bg-amber-300 transition-colors"
+                      >
+                        Sign in
+                      </Link>
+                    </div>
+                  )}
                 </div>
-              )}
-            </div>
+              );
+            })()}
 
           </div>{/* end sidebar */}
 
