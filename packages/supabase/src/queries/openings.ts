@@ -3,6 +3,8 @@ import type { Database } from '../database.types';
 
 export type OpeningCatalogRow = Database['public']['Tables']['openings_catalog']['Row'];
 export type OpeningLineRow = Database['public']['Tables']['opening_lines']['Row'];
+export type OpeningLineBranchMetadataRow =
+  Database['public']['Tables']['opening_line_branch_metadata']['Row'];
 
 const PAGE_SIZE = 1000;
 
@@ -21,9 +23,7 @@ export async function getOpeningsCatalog(): Promise<OpeningCatalogRow[]> {
   return data;
 }
 
-export async function getOpeningCatalogBySlug(
-  slug: string
-): Promise<OpeningCatalogRow | null> {
+export async function getOpeningCatalogBySlug(slug: string): Promise<OpeningCatalogRow | null> {
   const { data, error } = await supabase
     .from('openings_catalog')
     .select('*')
@@ -40,8 +40,9 @@ export async function getOpeningCatalogBySlug(
 export async function getOpeningLines(): Promise<OpeningLineRow[]> {
   const rows: OpeningLineRow[] = [];
   let from = 0;
+  let hasMore = true;
 
-  while (true) {
+  while (hasMore) {
     const to = from + PAGE_SIZE - 1;
     const { data, error } = await supabase
       .from('opening_lines')
@@ -58,19 +59,14 @@ export async function getOpeningLines(): Promise<OpeningLineRow[]> {
 
     rows.push(...data);
 
-    if (data.length < PAGE_SIZE) {
-      break;
-    }
-
+    hasMore = data.length === PAGE_SIZE;
     from += PAGE_SIZE;
   }
 
   return rows;
 }
 
-export async function getOpeningLinesBySlug(
-  openingSlug: string
-): Promise<OpeningLineRow[]> {
+export async function getOpeningLinesBySlug(openingSlug: string): Promise<OpeningLineRow[]> {
   const { data, error } = await supabase
     .from('opening_lines')
     .select('*')
@@ -78,6 +74,24 @@ export async function getOpeningLinesBySlug(
     .order('is_main_line', { ascending: false })
     .order('popularity_rank', { ascending: true, nullsFirst: false })
     .order('sort_order', { ascending: true });
+
+  if (error) {
+    throw error;
+  }
+
+  return data;
+}
+
+export async function getOpeningLineBranchMetadataBySlug(
+  openingSlug: string
+): Promise<OpeningLineBranchMetadataRow[]> {
+  const { data, error } = await supabase
+    .from('opening_line_branch_metadata')
+    .select('*')
+    .eq('opening_slug', openingSlug)
+    .order('branch_score', { ascending: false, nullsFirst: false })
+    .order('trigger_ply', { ascending: true })
+    .order('lesson_title', { ascending: true, nullsFirst: false });
 
   if (error) {
     throw error;

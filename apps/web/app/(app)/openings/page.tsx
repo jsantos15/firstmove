@@ -14,6 +14,14 @@ interface Filters {
   inProgress: boolean;
 }
 
+function normalizeQuery(text: string): string {
+  return text
+    .toLowerCase()
+    .replace(/[,;:.!?()\-\/\\'"]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
 export default function OpeningsPage() {
   const [filters, setFilters] = useState<Filters>({
     search: '',
@@ -30,11 +38,12 @@ export default function OpeningsPage() {
       if (filters.color !== 'all' && o.color !== filters.color) return false;
       if (filters.difficulty !== 'all' && o.difficulty !== filters.difficulty) return false;
       if (filters.search) {
-        const q = filters.search.toLowerCase();
+        const q = normalizeQuery(filters.search);
         const match =
-          o.name.toLowerCase().includes(q) ||
+          normalizeQuery(o.name).includes(q) ||
           o.ecoCode.toLowerCase().includes(q) ||
-          o.tags.some(t => t.includes(q));
+          o.tags.some(t => normalizeQuery(t).includes(q)) ||
+          o.variations.some(v => normalizeQuery(v.name).includes(q));
         if (!match) return false;
       }
       return true;
@@ -92,12 +101,17 @@ export default function OpeningsPage() {
                 opening.id,
                 opening.variations.map(v => v.id)
               );
+              const q = normalizeQuery(filters.search);
+              const matchedVariations = filters.search
+                ? opening.variations.filter(v => normalizeQuery(v.name).includes(q))
+                : [];
               return (
                 <OpeningCard
                   key={opening.id}
                   opening={opening}
                   completedLines={completedLines}
                   status={status}
+                  matchedVariations={matchedVariations.length > 0 ? matchedVariations : undefined}
                 />
               );
             })}

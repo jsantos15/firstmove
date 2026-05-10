@@ -1,20 +1,22 @@
 'use client';
 
-import { useState, use, useEffect, useRef } from 'react';
+import { useState, use, useEffect, useMemo, useRef } from 'react';
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
 import { PracticeBoard, type PracticeMode } from '@/components/board/PracticeBoard';
-import { useOpening } from '@/hooks/useOpenings';
+import { useOpening, type AppVariation } from '@/hooks/useOpenings';
+import { useOpeningPositionLabels } from '@/hooks/useOpeningPositionLabels';
 import { MoveList } from '@/components/board/MoveList';
 import { useAuth } from '@/app/providers';
-import { useAllProgress, MASTERY_LABELS, MASTERY_COLORS } from '@/hooks/useProgress';
+import { useAllProgress, MASTERY_COLORS } from '@/hooks/useProgress';
 import { BOARD_THEMES, useBoardSettings } from '@/hooks/useBoardSettings';
 import { PIECE_SETS } from '@/lib/piecesets';
 import type { CoachFeedback } from '@/lib/coachFeedback';
 
 interface PageProps {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ variation?: string }>;
 }
 
 // ─── Variation grouping ───────────────────────────────────────────────────────
@@ -22,13 +24,7 @@ interface PageProps {
 interface VariationGroup {
   id: string;
   displayName: string;
-  lines: { id: string; name: string; isMainLine?: boolean | null; primaryCategory?: string | null; lineDifficulty?: string | null }[];
-}
-
-interface DummyBranch {
-  id: string;
-  title: string;
-  punishMove: string;
+  lines: AppVariation[];
 }
 
 function extractGroupName(fullName: string | undefined, openingName: string): string {
@@ -43,8 +39,16 @@ function slugifyGroup(value: string) {
   return value.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
 }
 
+function normalizeOpeningLabel(value: string) {
+  return value
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .trim();
+}
+
 function groupVariations(
-  variations: { id: string; name: string; fullName?: string | null; isMainLine?: boolean | null; primaryCategory?: string | null; lineDifficulty?: string | null }[],
+  variations: AppVariation[],
   openingName: string,
 ): VariationGroup[] {
   const map = new Map<string, VariationGroup>();
@@ -66,63 +70,55 @@ function groupVariations(
   });
 }
 
-const CATEGORY_META: Record<string, { label: string; classes: string }> = {
-  tactical_payoff: { label: 'Tactical',  classes: 'bg-orange-400/10 text-orange-400' },
-  forcing:         { label: 'Forcing',   classes: 'bg-amber-400/10  text-amber-400'  },
-  strategic:       { label: 'Strategic', classes: 'bg-sky-400/10    text-sky-400'    },
-  setup:           { label: 'Setup',     classes: 'bg-teal-400/10   text-teal-400'   },
-};
-
-function getDummyBranches(openingName: string, groupName: string): DummyBranch[] {
-  if (openingName.toLowerCase() !== 'italian game') return [];
-  if (!groupName.toLowerCase().includes('giuoco piano')) return [];
-  return [
-    { id: 'punish-a6',  title: 'Punish queenside tempo loss',    punishMove: 'vs …a6?!'  },
-    { id: 'punish-be6', title: 'Punish premature bishop trade',  punishMove: 'vs …Be6?!' },
-    { id: 'punish-nd4', title: 'Punish knight outpost attempt',  punishMove: 'vs …Nd4?!' },
-  ];
-}
 
 // ─── Accordion group row ──────────────────────────────────────────────────────
 
 function GroupHeader({
   group,
+  childCount,
   isOpen,
-  onToggle,
+  hasActiveChild,
+  onClick,
 }: {
   group: VariationGroup;
+  childCount: number;
   isOpen: boolean;
-  onToggle: () => void;
+  hasActiveChild: boolean;
+  onClick: () => void;
 }) {
-  const hasMainLine = group.lines.some(l => l.isMainLine);
   return (
     <button
       type="button"
-      onClick={onToggle}
-      className={`w-full flex items-center gap-3 px-4 py-2.5 text-left transition-colors ${
-        isOpen ? 'text-white' : 'text-gray-400 hover:text-white hover:bg-white/5'
+      onClick={onClick}
+      className={`w-full flex items-center transition-colors ${
+        hasActiveChild ? 'bg-amber-400/10' : 'hover:bg-white/3'
       }`}
     >
-      <svg
-        xmlns="http://www.w3.org/2000/svg"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth={2}
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        className={`h-3 w-3 shrink-0 text-gray-600 transition-transform duration-150 ${isOpen ? 'rotate-90' : ''}`}
-      >
-        <path d="m9 18 6-6-6-6" />
-      </svg>
-      <div className="min-w-0 flex-1">
-        <span className="block truncate text-sm font-medium">{group.displayName}</span>
-        {hasMainLine && (
-          <span className="text-[10px] text-amber-400/60">includes main line</span>
+      <span className={`h-9 w-8 flex shrink-0 items-center justify-center ${
+        hasActiveChild ? 'text-amber-400' : 'text-gray-600'
+      }`}>
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth={2}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          className={`h-3 w-3 transition-transform duration-150 ${isOpen ? 'rotate-90' : ''}`}
+        >
+          <path d="m9 18 6-6-6-6" />
+        </svg>
+      </span>
+      <span className={`flex-1 flex items-center justify-between gap-2 py-2.5 pr-4 min-w-0 text-left text-sm font-medium transition-colors ${
+        hasActiveChild ? 'text-amber-300' : 'text-gray-400'
+      }`}>
+        <span className="truncate">{group.displayName}</span>
+        {childCount > 0 && (
+          <span className="shrink-0 rounded-full bg-white/5 px-2 py-0.5 text-[11px] text-gray-500">
+            {childCount}
+          </span>
         )}
-      </div>
-      <span className="shrink-0 rounded-full bg-white/5 px-2 py-0.5 text-[11px] text-gray-500">
-        {group.lines.length}
       </span>
     </button>
   );
@@ -136,6 +132,7 @@ function BranchRow({
   mastery,
   completions,
   onClick,
+  buttonRef,
 }: {
   line: VariationGroup['lines'][number];
   globalIndex: number;
@@ -144,40 +141,111 @@ function BranchRow({
   mastery?: string;
   completions?: number;
   onClick: () => void;
+  buttonRef?: React.RefObject<HTMLButtonElement | null>;
 }) {
   const locked = globalIndex > 0 && !user;
-  const cat = line.isMainLine ? null : CATEGORY_META[line.primaryCategory ?? ''];
+
+
+  return (
+    <button
+      ref={buttonRef}
+      type="button"
+      onClick={onClick}
+      className={`group relative w-full flex items-center gap-2.5 px-3 py-2 text-left text-xs transition-all ${
+        isActive
+          ? 'bg-amber-400/8 text-amber-300'
+          : locked
+          ? 'text-gray-600'
+          : 'text-gray-400 hover:bg-white/4 hover:text-white'
+      }`}
+    >
+      {/* Left accent bar */}
+      <span className={`absolute inset-y-1.5 left-0 w-0.5 rounded-full transition-colors ${
+        isActive ? 'bg-amber-400' : 'bg-transparent group-hover:bg-white/15'
+      }`} />
+      <span className="min-w-0 flex-1 truncate font-medium leading-tight">{line.name}</span>
+      <div className="flex shrink-0 items-center gap-1.5">
+        {completions != null && completions > 0 && (
+          <span className="text-[10px] text-gray-600">{completions}×</span>
+        )}
+        {locked ? (
+          <span className="text-[11px]">🔒</span>
+        ) : mastery && mastery !== 'new' ? (
+          <span className={`h-1.5 w-1.5 rounded-full ${MASTERY_COLORS[mastery as keyof typeof MASTERY_COLORS]}`} />
+        ) : null}
+      </div>
+    </button>
+  );
+}
+
+function formatBranchPercent(value?: number | null) {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return null;
+  return `${Math.round(value * 100)}%`;
+}
+
+function formatBranchEval(value?: number | null) {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return null;
+  if (Math.abs(value) >= 9000) return '#';
+  if (Math.abs(value) < 10) return '0.0';
+  return `${value > 0 ? '+' : '-'}${(Math.abs(value) / 100).toFixed(1)}`;
+}
+
+function PracticalBranchRow({
+  branch,
+  isActive,
+  locked,
+  mastery,
+  completions,
+  onClick,
+}: {
+  branch: AppVariation;
+  isActive: boolean;
+  locked: boolean;
+  mastery?: string;
+  completions?: number;
+  onClick: () => void;
+}) {
+  const metadata = branch.branchMetadata;
+  const title = metadata?.lesson_title ?? branch.name;
+  const trigger = metadata?.trigger_move_san ? `vs ${metadata.trigger_move_san}` : 'Practice branch';
+  const playRate = formatBranchPercent(metadata?.trigger_move_play_rate);
+  const games = metadata?.trigger_move_games;
+  const evalLabel = formatBranchEval(metadata?.final_trained_eval_cp ?? branch.finalEvalCp);
 
   return (
     <button
       type="button"
       onClick={onClick}
-      className={`w-full rounded-lg px-3 py-2 text-left text-xs transition-colors ${
+      className={`group relative w-full rounded-lg border px-3 py-2 text-left transition-colors ${
         isActive
-          ? 'border border-amber-400/20 bg-amber-400/15 text-amber-300'
+          ? 'border-amber-400/30 bg-amber-400/10'
           : locked
-          ? 'text-gray-600 hover:bg-white/5'
-          : 'text-gray-400 hover:bg-white/5 hover:text-white'
+          ? 'border-white/5 bg-white/[0.02] opacity-60'
+          : 'border-white/5 bg-white/[0.02] hover:border-white/10 hover:bg-white/[0.04]'
       }`}
     >
-      <div className="flex items-center gap-2">
-        <div className="min-w-0 flex-1">
-          <span className="block truncate font-medium leading-tight">{line.name}</span>
-          {completions != null && completions > 0 && (
-            <span className="text-[10px] text-gray-600">
-              {completions} {completions === 1 ? 'completion' : 'completions'}
-            </span>
-          )}
+      <div className="flex min-w-0 items-start justify-between gap-2">
+        <div className="min-w-0">
+          <span className={`block truncate text-xs font-medium leading-tight ${isActive ? 'text-amber-300' : 'text-gray-300'}`}>
+            {title}
+          </span>
+          <span className="mt-1 block truncate text-[10px] text-gray-600">
+            {trigger}
+            {playRate ? ` · ${playRate}` : ''}
+            {games ? ` · ${games.toLocaleString()} games` : ''}
+          </span>
         </div>
         <div className="flex shrink-0 items-center gap-1.5">
-          {line.isMainLine && (
-            <span className="rounded bg-white/5 px-1.5 py-0.5 text-[10px] text-gray-500">Ref</span>
+          {evalLabel && (
+            <span className="rounded bg-white/5 px-1.5 py-0.5 text-[10px] tabular-nums text-gray-400">
+              {evalLabel}
+            </span>
           )}
-          {cat && (
-            <span className={`rounded px-1.5 py-0.5 text-[10px] ${cat.classes}`}>{cat.label}</span>
+          {completions != null && completions > 0 && (
+            <span className="text-[10px] text-gray-600">{completions}x</span>
           )}
           {locked ? (
-            <span className="text-[11px]">🔒</span>
+            <span className="text-[11px]">Lock</span>
           ) : mastery && mastery !== 'new' ? (
             <span className={`h-1.5 w-1.5 rounded-full ${MASTERY_COLORS[mastery as keyof typeof MASTERY_COLORS]}`} />
           ) : null}
@@ -187,17 +255,6 @@ function BranchRow({
   );
 }
 
-function DummyBranchRow({ branch }: { branch: DummyBranch }) {
-  return (
-    <div className="flex items-center gap-2 rounded-lg border border-dashed border-white/10 px-3 py-2 text-xs opacity-50">
-      <div className="min-w-0 flex-1">
-        <span className="block truncate font-medium text-gray-500 leading-tight">{branch.title}</span>
-        <span className="text-[10px] text-gray-600">{branch.punishMove}</span>
-      </div>
-      <span className="shrink-0 rounded bg-amber-400/10 px-1.5 py-0.5 text-[10px] text-amber-400/70">Soon</span>
-    </div>
-  );
-}
 
 function BoardSettingsPopover() {
   const { settings, setSettings } = useBoardSettings();
@@ -237,7 +294,7 @@ function BoardSettingsPopover() {
       </button>
 
       {open && (
-        <div className="absolute bottom-full right-0 z-30 mb-3 w-80 rounded-2xl border border-white/10 bg-[var(--bg-panel)] p-4 shadow-2xl shadow-black/50 backdrop-blur">
+        <div className="absolute bottom-full right-0 z-30 mb-3 w-80 rounded-2xl border border-white/10 bg-(--bg-panel) p-4 shadow-2xl shadow-black/50 backdrop-blur">
           <div className="mb-4">
             <h3 className="text-sm font-semibold text-white">Board settings</h3>
             <p className="mt-1 text-xs text-gray-500">Quick adjustments for this practice session.</p>
@@ -362,17 +419,103 @@ function ToggleChip({
   );
 }
 
-export default function PracticePage({ params }: PageProps) {
+export default function PracticePage({ params, searchParams }: PageProps) {
   const { id } = use(params);
+  const { variation: variationParam } = use(searchParams);
   const { data: opening, isLoading } = useOpening(id);
   const { user } = useAuth();
   const { data: progress } = useAllProgress();
-  const [selectedVariationId, setSelectedVariationId] = useState('');
-  const [openGroupId, setOpenGroupId] = useState('');
+  const [expandedGroupId, setExpandedGroupId] = useState('');
+  const [selectedLineId, setSelectedLineId] = useState<string | null>(null);
+  const [selectedReferenceLineId, setSelectedReferenceLineId] = useState<string | null>(null);
   const [showAuthPrompt, setShowAuthPrompt] = useState(false);
+  const activeLineRef = useRef<HTMLButtonElement>(null);
   const [currentMoveIndex, setCurrentMoveIndex] = useState(-1);
   const [mode, setMode] = useState<PracticeMode>('learn');
   const [coachFeedback, setCoachFeedback] = useState<CoachFeedback | null>(null);
+  const allPracticeLines = useMemo(
+    () => [...(opening?.variations ?? []), ...(opening?.practicalBranches ?? [])],
+    [opening?.practicalBranches, opening?.variations]
+  );
+  const selectedVariationForLabels =
+    allPracticeLines.find(v => v.id === selectedLineId) ?? opening?.variations[0];
+  const { milestones: openingLabelMilestones } = useOpeningPositionLabels(
+    selectedVariationForLabels?.moves ?? []
+  );
+  const lessonOpeningMilestones = useMemo(() => {
+    if (!opening) {
+      return [];
+    }
+
+    const lessonName = normalizeOpeningLabel(opening.name);
+    return openingLabelMilestones.filter(milestone => {
+      const family = normalizeOpeningLabel(milestone.family);
+      const name = normalizeOpeningLabel(milestone.name);
+
+      return (
+        family === lessonName ||
+        name === lessonName ||
+        name.startsWith(`${lessonName}:`)
+      );
+    });
+  }, [opening, openingLabelMilestones]);
+
+  // Auto-expand and select a line once data loads.
+  // If a ?variation= param was provided, select that line and expand its group.
+  useEffect(() => {
+    if (!opening || selectedLineId) return;
+    const gs = groupVariations(opening.variations, opening.name);
+    let nextExpandedGroupId = '';
+    let nextSelectedLineId = '';
+    let nextSelectedReferenceLineId = '';
+
+    if (variationParam) {
+      const targetLine = opening.variations.find(v => v.id === variationParam);
+      if (targetLine) {
+        const targetGroup = gs.find(g => g.lines.some(l => l.id === variationParam));
+        nextExpandedGroupId = targetGroup?.id ?? '';
+        nextSelectedLineId = targetLine.id;
+        nextSelectedReferenceLineId = targetLine.id;
+      } else {
+        const targetBranch = opening.practicalBranches.find(v => v.id === variationParam);
+        const parentLineId = targetBranch?.branchMetadata?.parent_line_slug;
+        if (targetBranch && parentLineId) {
+          const targetGroup = gs.find(g => g.lines.some(l => l.id === parentLineId));
+          nextExpandedGroupId = targetGroup?.id ?? '';
+          nextSelectedReferenceLineId = parentLineId;
+          nextSelectedLineId = targetBranch.id;
+        }
+      }
+    }
+
+    if (!nextSelectedLineId) {
+      const first = gs[0];
+      const firstLine = first?.lines[0];
+      if (first && firstLine) {
+        nextExpandedGroupId = first.id;
+        nextSelectedLineId = firstLine.id;
+        nextSelectedReferenceLineId = firstLine.id;
+      }
+    }
+
+    if (!nextSelectedLineId) return;
+
+    let cancelled = false;
+    queueMicrotask(() => {
+      if (cancelled) return;
+      setExpandedGroupId(nextExpandedGroupId);
+      setSelectedLineId(nextSelectedLineId);
+      setSelectedReferenceLineId(nextSelectedReferenceLineId);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [opening?.id, variationParam]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    activeLineRef.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  }, [selectedLineId]);
 
   if (isLoading) {
     return (
@@ -384,17 +527,54 @@ export default function PracticePage({ params }: PageProps) {
 
   if (!opening) notFound();
 
-  const activeVariationId = selectedVariationId || opening.variations[0]?.id;
-  const selectedVariation = opening.variations.find(v => v.id === activeVariationId) ?? opening.variations[0];
+  const groups = groupVariations(opening.variations, opening.name);
+  const activeReferenceLineId = selectedReferenceLineId ?? selectedLineId;
+  const activeGroup = groups.find(g => g.lines.some(l => l.id === activeReferenceLineId));
+  const selectedVariation = allPracticeLines.find(v => v.id === selectedLineId) ?? opening.variations[0];
+  const activeReferenceGlobalIndex = opening.variations.findIndex(v => v.id === activeReferenceLineId);
+  const selectedReferenceBranches = opening.practicalBranches.filter(
+    branch => branch.branchMetadata?.parent_line_slug === activeReferenceLineId
+  );
+
   const coachBubbleText = coachFeedback?.message ?? opening.description;
 
-  function handleVariationClick(variationId: string, index: number) {
-    if (index > 0 && !user) {
+  // Group header click: toggle expand/collapse and auto-select first child if needed
+  function handleGroupClick(group: VariationGroup) {
+    const isExpanded = expandedGroupId === group.id;
+    setExpandedGroupId(isExpanded ? '' : group.id);
+    // Auto-select the first child line when opening a group that has no active selection
+    if (!isExpanded) {
+      const hasActiveChild = group.lines.some(l => l.id === activeReferenceLineId);
+      if (!hasActiveChild) {
+        const firstLine = group.lines[0];
+        if (firstLine) {
+          setSelectedLineId(firstLine.id);
+          setSelectedReferenceLineId(firstLine.id);
+          setCoachFeedback(null);
+          setShowAuthPrompt(false);
+        }
+      }
+    }
+  }
+
+  function handleLineClick(lineId: string, globalIndex: number) {
+    if (globalIndex > 0 && !user) {
       setShowAuthPrompt(true);
       return;
     }
     setShowAuthPrompt(false);
-    setSelectedVariationId(variationId);
+    setSelectedLineId(lineId);
+    setSelectedReferenceLineId(lineId);
+    setCoachFeedback(null);
+  }
+
+  function handleBranchClick(branchId: string) {
+    if (activeReferenceGlobalIndex > 0 && !user) {
+      setShowAuthPrompt(true);
+      return;
+    }
+    setShowAuthPrompt(false);
+    setSelectedLineId(branchId);
     setCoachFeedback(null);
   }
 
@@ -402,7 +582,7 @@ export default function PracticePage({ params }: PageProps) {
     <div className="h-full flex flex-col overflow-hidden">
 
       {/* Header */}
-      <header className="h-14 shrink-0 bg-[var(--bg-base)]/80 backdrop-blur z-10">
+      <header className="h-14 shrink-0 bg-(--bg-base)/80 backdrop-blur z-10">
         <div className="flex h-full items-center px-4 lg:px-6">
           <div className="flex min-w-0 items-center gap-3">
             <Link href="/openings" className="text-gray-400 hover:text-white transition-colors text-sm">
@@ -413,8 +593,8 @@ export default function PracticePage({ params }: PageProps) {
           </div>
 
           <div className="pointer-events-none absolute inset-x-4 flex justify-center lg:inset-x-6">
-            <div className="grid w-full max-w-[1640px] grid-cols-[minmax(0,1fr)_24rem] gap-3 lg:grid-cols-[minmax(0,1fr)_27rem] lg:gap-3">
-              <div className="flex justify-center sm:translate-x-[18px]">
+            <div className="grid w-full max-w-410 grid-cols-[minmax(0,1fr)_24rem] gap-3 lg:grid-cols-[minmax(0,1fr)_27rem] lg:gap-3">
+              <div className="flex justify-center sm:translate-x-4.5">
                 <div className="pointer-events-auto flex overflow-hidden rounded-xl border border-white/10">
                   <ModeButton active={mode === 'learn'} onClick={() => setMode('learn')}>Learn</ModeButton>
                   <ModeButton active={mode === 'practice'} onClick={() => setMode('practice')}>Practice</ModeButton>
@@ -427,7 +607,7 @@ export default function PracticePage({ params }: PageProps) {
       </header>
 
       <div className="flex-1 min-h-0 overflow-hidden px-4 pb-3 pt-2 lg:px-6 lg:pb-4 lg:pt-3">
-        <div className="mx-auto flex h-full w-full max-w-[1640px] gap-3 lg:gap-3">
+        <div className="mx-auto flex h-full w-full max-w-410 gap-3 lg:gap-3">
 
           {/* Board column */}
           <div className="flex h-full min-w-0 flex-1 justify-end">
@@ -446,13 +626,13 @@ export default function PracticePage({ params }: PageProps) {
           </div>
 
           {/* Sidebar */}
-          <div className="w-[24rem] lg:w-[27rem] shrink-0 h-full flex flex-col gap-3">
+          <div className="w-[24rem] lg:w-108 shrink-0 h-full flex flex-col gap-3">
 
             {/* Coach — fixed */}
-            <div className="h-[5.75rem] shrink-0">
+            <div className="h-23 shrink-0">
               <div className="flex h-full items-start gap-1">
-                <div className="flex w-[5.5rem] shrink-0 items-start">
-                  <div className="relative h-[5.75rem] w-24">
+                <div className="flex w-22 shrink-0 items-start">
+                  <div className="relative h-23 w-24">
                     <Image
                       src="/coaches/jazmin.png"
                       alt="Jazmin, your opening coach"
@@ -464,8 +644,8 @@ export default function PracticePage({ params }: PageProps) {
                     />
                   </div>
                 </div>
-                <div className="relative h-[5.75rem] min-w-0 flex-1 rounded-2xl border border-zinc-200 bg-white px-5 py-4 text-zinc-900 shadow-lg shadow-black/20">
-                  <div className="absolute left-[-7px] top-8 h-4 w-4 rotate-45 border-b border-l border-zinc-200 bg-white" />
+                <div className="relative h-23 min-w-0 flex-1 rounded-2xl border border-zinc-200 bg-white px-5 py-4 text-zinc-900 shadow-lg shadow-black/20">
+                  <div className="absolute -left-1.75 top-8 h-4 w-4 rotate-45 border-b border-l border-zinc-200 bg-white" />
                   <p className="max-h-full overflow-hidden text-sm leading-5 text-zinc-700">{coachBubbleText}</p>
                 </div>
               </div>
@@ -473,91 +653,126 @@ export default function PracticePage({ params }: PageProps) {
 
             {/* Move list — only in Learn mode */}
             {mode === 'learn' && selectedVariation && (
-              <MoveList variation={selectedVariation} currentMoveIndex={currentMoveIndex} />
+              <MoveList
+                variation={selectedVariation}
+                currentMoveIndex={currentMoveIndex}
+                milestones={lessonOpeningMilestones}
+              />
             )}
 
-            {/* Line selector — accordion grouped by variation */}
-            {(() => {
-              const groups = groupVariations(opening.variations, opening.name);
-              const activeGroupId = openGroupId ||
-                groups.find(g => g.lines.some(l => l.id === activeVariationId))?.id ||
-                groups[0]?.id;
+            {/* Variations + Branches panels */}
+            <div className="flex-1 min-h-0 flex flex-col gap-3">
 
-              function handleGroupToggle(group: VariationGroup) {
-                const isNowOpen = activeGroupId !== group.id;
-                setOpenGroupId(isNowOpen ? group.id : '__collapsed__');
-                if (isNowOpen) {
-                  const first = group.lines[0];
-                  if (!first) return;
-                  const globalIndex = opening!.variations.findIndex(v => v.id === first.id);
-                  handleVariationClick(first.id, globalIndex);
-                }
-              }
+              {/* Variations panel */}
+              <div className="min-h-0 flex flex-col rounded-xl border border-white/5 bg-(--bg-panel)" style={{ flex: 59 }}>
 
-              return (
-                <div className="flex-1 min-h-0 flex flex-col rounded-xl border border-white/5 bg-(--bg-panel)">
-                  {/* Header */}
-                  <div className="shrink-0 flex items-center justify-between px-4 pt-4 pb-3 border-b border-white/5">
-                    <h3 className="text-xs font-medium text-gray-500 uppercase tracking-wider">Lines</h3>
-                    <span className="text-[11px] text-gray-600">
-                      {groups.length} var · {opening.variations.length} lines
-                    </span>
+                {/* Panel header */}
+                <div className="shrink-0 flex items-start justify-between px-4 pt-4 pb-3 border-b border-white/5">
+                  <div>
+                    <h3 className="text-xs font-medium text-gray-500 uppercase tracking-wider">Variations</h3>
+                    <p className="mt-0.5 text-[10px] text-gray-600">Reference continuations generated from the named position</p>
                   </div>
+                  <span className="text-[11px] text-gray-600 mt-0.5">
+                    {groups.length} var · {opening.variations.length} lines
+                  </span>
+                </div>
 
-                  {/* Accordion */}
-                  <div className="flex-1 min-h-0 overflow-y-auto py-1">
-                    {groups.map(group => {
-                      const isOpen = activeGroupId === group.id;
-                      const dummies = getDummyBranches(opening!.name, group.displayName);
+                {/* Accordion */}
+                <div className="flex-1 min-h-0 overflow-y-auto py-1">
+                  {groups.map(group => {
+                    const isExpanded = expandedGroupId === group.id;
+                    const hasActiveChild = group.lines.some(l => l.id === activeReferenceLineId);
+
+                    return (
+                      <div key={group.id}>
+                        <GroupHeader
+                          group={group}
+                          childCount={group.lines.length}
+                          isOpen={isExpanded}
+                          hasActiveChild={hasActiveChild}
+                          onClick={() => handleGroupClick(group)}
+                        />
+                        {isExpanded && group.lines.length > 0 && (
+                          <div className="mx-3 mb-2.5 mt-0.5 overflow-hidden rounded-lg border border-white/5 divide-y divide-white/5">
+                            {group.lines.map(line => {
+                              const globalIndex = opening.variations.findIndex(v => v.id === line.id);
+                              const vProgress = progress?.get(`${opening.id}/${line.id}`);
+                              return (
+                                <BranchRow
+                                  key={line.id}
+                                  line={line}
+                                  globalIndex={globalIndex}
+                                  isActive={line.id === activeReferenceLineId}
+                                  user={user}
+                                  mastery={vProgress?.mastery}
+                                  completions={vProgress?.timesCompleted}
+                                  onClick={() => handleLineClick(line.id, globalIndex)}
+                                  buttonRef={line.id === activeReferenceLineId ? activeLineRef : undefined}
+                                />
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {showAuthPrompt && (
+                  <div className="shrink-0 mx-4 mb-4 rounded-lg border border-amber-400/20 bg-amber-400/5 p-3 text-xs text-amber-300">
+                    <p className="mb-2">Sign in to unlock all lines.</p>
+                    <Link
+                      href="/login"
+                      className="inline-block rounded-md bg-amber-400 px-3 py-1.5 text-xs font-semibold text-[#0f1117] hover:bg-amber-300 transition-colors"
+                    >
+                      Sign in
+                    </Link>
+                  </div>
+                )}
+              </div>
+
+              {/* Branches panel */}
+              <div className="min-h-0 flex flex-col rounded-xl border border-white/5 bg-(--bg-panel)" style={{ flex: 41 }}>
+                <div className="shrink-0 px-4 pt-3 pb-2 border-b border-white/5">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <h4 className="text-[10px] font-medium uppercase tracking-wider text-gray-600">Branches</h4>
+                      <p className="mt-0.5 truncate text-[10px] text-gray-600">
+                        {activeGroup?.displayName ?? 'Select a variation'}
+                      </p>
+                    </div>
+                    {selectedReferenceBranches.length > 0 && (
+                      <span className="shrink-0 text-[11px] text-gray-600">
+                        {selectedReferenceBranches.length}
+                      </span>
+                    )}
+                  </div>
+                </div>
+                {selectedReferenceBranches.length > 0 ? (
+                  <div className="flex-1 min-h-0 overflow-y-auto px-3 py-2 flex flex-col gap-1.5">
+                    {selectedReferenceBranches.map(branch => {
+                      const branchProgress = progress?.get(`${opening.id}/${branch.id}`);
                       return (
-                        <div key={group.id}>
-                          <GroupHeader
-                            group={group}
-                            isOpen={isOpen}
-                            onToggle={() => handleGroupToggle(group)}
-                          />
-                          {isOpen && (
-                            <div className="px-3 pb-2 flex flex-col gap-1">
-                              {group.lines.map(line => {
-                                const globalIndex = opening!.variations.findIndex(v => v.id === line.id);
-                                const vProgress = progress?.get(`${opening!.id}/${line.id}`);
-                                return (
-                                  <BranchRow
-                                    key={line.id}
-                                    line={line}
-                                    globalIndex={globalIndex}
-                                    isActive={line.id === activeVariationId}
-                                    user={user}
-                                    mastery={vProgress?.mastery}
-                                    completions={vProgress?.timesCompleted}
-                                    onClick={() => handleVariationClick(line.id, globalIndex)}
-                                  />
-                                );
-                              })}
-                              {dummies.map(branch => (
-                                <DummyBranchRow key={branch.id} branch={branch} />
-                              ))}
-                            </div>
-                          )}
-                        </div>
+                        <PracticalBranchRow
+                          key={branch.id}
+                          branch={branch}
+                          isActive={branch.id === selectedLineId}
+                          locked={activeReferenceGlobalIndex > 0 && !user}
+                          mastery={branchProgress?.mastery}
+                          completions={branchProgress?.timesCompleted}
+                          onClick={() => handleBranchClick(branch.id)}
+                        />
                       );
                     })}
                   </div>
+                ) : (
+                  <div className="flex-1 px-4 py-3 text-xs text-gray-600">
+                    No practical branches stored for this variation yet.
+                  </div>
+                )}
+              </div>
 
-                  {showAuthPrompt && (
-                    <div className="shrink-0 mx-4 mb-4 rounded-lg border border-amber-400/20 bg-amber-400/5 p-3 text-xs text-amber-300">
-                      <p className="mb-2">Sign in to unlock all lines.</p>
-                      <Link
-                        href="/login"
-                        className="inline-block rounded-md bg-amber-400 px-3 py-1.5 text-xs font-semibold text-[#0f1117] hover:bg-amber-300 transition-colors"
-                      >
-                        Sign in
-                      </Link>
-                    </div>
-                  )}
-                </div>
-              );
-            })()}
+            </div>{/* end variations+branches */}
 
           </div>{/* end sidebar */}
 

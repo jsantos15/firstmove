@@ -255,3 +255,275 @@
 **Decision:** Expand the coach move vocabulary toward a Chess.com-style analysis set by adding `brilliant` and `great`, while keeping opening practice conservative about when those labels are emitted. Add an AI-ready narration payload containing opening, move, classification, line category, trained-side eval before/after, and style constraints. Keep phrase samples versioned in app code for now; later Supabase should cache final generated messages by stable move/position/context key rather than act as the editing source for first-pass templates.
 
 **Reason:** The coach should eventually explain more than openings, but live AI calls are paid, slower, and less deterministic. A structured payload lets a future model write friendlier text from facts supplied by FirstMove, while deterministic local narration and cached generated messages keep the current app reliable and inexpensive.
+
+## 2026-05-03 - Resolve opening names by position index, not PGN scanning
+
+**Decision:** Add a Supabase-backed `opening_positions` index generated from `lichess-org/chess-openings`, keyed by normalized FEN position. Opening practice and future game analysis views should batch lookup position keys and then display the latest matched opening name as the user navigates moves.
+
+**Reason:** FirstMove is expected to grow from opening practice into general game analysis. Matching by position handles transpositions and avoids scanning opening PGNs on every move. Keeping the index in Supabase preserves the runtime source-of-truth rule while letting clients memoize only the current game's lookup results.
+
+## 2026-05-04 - Keep Lichess cloud eval as resumable post-generation audit
+
+**Decision:** Generate opening reference lines locally first, then audit generated continuation decisions with `scripts/audit-opening-lines-lichess-cloud.cjs`. The cloud audit uses a 5-second default delay, writes a cache for every cloud result or miss, saves the audit output after every target, resumes by default, and stops auditing downstream positions in a line after the first cloud override because the old downstream positions no longer belong to the regenerated line.
+
+**Reason:** Lichess cloud eval is useful as a deeper authority when available, but it is rate-limited and not guaranteed for every position. Keeping cloud usage in a resumable audit step lets FirstMove cover all generated lines over a long run without making the main local generator dependent on cloud availability. When cloud changes a move, the correct next step is to regenerate that line from the changed move, not patch one move inside an already generated sequence.
+
+## 2026-05-04 - Allow cloud-authoritative reference generation as an explicit long run
+
+**Decision:** Add `--cloud-eval-mode authoritative` to `scripts/generate-opening-candidates.cjs` for reference-line generation runs where Lichess cloud eval is the preferred move authority for both sides. In this mode the generator uses cloud best moves when available, falls back to local Stockfish depth 18 when cloud has no usable position result, saves the output after every completed line, reuses the cloud cache, and writes a `paused` payload before exiting if Lichess returns `429`.
+
+**Reason:** For rebuilding a small focused opening such as the Italian Game, a long resumable cloud-first run is acceptable when the goal is maximum cloud alignment rather than fast local reproducibility. Local Stockfish fallback keeps rare cloud misses from blocking the line, while `429` still pauses the run so the project does not keep hammering Lichess after a rate-limit signal.
+
+## 2026-05-06 - Full opening generation pipeline algorithm
+
+This entry is the canonical reference for the complete opening-line generation pipeline. Future sessions should read this before touching any generation script.
+
+---
+
+### Overview
+
+The pipeline has five stages:
+
+```
+generate → dedup → prepare → import → sync
+```
+
+Each stage is a separate script. No stage is skipped. Output from each stage can be inspected before the next runs.
+
+---
+
+### Stage 1 — Generate (`scripts/generate-opening-candidates.cjs`)
+
+**Source data:** `lichess-org/chess-openings` TSV files (a–e). Each row is an ECO code, a full opening name, and a PGN. The script fetches them fresh from GitHub at runtime.
+
+**Entry filtering — two independent guards, both must pass:**
+
+1. `--starts-with <name>` — keeps only entries whose opening name starts with the given string (e.g. `"Italian Game"`). This is a text match on Lichess's naming.
+2. `--san-prefix <san1,san2,...>` — keeps only entries whose actual move sequence starts with the given SANs (e.g. `"e4,e5,Nf3,Nc6,Bc4"` for Italian Game). This is required because Lichess names some transposition lines under the wrong opening family (e.g. Scotch Gambit lines named "Italian Game: ..."). Without this guard, wrong-anchor lines slip through.
+
+Both filters are mandatory for any opening run. The `--san-prefix` is the opening's defining moves.
+
+**Known san-prefix values:**
+| Opening | `--starts-with` | `--san-prefix` |
+|---|---|---|
+| Italian Game | `Italian Game` | `e4,e5,Nf3,Nc6,Bc4` |
+| Caro-Kann Defense | `Caro-Kann` | `e4,c6` |
+
+**Line generation — per source entry:**
+
+Each filtered Lichess entry becomes a "variation anchor" — the named position where the variation begins. The generator then extends the anchor into a full teaching line:
+
+1. Start from the anchor FEN (last position of the source PGN)
+2. Fetch cloud or local Stockfish eval for the position
+3. Pick the best reference continuation move from the engine, regardless of which side is to move
+4. Repeat best-play engine continuation for both sides
+5. Repeat until a stopping rule fires
+
+Reference generation does **not** use Lichess Explorer for opponent replies. Explorer-backed human-popular opponent choices belong to future practical branch generation, not current reference lines.
+
+**Shared reference stopping model:**
+- Category labels (`setup`, `strategic`, `tactical_payoff`, `forcing`) do not affect reference-line stopping.
+- Minimum added plies must be met (`--reference-min-added-plies`, default 2), unless the total line has already reached the soft reference length.
+- A mature checkpoint must look like a stable tabiya: low tactical volatility or clear material/compensation, visible plan/development/castling/eval shape, no critical trained king safety, no only-move pressure, no narrow/critical top-move gap, and stable eval.
+- If a mature checkpoint is found, it is stored as a rollback candidate.
+- If the line reaches a cap, the generator rolls back to the best mature checkpoint found earlier.
+- If no mature checkpoint exists, the line stops at the cap and marks the endpoint as a weaker fallback.
+
+**Reference caps:**
+- `--reference-soft-total-plies` (default 22): preferred endpoint area.
+- `--reference-hard-total-plies` (default 28): force a stop unless the position is still unusually forcing.
+- `--reference-exception-total-plies` (default 32): hard reference cap.
+- `--max-added-plies` (default 20): maximum continuation after the anchor.
+- `--max-total-plies` (default 40): emergency absolute cap.
+
+**Cloud eval router (`scripts/lib/cloud-eval-router.cjs`):**
+
+Engines are tried in priority order: `lichess → chess-api`. Rules:
+
+- **Preferred engine per line:** each new line starts from the next available cloud engine.
+- **No-data cascade:** if the preferred engine has no cloud eval for a specific position, try remaining engines for that position only (not a full line restart). This covers coverage gaps, not rate limits. Lines may therefore be marked `mixed` when coverage requires multiple providers.
+- **429 → full line restart:** if the locked engine returns 429 (rate limited), mark it as cooling (30-min cooldown), restart the current line from its anchor using the next available engine.
+- **Cooldown recovery:** `getNextAvailableEngine()` is called at the start of each new line. After 30 minutes the cooled engine becomes eligible again automatically.
+- **Fallback:** if all cloud engines are cooling or have no data, fall through to local Stockfish (depth 18).
+
+**Output fields per line (key ones):**
+- `generatedSans` — the full teaching line as a SAN array (this is what gets stored in the DB and shown to users)
+- `variationAnchorSans` — the source anchor moves (subset of `generatedSans`)
+- `finalEvalCp` / `finalEvalPerspective` — centipawn eval at the last position, white-perspective
+- `engineProvider` — which engine generated the continuation (`lichess`, `chess-api`, `stockfish`, `mixed`)
+- `avgExtensionDepth` — average depth of cloud evals used during extension plies
+- `generation.stopReason` — why the line stopped
+
+**Output files:** `scripts/output/generated-opening-candidates-<opening>-cloud-reference.json`
+
+**Resumability:** pass `--resume` to skip already-processed source names and continue from where a previous interrupted run left off. The script writes a checkpoint after every `--checkpoint-every` lines (default 10).
+
+**Example invocation:**
+```
+node scripts/generate-opening-candidates.cjs \
+  --starts-with "Italian Game" \
+  --san-prefix "e4,e5,Nf3,Nc6,Bc4" \
+  --output scripts/output/generated-opening-candidates-italian-game-cloud-reference.json \
+  --cloud-eval-mode authoritative \
+  --resume
+```
+
+---
+
+### Stage 2 — Dedup (`scripts/dedup-opening-candidates.cjs`)
+
+**Problem it solves:** Some shorter lines are strict prefixes of longer lines in the same opening. A learner studying the longer line already learns the shorter one — keeping both creates redundant practice and confuses the variations panel.
+
+**Rule:** For each pair of lines in the same opening, if line A's `generatedSans` is a strict prefix of line B's `generatedSans` (A is shorter, all A's moves match B's start), remove A.
+
+**Chain handling:** if A ⊂ B ⊂ C, both A and B are removed. Only C is kept.
+
+**Usage:**
+```
+# Preview first
+node scripts/dedup-opening-candidates.cjs --input <file> --dry-run
+
+# Apply
+node scripts/dedup-opening-candidates.cjs --input <file>
+```
+
+Overwrites the input file by default. Pass `--output <file>` to write elsewhere.
+
+---
+
+### Stage 3 — Prepare (`scripts/prepare-opening-db-payload.cjs`)
+
+Transforms the generator JSON into DB-ready row shapes. No network calls. Pure transformation.
+
+- Resolves duplicate line display names (appends a disambiguating suffix)
+- Generates stable slug IDs for every line
+- Infers opening color, difficulty, tags, and description
+- Builds exact row shapes for `openings_catalog` and `opening_lines` tables
+- Outputs a structured payload JSON with `currentSchema`, `seedPayload`, and sidecar metadata
+
+**Usage:**
+```
+node scripts/prepare-opening-db-payload.cjs \
+  --input scripts/output/generated-opening-candidates-<opening>-cloud-reference.json \
+  --output scripts/output/opening-db-payload-<opening>.json
+```
+
+---
+
+### Stage 4 — Import (`scripts/import-opening-db-payload.cjs`)
+
+Upserts the prepared payload into Supabase. Adds or updates rows; never deletes.
+
+- Writes opening catalog row
+- Writes all line rows with eval, generation metadata, and engine info
+- Idempotent — safe to run multiple times on the same payload
+
+**Usage:**
+```
+node scripts/import-opening-db-payload.cjs --input scripts/output/opening-db-payload-<opening>.json
+```
+
+---
+
+### Stage 5 — Sync (`scripts/sync-opening-db-payload.cjs`)
+
+Prunes stale rows from Supabase — lines that existed from a prior import but are no longer in the current payload (removed, renamed, or deduplicated).
+
+- `--scope-payload-openings` restricts pruning to only the openings present in the payload (safe — does not touch other openings)
+- `--apply` required to actually delete; omit for a dry-run report
+
+**Usage:**
+```
+node scripts/sync-opening-db-payload.cjs \
+  --input scripts/output/opening-db-payload-<opening>.json \
+  --scope-payload-openings \
+  --apply
+```
+
+---
+
+### Full pipeline for a single opening
+
+```
+node scripts/generate-opening-candidates.cjs --starts-with "..." --san-prefix "..." --output ... --cloud-eval-mode authoritative --resume
+node scripts/dedup-opening-candidates.cjs --input ...
+node scripts/prepare-opening-db-payload.cjs --input ... --output ...
+node scripts/import-opening-db-payload.cjs --input ...
+node scripts/sync-opening-db-payload.cjs --input ... --scope-payload-openings --apply
+```
+
+### Full pipeline orchestrator
+
+For known opening reruns, `scripts/run-opening-reference-pipeline.cjs` wraps the five-stage flow without replacing any stage:
+
+```
+node scripts/run-opening-reference-pipeline.cjs --openings italian-game,caro-kann --apply-sync
+```
+
+- Runs `generate → dedup → prepare → import → sync` for each selected opening.
+- Uses the known `--starts-with` and `--san-prefix` values from this decision log.
+- Overwrites generated JSON and prepared payload files for the selected openings.
+- Before overwriting a generated JSON file, snapshots the previous results and writes a diff report after dedup to `scripts/output/opening-reference-diff-<opening>.json`; terminal output lists changed/added/removed counts and the first changed lines to review.
+- Requires either `--openings <list>` or `--all` so imports are never started by an accidental no-arg run.
+- Refuses to continue past generation unless the generated JSON status is `complete`.
+- Supports `--start-at generate|dedup|prepare|import|sync` for restarting after a failed later stage.
+- `--apply-sync` is required for stale-row pruning. Without it, sync runs as a dry-run.
+- `--resume` can be passed for interrupted generation runs, but fresh regeneration should omit it.
+
+---
+
+## 2026-05-05 - Store opening reference generation metadata in Supabase
+
+**Decision:** Add `opening_lines.engine_provider`, `engine_model`, `avg_engine_depth`, and compact `generation_metadata` so imported reference lines preserve which engine source generated the continuation, the average continuation depth, source counts, anchor metadata, and stop diagnostics.
+
+**Reason:** The app runtime source of truth is Supabase, so generated JSON artifacts should not be the only place that explains how a reference line was produced. Keeping compact generation metadata on each line makes future audits, UI filtering, and debugging possible without re-reading local output files.
+
+---
+
+## 2026-05-06 - Use one stopping model for all generated reference lines
+
+**Decision:** Reference-best-play generation must use one reference/tobiya stopping model regardless of the line's tactical, strategic, setup, or forcing classification. The category-specific completion rules remain available only for future practical-human branches.
+
+**Reason:** Reference lines are engine/reference continuations, not tactic-type lessons. Applying category-specific payoff rules caused some reference lines to chase tactical resolution unnecessarily and then stop at continuation caps. A shared tabiya endpoint model keeps reference lines consistent and lets cap fallbacks roll back to the best mature checkpoint instead of ending on a forced-looking final move.
+
+---
+
+## 2026-05-07 - Short-horizon review before accepting reference endpoints
+
+**Decision:** Cloud-authoritative reference generation should not stop immediately at the first acceptable mature checkpoint. The first acceptable checkpoint becomes a candidate, then the generator checks a short horizon for a clearly better endpoint. Reference signals also flag unresolved capture decisions, where the engine's best move is a capture but playable non-capture alternatives remain; those positions should continue at least briefly instead of ending one move before the choice is resolved.
+
+**Reason:** An endpoint can be technically acceptable but still poor for teaching if the next move resolves an obvious practical question, such as whether a side should capture or maintain tension. A short-horizon review keeps lines from overextending while avoiding premature endings like stopping immediately before a best capture.
+
+**Update:** Reference endpoints also penalize pending recaptures: if the last move was a capture and the next engine move is a forced-looking recapture, that position is treated as a poor endpoint and should continue briefly or lose to a cleaner rollback checkpoint.
+
+**Update:** Reference endpoints also score small material debt lower. If the trained side is down one pawn before ply 18, the line should continue rather than accepting a low-value early endpoint. After ply 18, the short-horizon review may use a bounded material-recovery window so the line can prefer a nearby endpoint where the pawn is recovered, provided the recovered position also satisfies the normal mature-checkpoint rules.
+
+**Update:** Positions rejected by tactical reference-quality guards are not allowed to become rollback checkpoints. This prevents cap fallback from restoring an endpoint that was correctly rejected earlier, such as stopping at `5. d3` when `...exd3` is the next best capture. Early one-pawn-debt positions are different: they should not be accepted as direct stops before ply 18, but they may still be kept as lower-ranked rollback checkpoints so a later cap does not force a worse tactical endpoint.
+
+**Update:** The hard reference cap may use the exception window when the current position is explicitly non-stoppable because an unresolved capture decision or pending recapture remains. This lets the generator play the next resolving move, up to the absolute exception cap, instead of ending one ply before the position becomes understandable.
+
+**Update:** The generated-continuation cap (`maxAddedPlies`) follows the same principle for reference lines: if the current position is explicitly non-stoppable because of an unresolved capture decision or pending recapture, the generator may continue beyond `maxAddedPlies` until the issue resolves or the absolute exception cap is reached.
+
+---
+
+## 2026-05-07 - Preserve best cached engine data across reference reruns
+
+**Decision:** Reference generation should treat cached cloud results as higher-authority move data even when that engine is currently cooling down. For each position, the generator checks cached Lichess cloud eval first, cached Chess-API eval second, then live cloud engines, then persistent local Stockfish fallback. Stockfish fallback results are written to `scripts/output/stockfish-eval-cache.json`, and cached cloud misses expire after a TTL so later reruns can fill positions that previously had no cloud data.
+
+**Reason:** Rerunning the same algorithm should refine or preserve existing line quality, not downgrade a known cloud-backed move to a lower-depth fallback because the cloud provider is temporarily unavailable. Keeping a move-by-move cache ladder lets future reruns reuse the best available result and gradually replace fallback positions when higher-authority cloud data becomes available.
+
+**Update:** Add a unified best-known eval cache at `scripts/output/best-known-eval-cache.json`. It stores one best result per normalized FEN position, ranking Lichess cloud above Chess-API above local Stockfish, and preferring deeper results within the same provider. The normal import stage also upserts this cache into Supabase table `opening_position_evals` when migration `011_opening_position_evals.sql` has been applied, so DB state improves as generation discovers higher-quality moves.
+
+**Pointer:** The stable handoff document for the current reference-line algorithm is `docs/reference-line-generation.md`. If the generator script is renamed, replaced, or split later, update that file in the same change so future sessions can see how the app's reference lines were created.
+
+## 2026-05-08 - Keep practical branch generation separate from reference generation
+
+**Decision:** Add `scripts/generate-opening-branches.cjs` as a separate Phase 2 step that reads completed reference artifacts, scans opponent-to-move positions after the variation anchor, uses Lichess Explorer to find common deviations from the reference move, and then uses Stockfish to keep only deviations with a teachable trained-side eval gain. The output is a combined reference-plus-branch generated artifact so the existing prepare/import/sync path can import branches without replacing reference lines.
+
+**Reason:** Reference lines teach best play from the named opening position, while branches teach the response to likely human deviations. Mixing those concerns back into reference generation would make reference endpoints harder to reason about and risk over-expanding every bad move. A separate branch step lets FirstMove prioritize moves that are common enough, distinct from the reference continuation, and engine-validated as practical punishments or strategic improvements.
+
+**Update:** Practical branch generation is now a separate additive pipeline: `generate-opening-branches.cjs` -> `dedup-opening-branches.cjs` -> `prepare-opening-db-payload.cjs` -> `import-opening-db-payload.cjs`, wrapped by `run-opening-branch-pipeline.cjs`. Branches are generated from any opponent-to-move position after the variation anchor, follow top human Explorer moves inside a cumulative popularity window that tightens as depth increases, and use the same trained-side engine ladder as reference generation: best-known cache, cached Lichess cloud, cached Chess-API, live cloud with cooldown, then local Stockfish fallback. The default cap is 10 practical branches per variation, with a best-available fallback branch when no preferred checkpoint is found.
+
+**Update:** Branch rows stay in `opening_lines` with `line_kind = 'practical_branch'` because they are practiceable lines. Branch-specific data lives in `opening_line_branch_metadata`: parent line, branch key, trigger move, reference move, node/move games, play rate, cumulative play rate, eval before/after, final trained-side eval, branch score, structured continuation trace, and selection metadata. Local JSON artifacts remain review/debug outputs before DB import; Supabase is the durable runtime source after import.
+
+**Update:** Branch generation supports top-up runs with `--only-under-branch-count`, `--target-branches-per-variation`, and `--max-new-branches-per-variation`. This lets repeated executions focus only on variations that still have too few practical lines instead of regenerating every variation. Existing branch keys are skipped, and dedup keeps the best duplicate candidate by branch score.

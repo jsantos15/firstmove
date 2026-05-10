@@ -3,9 +3,11 @@ import { Chess, type Opening, type OpeningMove, type OpeningVariation } from '@f
 import {
   getOpeningsCatalog,
   getOpeningCatalogBySlug,
+  getOpeningLineBranchMetadataBySlug,
   getOpeningLines,
   getOpeningLinesBySlug,
   type OpeningCatalogRow,
+  type OpeningLineBranchMetadataRow,
   type OpeningLineRow,
 } from '@firstmove/supabase';
 
@@ -27,16 +29,17 @@ function buildMoves(sans: string[]): OpeningMove[] {
 
 // ─── DB row types ─────────────────────────────────────────────────────────────
 
-type AppOpening = Opening & {
+export type AppOpening = Opening & {
   displayTier?: OpeningCatalogRow['display_tier'];
   isFeatured?: OpeningCatalogRow['is_featured'];
   popularityRank?: OpeningCatalogRow['popularity_rank'];
   popularityScore?: OpeningCatalogRow['popularity_score'];
   popularityGames?: OpeningCatalogRow['popularity_games'];
   hasMainLine?: OpeningCatalogRow['has_main_line'];
+  practicalBranches: AppVariation[];
 };
 
-type AppVariation = OpeningVariation & {
+export type AppVariation = OpeningVariation & {
   engineChecked?: OpeningLineRow['engine_checked'];
   evalCpByPly?: OpeningLineRow['eval_cp_by_ply'];
   finalEvalCp?: OpeningLineRow['final_eval_cp'];
@@ -51,6 +54,12 @@ type AppVariation = OpeningVariation & {
   popularityGames?: OpeningLineRow['popularity_games'];
   sourceName?: OpeningLineRow['source_name'];
   sourceConfidence?: OpeningLineRow['source_confidence'];
+  variationAnchorSans?: OpeningLineRow['variation_anchor_sans'];
+  variationAnchorPly?: OpeningLineRow['variation_anchor_ply'];
+  variationAnchorName?: OpeningLineRow['variation_anchor_name'];
+  variationAnchorFen?: OpeningLineRow['variation_anchor_fen'];
+  lineKind?: OpeningLineRow['line_kind'];
+  branchMetadata?: OpeningLineBranchMetadataRow;
 };
 
 const OPENING_INTRO_COPY: Record<string, string> = {
@@ -75,7 +84,10 @@ function normalizeOpeningDescription(catalog: OpeningCatalogRow) {
   return description;
 }
 
-function buildVariationStub(line: OpeningLineRow): AppVariation {
+function buildVariationStub(
+  line: OpeningLineRow,
+  branchMetadata?: OpeningLineBranchMetadataRow
+): AppVariation {
   return {
     id: line.slug,
     name: line.name,
@@ -95,6 +107,12 @@ function buildVariationStub(line: OpeningLineRow): AppVariation {
     popularityGames: line.popularity_games ?? undefined,
     sourceName: line.source_name ?? undefined,
     sourceConfidence: line.source_confidence ?? undefined,
+    variationAnchorSans: line.variation_anchor_sans ?? undefined,
+    variationAnchorPly: line.variation_anchor_ply ?? undefined,
+    variationAnchorName: line.variation_anchor_name ?? undefined,
+    variationAnchorFen: line.variation_anchor_fen ?? undefined,
+    lineKind: line.line_kind,
+    branchMetadata,
   };
 }
 
@@ -137,10 +155,10 @@ function compareLineRows(left: OpeningLineRow, right: OpeningLineRow) {
     return rightMain - leftMain;
   }
 
-  const leftPopularity = left.popularity_rank ?? Number.POSITIVE_INFINITY;
-  const rightPopularity = right.popularity_rank ?? Number.POSITIVE_INFINITY;
-  if (leftPopularity !== rightPopularity) {
-    return leftPopularity - rightPopularity;
+  const leftRank = left.popularity_rank ?? Number.POSITIVE_INFINITY;
+  const rightRank = right.popularity_rank ?? Number.POSITIVE_INFINITY;
+  if (leftRank !== rightRank) {
+    return leftRank - rightRank;
   }
 
   if (left.sort_order !== right.sort_order) {
@@ -153,17 +171,41 @@ function compareLineRows(left: OpeningLineRow, right: OpeningLineRow) {
 function buildOpening(
   catalog: OpeningCatalogRow,
   lines: OpeningLineRow[],
-  options?: { includeVariationMoves?: boolean }
+  options?: {
+    branchMetadataRows?: OpeningLineBranchMetadataRow[];
+    includeBranchMoves?: boolean;
+    includeVariationMoves?: boolean;
+  }
 ): AppOpening {
-  const sorted = [...lines].sort(compareLineRows);
+  const branchMetadataByLineSlug = new Map(
+    (options?.branchMetadataRows ?? []).map(row => [row.line_slug, row])
+  );
+  const referenceLines = lines.filter(line => line.line_kind !== 'practical_branch');
+  const branchLines = lines.filter(line => line.line_kind === 'practical_branch');
+  const sorted = [...referenceLines].sort(compareLineRows);
+  const sortedBranches = [...branchLines].sort((left, right) => {
+    const leftMeta = branchMetadataByLineSlug.get(left.slug);
+    const rightMeta = branchMetadataByLineSlug.get(right.slug);
+    const leftScore = leftMeta?.branch_score ?? Number.NEGATIVE_INFINITY;
+    const rightScore = rightMeta?.branch_score ?? Number.NEGATIVE_INFINITY;
+    if (leftScore !== rightScore) return rightScore - leftScore;
+    if (left.sort_order !== right.sort_order) return left.sort_order - right.sort_order;
+    return left.name.localeCompare(right.name);
+  });
   const includeVariationMoves = options?.includeVariationMoves ?? true;
+  const includeBranchMoves = options?.includeBranchMoves ?? includeVariationMoves;
   const variations: AppVariation[] = sorted.map(line =>
     includeVariationMoves
+      ? { ...buildVariationStub(line), moves: buildMoves(line.sans) }
+      : buildVariationStub(line)
+  );
+  const practicalBranches: AppVariation[] = sortedBranches.map(line =>
+    includeBranchMoves
       ? {
-          ...buildVariationStub(line),
+          ...buildVariationStub(line, branchMetadataByLineSlug.get(line.slug)),
           moves: buildMoves(line.sans),
         }
-      : buildVariationStub(line)
+      : buildVariationStub(line, branchMetadataByLineSlug.get(line.slug))
   );
   const mainLine = sorted[0];
 
@@ -177,6 +219,7 @@ function buildOpening(
     tags: catalog.tags,
     moves: mainLine ? buildMoves(mainLine.sans) : [],
     variations,
+    practicalBranches,
     displayTier: catalog.display_tier ?? undefined,
     isFeatured: catalog.is_featured ?? undefined,
     popularityRank: catalog.popularity_rank ?? undefined,
@@ -211,6 +254,7 @@ export function useOpenings() {
 
       return [...catalogRows].sort(compareCatalogRows).map(row =>
         buildOpening(row, linesByOpening.get(row.slug) ?? [], {
+          includeBranchMoves: false,
           includeVariationMoves: false,
         })
       );
@@ -227,9 +271,10 @@ export function useOpening(slug: string) {
     queryKey: ['openings', slug],
     staleTime: Infinity,
     queryFn: async () => {
-      const [catalogRow, lineRows] = await Promise.all([
+      const [catalogRow, lineRows, branchMetadataRows] = await Promise.all([
         getOpeningCatalogBySlug(slug),
         getOpeningLinesBySlug(slug),
+        getOpeningLineBranchMetadataBySlug(slug),
       ]);
 
       if (!catalogRow) {
@@ -237,6 +282,8 @@ export function useOpening(slug: string) {
       }
 
       return buildOpening(catalogRow, lineRows, {
+        branchMetadataRows,
+        includeBranchMoves: true,
         includeVariationMoves: true,
       });
     },

@@ -13,6 +13,7 @@ import {
   buildWrongMoveCoachFeedback,
   type CoachFeedback,
 } from '@/lib/coachFeedback';
+import { useLichessCloudEval } from '@/hooks/useLichessCloudEval';
 
 export type PracticeMode = 'learn' | 'practice';
 
@@ -41,6 +42,7 @@ interface QueuedPremove {
 
 const WRONG_MOVE_RESET_MS = 900;
 const EVAL_BAR_CP_LIMIT = 600;
+const INITIAL_POSITION_EVAL_CP = 20;
 
 function isUserTurn(moveIndex: number, openingColor: 'white' | 'black') {
   return openingColor === 'white' ? moveIndex % 2 === 0 : moveIndex % 2 === 1;
@@ -70,6 +72,7 @@ function getBoardOrientation(openingColor: 'white' | 'black', flipBoard: boolean
 }
 
 function formatEvalLabel(whiteEvalCp: number) {
+  if (Math.abs(whiteEvalCp) >= 9000) return '#';
   if (Math.abs(whiteEvalCp) < 10) return '0.0';
   const pawns = Math.abs(whiteEvalCp) / 100;
   return `${whiteEvalCp > 0 ? '+' : '-'}${pawns.toFixed(1)}`;
@@ -87,10 +90,23 @@ function toWhiteEvalCp(
 
 function EvalBar({
   evalCp,
+  reserveSpace = false,
 }: {
   evalCp?: number;
+  reserveSpace?: boolean;
 }) {
-  if (typeof evalCp !== 'number' || !Number.isFinite(evalCp)) return null;
+  if (typeof evalCp !== 'number' || !Number.isFinite(evalCp)) {
+    return reserveSpace ? (
+      <div
+        className="relative mr-2 hidden h-full w-7 shrink-0 overflow-hidden rounded-md border border-white/15 bg-[#181818] shadow-inner shadow-black/40 sm:block"
+        title="Engine evaluation loading"
+        aria-label="Engine evaluation loading"
+      >
+        <div className="absolute inset-x-0 bottom-0 h-1/2 bg-zinc-100 opacity-70" />
+        <div className="pointer-events-none absolute inset-x-0 top-1/2 h-px bg-amber-400/45" />
+      </div>
+    ) : null;
+  }
 
   const clamped = Math.max(-EVAL_BAR_CP_LIMIT, Math.min(EVAL_BAR_CP_LIMIT, evalCp));
   const whiteHeight = 50 + (clamped / EVAL_BAR_CP_LIMIT) * 45;
@@ -116,38 +132,140 @@ function EvalBar({
   );
 }
 
-let audioCtx: AudioContext | null = null;
+let moveSoundCtx: AudioContext | null = null;
+let moveSoundBuffer: AudioBuffer | null = null;
+let moveSoundGain: GainNode | null = null;
+let moveSoundWakeSource: OscillatorNode | null = null;
+let moveSoundWakeGain: GainNode | null = null;
+let moveSoundWakeTimer: ReturnType<typeof setTimeout> | null = null;
 
-function getAudioCtx() {
-  if (!audioCtx || audioCtx.state === 'closed') audioCtx = new AudioContext();
-  return audioCtx;
+function getMoveSoundCtx() {
+  if (!moveSoundCtx || moveSoundCtx.state === 'closed') {
+    moveSoundCtx = new AudioContext({ latencyHint: 'interactive' });
+    moveSoundBuffer = null;
+    moveSoundGain = moveSoundCtx.createGain();
+    moveSoundGain.gain.value = 0.5;
+    moveSoundGain.connect(moveSoundCtx.destination);
+  }
+
+  return moveSoundCtx;
 }
 
-async function playMoveSound(enabled: boolean) {
+function getMoveSoundBuffer(ctx: AudioContext) {
+  if (moveSoundBuffer && moveSoundBuffer.sampleRate === ctx.sampleRate) {
+    return moveSoundBuffer;
+  }
+
+  const sampleCount = Math.floor(ctx.sampleRate * 0.055);
+  const buffer = ctx.createBuffer(1, sampleCount, ctx.sampleRate);
+  const data = buffer.getChannelData(0);
+  let seed = 0x2f6e2b1;
+
+  for (let i = 0; i < sampleCount; i += 1) {
+    const t = i / ctx.sampleRate;
+    seed = (seed * 1664525 + 1013904223) >>> 0;
+    const noise = (seed / 0xffffffff) * 2 - 1;
+    const envelope = Math.exp(-i / (sampleCount * 0.12));
+    const wood = Math.sin(2 * Math.PI * 240 * t) * 0.12;
+    data[i] = (noise * 0.82 + wood) * envelope;
+  }
+
+  moveSoundBuffer = buffer;
+  return buffer;
+}
+
+function startMoveSound(ctx: AudioContext) {
+  const destination = moveSoundGain;
+  if (!destination) return;
+
+  const source = ctx.createBufferSource();
+  const filter = ctx.createBiquadFilter();
+  source.buffer = getMoveSoundBuffer(ctx);
+  filter.type = 'lowpass';
+  filter.frequency.value = 720;
+  source.connect(filter);
+  filter.connect(destination);
+  source.start(ctx.currentTime + 0.001);
+  source.onended = () => {
+    source.disconnect();
+    filter.disconnect();
+  };
+}
+
+function unlockMoveSound(enabled: boolean) {
   if (!enabled) return;
 
   try {
-    const ctx = getAudioCtx();
-    if (ctx.state === 'suspended') await ctx.resume();
-    if (ctx.state !== 'running') return;
-
-    const bufferSize = Math.floor(ctx.sampleRate * 0.08);
-    const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
-    const data = buffer.getChannelData(0);
-    for (let i = 0; i < bufferSize; i++) {
-      data[i] = (Math.random() * 2 - 1) * Math.exp(-i / (bufferSize * 0.12));
+    const ctx = getMoveSoundCtx();
+    getMoveSoundBuffer(ctx);
+    if (ctx.state === 'suspended') {
+      void ctx.resume().catch(() => {});
     }
-    const source = ctx.createBufferSource();
-    source.buffer = buffer;
-    const filter = ctx.createBiquadFilter();
-    filter.type = 'lowpass';
-    filter.frequency.value = 700;
-    const gain = ctx.createGain();
-    gain.gain.value = 0.5;
-    source.connect(filter);
-    filter.connect(gain);
-    gain.connect(ctx.destination);
-    source.start();
+  } catch {}
+}
+
+function stopMoveSoundWake() {
+  if (moveSoundWakeTimer) {
+    clearTimeout(moveSoundWakeTimer);
+    moveSoundWakeTimer = null;
+  }
+
+  if (!moveSoundWakeSource) return;
+
+  try {
+    moveSoundWakeSource.stop();
+    moveSoundWakeSource.disconnect();
+    moveSoundWakeGain?.disconnect();
+  } catch {}
+
+  moveSoundWakeSource = null;
+  moveSoundWakeGain = null;
+}
+
+function keepMoveSoundAwake(enabled: boolean) {
+  if (!enabled) return;
+
+  try {
+    const ctx = getMoveSoundCtx();
+    getMoveSoundBuffer(ctx);
+    if (ctx.state === 'suspended') {
+      void ctx.resume().catch(() => {});
+    }
+
+    if (!moveSoundWakeSource) {
+      const source = ctx.createOscillator();
+      const gain = ctx.createGain();
+      source.frequency.value = 20;
+      gain.gain.value = 0.00001;
+      source.connect(gain);
+      gain.connect(ctx.destination);
+      source.start();
+      moveSoundWakeSource = source;
+      moveSoundWakeGain = gain;
+    }
+
+    if (moveSoundWakeTimer) clearTimeout(moveSoundWakeTimer);
+    moveSoundWakeTimer = setTimeout(stopMoveSoundWake, 8000);
+  } catch {}
+}
+
+function playMoveSound(enabled: boolean) {
+  if (!enabled) return;
+
+  try {
+    const ctx = getMoveSoundCtx();
+    getMoveSoundBuffer(ctx);
+
+    if (ctx.state === 'running') {
+      startMoveSound(ctx);
+      return;
+    }
+
+    void ctx.resume()
+      .then(() => {
+        if (ctx.state === 'running') startMoveSound(ctx);
+      })
+      .catch(() => {});
   } catch {}
 }
 
@@ -210,7 +328,7 @@ export function PracticeBoard({
 
   const navigateTo = (index: number) => {
     const clamped = Math.max(0, Math.min(index, maxNavigableIndex));
-    if (clamped !== displayIndex) void playMoveSound(settings.moveSound);
+    if (clamped !== displayIndex) playMoveSound(settings.moveSound);
     setViewIndex(clamped === currentMoveIndex ? null : clamped);
   };
 
@@ -221,13 +339,13 @@ export function PracticeBoard({
   const highlightedMoveIndex = useMemo(() => {
     if (moves.length === 0) return -1;
     if (isLive) {
-      return status === 'complete'
-        ? moves.length - 1
-        : Math.min(currentMoveIndex, moves.length - 1);
+      return currentMoveIndex > 0
+        ? Math.min(currentMoveIndex - 1, moves.length - 1)
+        : -1;
     }
 
     return displayIndex > 0 ? Math.min(displayIndex - 1, moves.length - 1) : -1;
-  }, [currentMoveIndex, displayIndex, isLive, moves.length, status]);
+  }, [currentMoveIndex, displayIndex, isLive, moves.length]);
 
   useEffect(() => {
     onMoveIndexChange?.(highlightedMoveIndex);
@@ -270,9 +388,43 @@ export function PracticeBoard({
   }, [mode, opening.id, variation.id]);
 
   useEffect(() => {
+    if (!settings.moveSound) return;
+
+    const unlock = () => {
+      unlockMoveSound(settings.moveSound);
+    };
+    const unlockWhenVisible = () => {
+      if (document.visibilityState === 'visible') unlockMoveSound(settings.moveSound);
+    };
+    const keepAwake = () => {
+      keepMoveSoundAwake(settings.moveSound);
+    };
+    const listenerOptions: AddEventListenerOptions = { passive: true, capture: true };
+    const keyListenerOptions: AddEventListenerOptions = { capture: true };
+
+    window.addEventListener('pointerdown', keepAwake, listenerOptions);
+    window.addEventListener('pointerup', unlock, listenerOptions);
+    window.addEventListener('pointercancel', stopMoveSoundWake, listenerOptions);
+    window.addEventListener('keydown', unlock, keyListenerOptions);
+    window.addEventListener('focus', unlock);
+    document.addEventListener('visibilitychange', unlockWhenVisible);
+
+    return () => {
+      stopMoveSoundWake();
+      window.removeEventListener('pointerdown', keepAwake, { capture: true });
+      window.removeEventListener('pointerup', unlock, { capture: true });
+      window.removeEventListener('pointercancel', stopMoveSoundWake, { capture: true });
+      window.removeEventListener('keydown', unlock, { capture: true });
+      window.removeEventListener('focus', unlock);
+      document.removeEventListener('visibilitychange', unlockWhenVisible);
+    };
+  }, [settings.moveSound]);
+
+  useEffect(() => {
     return () => {
       if (wrongResetRef.current) clearTimeout(wrongResetRef.current);
       if (clickPremoveTimerRef.current) clearTimeout(clickPremoveTimerRef.current);
+      stopMoveSoundWake();
     };
   }, []);
 
@@ -327,11 +479,11 @@ export function PracticeBoard({
       if (!reply) return;
       const nextChess = new Chess(chessRef.current.fen());
       try { nextChess.move(reply.san); } catch { return; }
+      playMoveSound(settings.moveSound);
       chessRef.current = nextChess;
       setPosition(nextChess.fen());
       const nextIndex = currentMoveIndex + 1;
       updateMoveIndex(nextIndex);
-      void playMoveSound(settings.moveSound);
       setStatus(nextIndex >= moves.length ? 'complete' : 'playing');
       setWrongMoveFrom(null);
       setWrongMoveTo(null);
@@ -380,36 +532,15 @@ export function PracticeBoard({
 
   const progressPct = moves.length > 0 ? (displayIndex / moves.length) * 100 : 0;
   const isViewingLineEnd = displayIndex >= moves.length && moves.length > 0;
-  const displayedEvalCp = useMemo(() => {
-    const evalByPly = variation.evalCpByPly;
-    if (Array.isArray(evalByPly) && typeof evalByPly[displayIndex] === 'number') {
-      return evalByPly[displayIndex];
-    }
-
-    if (displayIndex === moves.length) {
-      return toWhiteEvalCp(
-        variation.finalEvalCp,
-        variation.finalEvalPerspective,
-        opening.color
-      ) ?? undefined;
-    }
-
-    return undefined;
-  }, [
-    displayIndex,
-    moves.length,
-    opening.color,
-    variation.evalCpByPly,
-    variation.finalEvalCp,
-    variation.finalEvalPerspective,
-  ]);
-  const hasVisibleEvalBar = typeof displayedEvalCp === 'number' && Number.isFinite(displayedEvalCp);
-  const boardAlignedClassName = `mx-auto w-full ${hasVisibleEvalBar ? 'sm:translate-x-[18px]' : ''}`;
 
   const getEvalAtPly = (ply: number) => {
     const evalByPly = variation.evalCpByPly;
     if (Array.isArray(evalByPly) && typeof evalByPly[ply] === 'number') {
       return evalByPly[ply];
+    }
+
+    if (ply === 0) {
+      return INITIAL_POSITION_EVAL_CP;
     }
 
     if (ply === moves.length) {
@@ -422,6 +553,17 @@ export function PracticeBoard({
 
     return undefined;
   };
+
+  const cloudEvalCp = useLichessCloudEval(displayPosition);
+  const currentStaticEvalCp = getEvalAtPly(displayIndex);
+  const displayedEvalCp = cloudEvalCp ?? currentStaticEvalCp;
+
+  // Keep board offset stable from the start whenever this line can show eval data.
+  const hasVisibleEvalBar =
+    (typeof cloudEvalCp === 'number' && Number.isFinite(cloudEvalCp)) ||
+    (typeof currentStaticEvalCp === 'number' && Number.isFinite(currentStaticEvalCp)) ||
+    (typeof variation.finalEvalCp === 'number' && Number.isFinite(variation.finalEvalCp));
+  const boardAlignedClassName = `mx-auto w-full ${hasVisibleEvalBar ? 'sm:translate-x-[18px]' : ''}`;
 
   const legalTargets = useMemo(() => {
     if (!isLive || status !== 'playing' || !selectedSquare) return [];
@@ -550,13 +692,13 @@ export function PracticeBoard({
         resetWrongMove();
         return false;
       }
+      playMoveSound(settings.moveSound);
       chessRef.current = baseChess;
       setPosition(baseChess.fen());
       setSelectedSquare(null);
       setQueuedClickPremove(null);
       const nextIndex = expectedIndex + 1;
       updateMoveIndex(nextIndex);
-      void playMoveSound(settings.moveSound);
       onCoachFeedbackChange?.(buildMoveCoachFeedback({
         openingColor: opening.color,
         variationName: variation.name,
@@ -701,6 +843,7 @@ export function PracticeBoard({
       <div ref={wrapperRef} className="flex min-h-0 flex-1 items-center justify-center">
         <EvalBar
           evalCp={displayedEvalCp}
+          reserveSpace={hasVisibleEvalBar}
         />
         <div className="relative">
           <div

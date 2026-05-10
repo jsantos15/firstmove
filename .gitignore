@@ -9,6 +9,11 @@ dist/
 build/
 out/
 
+# Generated opening pipeline artifacts
+scripts/output/*.json
+scripts/output/backups/
+temp
+
 # Environment files — never commit real secrets
 .env
 .env.local
@@ -34,6 +39,8 @@ ios/
 # Supabase local
 supabase/.branches
 supabase/.temp
+**/supabase/.branches
+**/supabase/.temp
 
 # EAS
 .eas/

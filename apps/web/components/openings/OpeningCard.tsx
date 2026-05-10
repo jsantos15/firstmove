@@ -15,6 +15,7 @@ interface OpeningCardProps {
   opening: Opening;
   completedLines?: number;
   status?: MasteryLevel;
+  matchedVariations?: { id: string; name: string }[];
 }
 
 function getCharacteristicFen(opening: Opening): string {
@@ -65,7 +66,7 @@ function LineDots({ completed, total }: { completed: number; total: number }) {
 
 // ─── Card ─────────────────────────────────────────────────────────────────────
 
-export function OpeningCard({ opening, completedLines = 0, status = 'new' }: OpeningCardProps) {
+export function OpeningCard({ opening, completedLines = 0, status = 'new', matchedVariations }: OpeningCardProps) {
   const previewRef = useRef<HTMLDivElement>(null);
   const [showBoard, setShowBoard] = useState(false);
   const fen = getCharacteristicFen(opening);
@@ -104,9 +105,9 @@ export function OpeningCard({ opening, completedLines = 0, status = 'new' }: Ope
   }, [showBoard]);
 
   return (
-    <Link href={`/openings/${opening.id}`} className="block">
-      <div className="group rounded-xl border border-white/5 bg-[var(--bg-panel)] overflow-hidden transition-all duration-200 hover:border-amber-400/20 hover:-translate-y-0.5 hover:shadow-xl hover:shadow-black/40 cursor-pointer">
+    <div className="group rounded-xl border border-white/5 bg-[var(--bg-panel)] overflow-hidden transition-all duration-200 hover:border-amber-400/20 hover:-translate-y-0.5 hover:shadow-xl hover:shadow-black/40">
 
+      <Link href={`/openings/${opening.id}`} className="block cursor-pointer">
         {/* Board preview — sits in a darker panel so it floats */}
         <div ref={previewRef} className="flex items-center justify-center bg-[var(--bg-sidebar)] py-5 pointer-events-none">
           <div className="rounded-lg overflow-hidden ring-1 ring-white/8">
@@ -165,7 +166,31 @@ export function OpeningCard({ opening, completedLines = 0, status = 'new' }: Ope
           </div>
 
         </div>
-      </div>
-    </Link>
+      </Link>
+
+      {/* Matched variation pills — only shown during search */}
+      {matchedVariations && matchedVariations.length > 0 && (
+        <div className="border-t border-white/5 px-3 py-2 flex flex-col gap-0.5">
+          {matchedVariations.slice(0, 5).map(v => (
+            <Link
+              key={v.id}
+              href={`/openings/${opening.id}?variation=${v.id}`}
+              className="flex items-center gap-2 rounded-md px-2 py-1.5 text-[11px] text-gray-400 transition-colors hover:bg-white/5 hover:text-amber-300"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="h-2.5 w-2.5 shrink-0 text-amber-400/50">
+                <path d="m9 18 6-6-6-6" />
+              </svg>
+              <span className="truncate">{v.name}</span>
+            </Link>
+          ))}
+          {matchedVariations.length > 5 && (
+            <span className="px-2 py-1 text-[11px] text-gray-600">
+              +{matchedVariations.length - 5} more
+            </span>
+          )}
+        </div>
+      )}
+
+    </div>
   );
 }
