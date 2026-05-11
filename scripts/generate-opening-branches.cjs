@@ -781,8 +781,10 @@ function buildTraceStepForOpponent({ ply, move, san, source }) {
     source,
     nodeGames: move.nodeGames,
     moveGames: move.totalGames,
-    playRate: Number(move.playRate.toFixed(4)),
-    cumulativePlayRate: Number(move.cumulativePlayRate.toFixed(4)),
+    playRate: Number.isFinite(move.playRate) ? Number(move.playRate.toFixed(4)) : null,
+    cumulativePlayRate: Number.isFinite(move.cumulativePlayRate)
+      ? Number(move.cumulativePlayRate.toFixed(4))
+      : null,
   };
 }
 
@@ -1085,7 +1087,7 @@ async function generateBranchFromTrigger({
 
     const explorer = await fetchExplorerNode(chess.fen(), args, caches.explorer);
     const moves = popularMovesForNode({ explorer, addedPlies: addedFromAnchor, args });
-    const move = moves[0];
+    const move = moves[0] ?? (chess.inCheck() ? await forcedCheckReplyMove({ chess, explorer, args, caches }) : null);
     if (!move) break;
     const applied = chess.move(uciToMoveObject(move.uci));
     if (!applied) break;
@@ -1095,7 +1097,7 @@ async function generateBranchFromTrigger({
         ply: generatedSans.length,
         move,
         san: applied.san,
-        source: "lichess-explorer-continuation",
+        source: move.source ?? "lichess-explorer-continuation",
       })
     );
   }
@@ -1183,6 +1185,34 @@ async function firstTrainedCandidatesForTrigger({ parent, stemSans, trigger, arg
     openingColor: parent.openingColor,
     args,
   });
+}
+
+async function forcedCheckReplyMove({ chess, explorer, args, caches }) {
+  const legalUcis = new Set(chess.moves({ verbose: true }).map(moveToUci));
+  const total = explorer.totalGamesAtNode;
+  const explorerMove = explorer.topMoves.find((move) => legalUcis.has(move.uci));
+  if (explorerMove) {
+    const playRate = total > 0 ? explorerMove.totalGames / total : null;
+    return {
+      ...explorerMove,
+      playRate,
+      cumulativePlayRate: playRate,
+      nodeGames: total,
+      source: "lichess-explorer-forced-check-reply",
+    };
+  }
+
+  const analysis = await analyzeWithRouter(chess.fen(), args, caches);
+  if (!analysis.bestMove || !legalUcis.has(analysis.bestMove)) return null;
+  return {
+    san: null,
+    uci: analysis.bestMove,
+    totalGames: null,
+    playRate: null,
+    cumulativePlayRate: null,
+    nodeGames: total,
+    source: "engine-forced-check-reply",
+  };
 }
 
 async function generateBranchesForParent({ parent, args, caches, existingKeys }) {
