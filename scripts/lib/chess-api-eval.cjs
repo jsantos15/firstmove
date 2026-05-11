@@ -51,6 +51,12 @@ function cacheKey(fen) {
   return `${fen}::chess-api:depth18`;
 }
 
+function normalizeContinuation(pv, uci) {
+  const continuation = Array.isArray(pv) && pv.length ? pv : [];
+  if (continuation[0] === uci) return continuation;
+  return [uci, ...continuation.filter((move) => move !== uci)];
+}
+
 function loadCache(cachePath) {
   if (cacheByPath.has(cachePath)) return cacheByPath.get(cachePath);
   if (!fs.existsSync(cachePath)) {
@@ -110,9 +116,7 @@ function normalize(payload, fen) {
     ? { type: whiteScore.type, value: whiteScore.value * multiplier, whiteValue: whiteScore.value }
     : null;
 
-  const pv = Array.isArray(payload.continuationArr) && payload.continuationArr.length
-    ? payload.continuationArr
-    : [uci];
+  const pv = normalizeContinuation(payload.continuationArr, uci);
 
   const depth = payload.depth ?? 18;
 

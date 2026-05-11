@@ -360,6 +360,24 @@ function bestEvalCacheKey(fen) {
   return normalizedPositionKey(fen);
 }
 
+function isLegalUciForFen(fen, uci) {
+  if (!uci || uci === "(none)") return false;
+  try {
+    const chess = new Chess(fen);
+    return Boolean(chess.move(uciToMoveObject(uci)));
+  } catch (_error) {
+    return false;
+  }
+}
+
+function analysisMatchesFen(analysis, fen) {
+  if (!analysis?.bestMove || analysis.bestMove === "(none)") return false;
+  if (analysis.fen && normalizedPositionKey(analysis.fen) !== normalizedPositionKey(fen)) {
+    return false;
+  }
+  return isLegalUciForFen(fen, analysis.bestMove);
+}
+
 function providerRank(source) {
   if (source === "lichess-cloud-eval") return 300;
   if (source === "chess-api") return 200;
@@ -395,7 +413,8 @@ function isBetterAnalysis(candidate, current) {
 
 function readBestKnownAnalysis(fen, args, cache) {
   if (!args.bestEvalCache || !cache) return null;
-  return cache[bestEvalCacheKey(fen)]?.result ?? null;
+  const analysis = cache[bestEvalCacheKey(fen)]?.result ?? null;
+  return analysisMatchesFen(analysis, fen) ? analysis : null;
 }
 
 function analysisSourceToProvider(source) {
@@ -406,7 +425,7 @@ function analysisSourceToProvider(source) {
 }
 
 function writeBestKnownAnalysis(fen, analysis, args, cache) {
-  if (!args.bestEvalCache || !cache || !analysis?.bestMove || analysis.bestMove === "(none)") {
+  if (!args.bestEvalCache || !cache || !analysisMatchesFen(analysis, fen)) {
     return analysis;
   }
   const key = bestEvalCacheKey(fen);
@@ -453,9 +472,9 @@ async function fetchCloudAnalysis(fen, args) {
   };
 
   const cachedLichess = readCachedLichessCloudEval(fen, engineOptions.lichess);
-  if (cachedLichess?.bestMove) return cachedLichess;
+  if (analysisMatchesFen(cachedLichess, fen)) return cachedLichess;
   const cachedChessApi = readCachedChessApiEval(fen, engineOptions.chessApi);
-  if (cachedChessApi?.bestMove) return cachedChessApi;
+  if (analysisMatchesFen(cachedChessApi, fen)) return cachedChessApi;
 
   const allEngines = args.router.engineIds;
   const startIdx = allEngines.indexOf(args.lockedEngineId);
@@ -463,7 +482,7 @@ async function fetchCloudAnalysis(fen, args) {
   for (const engineId of orderedEngines) {
     if (args.router.isCoolingDown(engineId)) continue;
     const result = await args.router.fetch(engineId, fen, engineOptions);
-    if (!result?.bestMove) continue;
+    if (!analysisMatchesFen(result, fen)) continue;
     if (args.cloudEvalMinDepth > 0 && result.depth != null && result.depth < args.cloudEvalMinDepth) {
       continue;
     }
@@ -488,7 +507,7 @@ async function analyzePosition(fen, args, cache) {
   if (useCloud) {
     try {
       const cloudResult = await fetchCloudAnalysis(fen, args);
-      if (cloudResult?.bestMove) {
+      if (analysisMatchesFen(cloudResult, fen)) {
         const bestResult = writeBestKnownAnalysis(fen, cloudResult, args, cache.bestEval);
         cache.analysis.set(key, bestResult);
         return bestResult;
@@ -506,6 +525,9 @@ async function analyzePosition(fen, args, cache) {
   }
 
   const localResult = await analyzeFenCached(fen, args);
+  if (!analysisMatchesFen(localResult, fen)) {
+    throw new Error(`Stockfish returned illegal best move "${localResult?.bestMove ?? "none"}" for ${fen}`);
+  }
   const bestResult = writeBestKnownAnalysis(fen, localResult, args, cache.bestEval);
   cache.analysis.set(key, bestResult);
   return bestResult;
