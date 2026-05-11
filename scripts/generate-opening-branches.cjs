@@ -653,6 +653,55 @@ function computeMaterialEdge(chess, openingColor) {
   return openingColor === "white" ? white - black : black - white;
 }
 
+function squareFromBoardIndexes(rowIndex, colIndex) {
+  return `${"abcdefgh"[colIndex]}${8 - rowIndex}`;
+}
+
+function materialThreatState(chess, openingColor) {
+  const trainedColorCode = openingColor === "white" ? "w" : "b";
+  const opponentColorCode = trainedColorCode === "w" ? "b" : "w";
+  const values = { p: 1, n: 3, b: 3, r: 5, q: 9, k: 0 };
+  const attackersBySquare = new Map();
+  let threatenedMaterialPawns = 0;
+  let threatenedPieceCount = 0;
+  let forkThreatCount = 0;
+
+  chess.board().forEach((row, rowIndex) => {
+    row.forEach((piece, colIndex) => {
+      if (!piece || piece.color !== opponentColorCode || piece.type === "k") return;
+      const square = squareFromBoardIndexes(rowIndex, colIndex);
+      const attackers = chess.attackers(square, trainedColorCode);
+      if (attackers.length === 0) return;
+      const value = values[piece.type] ?? 0;
+      threatenedMaterialPawns += value;
+      threatenedPieceCount += 1;
+      for (const attackerSquare of attackers) {
+        const attackerPiece = chess.get(attackerSquare);
+        if (!attackerPiece) continue;
+        const attackerValue = values[attackerPiece.type] ?? 0;
+        if (attackerValue < value) {
+          forkThreatCount += 1;
+          const existing = attackersBySquare.get(attackerSquare) ?? 0;
+          attackersBySquare.set(attackerSquare, existing + 1);
+        }
+      }
+    });
+  });
+
+  const forkedByOnePiece = Array.from(attackersBySquare.values()).some((count) => count >= 2);
+  const hasMaterialThreat =
+    threatenedMaterialPawns >= 3 &&
+    (threatenedPieceCount >= 2 || forkThreatCount > 0 || forkedByOnePiece);
+
+  return {
+    hasMaterialThreat,
+    threatenedMaterialPawns,
+    threatenedPieceCount,
+    forkThreatCount,
+    forkedByOnePiece,
+  };
+}
+
 function moveDescriptorFromUci(chess, uci) {
   if (!uci || uci === "(none)") return null;
   const clone = new Chess(chess.fen());
@@ -690,6 +739,7 @@ function checkpointScore({ chess, line, analysis, openingColor, branchSansFromAn
   const trainedEvalCp = analysisIsCurrent
     ? perspectiveEvalCp(analysis.lines[0]?.score ?? null, analysis.turnColor, openingColor)
     : null;
+  const sideToMove = chess.turn() === "w" ? "white" : "black";
   const trainedColorCode = openingColor === "white" ? "w" : "b";
   const materialEdgePawns = computeMaterialEdge(chess, openingColor);
   const developed = countDevelopedMinorPieces(chess, trainedColorCode);
@@ -702,13 +752,22 @@ function checkpointScore({ chess, line, analysis, openingColor, branchSansFromAn
   const pendingCapture = Boolean(bestMoveDescriptor?.isCapture || lastWasCapture);
   const pendingCheckReply = lastGaveCheck && !lastSan?.includes("#");
   const nextMoveIsForcing = Boolean(bestMoveDescriptor?.givesCheck || bestMoveDescriptor?.isCapture);
+  const materialThreat = materialThreatState(chess, openingColor);
+  const materialThreatPending =
+    sideToMove !== openingColor &&
+    materialEdgePawns < 1 &&
+    Number.isFinite(trainedEvalCp) &&
+    trainedEvalCp >= 120 &&
+    materialThreat.hasMaterialThreat;
   const materialConversionPending =
     hasCaptureSequence &&
     materialEdgePawns < 1 &&
     Number.isFinite(trainedEvalCp) &&
     trainedEvalCp >= 120 &&
-    (pendingCapture || pendingCheckReply || nextMoveIsForcing);
-  const unresolvedForcing = Boolean(pendingCapture || pendingCheckReply || nextMoveIsForcing);
+    (pendingCapture || pendingCheckReply || nextMoveIsForcing || materialThreatPending);
+  const unresolvedForcing = Boolean(
+    pendingCapture || pendingCheckReply || nextMoveIsForcing || materialThreatPending
+  );
   const addedPlies = branchSansFromAnchor.length;
   const opponentRates = trace
     .filter((step) => step.side === "opponent")
@@ -751,6 +810,11 @@ function checkpointScore({ chess, line, analysis, openingColor, branchSansFromAn
     pendingCapture,
     pendingCheckReply,
     nextMoveIsForcing,
+    materialThreatPending,
+    threatenedMaterialPawns: materialThreat.threatenedMaterialPawns,
+    threatenedPieceCount: materialThreat.threatenedPieceCount,
+    forkThreatCount: materialThreat.forkThreatCount,
+    forkedByOnePiece: materialThreat.forkedByOnePiece,
     materialConversionPending,
     unresolvedForcing,
     bestMoveSan: bestMoveDescriptor?.san ?? null,
