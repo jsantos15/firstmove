@@ -378,6 +378,35 @@ function analysisMatchesFen(analysis, fen) {
   return isLegalUciForFen(fen, analysis.bestMove);
 }
 
+function terminalAnalysisForFen(fen) {
+  const chess = new Chess(fen);
+  if (!chess.isGameOver()) return null;
+  const turnColor = chess.turn() === "w" ? "white" : "black";
+  const score = chess.isCheckmate()
+    ? { type: "mate", value: -1 }
+    : { type: "cp", value: 0 };
+  return {
+    fen,
+    turnColor,
+    depth: 0,
+    engineFlavor: "terminal",
+    source: "terminal",
+    bestMove: "(none)",
+    ponder: null,
+    lines: [
+      {
+        multipv: 1,
+        depth: 0,
+        score,
+        pv: [],
+        uci: null,
+        nodes: null,
+        nps: null,
+      },
+    ],
+  };
+}
+
 function providerRank(source) {
   if (source === "lichess-cloud-eval") return 300;
   if (source === "chess-api") return 200;
@@ -494,6 +523,12 @@ async function fetchCloudAnalysis(fen, args) {
 async function analyzePosition(fen, args, cache) {
   const key = `${fen}::${args.stockfishDepth}::${args.stockfishEngine}::${args.multipvCount}::${args.cloudEvalMode}::${args.lockedEngineId ?? "default"}`;
   if (cache.analysis.has(key)) return cache.analysis.get(key);
+
+  const terminalAnalysis = terminalAnalysisForFen(fen);
+  if (terminalAnalysis) {
+    cache.analysis.set(key, terminalAnalysis);
+    return terminalAnalysis;
+  }
 
   const bestKnown = readBestKnownAnalysis(fen, args, cache.bestEval);
   if (shouldUseBestKnownAnalysis(bestKnown, args)) {

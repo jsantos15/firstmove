@@ -1538,6 +1538,39 @@ function analysisMatchesFen(analysis, fen) {
   return isLegalUciForFen(fen, analysis.bestMove);
 }
 
+function terminalAnalysisForFen(fen) {
+  const chess = new Chess(fen);
+  if (!chess.isGameOver()) {
+    return null;
+  }
+
+  const turnColor = chess.turn() === "w" ? "white" : "black";
+  const score = chess.isCheckmate()
+    ? { type: "mate", value: -1 }
+    : { type: "cp", value: 0 };
+
+  return {
+    fen,
+    turnColor,
+    depth: 0,
+    engineFlavor: "terminal",
+    source: "terminal",
+    bestMove: "(none)",
+    ponder: null,
+    lines: [
+      {
+        multipv: 1,
+        depth: 0,
+        score,
+        pv: [],
+        uci: null,
+        nodes: null,
+        nps: null,
+      },
+    ],
+  };
+}
+
 function providerRank(source) {
   if (source === "lichess-cloud-eval") {
     return 300;
@@ -1835,6 +1868,12 @@ async function analyzePosition(fen, args, cache) {
   const key = `${fen}::${args.stockfishDepth}::${args.stockfishEngine}::${args.multipvCount}::cloud:${args.cloudEvalMode}::provider:${engineProvider}`;
   if (analysisCache?.has(key)) {
     return analysisCache.get(key);
+  }
+
+  const terminalAnalysis = terminalAnalysisForFen(fen);
+  if (terminalAnalysis) {
+    analysisCache?.set(key, terminalAnalysis);
+    return terminalAnalysis;
   }
 
   const bestKnown = readBestKnownAnalysis(fen, args, bestEvalCache);
