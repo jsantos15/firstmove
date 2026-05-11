@@ -33,6 +33,9 @@ function parseArgs(argv) {
     targetBranchesPerVariation: null,
     maxNewBranchesPerVariation: null,
     maxCandidateMovesPerNode: 4,
+    trainedCandidateMoves: 3,
+    trainedCandidateMaxLossCp: 60,
+    trainedOpportunityMinEvalCp: 200,
     minNodeGames: 250,
     minMoveGames: 35,
     minMoveShare: 0.03,
@@ -85,6 +88,9 @@ function parseArgs(argv) {
     else if (token === "--target-branches-per-variation") args.targetBranchesPerVariation = Number(next());
     else if (token === "--max-new-branches-per-variation") args.maxNewBranchesPerVariation = Number(next());
     else if (token === "--max-candidate-moves-per-node") args.maxCandidateMovesPerNode = Number(next());
+    else if (token === "--trained-candidate-moves") args.trainedCandidateMoves = Number(next());
+    else if (token === "--trained-candidate-max-loss-cp") args.trainedCandidateMaxLossCp = Number(next());
+    else if (token === "--trained-opportunity-min-eval-cp") args.trainedOpportunityMinEvalCp = Number(next());
     else if (token === "--min-node-games") args.minNodeGames = Number(next());
     else if (token === "--min-move-games") args.minMoveGames = Number(next());
     else if (token === "--min-move-share") args.minMoveShare = Number(next());
@@ -713,6 +719,59 @@ function checkpointNeedsResolution(state) {
   return Boolean(state?.unresolvedForcing || state?.materialConversionPending);
 }
 
+function trainedMoveCandidates({ chess, analysis, openingColor, args }) {
+  const byUci = new Map();
+  for (const line of analysis.lines ?? []) {
+    const uci = line.uci ?? line.pv?.[0] ?? null;
+    if (!uci || byUci.has(uci)) continue;
+    const probe = new Chess(chess.fen());
+    if (!probe.move(uciToMoveObject(uci))) continue;
+    const evalCp = perspectiveEvalCp(line.score ?? null, analysis.turnColor, openingColor);
+    if (!Number.isFinite(evalCp)) continue;
+    byUci.set(uci, {
+      uci,
+      rank: line.multipv ?? byUci.size + 1,
+      evalCp,
+    });
+  }
+
+  if (analysis.bestMove && !byUci.has(analysis.bestMove)) {
+    const probe = new Chess(chess.fen());
+    if (probe.move(uciToMoveObject(analysis.bestMove))) {
+      byUci.set(analysis.bestMove, {
+        uci: analysis.bestMove,
+        rank: 1,
+        evalCp: null,
+      });
+    }
+  }
+
+  const candidates = Array.from(byUci.values()).sort((left, right) => {
+    if (Number.isFinite(right.evalCp) && Number.isFinite(left.evalCp)) return right.evalCp - left.evalCp;
+    return left.rank - right.rank;
+  });
+  const bestEvalCp = candidates.find((candidate) => Number.isFinite(candidate.evalCp))?.evalCp ?? null;
+
+  return candidates
+    .map((candidate, index) => {
+      const evalLossCp =
+        Number.isFinite(bestEvalCp) && Number.isFinite(candidate.evalCp)
+          ? Math.max(0, bestEvalCp - candidate.evalCp)
+          : 0;
+      return {
+        ...candidate,
+        rank: index + 1,
+        bestEvalCp,
+        evalLossCp,
+      };
+    })
+    .filter((candidate, index) => {
+      if (index === 0) return true;
+      if (index >= args.trainedCandidateMoves) return false;
+      return candidate.evalLossCp <= args.trainedCandidateMaxLossCp;
+    });
+}
+
 function buildTraceStepForOpponent({ ply, move, san, source }) {
   return {
     ply,
@@ -727,16 +786,27 @@ function buildTraceStepForOpponent({ ply, move, san, source }) {
   };
 }
 
-function buildTraceStepForTrained({ ply, san, uci, analysis, trainedEvalCp }) {
+function buildTraceStepForTrained({
+  ply,
+  san,
+  uci,
+  analysis,
+  trainedEvalCp,
+  trainedCandidate = null,
+}) {
   return {
     ply,
     side: "trained",
     san,
     uci,
-    source: "engine-best",
+    source: trainedCandidate?.rank > 1 ? "engine-opportunity" : "engine-best",
     engineProvider: analysisSourceToProvider(analysis.source) ?? "stockfish",
     engineSource: analysis.source ?? null,
     engineDepth: analysis.depth ?? null,
+    engineRank: trainedCandidate?.rank ?? 1,
+    engineEvalCp: trainedCandidate?.evalCp ?? null,
+    engineBestEvalCp: trainedCandidate?.bestEvalCp ?? null,
+    engineEvalLossCp: trainedCandidate?.evalLossCp ?? 0,
     trainedEvalCp,
   };
 }
@@ -772,8 +842,11 @@ function buildBranchRecord({ parent, stemSans, trigger, branch, finalState, args
   const category = finalState.category;
   const name = makeBranchName({ triggerSan: trigger.san, category, finalState });
   const fullName = `${parent.fullName}: ${name}`;
-  const lineId = `${parentLineId}-branch-${triggerSlug}`;
   const branchTrace = branch.trace;
+  const firstTrainedStep = branchTrace.find((step) => step.side === "trained");
+  const trainedOpportunitySlug =
+    branch.trainedOpportunity && firstTrainedStep?.san ? `-${slugify(firstTrainedStep.san)}` : "";
+  const lineId = `${parentLineId}-branch-${triggerSlug}${trainedOpportunitySlug}`;
   const sourceCounts = countBy(branchTrace.map((step) => step.source));
   const engineProviders = countBy(
     branchTrace
@@ -850,7 +923,9 @@ function buildBranchRecord({ parent, stemSans, trigger, branch, finalState, args
       avgExtensionDepth: avgDepth,
       branch: {
         parentLineId,
-        branchKey: `${parent.openingId}::${parentLineId}::${stemSans.length}::${trigger.uci}`,
+        branchKey: `${parent.openingId}::${parentLineId}::${stemSans.length}::${trigger.uci}${
+          branch.trainedOpportunity ? `::${branch.trainedOpportunity.firstTrainedUci}` : ""
+        }`,
         lessonTitle: name,
         lessonStemPly: stemSans.length,
         lessonStemSans: stemSans,
@@ -874,6 +949,10 @@ function buildBranchRecord({ parent, stemSans, trigger, branch, finalState, args
         continuationTrace: branchTrace,
         selectionMetadata: {
           fallback: branch.fallback,
+          trainedOpportunity: branch.trainedOpportunity,
+          trainedCandidateMoves: args.trainedCandidateMoves,
+          trainedCandidateMaxLossCp: args.trainedCandidateMaxLossCp,
+          trainedOpportunityMinEvalCp: args.trainedOpportunityMinEvalCp,
           maxBranchesPerVariation: args.maxBranchesPerVariation,
           cumulativeLimits: {
             nearAnchor: args.cumulativePlayRateNearAnchor,
@@ -888,7 +967,15 @@ function buildBranchRecord({ parent, stemSans, trigger, branch, finalState, args
   };
 }
 
-async function generateBranchFromTrigger({ parent, stemSans, trigger, args, caches, allowFallback }) {
+async function generateBranchFromTrigger({
+  parent,
+  stemSans,
+  trigger,
+  args,
+  caches,
+  allowFallback,
+  forcedFirstTrainedCandidate = null,
+}) {
   const openingColor = parent.openingColor;
   const chess = applySans(stemSans);
   const stemFen = chess.fen();
@@ -919,6 +1006,7 @@ async function generateBranchFromTrigger({ parent, stemSans, trigger, args, cach
   );
 
   const responseCategory = branchCategory(parent, triggerMove.san, "");
+  let usedForcedFirstTrainedCandidate = false;
 
   while (true) {
     const addedFromAnchor = generatedSans.length - (parent.variationAnchorSans?.length ?? 0);
@@ -934,9 +1022,22 @@ async function generateBranchFromTrigger({ parent, stemSans, trigger, args, cach
 
     if (sideToMove === openingColor) {
       const analysis = await analyzeWithRouter(chess.fen(), args, caches);
-      if (!analysis.bestMove || analysis.bestMove === "(none)") break;
-      const move = chess.move(uciToMoveObject(analysis.bestMove));
+      const trainedCandidate =
+        forcedFirstTrainedCandidate && !usedForcedFirstTrainedCandidate
+          ? forcedFirstTrainedCandidate
+          : {
+              uci: analysis.bestMove,
+              rank: 1,
+              evalCp: null,
+              bestEvalCp: null,
+              evalLossCp: 0,
+            };
+      if (!trainedCandidate.uci || trainedCandidate.uci === "(none)") break;
+      const move = chess.move(uciToMoveObject(trainedCandidate.uci));
       if (!move) break;
+      if (forcedFirstTrainedCandidate && !usedForcedFirstTrainedCandidate) {
+        usedForcedFirstTrainedCandidate = true;
+      }
       generatedSans.push(move.san);
       finalAnalysis = await analyzeWithRouter(chess.fen(), args, caches);
       const trainedEvalCp = perspectiveEvalCp(
@@ -948,9 +1049,10 @@ async function generateBranchFromTrigger({ parent, stemSans, trigger, args, cach
         buildTraceStepForTrained({
           ply: generatedSans.length,
           san: move.san,
-          uci: analysis.bestMove,
+          uci: trainedCandidate.uci,
           analysis,
           trainedEvalCp,
+          trainedCandidate,
         })
       );
 
@@ -1031,6 +1133,18 @@ async function generateBranchFromTrigger({ parent, stemSans, trigger, args, cach
     finalAnalysis: bestCheckpoint.analysis,
     finalState: bestCheckpoint.state,
     fallback: Boolean(bestCheckpoint.fallback || allowFallback),
+    trainedOpportunity: forcedFirstTrainedCandidate
+      ? {
+          firstTrainedUci: forcedFirstTrainedCandidate.uci,
+          firstTrainedRank: forcedFirstTrainedCandidate.rank,
+          firstTrainedEvalCp: forcedFirstTrainedCandidate.evalCp,
+          firstTrainedBestEvalCp: forcedFirstTrainedCandidate.bestEvalCp,
+          firstTrainedEvalLossCp: forcedFirstTrainedCandidate.evalLossCp,
+          acceptedByOpportunity:
+            Number.isFinite(bestCheckpoint.state.trainedEvalCp) &&
+            bestCheckpoint.state.trainedEvalCp >= args.trainedOpportunityMinEvalCp,
+        }
+      : null,
     stopReason: bestCheckpoint.fallback
       ? "Kept as the best available practical fallback branch for this variation."
       : "Stopped at the best practical branch checkpoint before depth or popularity limits.",
@@ -1054,6 +1168,21 @@ async function analyzeWithRouter(fen, baseArgs, caches) {
       throw error;
     }
   }
+}
+
+async function firstTrainedCandidatesForTrigger({ parent, stemSans, trigger, args, caches }) {
+  const chess = applySans(stemSans);
+  const triggerMove = chess.move(uciToMoveObject(trigger.uci));
+  if (!triggerMove) return [];
+  const sideToMove = chess.turn() === "w" ? "white" : "black";
+  if (sideToMove !== parent.openingColor) return [];
+  const analysis = await analyzeWithRouter(chess.fen(), args, caches);
+  return trainedMoveCandidates({
+    chess,
+    analysis,
+    openingColor: parent.openingColor,
+    args,
+  });
 }
 
 async function generateBranchesForParent({ parent, args, caches, existingKeys }) {
@@ -1094,7 +1223,51 @@ async function generateBranchesForParent({ parent, args, caches, existingKeys })
   }
 
   for (const candidate of candidates) {
-    if (branches.length >= parentBranchLimit) break;
+    const trainedCandidates = await firstTrainedCandidatesForTrigger({
+      parent,
+      stemSans: candidate.stemSans,
+      trigger: candidate,
+      args,
+      caches,
+    });
+    const opportunityBranches = [];
+    if (trainedCandidates.length > 1) {
+      for (const trainedCandidate of trainedCandidates) {
+        const branch = await generateBranchFromTrigger({
+          parent,
+          stemSans: candidate.stemSans,
+          trigger: candidate,
+          args,
+          caches,
+          allowFallback: false,
+          forcedFirstTrainedCandidate: trainedCandidate,
+        });
+        if (!branch) continue;
+        if (
+          Number.isFinite(branch.finalState.trainedEvalCp) &&
+          branch.finalState.trainedEvalCp >= args.trainedOpportunityMinEvalCp
+        ) {
+          opportunityBranches.push(branch);
+        }
+      }
+    }
+
+    if (opportunityBranches.length > 0) {
+      for (const branch of opportunityBranches) {
+        branches.push(
+          buildBranchRecord({
+            parent,
+            stemSans: candidate.stemSans,
+            trigger: candidate,
+            branch,
+            finalState: branch.finalState,
+            args,
+          })
+        );
+      }
+      continue;
+    }
+
     const branch = await generateBranchFromTrigger({
       parent,
       stemSans: candidate.stemSans,
@@ -1142,7 +1315,7 @@ async function generateBranchesForParent({ parent, args, caches, existingKeys })
   }
 
   return dedupeBranches(branches)
-    .sort((left, right) => (right.branchScore ?? -999) - (left.branchScore ?? -999))
+    .sort(compareBranchesForSelection)
     .slice(0, parentBranchLimit);
 }
 
@@ -1151,11 +1324,18 @@ function dedupeBranches(branches) {
   for (const branch of branches) {
     const key = branch.generatedSans.join(" ");
     const current = byKey.get(key);
-    if (!current || (branch.branchScore ?? -999) > (current.branchScore ?? -999)) {
+    if (!current || compareBranchesForSelection(branch, current) < 0) {
       byKey.set(key, branch);
     }
   }
   return Array.from(byKey.values());
+}
+
+function compareBranchesForSelection(left, right) {
+  const rightEval = Number.isFinite(right.finalEvalCp) ? right.finalEvalCp : -999999;
+  const leftEval = Number.isFinite(left.finalEvalCp) ? left.finalEvalCp : -999999;
+  if (rightEval !== leftEval) return rightEval - leftEval;
+  return (right.branchScore ?? -999) - (left.branchScore ?? -999);
 }
 
 function compareLinesForOutput(left, right) {
@@ -1334,6 +1514,9 @@ async function main() {
         minMoveGames: args.minMoveGames,
         minMoveShare: args.minMoveShare,
         maxBranchesPerVariation: args.maxBranchesPerVariation,
+        trainedCandidateMoves: args.trainedCandidateMoves,
+        trainedCandidateMaxLossCp: args.trainedCandidateMaxLossCp,
+        trainedOpportunityMinEvalCp: args.trainedOpportunityMinEvalCp,
         parentLineSlugs: args.parentLineSlugs ? Array.from(args.parentLineSlugs) : null,
         onlyUnderBranchCount: args.onlyUnderBranchCount,
         targetBranchesPerVariation,
