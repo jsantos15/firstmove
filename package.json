@@ -13,6 +13,7 @@
     "generate:opening-candidates": "node scripts/generate-opening-candidates.cjs",
     "generate:opening-branches": "node scripts/generate-opening-branches.cjs",
     "dedup:opening-branches": "node scripts/dedup-opening-branches.cjs",
+    "delete:opening-branches": "node scripts/delete-opening-branches.cjs",
     "pipeline:opening-branches": "node scripts/run-opening-branch-pipeline.cjs",
     "audit:opening-lines:lichess-cloud": "node scripts/audit-opening-lines-lichess-cloud.cjs",
     "merge:opening-candidates": "node scripts/merge-opening-candidates.cjs",

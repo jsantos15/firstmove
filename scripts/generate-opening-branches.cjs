@@ -26,6 +26,7 @@ function parseArgs(argv) {
     input: DEFAULT_INPUT,
     output: DEFAULT_OUTPUT,
     limitReferences: null,
+    parentLineSlugs: null,
     maxBranchesPerVariation: 10,
     minBranchesPerVariation: 1,
     onlyUnderBranchCount: null,
@@ -70,6 +71,14 @@ function parseArgs(argv) {
     if (token === "--input") args.input = path.resolve(next());
     else if (token === "--output") args.output = path.resolve(next());
     else if (token === "--limit-references") args.limitReferences = Number(next());
+    else if (token === "--parent-line-slugs") {
+      args.parentLineSlugs = new Set(
+        String(next())
+          .split(",")
+          .map((value) => value.trim())
+          .filter(Boolean)
+      );
+    }
     else if (token === "--max-branches-per-variation") args.maxBranchesPerVariation = Number(next());
     else if (token === "--min-branches-per-variation") args.minBranchesPerVariation = Number(next());
     else if (token === "--only-under-branch-count") args.onlyUnderBranchCount = Number(next());
@@ -1236,9 +1245,17 @@ async function main() {
   const references = (referencePayload.results ?? []).filter(
     (line) => Array.isArray(line.generatedSans) && line.lineType !== "practical_branch"
   );
-  const selectedReferences = Number.isFinite(args.limitReferences)
-    ? references.slice(0, args.limitReferences)
+  const scopedReferences = args.parentLineSlugs
+    ? references.filter((line) => args.parentLineSlugs.has(line.lineId ?? slugify(line.fullName)))
     : references;
+  const selectedReferences = Number.isFinite(args.limitReferences)
+    ? scopedReferences.slice(0, args.limitReferences)
+    : scopedReferences;
+  if (args.parentLineSlugs && selectedReferences.length !== args.parentLineSlugs.size) {
+    const found = new Set(selectedReferences.map((line) => line.lineId ?? slugify(line.fullName)));
+    const missing = Array.from(args.parentLineSlugs).filter((slug) => !found.has(slug));
+    throw new Error(`Missing parent reference line(s): ${missing.join(", ")}`);
+  }
   const existingBranches = (referencePayload.results ?? []).filter((line) => line.lineType === "practical_branch");
   const existingBranchKeys = new Set(existingBranches.map(branchKeyFromLine).filter(Boolean));
   const existingBranchCountsByParent = countBranchesByParent(existingBranches);
@@ -1317,6 +1334,7 @@ async function main() {
         minMoveGames: args.minMoveGames,
         minMoveShare: args.minMoveShare,
         maxBranchesPerVariation: args.maxBranchesPerVariation,
+        parentLineSlugs: args.parentLineSlugs ? Array.from(args.parentLineSlugs) : null,
         onlyUnderBranchCount: args.onlyUnderBranchCount,
         targetBranchesPerVariation,
         maxNewBranchesPerVariation: args.maxNewBranchesPerVariation,

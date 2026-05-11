@@ -8,6 +8,7 @@ const STAGES = ["generate", "dedup", "prepare", "import"];
 
 const OPENINGS = {
   "italian-game": {
+    slug: "italian-game",
     label: "Italian Game",
     referenceInput: path.resolve(
       __dirname,
@@ -26,6 +27,7 @@ const OPENINGS = {
     ),
   },
   "caro-kann": {
+    slug: "caro-kann-defense",
     label: "Caro-Kann Defense",
     referenceInput: path.resolve(
       __dirname,
@@ -50,6 +52,8 @@ function parseArgs(argv) {
     openings: null,
     startAt: "generate",
     dryRunImport: false,
+    resetBranches: false,
+    parentLineSlugs: null,
     passthroughGenerateArgs: [],
   };
 
@@ -66,6 +70,11 @@ function parseArgs(argv) {
       index += 1;
     } else if (token === "--dry-run-import") {
       args.dryRunImport = true;
+    } else if (token === "--reset-branches") {
+      args.resetBranches = true;
+    } else if (token === "--parent-line-slugs") {
+      args.parentLineSlugs = String(argv[index + 1]).split(",").map((value) => value.trim()).filter(Boolean);
+      index += 1;
     } else if (token === "--generate-arg") {
       args.passthroughGenerateArgs.push(String(argv[index + 1]));
       index += 1;
@@ -96,6 +105,8 @@ Options:
   --all                  Run all known openings
   --start-at <stage>     Start from: ${STAGES.join(", ")} (default: generate)
   --dry-run-import       Run import stage as a dry-run
+  --reset-branches       Delete existing remote branch rows for the selected parent line slugs before import
+  --parent-line-slugs    Comma-separated parent reference line slugs to generate/reset
   --generate-arg <value> Pass one raw argument to generate-opening-branches.cjs
 
 Examples:
@@ -154,6 +165,7 @@ function runOpening(opening, args) {
       opening.referenceInput,
       "--output",
       opening.branchOutput,
+      ...(args.parentLineSlugs ? ["--parent-line-slugs", args.parentLineSlugs.join(",")] : []),
       ...args.passthroughGenerateArgs,
     ]);
   }
@@ -175,6 +187,19 @@ function runOpening(opening, args) {
     ]);
   }
   const payloadSummary = assertPayload(opening);
+
+  if (args.resetBranches && !args.dryRunImport) {
+    if (!args.parentLineSlugs?.length) {
+      throw new Error("--reset-branches requires --parent-line-slugs so deletion is scoped.");
+    }
+    runStep(`${opening.label} branch reset`, "delete-opening-branches.cjs", [
+      "--opening",
+      opening.slug,
+      "--parent-line-slugs",
+      args.parentLineSlugs.join(","),
+      "--apply",
+    ]);
+  }
 
   if (shouldRunStage(args, "import")) {
     runStep(`${opening.label} branch import`, "import-opening-db-payload.cjs", [
@@ -202,6 +227,7 @@ function main() {
   console.log(`Openings: ${args.openings.join(", ")}`);
   console.log(`Start at stage: ${args.startAt}`);
   console.log(`Import mode: ${args.dryRunImport ? "dry-run" : "apply"}`);
+  console.log(`Reset branches: ${args.resetBranches ? "yes" : "no"}`);
 
   const summaries = args.openings.map((slug) => runOpening(OPENINGS[slug], args));
   console.log("\nSUCCESS: opening branch pipeline completed.");
