@@ -651,12 +651,15 @@ function branchCategory(line, triggerSan, responseSan) {
 }
 
 function checkpointScore({ chess, line, analysis, openingColor, branchSansFromAnchor, trace, category, args }) {
-  const trainedEvalCp = perspectiveEvalCp(analysis.lines[0]?.score ?? null, analysis.turnColor, openingColor);
+  const analysisIsCurrent = analysisMatchesFen(analysis, chess.fen());
+  const trainedEvalCp = analysisIsCurrent
+    ? perspectiveEvalCp(analysis.lines[0]?.score ?? null, analysis.turnColor, openingColor)
+    : null;
   const trainedColorCode = openingColor === "white" ? "w" : "b";
   const materialEdgePawns = computeMaterialEdge(chess, openingColor);
   const developed = countDevelopedMinorPieces(chess, trainedColorCode);
   const castled = hasCastled(chess, trainedColorCode);
-  const bestMoveDescriptor = moveDescriptorFromUci(chess, analysis.bestMove);
+  const bestMoveDescriptor = analysisIsCurrent ? moveDescriptorFromUci(chess, analysis.bestMove) : null;
   const lastSan = branchSansFromAnchor.at(-1) ?? null;
   const lastWasCapture = Boolean(lastSan?.includes("x"));
   const lastGaveCheck = Boolean(lastSan?.includes("+") || lastSan?.includes("#"));
@@ -1127,6 +1130,7 @@ async function generateBranchFromTrigger({
   }
 
   if (!bestCheckpoint) {
+    finalAnalysis = await analyzeWithRouter(chess.fen(), args, caches);
     const state = checkpointScore({
       chess,
       line: parent,
