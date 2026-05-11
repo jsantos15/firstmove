@@ -49,6 +49,7 @@ function parseArgs(argv) {
     maxTotalPlies: 40,
     minAcceptTrainedEvalCp: 20,
     fallbackAcceptTrainedEvalCp: -40,
+    advantageResolutionMinPlies: 4,
     stockfishDepth: 18,
     stockfishEngine: "lite-single",
     multipvCount: 5,
@@ -103,6 +104,7 @@ function parseArgs(argv) {
     else if (token === "--max-total-plies") args.maxTotalPlies = Number(next());
     else if (token === "--min-accept-trained-eval-cp") args.minAcceptTrainedEvalCp = Number(next());
     else if (token === "--fallback-accept-trained-eval-cp") args.fallbackAcceptTrainedEvalCp = Number(next());
+    else if (token === "--advantage-resolution-min-plies") args.advantageResolutionMinPlies = Number(next());
     else if (token === "--stockfish-depth") args.stockfishDepth = Number(next());
     else if (token === "--stockfish-engine") args.stockfishEngine = String(next());
     else if (token === "--multipv-count") args.multipvCount = Number(next());
@@ -734,7 +736,17 @@ function branchCategory(line, triggerSan, responseSan) {
   return line.primaryCategory ?? "strategic";
 }
 
-function checkpointScore({ chess, line, analysis, openingColor, branchSansFromAnchor, trace, category, args }) {
+function checkpointScore({
+  chess,
+  line,
+  analysis,
+  openingColor,
+  branchSansFromAnchor,
+  trace,
+  category,
+  args,
+  advantageStartPly = null,
+}) {
   const analysisIsCurrent = analysisMatchesFen(analysis, chess.fen());
   const trainedEvalCp = analysisIsCurrent
     ? perspectiveEvalCp(analysis.lines[0]?.score ?? null, analysis.turnColor, openingColor)
@@ -753,20 +765,40 @@ function checkpointScore({ chess, line, analysis, openingColor, branchSansFromAn
   const pendingCheckReply = lastGaveCheck && !lastSan?.includes("#");
   const nextMoveIsForcing = Boolean(bestMoveDescriptor?.givesCheck || bestMoveDescriptor?.isCapture);
   const materialThreat = materialThreatState(chess, openingColor);
+  const visibleMaterialThreat =
+    materialThreat.hasMaterialThreat &&
+    (materialThreat.forkedByOnePiece ||
+      (materialThreat.threatenedPieceCount >= 2 && materialThreat.threatenedMaterialPawns >= 6));
   const materialThreatPending =
     sideToMove !== openingColor &&
     materialEdgePawns < 1 &&
     Number.isFinite(trainedEvalCp) &&
     trainedEvalCp >= 120 &&
-    materialThreat.hasMaterialThreat;
+    materialThreat.hasMaterialThreat &&
+    !visibleMaterialThreat;
   const materialConversionPending =
     hasCaptureSequence &&
     materialEdgePawns < 1 &&
     Number.isFinite(trainedEvalCp) &&
     trainedEvalCp >= 120 &&
     (pendingCapture || pendingCheckReply || nextMoveIsForcing || materialThreatPending);
+  const advantageResolutionPlies = Number.isFinite(advantageStartPly)
+    ? Math.max(0, trace.length ? trace.at(-1).ply - advantageStartPly : 0)
+    : null;
+  const engineAdvantagePending =
+    sideToMove !== openingColor &&
+    materialEdgePawns < 1 &&
+    !visibleMaterialThreat &&
+    Number.isFinite(trainedEvalCp) &&
+    trainedEvalCp >= args.trainedOpportunityMinEvalCp &&
+    Number.isFinite(advantageResolutionPlies) &&
+    advantageResolutionPlies < args.advantageResolutionMinPlies;
   const unresolvedForcing = Boolean(
-    pendingCapture || pendingCheckReply || nextMoveIsForcing || materialThreatPending
+    pendingCapture ||
+      pendingCheckReply ||
+      nextMoveIsForcing ||
+      materialThreatPending ||
+      engineAdvantagePending
   );
   const addedPlies = branchSansFromAnchor.length;
   const opponentRates = trace
@@ -810,11 +842,15 @@ function checkpointScore({ chess, line, analysis, openingColor, branchSansFromAn
     pendingCapture,
     pendingCheckReply,
     nextMoveIsForcing,
+    visibleMaterialThreat,
     materialThreatPending,
     threatenedMaterialPawns: materialThreat.threatenedMaterialPawns,
     threatenedPieceCount: materialThreat.threatenedPieceCount,
     forkThreatCount: materialThreat.forkThreatCount,
     forkedByOnePiece: materialThreat.forkedByOnePiece,
+    engineAdvantagePending,
+    advantageResolutionPlies,
+    advantageResolutionMinPlies: args.advantageResolutionMinPlies,
     materialConversionPending,
     unresolvedForcing,
     bestMoveSan: bestMoveDescriptor?.san ?? null,
@@ -1082,6 +1118,7 @@ function buildBranchRecord({ parent, stemSans, trigger, branch, finalState, args
           trainedCandidateMoves: args.trainedCandidateMoves,
           trainedCandidateMaxLossCp: args.trainedCandidateMaxLossCp,
           trainedOpportunityMinEvalCp: args.trainedOpportunityMinEvalCp,
+          advantageResolutionMinPlies: args.advantageResolutionMinPlies,
           maxBranchesPerVariation: args.maxBranchesPerVariation,
           cumulativeLimits: {
             nearAnchor: args.cumulativePlayRateNearAnchor,
@@ -1119,6 +1156,7 @@ async function generateBranchFromTrigger({
   let bestCheckpoint = null;
   let finalAnalysis = beforeAnalysis;
   let latestState = null;
+  let advantageLock = null;
 
   const triggerMove = chess.move(uciToMoveObject(trigger.uci));
   if (!triggerMove) return null;
@@ -1181,7 +1219,7 @@ async function generateBranchFromTrigger({
       );
 
       const category = branchCategory(parent, triggerMove.san, move.san || "");
-      const state = checkpointScore({
+      let state = checkpointScore({
         chess,
         line: parent,
         analysis: finalAnalysis,
@@ -1190,7 +1228,31 @@ async function generateBranchFromTrigger({
         trace,
         category,
         args,
+        advantageStartPly: advantageLock?.startPly ?? null,
       });
+      if (
+        !advantageLock &&
+        Number.isFinite(state.trainedEvalCp) &&
+        state.trainedEvalCp >= args.trainedOpportunityMinEvalCp &&
+        state.materialEdgePawns < 1 &&
+        !state.visibleMaterialThreat
+      ) {
+        advantageLock = {
+          startPly: generatedSans.length,
+          startEvalCp: state.trainedEvalCp,
+        };
+        state = checkpointScore({
+          chess,
+          line: parent,
+          analysis: finalAnalysis,
+          openingColor,
+          branchSansFromAnchor: generatedSans.slice(parent.variationAnchorSans?.length ?? 0),
+          trace,
+          category,
+          args,
+          advantageStartPly: advantageLock.startPly,
+        });
+      }
       latestState = state;
       if (checkpointAccepts(state, args, allowFallback)) {
         if (!bestCheckpoint || state.score > bestCheckpoint.state.score) {
@@ -1239,6 +1301,7 @@ async function generateBranchFromTrigger({
       trace,
       category: responseCategory,
       args,
+      advantageStartPly: advantageLock?.startPly ?? null,
     });
     if (!allowFallback || !checkpointAccepts(state, args, true)) return null;
     bestCheckpoint = {
@@ -1381,7 +1444,9 @@ async function generateBranchesForParent({ parent, args, caches, existingKeys })
     }
   }
 
+  let discoveryCutoffPly = null;
   for (const candidate of candidates) {
+    if (Number.isFinite(discoveryCutoffPly) && candidate.stemPly > discoveryCutoffPly) break;
     const trainedCandidates = await firstTrainedCandidatesForTrigger({
       parent,
       stemSans: candidate.stemSans,
@@ -1424,6 +1489,7 @@ async function generateBranchesForParent({ parent, args, caches, existingKeys })
           })
         );
       }
+      discoveryCutoffPly = candidate.stemPly;
       continue;
     }
 
@@ -1446,6 +1512,12 @@ async function generateBranchesForParent({ parent, args, caches, existingKeys })
         args,
       })
     );
+    if (
+      Number.isFinite(branch.finalState.trainedEvalCp) &&
+      branch.finalState.trainedEvalCp >= args.trainedOpportunityMinEvalCp
+    ) {
+      discoveryCutoffPly = candidate.stemPly;
+    }
   }
 
   if (branches.length < args.minBranchesPerVariation && candidates.length > 0) {
@@ -1676,6 +1748,7 @@ async function main() {
         trainedCandidateMoves: args.trainedCandidateMoves,
         trainedCandidateMaxLossCp: args.trainedCandidateMaxLossCp,
         trainedOpportunityMinEvalCp: args.trainedOpportunityMinEvalCp,
+        advantageResolutionMinPlies: args.advantageResolutionMinPlies,
         parentLineSlugs: args.parentLineSlugs ? Array.from(args.parentLineSlugs) : null,
         onlyUnderBranchCount: args.onlyUnderBranchCount,
         targetBranchesPerVariation,
