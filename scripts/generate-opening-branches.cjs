@@ -43,6 +43,7 @@ function parseArgs(argv) {
     maxBranchPliesFromAnchor: 18,
     softBranchPliesFromAnchor: 12,
     maxTotalPlies: 40,
+    maxUnresolvedResolutionPlies: 12,
     minAcceptTrainedEvalCp: 20,
     fallbackAcceptTrainedEvalCp: -40,
     stockfishDepth: 18,
@@ -86,6 +87,7 @@ function parseArgs(argv) {
     else if (token === "--max-branch-plies-from-anchor") args.maxBranchPliesFromAnchor = Number(next());
     else if (token === "--soft-branch-plies-from-anchor") args.softBranchPliesFromAnchor = Number(next());
     else if (token === "--max-total-plies") args.maxTotalPlies = Number(next());
+    else if (token === "--max-unresolved-resolution-plies") args.maxUnresolvedResolutionPlies = Number(next());
     else if (token === "--min-accept-trained-eval-cp") args.minAcceptTrainedEvalCp = Number(next());
     else if (token === "--fallback-accept-trained-eval-cp") args.fallbackAcceptTrainedEvalCp = Number(next());
     else if (token === "--stockfish-depth") args.stockfishDepth = Number(next());
@@ -617,7 +619,18 @@ function checkpointScore({ chess, line, analysis, openingColor, branchSansFromAn
   const bestMoveDescriptor = moveDescriptorFromUci(chess, analysis.bestMove);
   const lastSan = branchSansFromAnchor.at(-1) ?? null;
   const lastWasCapture = Boolean(lastSan?.includes("x"));
+  const lastGaveCheck = Boolean(lastSan?.includes("+") || lastSan?.includes("#"));
+  const hasCaptureSequence = branchSansFromAnchor.some((san) => san.includes("x"));
   const pendingCapture = Boolean(bestMoveDescriptor?.isCapture || lastWasCapture);
+  const pendingCheckReply = lastGaveCheck && !lastSan?.includes("#");
+  const nextMoveIsForcing = Boolean(bestMoveDescriptor?.givesCheck || bestMoveDescriptor?.isCapture);
+  const materialConversionPending =
+    hasCaptureSequence &&
+    materialEdgePawns < 1 &&
+    Number.isFinite(trainedEvalCp) &&
+    trainedEvalCp >= 120 &&
+    (pendingCapture || pendingCheckReply || nextMoveIsForcing);
+  const unresolvedForcing = Boolean(pendingCapture || pendingCheckReply || nextMoveIsForcing);
   const addedPlies = branchSansFromAnchor.length;
   const opponentRates = trace
     .filter((step) => step.side === "opponent")
@@ -633,7 +646,8 @@ function checkpointScore({ chess, line, analysis, openingColor, branchSansFromAn
   score += Math.min(developed, 4) * 0.6;
   if (castled) score += 1;
   if (bestMoveDescriptor?.givesCheck) score -= 1;
-  if (pendingCapture) score -= 4;
+  if (unresolvedForcing) score -= 4;
+  if (materialConversionPending) score -= 3;
   score += avgPlayRate * 3;
   score += minPlayRate * 2;
   score -= Math.max(0, addedPlies - args.softBranchPliesFromAnchor) * 0.8;
@@ -657,6 +671,10 @@ function checkpointScore({ chess, line, analysis, openingColor, branchSansFromAn
     developed,
     castled,
     pendingCapture,
+    pendingCheckReply,
+    nextMoveIsForcing,
+    materialConversionPending,
+    unresolvedForcing,
     bestMoveSan: bestMoveDescriptor?.san ?? null,
     bestMoveIsCapture: bestMoveDescriptor?.isCapture ?? false,
     bestMoveGivesCheck: bestMoveDescriptor?.givesCheck ?? false,
@@ -669,7 +687,7 @@ function checkpointScore({ chess, line, analysis, openingColor, branchSansFromAn
 function checkpointAccepts(state, args, allowFallback) {
   const threshold = allowFallback ? args.fallbackAcceptTrainedEvalCp : args.minAcceptTrainedEvalCp;
   if (!Number.isFinite(state.trainedEvalCp) || state.trainedEvalCp < threshold) return false;
-  if (state.pendingCapture) return false;
+  if (state.unresolvedForcing || state.materialConversionPending) return false;
   if (state.category === "tactical_payoff") {
     return state.materialEdgePawns >= 1 || state.trainedEvalCp >= 120;
   }
@@ -680,6 +698,10 @@ function checkpointAccepts(state, args, allowFallback) {
     return state.trainedEvalCp >= -20 && (state.castled || state.developed >= 3);
   }
   return state.trainedEvalCp >= threshold;
+}
+
+function checkpointNeedsResolution(state) {
+  return Boolean(state?.unresolvedForcing || state?.materialConversionPending);
 }
 
 function buildTraceStepForOpponent({ ply, move, san, source }) {
@@ -871,6 +893,8 @@ async function generateBranchFromTrigger({ parent, stemSans, trigger, args, cach
   const trace = [];
   let bestCheckpoint = null;
   let finalAnalysis = beforeAnalysis;
+  let latestState = null;
+  let unresolvedResolutionPlies = 0;
 
   const triggerMove = chess.move(uciToMoveObject(trigger.uci));
   if (!triggerMove) return null;
@@ -887,9 +911,16 @@ async function generateBranchFromTrigger({ parent, stemSans, trigger, args, cach
 
   const responseCategory = branchCategory(parent, triggerMove.san, "");
 
-  while (generatedSans.length < args.maxTotalPlies) {
+  while (true) {
     const addedFromAnchor = generatedSans.length - (parent.variationAnchorSans?.length ?? 0);
-    if (addedFromAnchor > args.maxBranchPliesFromAnchor) break;
+    const needsResolution = checkpointNeedsResolution(latestState);
+    const overBranchCap = addedFromAnchor > args.maxBranchPliesFromAnchor;
+    const overTotalCap = generatedSans.length >= args.maxTotalPlies;
+    if ((overBranchCap || overTotalCap) && !needsResolution) break;
+    if (needsResolution && (overBranchCap || overTotalCap)) {
+      unresolvedResolutionPlies += 1;
+      if (unresolvedResolutionPlies > args.maxUnresolvedResolutionPlies) break;
+    }
     const sideToMove = chess.turn() === "w" ? "white" : "black";
 
     if (sideToMove === openingColor) {
@@ -925,6 +956,7 @@ async function generateBranchFromTrigger({ parent, stemSans, trigger, args, cach
         category,
         args,
       });
+      latestState = state;
       if (checkpointAccepts(state, args, allowFallback)) {
         if (!bestCheckpoint || state.score > bestCheckpoint.state.score) {
           bestCheckpoint = {
@@ -935,7 +967,7 @@ async function generateBranchFromTrigger({ parent, stemSans, trigger, args, cach
             analysis: finalAnalysis,
           };
         }
-        if (addedFromAnchor >= args.softBranchPliesFromAnchor && bestCheckpoint) break;
+        if (addedFromAnchor >= args.softBranchPliesFromAnchor && bestCheckpoint && !checkpointNeedsResolution(state)) break;
       }
       continue;
     }
@@ -1290,6 +1322,7 @@ async function main() {
         maxNewBranchesPerVariation: args.maxNewBranchesPerVariation,
         minBranchesPerVariation: args.minBranchesPerVariation,
         maxBranchPliesFromAnchor: args.maxBranchPliesFromAnchor,
+        maxUnresolvedResolutionPlies: args.maxUnresolvedResolutionPlies,
         cloudEvalMode: args.cloudEvalMode,
         stockfishDepth: args.stockfishDepth,
         stockfishEngine: args.stockfishEngine,
