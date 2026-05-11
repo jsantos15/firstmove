@@ -599,7 +599,12 @@ function computeMaterialEdge(chess, openingColor) {
 function moveDescriptorFromUci(chess, uci) {
   if (!uci || uci === "(none)") return null;
   const clone = new Chess(chess.fen());
-  const move = clone.move(uciToMoveObject(uci));
+  let move = null;
+  try {
+    move = clone.move(uciToMoveObject(uci));
+  } catch (_error) {
+    return null;
+  }
   if (!move) return null;
   return {
     san: move.san,
