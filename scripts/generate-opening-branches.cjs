@@ -788,9 +788,11 @@ function checkpointScore({
   const engineAdvantagePending =
     sideToMove !== openingColor &&
     materialEdgePawns < 1 &&
-    !visibleMaterialThreat &&
     Number.isFinite(trainedEvalCp) &&
-    trainedEvalCp >= args.trainedOpportunityMinEvalCp &&
+    trainedEvalCp >= args.trainedOpportunityMinEvalCp;
+  const engineAdvantageBlocksStop =
+    engineAdvantagePending &&
+    !visibleMaterialThreat &&
     Number.isFinite(advantageResolutionPlies) &&
     advantageResolutionPlies < args.advantageResolutionMinPlies;
   const unresolvedForcing = Boolean(
@@ -798,7 +800,7 @@ function checkpointScore({
       pendingCheckReply ||
       nextMoveIsForcing ||
       materialThreatPending ||
-      engineAdvantagePending
+      engineAdvantageBlocksStop
   );
   const addedPlies = branchSansFromAnchor.length;
   const opponentRates = trace
@@ -849,6 +851,7 @@ function checkpointScore({
     forkThreatCount: materialThreat.forkThreatCount,
     forkedByOnePiece: materialThreat.forkedByOnePiece,
     engineAdvantagePending,
+    engineAdvantageBlocksStop,
     advantageResolutionPlies,
     advantageResolutionMinPlies: args.advantageResolutionMinPlies,
     materialConversionPending,
