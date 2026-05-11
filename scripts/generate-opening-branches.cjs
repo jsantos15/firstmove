@@ -47,7 +47,6 @@ function parseArgs(argv) {
     maxBranchPliesFromAnchor: 18,
     softBranchPliesFromAnchor: 12,
     maxTotalPlies: 40,
-    maxUnresolvedResolutionPlies: 12,
     minAcceptTrainedEvalCp: 20,
     fallbackAcceptTrainedEvalCp: -40,
     stockfishDepth: 18,
@@ -102,7 +101,6 @@ function parseArgs(argv) {
     else if (token === "--max-branch-plies-from-anchor") args.maxBranchPliesFromAnchor = Number(next());
     else if (token === "--soft-branch-plies-from-anchor") args.softBranchPliesFromAnchor = Number(next());
     else if (token === "--max-total-plies") args.maxTotalPlies = Number(next());
-    else if (token === "--max-unresolved-resolution-plies") args.maxUnresolvedResolutionPlies = Number(next());
     else if (token === "--min-accept-trained-eval-cp") args.minAcceptTrainedEvalCp = Number(next());
     else if (token === "--fallback-accept-trained-eval-cp") args.fallbackAcceptTrainedEvalCp = Number(next());
     else if (token === "--stockfish-depth") args.stockfishDepth = Number(next());
@@ -992,7 +990,6 @@ async function generateBranchFromTrigger({
   let bestCheckpoint = null;
   let finalAnalysis = beforeAnalysis;
   let latestState = null;
-  let unresolvedResolutionPlies = 0;
 
   const triggerMove = chess.move(uciToMoveObject(trigger.uci));
   if (!triggerMove) return null;
@@ -1016,10 +1013,6 @@ async function generateBranchFromTrigger({
     const overBranchCap = addedFromAnchor > args.maxBranchPliesFromAnchor;
     const overTotalCap = generatedSans.length >= args.maxTotalPlies;
     if ((overBranchCap || overTotalCap) && !needsResolution) break;
-    if (needsResolution && (overBranchCap || overTotalCap)) {
-      unresolvedResolutionPlies += 1;
-      if (unresolvedResolutionPlies > args.maxUnresolvedResolutionPlies) break;
-    }
     const sideToMove = chess.turn() === "w" ? "white" : "black";
 
     if (sideToMove === openingColor) {
@@ -1087,7 +1080,11 @@ async function generateBranchFromTrigger({
 
     const explorer = await fetchExplorerNode(chess.fen(), args, caches.explorer);
     const moves = popularMovesForNode({ explorer, addedPlies: addedFromAnchor, args });
-    const move = moves[0] ?? (chess.inCheck() ? await forcedCheckReplyMove({ chess, explorer, args, caches }) : null);
+    const move =
+      moves[0] ??
+      (needsResolution
+        ? await forcedResolutionMove({ chess, explorer, args, caches })
+        : null);
     if (!move) break;
     const applied = chess.move(uciToMoveObject(move.uci));
     if (!applied) break;
@@ -1187,7 +1184,7 @@ async function firstTrainedCandidatesForTrigger({ parent, stemSans, trigger, arg
   });
 }
 
-async function forcedCheckReplyMove({ chess, explorer, args, caches }) {
+async function forcedResolutionMove({ chess, explorer, args, caches }) {
   const legalUcis = new Set(chess.moves({ verbose: true }).map(moveToUci));
   const total = explorer.totalGamesAtNode;
   const explorerMove = explorer.topMoves.find((move) => legalUcis.has(move.uci));
@@ -1198,7 +1195,9 @@ async function forcedCheckReplyMove({ chess, explorer, args, caches }) {
       playRate,
       cumulativePlayRate: playRate,
       nodeGames: total,
-      source: "lichess-explorer-forced-check-reply",
+      source: chess.inCheck()
+        ? "lichess-explorer-forced-check-reply"
+        : "lichess-explorer-forced-resolution",
     };
   }
 
@@ -1211,7 +1210,7 @@ async function forcedCheckReplyMove({ chess, explorer, args, caches }) {
     playRate: null,
     cumulativePlayRate: null,
     nodeGames: total,
-    source: "engine-forced-check-reply",
+    source: chess.inCheck() ? "engine-forced-check-reply" : "engine-forced-resolution",
   };
 }
 
@@ -1553,7 +1552,6 @@ async function main() {
         maxNewBranchesPerVariation: args.maxNewBranchesPerVariation,
         minBranchesPerVariation: args.minBranchesPerVariation,
         maxBranchPliesFromAnchor: args.maxBranchPliesFromAnchor,
-        maxUnresolvedResolutionPlies: args.maxUnresolvedResolutionPlies,
         cloudEvalMode: args.cloudEvalMode,
         stockfishDepth: args.stockfishDepth,
         stockfishEngine: args.stockfishEngine,
