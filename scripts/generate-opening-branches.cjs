@@ -42,6 +42,9 @@ function parseArgs(argv) {
     cumulativePlayRateNearAnchor: 0.8,
     cumulativePlayRateMidline: 0.68,
     cumulativePlayRateDeep: 0.55,
+    individualMoveShareNearAnchor: 0.2,
+    individualMoveShareMidline: 0.15,
+    individualMoveShareDeep: 0.1,
     midlineAddedPlies: 6,
     deepAddedPlies: 12,
     maxBranchPliesFromAnchor: 18,
@@ -97,6 +100,9 @@ function parseArgs(argv) {
     else if (token === "--cumulative-play-rate-near-anchor") args.cumulativePlayRateNearAnchor = Number(next());
     else if (token === "--cumulative-play-rate-midline") args.cumulativePlayRateMidline = Number(next());
     else if (token === "--cumulative-play-rate-deep") args.cumulativePlayRateDeep = Number(next());
+    else if (token === "--individual-move-share-near-anchor") args.individualMoveShareNearAnchor = Number(next());
+    else if (token === "--individual-move-share-midline") args.individualMoveShareMidline = Number(next());
+    else if (token === "--individual-move-share-deep") args.individualMoveShareDeep = Number(next());
     else if (token === "--midline-added-plies") args.midlineAddedPlies = Number(next());
     else if (token === "--deep-added-plies") args.deepAddedPlies = Number(next());
     else if (token === "--max-branch-plies-from-anchor") args.maxBranchPliesFromAnchor = Number(next());
@@ -592,9 +598,16 @@ function cumulativeLimitForAddedPlies(addedPlies, args) {
   return args.cumulativePlayRateNearAnchor;
 }
 
+function individualMoveShareForAddedPlies(addedPlies, args) {
+  if (addedPlies >= args.deepAddedPlies) return args.individualMoveShareDeep;
+  if (addedPlies >= args.midlineAddedPlies) return args.individualMoveShareMidline;
+  return args.individualMoveShareNearAnchor;
+}
+
 function popularMovesForNode({ explorer, addedPlies, args }) {
   if (explorer.totalGamesAtNode < args.minNodeGames) return [];
-  const limit = cumulativeLimitForAddedPlies(addedPlies, args);
+  const cumulativeLimit = cumulativeLimitForAddedPlies(addedPlies, args);
+  const individualShare = individualMoveShareForAddedPlies(addedPlies, args);
   let cumulative = 0;
   const selected = [];
 
@@ -602,12 +615,20 @@ function popularMovesForNode({ explorer, addedPlies, args }) {
     const playRate = explorer.totalGamesAtNode > 0 ? move.totalGames / explorer.totalGamesAtNode : 0;
     if (move.totalGames < args.minMoveGames || playRate < args.minMoveShare) continue;
     const nextCumulative = cumulative + playRate;
-    if (selected.length > 0 && nextCumulative > limit) break;
+    const isIndividuallyCommon = playRate >= individualShare;
+    const isInsideCumulativeLimit = nextCumulative <= cumulativeLimit;
+    if (selected.length > 0 && !isInsideCumulativeLimit && !isIndividuallyCommon) break;
     cumulative = nextCumulative;
     selected.push({
       ...move,
       playRate,
       cumulativePlayRate: cumulative,
+      selectedBy:
+        selected.length === 0
+          ? "top_move"
+          : isInsideCumulativeLimit
+            ? "cumulative"
+            : "individual_share",
       nodeGames: explorer.totalGamesAtNode,
     });
     if (selected.length >= args.maxCandidateMovesPerNode) break;
@@ -951,6 +972,7 @@ function buildTraceStepForOpponent({ ply, move, san, source }) {
     cumulativePlayRate: Number.isFinite(move.cumulativePlayRate)
       ? Number(move.cumulativePlayRate.toFixed(4))
       : null,
+    selectedBy: move.selectedBy ?? null,
   };
 }
 
@@ -1148,6 +1170,11 @@ function buildBranchRecord({ parent, stemSans, trigger, branch, finalState, args
             nearAnchor: args.cumulativePlayRateNearAnchor,
             midline: args.cumulativePlayRateMidline,
             deep: args.cumulativePlayRateDeep,
+          },
+          individualMoveShareFloors: {
+            nearAnchor: args.individualMoveShareNearAnchor,
+            midline: args.individualMoveShareMidline,
+            deep: args.individualMoveShareDeep,
           },
           finalState,
         },
@@ -1768,6 +1795,9 @@ async function main() {
         minNodeGames: args.minNodeGames,
         minMoveGames: args.minMoveGames,
         minMoveShare: args.minMoveShare,
+        individualMoveShareNearAnchor: args.individualMoveShareNearAnchor,
+        individualMoveShareMidline: args.individualMoveShareMidline,
+        individualMoveShareDeep: args.individualMoveShareDeep,
         maxBranchesPerVariation: args.maxBranchesPerVariation,
         trainedCandidateMoves: args.trainedCandidateMoves,
         trainedCandidateMaxLossCp: args.trainedCandidateMaxLossCp,
