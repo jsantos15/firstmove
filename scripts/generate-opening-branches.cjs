@@ -1034,6 +1034,31 @@ function countBy(values) {
   return counts;
 }
 
+function isStrictSanPrefix(prefixSans, fullSans) {
+  if (!Array.isArray(prefixSans) || !Array.isArray(fullSans)) return false;
+  if (prefixSans.length >= fullSans.length) return false;
+  return prefixSans.every((san, index) => san === fullSans[index]);
+}
+
+function pruneSupersededBranchVariants(variants, args) {
+  return variants.filter((variant) => {
+    const variantEval = Number.isFinite(variant.finalState?.trainedEvalCp)
+      ? variant.finalState.trainedEvalCp
+      : Number.NEGATIVE_INFINITY;
+    return !variants.some((other) => {
+      if (other === variant) return false;
+      if (!isStrictSanPrefix(variant.generatedSans, other.generatedSans)) return false;
+      const otherEval = Number.isFinite(other.finalState?.trainedEvalCp)
+        ? other.finalState.trainedEvalCp
+        : Number.NEGATIVE_INFINITY;
+      return (
+        otherEval >= variantEval &&
+        (variantEval < args.trainedOpportunityMinEvalCp || otherEval >= args.trainedOpportunityMinEvalCp)
+      );
+    });
+  });
+}
+
 function lineKey(line) {
   return `${line.openingId}::${line.lineId}`;
 }
@@ -1489,7 +1514,7 @@ async function generateBranchVariantsFromTrigger({
     }
   }
 
-  return Array.from(variantsByLine.values())
+  return pruneSupersededBranchVariants(Array.from(variantsByLine.values()), args)
     .sort((left, right) => {
       const rightEval = Number.isFinite(right.finalState?.trainedEvalCp) ? right.finalState.trainedEvalCp : -999999;
       const leftEval = Number.isFinite(left.finalState?.trainedEvalCp) ? left.finalState.trainedEvalCp : -999999;
