@@ -67,6 +67,7 @@ function parseArgs(argv) {
     cloudEvalTimeoutMs: 30000,
     cloudEvalMaxRetries: 0,
     cloudEvalMinDepth: 0,
+    progressIntervalMs: 30000,
     cloudEvalCache: path.resolve(__dirname, "output", "lichess-cloud-eval-cache.json"),
     chessApiCache: path.resolve(__dirname, "output", "chess-api-eval-cache.json"),
     stockfishEvalCache: path.resolve(__dirname, "output", "stockfish-eval-cache.json"),
@@ -130,6 +131,7 @@ function parseArgs(argv) {
     else if (token === "--cloud-eval-timeout-ms") args.cloudEvalTimeoutMs = Number(next());
     else if (token === "--cloud-eval-max-retries") args.cloudEvalMaxRetries = Number(next());
     else if (token === "--cloud-eval-min-depth") args.cloudEvalMinDepth = Number(next());
+    else if (token === "--progress-interval-ms") args.progressIntervalMs = Number(next());
     else if (token === "--cloud-eval-cache") args.cloudEvalCache = path.resolve(next());
     else if (token === "--chess-api-cache") args.chessApiCache = path.resolve(next());
     else if (token === "--stockfish-eval-cache") args.stockfishEvalCache = path.resolve(next());
@@ -1288,6 +1290,25 @@ async function generateBranchVariantsFromTrigger({
   const checkpoints = [];
   const responseCategory = branchCategory(parent, triggerMove.san, "");
   let visitedNodes = 0;
+  const searchStartedAt = Date.now();
+  let lastProgressAt = searchStartedAt;
+
+  function maybeLogSearchProgress({ generatedSans, latestState }) {
+    if (!Number.isFinite(args.progressIntervalMs) || args.progressIntervalMs <= 0) return;
+    const now = Date.now();
+    if (now - lastProgressAt < args.progressIntervalMs) return;
+    lastProgressAt = now;
+    const elapsedSeconds = Math.round((now - searchStartedAt) / 1000);
+    const finalMove = generatedSans.at(-1) ?? triggerMove.san;
+    const evalText = Number.isFinite(latestState?.trainedEvalCp)
+      ? `${latestState.trainedEvalCp}cp`
+      : "n/a";
+    console.log(
+      `  [search] ${parent.fullName}: ${triggerMove.san} ` +
+        `${visitedNodes}/${args.maxContinuationSearchNodes} nodes, ` +
+        `${checkpoints.length} checkpoint(s), eval ${evalText}, last ${finalMove}, ${elapsedSeconds}s`
+    );
+  }
 
   function pushCheckpoint({
     state,
@@ -1319,6 +1340,7 @@ async function generateBranchVariantsFromTrigger({
   }) {
     visitedNodes += 1;
     if (visitedNodes > args.maxContinuationSearchNodes) return;
+    maybeLogSearchProgress({ generatedSans, latestState });
 
     const addedFromAnchor = generatedSans.length - (parent.variationAnchorSans?.length ?? 0);
     const needsResolution = checkpointNeedsResolution(latestState);
@@ -1664,8 +1686,12 @@ async function generateBranchesForParent({ parent, args, caches, existingKeys })
   }
 
   let discoveryCutoffPly = null;
-  for (const candidate of candidates) {
+  for (const [candidateIndex, candidate] of candidates.entries()) {
     if (Number.isFinite(discoveryCutoffPly) && candidate.stemPly > discoveryCutoffPly) break;
+    console.log(
+      `  [candidate ${candidateIndex + 1}/${candidates.length}] ${parent.fullName}: ` +
+        `${candidate.san ?? candidate.uci} at ply ${candidate.stemPly + 1}`
+    );
     const trainedCandidates = await firstTrainedCandidatesForTrigger({
       parent,
       stemSans: candidate.stemSans,
@@ -1710,6 +1736,10 @@ async function generateBranchesForParent({ parent, args, caches, existingKeys })
         );
       }
       discoveryCutoffPly = candidate.stemPly;
+      console.log(
+        `  [candidate ${candidateIndex + 1}/${candidates.length}] ${parent.fullName}: ` +
+          `${opportunityBranches.length} opportunity branch(es)`
+      );
       continue;
     }
 
@@ -1740,6 +1770,10 @@ async function generateBranchesForParent({ parent, args, caches, existingKeys })
     )) {
       discoveryCutoffPly = candidate.stemPly;
     }
+    console.log(
+      `  [candidate ${candidateIndex + 1}/${candidates.length}] ${parent.fullName}: ` +
+        `${branchVariants.length} variant(s)`
+    );
   }
 
   if (branches.length < args.minBranchesPerVariation && candidates.length > 0) {
@@ -1973,6 +2007,7 @@ async function main() {
         continuationOpponentCandidateMoves: args.continuationOpponentCandidateMoves,
         maxContinuationBranchesPerTrigger: args.maxContinuationBranchesPerTrigger,
         maxContinuationSearchNodes: args.maxContinuationSearchNodes,
+        progressIntervalMs: args.progressIntervalMs,
         prefixPruneMinEvalGainCp: args.prefixPruneMinEvalGainCp,
         prefixPruneMinEvalGainPerPlyCp: args.prefixPruneMinEvalGainPerPlyCp,
         maxBranchesPerVariation: args.maxBranchesPerVariation,
