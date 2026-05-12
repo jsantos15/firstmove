@@ -39,6 +39,8 @@ function parseArgs(argv) {
     minNodeGames: 250,
     minMoveGames: 35,
     minMoveShare: 0.03,
+    minResolutionNodeGames: 100,
+    minResolutionMoveGames: 20,
     cumulativePlayRateNearAnchor: 0.8,
     cumulativePlayRateMidline: 0.68,
     cumulativePlayRateDeep: 0.55,
@@ -103,6 +105,8 @@ function parseArgs(argv) {
     else if (token === "--min-node-games") args.minNodeGames = Number(next());
     else if (token === "--min-move-games") args.minMoveGames = Number(next());
     else if (token === "--min-move-share") args.minMoveShare = Number(next());
+    else if (token === "--min-resolution-node-games") args.minResolutionNodeGames = Number(next());
+    else if (token === "--min-resolution-move-games") args.minResolutionMoveGames = Number(next());
     else if (token === "--cumulative-play-rate-near-anchor") args.cumulativePlayRateNearAnchor = Number(next());
     else if (token === "--cumulative-play-rate-midline") args.cumulativePlayRateMidline = Number(next());
     else if (token === "--cumulative-play-rate-deep") args.cumulativePlayRateDeep = Number(next());
@@ -1232,6 +1236,8 @@ function buildBranchRecord({ parent, stemSans, trigger, branch, finalState, args
           trainedCandidateMoves: args.trainedCandidateMoves,
           trainedCandidateMaxLossCp: args.trainedCandidateMaxLossCp,
           trainedOpportunityMinEvalCp: args.trainedOpportunityMinEvalCp,
+          minResolutionNodeGames: args.minResolutionNodeGames,
+          minResolutionMoveGames: args.minResolutionMoveGames,
           advantageResolutionMinPlies: args.advantageResolutionMinPlies,
           maxBranchesPerVariation: args.maxBranchesPerVariation,
           continuationOpponentCandidateMoves: args.continuationOpponentCandidateMoves,
@@ -1619,11 +1625,19 @@ async function firstTrainedCandidatesForTrigger({ parent, stemSans, trigger, arg
 }
 
 async function forcedResolutionMove({ chess, explorer, args, caches }) {
-  const legalUcis = new Set(chess.moves({ verbose: true }).map(moveToUci));
+  const legalMoves = chess.moves({ verbose: true });
+  const legalUcis = new Set(legalMoves.map(moveToUci));
   const total = explorer.totalGamesAtNode;
+  const onlyLegalMove = legalMoves.length === 1;
   const explorerMove = explorer.topMoves.find((move) => legalUcis.has(move.uci));
   if (explorerMove) {
     const playRate = total > 0 ? explorerMove.totalGames / total : null;
+    if (
+      !onlyLegalMove &&
+      (total < args.minResolutionNodeGames || explorerMove.totalGames < args.minResolutionMoveGames)
+    ) {
+      return null;
+    }
     return {
       ...explorerMove,
       playRate,
@@ -1635,6 +1649,7 @@ async function forcedResolutionMove({ chess, explorer, args, caches }) {
     };
   }
 
+  if (!onlyLegalMove) return null;
   const analysis = await analyzeWithRouter(chess.fen(), args, caches);
   if (!analysis.bestMove || !legalUcis.has(analysis.bestMove)) return null;
   return {
@@ -2001,6 +2016,8 @@ async function main() {
         minNodeGames: args.minNodeGames,
         minMoveGames: args.minMoveGames,
         minMoveShare: args.minMoveShare,
+        minResolutionNodeGames: args.minResolutionNodeGames,
+        minResolutionMoveGames: args.minResolutionMoveGames,
         individualMoveShareNearAnchor: args.individualMoveShareNearAnchor,
         individualMoveShareMidline: args.individualMoveShareMidline,
         individualMoveShareDeep: args.individualMoveShareDeep,
