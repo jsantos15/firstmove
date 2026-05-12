@@ -539,6 +539,14 @@ export function PracticeBoard({
       return evalByPly[ply];
     }
 
+    if (Array.isArray(evalByPly)) {
+      for (let index = Math.min(ply, evalByPly.length - 1); index >= 0; index -= 1) {
+        if (typeof evalByPly[index] === 'number' && Number.isFinite(evalByPly[index])) {
+          return evalByPly[index];
+        }
+      }
+    }
+
     if (ply === 0) {
       return INITIAL_POSITION_EVAL_CP;
     }
@@ -556,7 +564,7 @@ export function PracticeBoard({
 
   const cloudEvalCp = useLichessCloudEval(displayPosition);
   const currentStaticEvalCp = getEvalAtPly(displayIndex);
-  const displayedEvalCp = cloudEvalCp ?? currentStaticEvalCp;
+  const displayedEvalCp = currentStaticEvalCp ?? cloudEvalCp;
 
   // Keep board offset stable from the start whenever this line can show eval data.
   const hasVisibleEvalBar =
