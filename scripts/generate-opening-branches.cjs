@@ -1120,7 +1120,7 @@ function buildBranchRecord({ parent, stemSans, trigger, branch, finalState, args
   const trainedOpportunitySlug =
     branch.trainedOpportunity && firstTrainedStep?.san ? `-${slugify(firstTrainedStep.san)}` : "";
   const continuationSlug = branchTraceSlug(branchTrace);
-  const variantSlug = trainedOpportunitySlug || (continuationSlug ? `-${continuationSlug}` : "");
+  const variantSlug = continuationSlug ? `-${continuationSlug}` : trainedOpportunitySlug;
   const lineId = `${parentLineId}-branch-${triggerSlug}${variantSlug}`;
   const traceKey = branchTraceKey(branchTrace) || trigger.uci;
   const sourceCounts = countBy(branchTrace.map((step) => step.source));
@@ -1329,10 +1329,17 @@ async function generateBranchVariantsFromTrigger({
     const sideToMove = chess.turn() === "w" ? "white" : "black";
     if (sideToMove === openingColor) {
       const analysis = await analyzeWithRouter(chess.fen(), args, caches);
+      const currentEvalCp = latestState?.trainedEvalCp;
+      const settledAdvantage =
+        advantageLock ||
+        (Number.isFinite(currentEvalCp) && currentEvalCp >= args.trainedOpportunityMinEvalCp);
+      const trainedCandidateOptions = trainedMoveCandidates({ chess, analysis, openingColor, args });
       const trainedCandidates =
         forcedFirstTrainedCandidate && !usedForcedFirstTrainedCandidate
           ? [forcedFirstTrainedCandidate]
-          : trainedMoveCandidates({ chess, analysis, openingColor, args }).slice(0, 1);
+          : settledAdvantage
+            ? trainedCandidateOptions.slice(0, 1)
+            : trainedCandidateOptions;
       if (trainedCandidates.length === 0 && analysis.bestMove && analysis.bestMove !== "(none)") {
         trainedCandidates.push({
           uci: analysis.bestMove,
