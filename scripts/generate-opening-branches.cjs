@@ -45,6 +45,7 @@ function parseArgs(argv) {
     individualMoveShareNearAnchor: 0.2,
     individualMoveShareMidline: 0.15,
     individualMoveShareDeep: 0.1,
+    continuationOpponentCandidateMoves: 3,
     midlineAddedPlies: 6,
     deepAddedPlies: 12,
     maxBranchPliesFromAnchor: 18,
@@ -103,6 +104,7 @@ function parseArgs(argv) {
     else if (token === "--individual-move-share-near-anchor") args.individualMoveShareNearAnchor = Number(next());
     else if (token === "--individual-move-share-midline") args.individualMoveShareMidline = Number(next());
     else if (token === "--individual-move-share-deep") args.individualMoveShareDeep = Number(next());
+    else if (token === "--continuation-opponent-candidate-moves") args.continuationOpponentCandidateMoves = Number(next());
     else if (token === "--midline-added-plies") args.midlineAddedPlies = Number(next());
     else if (token === "--deep-added-plies") args.deepAddedPlies = Number(next());
     else if (token === "--max-branch-plies-from-anchor") args.maxBranchPliesFromAnchor = Number(next());
@@ -1166,6 +1168,7 @@ function buildBranchRecord({ parent, stemSans, trigger, branch, finalState, args
           trainedOpportunityMinEvalCp: args.trainedOpportunityMinEvalCp,
           advantageResolutionMinPlies: args.advantageResolutionMinPlies,
           maxBranchesPerVariation: args.maxBranchesPerVariation,
+          continuationOpponentCandidateMoves: args.continuationOpponentCandidateMoves,
           cumulativeLimits: {
             nearAnchor: args.cumulativePlayRateNearAnchor,
             midline: args.cumulativePlayRateMidline,
@@ -1323,7 +1326,17 @@ async function generateBranchFromTrigger({
     const explorer = await fetchExplorerNode(chess.fen(), args, caches.explorer);
     const moves = popularMovesForNode({ explorer, addedPlies: addedFromAnchor, args });
     const move =
-      moves[0] ??
+      (await chooseContinuationOpponentMove({
+        chess,
+        moves,
+        latestState,
+        parent,
+        openingColor,
+        generatedSans,
+        trace,
+        args,
+        caches,
+      })) ??
       (needsResolution
         ? await forcedResolutionMove({ chess, explorer, args, caches })
         : null);
@@ -1456,6 +1469,100 @@ async function forcedResolutionMove({ chess, explorer, args, caches }) {
     nodeGames: total,
     source: chess.inCheck() ? "engine-forced-check-reply" : "engine-forced-resolution",
   };
+}
+
+async function chooseContinuationOpponentMove({
+  chess,
+  moves,
+  latestState,
+  parent,
+  openingColor,
+  generatedSans,
+  trace,
+  args,
+  caches,
+}) {
+  if (moves.length <= 1) return moves[0] ?? null;
+  if (
+    checkpointNeedsResolution(latestState) ||
+    (Number.isFinite(latestState.trainedEvalCp) &&
+      latestState.trainedEvalCp >= args.trainedOpportunityMinEvalCp)
+  ) {
+    return moves[0];
+  }
+
+  const candidateLimit = Math.max(1, Math.floor(args.continuationOpponentCandidateMoves));
+  const candidates = moves.slice(0, candidateLimit);
+  let best = null;
+
+  for (const candidate of candidates) {
+    const sim = new Chess(chess.fen());
+    const opponentMove = sim.move(uciToMoveObject(candidate.uci));
+    if (!opponentMove) continue;
+    if ((sim.turn() === "w" ? "white" : "black") !== openingColor) continue;
+
+    const trainedAnalysis = await analyzeWithRouter(sim.fen(), args, caches);
+    if (!trainedAnalysis.bestMove || trainedAnalysis.bestMove === "(none)") continue;
+    const trainedMove = sim.move(uciToMoveObject(trainedAnalysis.bestMove));
+    if (!trainedMove) continue;
+
+    const finalAnalysis = await analyzeWithRouter(sim.fen(), args, caches);
+    const trainedEvalCp = perspectiveEvalCp(
+      finalAnalysis.lines[0]?.score ?? null,
+      finalAnalysis.turnColor,
+      openingColor
+    );
+    const candidateTrace = [
+      ...trace,
+      buildTraceStepForOpponent({
+        ply: generatedSans.length + 1,
+        move: candidate,
+        san: opponentMove.san,
+        source: candidate.source ?? "lichess-explorer-continuation-lookahead",
+      }),
+      buildTraceStepForTrained({
+        ply: generatedSans.length + 2,
+        san: trainedMove.san,
+        uci: trainedAnalysis.bestMove,
+        analysis: trainedAnalysis,
+        trainedEvalCp,
+      }),
+    ];
+    const candidateState = checkpointScore({
+      chess: sim,
+      line: parent,
+      analysis: finalAnalysis,
+      openingColor,
+      branchSansFromAnchor: [...generatedSans, opponentMove.san, trainedMove.san].slice(
+        parent.variationAnchorSans?.length ?? 0
+      ),
+      trace: candidateTrace,
+      category: branchCategory(parent, opponentMove.san, trainedMove.san),
+      args,
+      advantageStartPly: null,
+    });
+    const candidateEval = Number.isFinite(candidateState.trainedEvalCp)
+      ? candidateState.trainedEvalCp
+      : Number.NEGATIVE_INFINITY;
+    const bestEval = Number.isFinite(best?.state.trainedEvalCp)
+      ? best.state.trainedEvalCp
+      : Number.NEGATIVE_INFINITY;
+    if (
+      !best ||
+      candidateEval > bestEval ||
+      (candidateEval === bestEval && candidateState.score > best.state.score)
+    ) {
+      best = {
+        move: {
+          ...candidate,
+          source: candidate.source ?? "lichess-explorer-continuation-lookahead",
+        },
+        state: candidateState,
+      };
+    }
+  }
+
+  return best?.move ?? moves[0];
 }
 
 async function generateBranchesForParent({ parent, args, caches, existingKeys }) {
@@ -1798,6 +1905,7 @@ async function main() {
         individualMoveShareNearAnchor: args.individualMoveShareNearAnchor,
         individualMoveShareMidline: args.individualMoveShareMidline,
         individualMoveShareDeep: args.individualMoveShareDeep,
+        continuationOpponentCandidateMoves: args.continuationOpponentCandidateMoves,
         maxBranchesPerVariation: args.maxBranchesPerVariation,
         trainedCandidateMoves: args.trainedCandidateMoves,
         trainedCandidateMaxLossCp: args.trainedCandidateMaxLossCp,
