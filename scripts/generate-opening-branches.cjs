@@ -48,6 +48,8 @@ function parseArgs(argv) {
     continuationOpponentCandidateMoves: 3,
     maxContinuationBranchesPerTrigger: 3,
     maxContinuationSearchNodes: 120,
+    prefixPruneMinEvalGainCp: 60,
+    prefixPruneMinEvalGainPerPlyCp: 5,
     midlineAddedPlies: 6,
     deepAddedPlies: 12,
     maxBranchPliesFromAnchor: 18,
@@ -109,6 +111,8 @@ function parseArgs(argv) {
     else if (token === "--continuation-opponent-candidate-moves") args.continuationOpponentCandidateMoves = Number(next());
     else if (token === "--max-continuation-branches-per-trigger") args.maxContinuationBranchesPerTrigger = Number(next());
     else if (token === "--max-continuation-search-nodes") args.maxContinuationSearchNodes = Number(next());
+    else if (token === "--prefix-prune-min-eval-gain-cp") args.prefixPruneMinEvalGainCp = Number(next());
+    else if (token === "--prefix-prune-min-eval-gain-per-ply-cp") args.prefixPruneMinEvalGainPerPlyCp = Number(next());
     else if (token === "--midline-added-plies") args.midlineAddedPlies = Number(next());
     else if (token === "--deep-added-plies") args.deepAddedPlies = Number(next());
     else if (token === "--max-branch-plies-from-anchor") args.maxBranchPliesFromAnchor = Number(next());
@@ -1051,10 +1055,16 @@ function pruneSupersededBranchVariants(variants, args) {
       const otherEval = Number.isFinite(other.finalState?.trainedEvalCp)
         ? other.finalState.trainedEvalCp
         : Number.NEGATIVE_INFINITY;
-      return (
-        otherEval >= variantEval &&
-        (variantEval < args.trainedOpportunityMinEvalCp || otherEval >= args.trainedOpportunityMinEvalCp)
-      );
+      if (otherEval <= variantEval) return false;
+      const evalGain = otherEval - variantEval;
+      const addedPlies = other.generatedSans.length - variant.generatedSans.length;
+      const crossesOpportunity =
+        variantEval < args.trainedOpportunityMinEvalCp &&
+        otherEval >= args.trainedOpportunityMinEvalCp;
+      const efficientGain =
+        evalGain >= args.prefixPruneMinEvalGainCp &&
+        evalGain / Math.max(1, addedPlies) >= args.prefixPruneMinEvalGainPerPlyCp;
+      return crossesOpportunity || efficientGain;
     });
   });
 }
@@ -1206,6 +1216,8 @@ function buildBranchRecord({ parent, stemSans, trigger, branch, finalState, args
           continuationOpponentCandidateMoves: args.continuationOpponentCandidateMoves,
           maxContinuationBranchesPerTrigger: args.maxContinuationBranchesPerTrigger,
           maxContinuationSearchNodes: args.maxContinuationSearchNodes,
+          prefixPruneMinEvalGainCp: args.prefixPruneMinEvalGainCp,
+          prefixPruneMinEvalGainPerPlyCp: args.prefixPruneMinEvalGainPerPlyCp,
           cumulativeLimits: {
             nearAnchor: args.cumulativePlayRateNearAnchor,
             midline: args.cumulativePlayRateMidline,
@@ -1935,6 +1947,8 @@ async function main() {
         continuationOpponentCandidateMoves: args.continuationOpponentCandidateMoves,
         maxContinuationBranchesPerTrigger: args.maxContinuationBranchesPerTrigger,
         maxContinuationSearchNodes: args.maxContinuationSearchNodes,
+        prefixPruneMinEvalGainCp: args.prefixPruneMinEvalGainCp,
+        prefixPruneMinEvalGainPerPlyCp: args.prefixPruneMinEvalGainPerPlyCp,
         maxBranchesPerVariation: args.maxBranchesPerVariation,
         trainedCandidateMoves: args.trainedCandidateMoves,
         trainedCandidateMaxLossCp: args.trainedCandidateMaxLossCp,
