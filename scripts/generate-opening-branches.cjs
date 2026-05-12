@@ -46,6 +46,8 @@ function parseArgs(argv) {
     individualMoveShareMidline: 0.15,
     individualMoveShareDeep: 0.1,
     continuationOpponentCandidateMoves: 3,
+    maxContinuationBranchesPerTrigger: 3,
+    maxContinuationSearchNodes: 120,
     midlineAddedPlies: 6,
     deepAddedPlies: 12,
     maxBranchPliesFromAnchor: 18,
@@ -105,6 +107,8 @@ function parseArgs(argv) {
     else if (token === "--individual-move-share-midline") args.individualMoveShareMidline = Number(next());
     else if (token === "--individual-move-share-deep") args.individualMoveShareDeep = Number(next());
     else if (token === "--continuation-opponent-candidate-moves") args.continuationOpponentCandidateMoves = Number(next());
+    else if (token === "--max-continuation-branches-per-trigger") args.maxContinuationBranchesPerTrigger = Number(next());
+    else if (token === "--max-continuation-search-nodes") args.maxContinuationSearchNodes = Number(next());
     else if (token === "--midline-added-plies") args.midlineAddedPlies = Number(next());
     else if (token === "--deep-added-plies") args.deepAddedPlies = Number(next());
     else if (token === "--max-branch-plies-from-anchor") args.maxBranchPliesFromAnchor = Number(next());
@@ -1003,16 +1007,22 @@ function buildTraceStepForTrained({
   };
 }
 
-function makeBranchName({ triggerSan, category, finalState }) {
+function makeBranchName({ triggerSan, category, finalState, trace = [] }) {
+  const followupOpponentSan = trace
+    .filter((step) => step.side === "opponent")
+    .slice(1, 2)
+    .map((step) => step.san)
+    .find(Boolean);
+  const triggerLabel = followupOpponentSan ? `${triggerSan} ${followupOpponentSan}` : triggerSan;
   if (category === "tactical_payoff") {
-    if (finalState.materialEdgePawns >= 1) return `Punish ${triggerSan}`;
-    if (/[+#]/.test(triggerSan)) return `${triggerSan} tactic`;
-    return `${triggerSan} tactical response`;
+    if (finalState.materialEdgePawns >= 1) return `Punish ${triggerLabel}`;
+    if (/[+#]/.test(triggerSan)) return `${triggerLabel} tactic`;
+    return `${triggerLabel} tactical response`;
   }
-  if (category === "forcing") return `${triggerSan} forcing line`;
-  if (category === "setup") return `${triggerSan} setup response`;
-  if (finalState.castled || finalState.developed >= 3) return `${triggerSan} practical setup`;
-  return `${triggerSan} practical response`;
+  if (category === "forcing") return `${triggerLabel} forcing line`;
+  if (category === "setup") return `${triggerLabel} setup response`;
+  if (finalState.castled || finalState.developed >= 3) return `${triggerLabel} practical setup`;
+  return `${triggerLabel} practical response`;
 }
 
 function countBy(values) {
@@ -1050,9 +1060,9 @@ function buildBranchRecord({ parent, stemSans, trigger, branch, finalState, args
   const parentLineId = parent.lineId ?? slugify(parent.fullName);
   const triggerSlug = slugify(`${stemSans.length}-${trigger.san}`);
   const category = finalState.category;
-  const name = makeBranchName({ triggerSan: trigger.san, category, finalState });
-  const fullName = `${parent.fullName}: ${name}`;
   const branchTrace = branch.trace;
+  const name = makeBranchName({ triggerSan: trigger.san, category, finalState, trace: branchTrace });
+  const fullName = `${parent.fullName}: ${name}`;
   const firstTrainedStep = branchTrace.find((step) => step.side === "trained");
   const trainedOpportunitySlug =
     branch.trainedOpportunity && firstTrainedStep?.san ? `-${slugify(firstTrainedStep.san)}` : "";
@@ -1169,6 +1179,8 @@ function buildBranchRecord({ parent, stemSans, trigger, branch, finalState, args
           advantageResolutionMinPlies: args.advantageResolutionMinPlies,
           maxBranchesPerVariation: args.maxBranchesPerVariation,
           continuationOpponentCandidateMoves: args.continuationOpponentCandidateMoves,
+          maxContinuationBranchesPerTrigger: args.maxContinuationBranchesPerTrigger,
+          maxContinuationSearchNodes: args.maxContinuationSearchNodes,
           cumulativeLimits: {
             nearAnchor: args.cumulativePlayRateNearAnchor,
             midline: args.cumulativePlayRateMidline,
@@ -1187,7 +1199,7 @@ function buildBranchRecord({ parent, stemSans, trigger, branch, finalState, args
   };
 }
 
-async function generateBranchFromTrigger({
+async function generateBranchVariantsFromTrigger({
   parent,
   stemSans,
   trigger,
@@ -1197,214 +1209,294 @@ async function generateBranchFromTrigger({
   forcedFirstTrainedCandidate = null,
 }) {
   const openingColor = parent.openingColor;
-  const chess = applySans(stemSans);
-  const stemFen = chess.fen();
+  const root = applySans(stemSans);
+  const stemFen = root.fen();
   const beforeAnalysis = await analyzeWithRouter(stemFen, args, caches);
   const evalBeforeTrigger = perspectiveEvalCp(
     beforeAnalysis.lines[0]?.score ?? null,
     beforeAnalysis.turnColor,
     openingColor
   );
-  const generatedSans = [...stemSans];
-  const trace = [];
-  let bestCheckpoint = null;
-  let finalAnalysis = beforeAnalysis;
-  let latestState = null;
-  let advantageLock = null;
+  const triggerMove = root.move(uciToMoveObject(trigger.uci));
+  if (!triggerMove) return [];
 
-  const triggerMove = chess.move(uciToMoveObject(trigger.uci));
-  if (!triggerMove) return null;
-  generatedSans.push(triggerMove.san);
-  trigger.san = triggerMove.san;
-  trace.push(
+  const initialSans = [...stemSans, triggerMove.san];
+  const initialTrace = [
     buildTraceStepForOpponent({
-      ply: generatedSans.length,
-      move: trigger,
+      ply: initialSans.length,
+      move: { ...trigger, san: triggerMove.san },
       san: triggerMove.san,
       source: "lichess-explorer-trigger",
-    })
-  );
-
+    }),
+  ];
+  const checkpoints = [];
   const responseCategory = branchCategory(parent, triggerMove.san, "");
-  let usedForcedFirstTrainedCandidate = false;
+  let visitedNodes = 0;
 
-  while (true) {
+  function pushCheckpoint({
+    state,
+    generatedSans,
+    trace,
+    fen,
+    analysis,
+    fallback = false,
+  }) {
+    if (!checkpointAccepts(state, args, allowFallback || fallback)) return;
+    checkpoints.push({
+      state,
+      generatedSans: [...generatedSans],
+      trace: trace.map((step) => ({ ...step })),
+      fen,
+      analysis,
+      fallback,
+    });
+  }
+
+  async function search({
+    chess,
+    generatedSans,
+    trace,
+    latestState,
+    finalAnalysis,
+    advantageLock,
+    usedForcedFirstTrainedCandidate,
+  }) {
+    visitedNodes += 1;
+    if (visitedNodes > args.maxContinuationSearchNodes) return;
+
     const addedFromAnchor = generatedSans.length - (parent.variationAnchorSans?.length ?? 0);
     const needsResolution = checkpointNeedsResolution(latestState);
     const overBranchCap = addedFromAnchor > args.maxBranchPliesFromAnchor;
     const overTotalCap = generatedSans.length >= args.maxTotalPlies;
-    if ((overBranchCap || overTotalCap) && !needsResolution) break;
-    const sideToMove = chess.turn() === "w" ? "white" : "black";
+    if ((overBranchCap || overTotalCap) && !needsResolution) return;
 
+    const sideToMove = chess.turn() === "w" ? "white" : "black";
     if (sideToMove === openingColor) {
       const analysis = await analyzeWithRouter(chess.fen(), args, caches);
-      const trainedCandidate =
+      const trainedCandidates =
         forcedFirstTrainedCandidate && !usedForcedFirstTrainedCandidate
-          ? forcedFirstTrainedCandidate
-          : {
-              uci: analysis.bestMove,
-              rank: 1,
-              evalCp: null,
-              bestEvalCp: null,
-              evalLossCp: 0,
-            };
-      if (!trainedCandidate.uci || trainedCandidate.uci === "(none)") break;
-      const move = chess.move(uciToMoveObject(trainedCandidate.uci));
-      if (!move) break;
-      if (forcedFirstTrainedCandidate && !usedForcedFirstTrainedCandidate) {
-        usedForcedFirstTrainedCandidate = true;
-      }
-      generatedSans.push(move.san);
-      finalAnalysis = await analyzeWithRouter(chess.fen(), args, caches);
-      const trainedEvalCp = perspectiveEvalCp(
-        finalAnalysis.lines[0]?.score ?? null,
-        finalAnalysis.turnColor,
-        openingColor
-      );
-      trace.push(
-        buildTraceStepForTrained({
-          ply: generatedSans.length,
-          san: move.san,
-          uci: trainedCandidate.uci,
-          analysis,
-          trainedEvalCp,
-          trainedCandidate,
-        })
-      );
-
-      const category = branchCategory(parent, triggerMove.san, move.san || "");
-      let state = checkpointScore({
-        chess,
-        line: parent,
-        analysis: finalAnalysis,
-        openingColor,
-        branchSansFromAnchor: generatedSans.slice(parent.variationAnchorSans?.length ?? 0),
-        trace,
-        category,
-        args,
-        advantageStartPly: advantageLock?.startPly ?? null,
-      });
-      if (
-        !advantageLock &&
-        Number.isFinite(state.trainedEvalCp) &&
-        state.trainedEvalCp >= args.trainedOpportunityMinEvalCp &&
-        state.materialEdgePawns < 1 &&
-        !state.visibleMaterialThreat
-      ) {
-        advantageLock = {
-          startPly: generatedSans.length,
-          startEvalCp: state.trainedEvalCp,
-        };
-        state = checkpointScore({
-          chess,
-          line: parent,
-          analysis: finalAnalysis,
-          openingColor,
-          branchSansFromAnchor: generatedSans.slice(parent.variationAnchorSans?.length ?? 0),
-          trace,
-          category,
-          args,
-          advantageStartPly: advantageLock.startPly,
+          ? [forcedFirstTrainedCandidate]
+          : trainedMoveCandidates({ chess, analysis, openingColor, args }).slice(0, 1);
+      if (trainedCandidates.length === 0 && analysis.bestMove && analysis.bestMove !== "(none)") {
+        trainedCandidates.push({
+          uci: analysis.bestMove,
+          rank: 1,
+          evalCp: null,
+          bestEvalCp: null,
+          evalLossCp: 0,
         });
       }
-      latestState = state;
-      if (checkpointAccepts(state, args, allowFallback)) {
-        if (!bestCheckpoint || state.score > bestCheckpoint.state.score) {
-          bestCheckpoint = {
-            state,
-            generatedSans: [...generatedSans],
-            trace: trace.map((step) => ({ ...step })),
-            fen: chess.fen(),
-            analysis: finalAnalysis,
+
+      for (const trainedCandidate of trainedCandidates) {
+        if (!trainedCandidate.uci || trainedCandidate.uci === "(none)") continue;
+        const nextChess = new Chess(chess.fen());
+        const move = nextChess.move(uciToMoveObject(trainedCandidate.uci));
+        if (!move) continue;
+        const nextGeneratedSans = [...generatedSans, move.san];
+        const nextFinalAnalysis = await analyzeWithRouter(nextChess.fen(), args, caches);
+        const trainedEvalCp = perspectiveEvalCp(
+          nextFinalAnalysis.lines[0]?.score ?? null,
+          nextFinalAnalysis.turnColor,
+          openingColor
+        );
+        const nextTrace = [
+          ...trace,
+          buildTraceStepForTrained({
+            ply: nextGeneratedSans.length,
+            san: move.san,
+            uci: trainedCandidate.uci,
+            analysis,
+            trainedEvalCp,
+            trainedCandidate,
+          }),
+        ];
+        let nextAdvantageLock = advantageLock;
+        const category = branchCategory(parent, triggerMove.san, move.san || "");
+        let state = checkpointScore({
+          chess: nextChess,
+          line: parent,
+          analysis: nextFinalAnalysis,
+          openingColor,
+          branchSansFromAnchor: nextGeneratedSans.slice(parent.variationAnchorSans?.length ?? 0),
+          trace: nextTrace,
+          category,
+          args,
+          advantageStartPly: nextAdvantageLock?.startPly ?? null,
+        });
+        if (
+          !nextAdvantageLock &&
+          Number.isFinite(state.trainedEvalCp) &&
+          state.trainedEvalCp >= args.trainedOpportunityMinEvalCp &&
+          state.materialEdgePawns < 1 &&
+          !state.visibleMaterialThreat
+        ) {
+          nextAdvantageLock = {
+            startPly: nextGeneratedSans.length,
+            startEvalCp: state.trainedEvalCp,
           };
+          state = checkpointScore({
+            chess: nextChess,
+            line: parent,
+            analysis: nextFinalAnalysis,
+            openingColor,
+            branchSansFromAnchor: nextGeneratedSans.slice(parent.variationAnchorSans?.length ?? 0),
+            trace: nextTrace,
+            category,
+            args,
+            advantageStartPly: nextAdvantageLock.startPly,
+          });
         }
-        if (addedFromAnchor >= args.softBranchPliesFromAnchor && bestCheckpoint && !checkpointNeedsResolution(state)) break;
+
+        pushCheckpoint({
+          state,
+          generatedSans: nextGeneratedSans,
+          trace: nextTrace,
+          fen: nextChess.fen(),
+          analysis: nextFinalAnalysis,
+        });
+
+        if (addedFromAnchor >= args.softBranchPliesFromAnchor && !checkpointNeedsResolution(state)) {
+          continue;
+        }
+
+        await search({
+          chess: nextChess,
+          generatedSans: nextGeneratedSans,
+          trace: nextTrace,
+          latestState: state,
+          finalAnalysis: nextFinalAnalysis,
+          advantageLock: nextAdvantageLock,
+          usedForcedFirstTrainedCandidate:
+            usedForcedFirstTrainedCandidate || forcedFirstTrainedCandidate === trainedCandidate,
+        });
       }
-      continue;
+      return;
     }
 
     const explorer = await fetchExplorerNode(chess.fen(), args, caches.explorer);
     const moves = popularMovesForNode({ explorer, addedPlies: addedFromAnchor, args });
-    const move =
-      (await chooseContinuationOpponentMove({
-        chess,
-        moves,
+    let candidateMoves = moves;
+    if (
+      checkpointNeedsResolution(latestState) ||
+      (Number.isFinite(latestState?.trainedEvalCp) &&
+        latestState.trainedEvalCp >= args.trainedOpportunityMinEvalCp)
+    ) {
+      const forcedMove = moves[0] ?? (await forcedResolutionMove({ chess, explorer, args, caches }));
+      candidateMoves = forcedMove ? [forcedMove] : [];
+    } else {
+      candidateMoves = moves.slice(0, Math.max(1, Math.floor(args.continuationOpponentCandidateMoves)));
+    }
+
+    for (const candidate of candidateMoves) {
+      const nextChess = new Chess(chess.fen());
+      const applied = nextChess.move(uciToMoveObject(candidate.uci));
+      if (!applied) continue;
+      await search({
+        chess: nextChess,
+        generatedSans: [...generatedSans, applied.san],
+        trace: [
+          ...trace,
+          buildTraceStepForOpponent({
+            ply: generatedSans.length + 1,
+            move: candidate,
+            san: applied.san,
+            source: candidate.source ?? "lichess-explorer-continuation",
+          }),
+        ],
         latestState,
-        parent,
-        openingColor,
-        generatedSans,
-        trace,
-        args,
-        caches,
-      })) ??
-      (needsResolution
-        ? await forcedResolutionMove({ chess, explorer, args, caches })
-        : null);
-    if (!move) break;
-    const applied = chess.move(uciToMoveObject(move.uci));
-    if (!applied) break;
-    generatedSans.push(applied.san);
-    trace.push(
-      buildTraceStepForOpponent({
-        ply: generatedSans.length,
-        move,
-        san: applied.san,
-        source: move.source ?? "lichess-explorer-continuation",
-      })
-    );
+        finalAnalysis,
+        advantageLock,
+        usedForcedFirstTrainedCandidate,
+      });
+    }
   }
 
-  if (!bestCheckpoint) {
-    finalAnalysis = await analyzeWithRouter(chess.fen(), args, caches);
+  await search({
+    chess: root,
+    generatedSans: initialSans,
+    trace: initialTrace,
+    latestState: null,
+    finalAnalysis: beforeAnalysis,
+    advantageLock: null,
+    usedForcedFirstTrainedCandidate: false,
+  });
+
+  if (checkpoints.length === 0) {
+    const fallbackAnalysis = await analyzeWithRouter(root.fen(), args, caches);
     const state = checkpointScore({
-      chess,
+      chess: root,
       line: parent,
-      analysis: finalAnalysis,
+      analysis: fallbackAnalysis,
       openingColor,
-      branchSansFromAnchor: generatedSans.slice(parent.variationAnchorSans?.length ?? 0),
-      trace,
+      branchSansFromAnchor: initialSans.slice(parent.variationAnchorSans?.length ?? 0),
+      trace: initialTrace,
       category: responseCategory,
       args,
-      advantageStartPly: advantageLock?.startPly ?? null,
     });
-    if (!allowFallback || !checkpointAccepts(state, args, true)) return null;
-    bestCheckpoint = {
-      state,
-      generatedSans: [...generatedSans],
-      trace: trace.map((step) => ({ ...step })),
-      fen: chess.fen(),
-      analysis: finalAnalysis,
-      fallback: true,
-    };
+    if (allowFallback && checkpointAccepts(state, args, true)) {
+      checkpoints.push({
+        state,
+        generatedSans: initialSans,
+        trace: initialTrace,
+        fen: root.fen(),
+        analysis: fallbackAnalysis,
+        fallback: true,
+      });
+    }
   }
 
-  const evalAfterTrigger = bestCheckpoint.state.trainedEvalCp;
-  return {
-    generatedSans: bestCheckpoint.generatedSans,
-    trace: bestCheckpoint.trace,
-    stemFen,
-    evalBeforeTrigger,
-    evalAfterTrigger,
-    finalFen: bestCheckpoint.fen,
-    finalAnalysis: bestCheckpoint.analysis,
-    finalState: bestCheckpoint.state,
-    fallback: Boolean(bestCheckpoint.fallback || allowFallback),
-    trainedOpportunity: forcedFirstTrainedCandidate
-      ? {
-          firstTrainedUci: forcedFirstTrainedCandidate.uci,
-          firstTrainedRank: forcedFirstTrainedCandidate.rank,
-          firstTrainedEvalCp: forcedFirstTrainedCandidate.evalCp,
-          firstTrainedBestEvalCp: forcedFirstTrainedCandidate.bestEvalCp,
-          firstTrainedEvalLossCp: forcedFirstTrainedCandidate.evalLossCp,
-          acceptedByOpportunity:
-            Number.isFinite(bestCheckpoint.state.trainedEvalCp) &&
-            bestCheckpoint.state.trainedEvalCp >= args.trainedOpportunityMinEvalCp,
-        }
-      : null,
-    stopReason: bestCheckpoint.fallback
-      ? "Kept as the best available practical fallback branch for this variation."
-      : "Stopped at the best practical branch checkpoint before depth or popularity limits.",
-  };
+  const variantsByLine = new Map();
+  for (const variant of checkpoints.map((checkpoint) => ({
+      generatedSans: checkpoint.generatedSans,
+      trace: checkpoint.trace,
+      stemFen,
+      evalBeforeTrigger,
+      evalAfterTrigger: checkpoint.state.trainedEvalCp,
+      finalFen: checkpoint.fen,
+      finalAnalysis: checkpoint.analysis,
+      finalState: checkpoint.state,
+      fallback: Boolean(checkpoint.fallback || allowFallback),
+      trainedOpportunity: forcedFirstTrainedCandidate
+        ? {
+            firstTrainedUci: forcedFirstTrainedCandidate.uci,
+            firstTrainedRank: forcedFirstTrainedCandidate.rank,
+            firstTrainedEvalCp: forcedFirstTrainedCandidate.evalCp,
+            firstTrainedBestEvalCp: forcedFirstTrainedCandidate.bestEvalCp,
+            firstTrainedEvalLossCp: forcedFirstTrainedCandidate.evalLossCp,
+            acceptedByOpportunity:
+              Number.isFinite(checkpoint.state.trainedEvalCp) &&
+              checkpoint.state.trainedEvalCp >= args.trainedOpportunityMinEvalCp,
+          }
+        : null,
+      stopReason: checkpoint.fallback
+        ? "Kept as the best available practical fallback branch for this variation."
+        : "Stopped at a practical branch checkpoint found by bounded continuation search.",
+    }))) {
+    const key = variant.generatedSans.join(" ");
+    const current = variantsByLine.get(key);
+    const currentEval = Number.isFinite(current?.finalState?.trainedEvalCp)
+      ? current.finalState.trainedEvalCp
+      : Number.NEGATIVE_INFINITY;
+    const variantEval = Number.isFinite(variant.finalState?.trainedEvalCp)
+      ? variant.finalState.trainedEvalCp
+      : Number.NEGATIVE_INFINITY;
+    if (
+      !current ||
+      variantEval > currentEval ||
+      (variantEval === currentEval && variant.finalState.score > current.finalState.score)
+    ) {
+      variantsByLine.set(key, variant);
+    }
+  }
+
+  return Array.from(variantsByLine.values())
+    .sort((left, right) => {
+      const rightEval = Number.isFinite(right.finalState?.trainedEvalCp) ? right.finalState.trainedEvalCp : -999999;
+      const leftEval = Number.isFinite(left.finalState?.trainedEvalCp) ? left.finalState.trainedEvalCp : -999999;
+      if (rightEval !== leftEval) return rightEval - leftEval;
+      return (right.finalState?.score ?? -999) - (left.finalState?.score ?? -999);
+    })
+    .slice(0, Math.max(1, Math.floor(args.maxContinuationBranchesPerTrigger)));
 }
 
 async function analyzeWithRouter(fen, baseArgs, caches) {
@@ -1471,100 +1563,6 @@ async function forcedResolutionMove({ chess, explorer, args, caches }) {
   };
 }
 
-async function chooseContinuationOpponentMove({
-  chess,
-  moves,
-  latestState,
-  parent,
-  openingColor,
-  generatedSans,
-  trace,
-  args,
-  caches,
-}) {
-  if (moves.length <= 1) return moves[0] ?? null;
-  if (
-    checkpointNeedsResolution(latestState) ||
-    (Number.isFinite(latestState.trainedEvalCp) &&
-      latestState.trainedEvalCp >= args.trainedOpportunityMinEvalCp)
-  ) {
-    return moves[0];
-  }
-
-  const candidateLimit = Math.max(1, Math.floor(args.continuationOpponentCandidateMoves));
-  const candidates = moves.slice(0, candidateLimit);
-  let best = null;
-
-  for (const candidate of candidates) {
-    const sim = new Chess(chess.fen());
-    const opponentMove = sim.move(uciToMoveObject(candidate.uci));
-    if (!opponentMove) continue;
-    if ((sim.turn() === "w" ? "white" : "black") !== openingColor) continue;
-
-    const trainedAnalysis = await analyzeWithRouter(sim.fen(), args, caches);
-    if (!trainedAnalysis.bestMove || trainedAnalysis.bestMove === "(none)") continue;
-    const trainedMove = sim.move(uciToMoveObject(trainedAnalysis.bestMove));
-    if (!trainedMove) continue;
-
-    const finalAnalysis = await analyzeWithRouter(sim.fen(), args, caches);
-    const trainedEvalCp = perspectiveEvalCp(
-      finalAnalysis.lines[0]?.score ?? null,
-      finalAnalysis.turnColor,
-      openingColor
-    );
-    const candidateTrace = [
-      ...trace,
-      buildTraceStepForOpponent({
-        ply: generatedSans.length + 1,
-        move: candidate,
-        san: opponentMove.san,
-        source: candidate.source ?? "lichess-explorer-continuation-lookahead",
-      }),
-      buildTraceStepForTrained({
-        ply: generatedSans.length + 2,
-        san: trainedMove.san,
-        uci: trainedAnalysis.bestMove,
-        analysis: trainedAnalysis,
-        trainedEvalCp,
-      }),
-    ];
-    const candidateState = checkpointScore({
-      chess: sim,
-      line: parent,
-      analysis: finalAnalysis,
-      openingColor,
-      branchSansFromAnchor: [...generatedSans, opponentMove.san, trainedMove.san].slice(
-        parent.variationAnchorSans?.length ?? 0
-      ),
-      trace: candidateTrace,
-      category: branchCategory(parent, opponentMove.san, trainedMove.san),
-      args,
-      advantageStartPly: null,
-    });
-    const candidateEval = Number.isFinite(candidateState.trainedEvalCp)
-      ? candidateState.trainedEvalCp
-      : Number.NEGATIVE_INFINITY;
-    const bestEval = Number.isFinite(best?.state.trainedEvalCp)
-      ? best.state.trainedEvalCp
-      : Number.NEGATIVE_INFINITY;
-    if (
-      !best ||
-      candidateEval > bestEval ||
-      (candidateEval === bestEval && candidateState.score > best.state.score)
-    ) {
-      best = {
-        move: {
-          ...candidate,
-          source: candidate.source ?? "lichess-explorer-continuation-lookahead",
-        },
-        state: candidateState,
-      };
-    }
-  }
-
-  return best?.move ?? moves[0];
-}
-
 async function generateBranchesForParent({ parent, args, caches, existingKeys }) {
   const branches = [];
   const candidates = [];
@@ -1615,7 +1613,7 @@ async function generateBranchesForParent({ parent, args, caches, existingKeys })
     const opportunityBranches = [];
     if (trainedCandidates.length > 1) {
       for (const trainedCandidate of trainedCandidates) {
-        const branch = await generateBranchFromTrigger({
+        const branchVariants = await generateBranchVariantsFromTrigger({
           parent,
           stemSans: candidate.stemSans,
           trigger: candidate,
@@ -1624,12 +1622,13 @@ async function generateBranchesForParent({ parent, args, caches, existingKeys })
           allowFallback: false,
           forcedFirstTrainedCandidate: trainedCandidate,
         });
-        if (!branch) continue;
-        if (
-          Number.isFinite(branch.finalState.trainedEvalCp) &&
-          branch.finalState.trainedEvalCp >= args.trainedOpportunityMinEvalCp
-        ) {
-          opportunityBranches.push(branch);
+        for (const branch of branchVariants) {
+          if (
+            Number.isFinite(branch.finalState.trainedEvalCp) &&
+            branch.finalState.trainedEvalCp >= args.trainedOpportunityMinEvalCp
+          ) {
+            opportunityBranches.push(branch);
+          }
         }
       }
     }
@@ -1651,7 +1650,7 @@ async function generateBranchesForParent({ parent, args, caches, existingKeys })
       continue;
     }
 
-    const branch = await generateBranchFromTrigger({
+    const branchVariants = await generateBranchVariantsFromTrigger({
       parent,
       stemSans: candidate.stemSans,
       trigger: candidate,
@@ -1659,21 +1658,23 @@ async function generateBranchesForParent({ parent, args, caches, existingKeys })
       caches,
       allowFallback: false,
     });
-    if (!branch) continue;
-    branches.push(
-      buildBranchRecord({
-        parent,
-        stemSans: candidate.stemSans,
-        trigger: candidate,
-        branch,
-        finalState: branch.finalState,
-        args,
-      })
-    );
-    if (
-      Number.isFinite(branch.finalState.trainedEvalCp) &&
-      branch.finalState.trainedEvalCp >= args.trainedOpportunityMinEvalCp
-    ) {
+    for (const branch of branchVariants) {
+      branches.push(
+        buildBranchRecord({
+          parent,
+          stemSans: candidate.stemSans,
+          trigger: candidate,
+          branch,
+          finalState: branch.finalState,
+          args,
+        })
+      );
+    }
+    if (branchVariants.some(
+      (branch) =>
+        Number.isFinite(branch.finalState.trainedEvalCp) &&
+        branch.finalState.trainedEvalCp >= args.trainedOpportunityMinEvalCp
+    )) {
       discoveryCutoffPly = candidate.stemPly;
     }
   }
@@ -1681,7 +1682,7 @@ async function generateBranchesForParent({ parent, args, caches, existingKeys })
   if (branches.length < args.minBranchesPerVariation && candidates.length > 0) {
     for (const candidate of candidates) {
       if (branches.length >= args.minBranchesPerVariation) break;
-      const branch = await generateBranchFromTrigger({
+      const branchVariants = await generateBranchVariantsFromTrigger({
         parent,
         stemSans: candidate.stemSans,
         trigger: candidate,
@@ -1689,6 +1690,7 @@ async function generateBranchesForParent({ parent, args, caches, existingKeys })
         caches,
         allowFallback: true,
       });
+      const branch = branchVariants[0];
       if (!branch) continue;
       branches.push(
         buildBranchRecord({
@@ -1906,6 +1908,8 @@ async function main() {
         individualMoveShareMidline: args.individualMoveShareMidline,
         individualMoveShareDeep: args.individualMoveShareDeep,
         continuationOpponentCandidateMoves: args.continuationOpponentCandidateMoves,
+        maxContinuationBranchesPerTrigger: args.maxContinuationBranchesPerTrigger,
+        maxContinuationSearchNodes: args.maxContinuationSearchNodes,
         maxBranchesPerVariation: args.maxBranchesPerVariation,
         trainedCandidateMoves: args.trainedCandidateMoves,
         trainedCandidateMaxLossCp: args.trainedCandidateMaxLossCp,
