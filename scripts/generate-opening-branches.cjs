@@ -1091,6 +1091,24 @@ function buildBranchEvalCpByPly(generatedSans, branchTrace, evalPerspective) {
   return evalCpByPly.some((value) => Number.isFinite(value)) ? evalCpByPly : null;
 }
 
+function branchTraceSlug(branchTrace) {
+  return slugify(
+    branchTrace
+      .slice(1, 5)
+      .map((step) => step.san || step.uci)
+      .filter(Boolean)
+      .join("-")
+  );
+}
+
+function branchTraceKey(branchTrace) {
+  return branchTrace
+    .slice(0, 8)
+    .map((step) => step.uci)
+    .filter(Boolean)
+    .join(".");
+}
+
 function buildBranchRecord({ parent, stemSans, trigger, branch, finalState, args }) {
   const parentLineId = parent.lineId ?? slugify(parent.fullName);
   const triggerSlug = slugify(`${stemSans.length}-${trigger.san}`);
@@ -1101,7 +1119,10 @@ function buildBranchRecord({ parent, stemSans, trigger, branch, finalState, args
   const firstTrainedStep = branchTrace.find((step) => step.side === "trained");
   const trainedOpportunitySlug =
     branch.trainedOpportunity && firstTrainedStep?.san ? `-${slugify(firstTrainedStep.san)}` : "";
-  const lineId = `${parentLineId}-branch-${triggerSlug}${trainedOpportunitySlug}`;
+  const continuationSlug = branchTraceSlug(branchTrace);
+  const variantSlug = trainedOpportunitySlug || (continuationSlug ? `-${continuationSlug}` : "");
+  const lineId = `${parentLineId}-branch-${triggerSlug}${variantSlug}`;
+  const traceKey = branchTraceKey(branchTrace) || trigger.uci;
   const sourceCounts = countBy(branchTrace.map((step) => step.source));
   const engineProviders = countBy(
     branchTrace
@@ -1181,9 +1202,7 @@ function buildBranchRecord({ parent, stemSans, trigger, branch, finalState, args
       avgExtensionDepth: avgDepth,
       branch: {
         parentLineId,
-        branchKey: `${parent.openingId}::${parentLineId}::${stemSans.length}::${trigger.uci}${
-          branch.trainedOpportunity ? `::${branch.trainedOpportunity.firstTrainedUci}` : ""
-        }`,
+        branchKey: `${parent.openingId}::${parentLineId}::${stemSans.length}::${traceKey}`,
         lessonTitle: name,
         lessonStemPly: stemSans.length,
         lessonStemSans: stemSans,
