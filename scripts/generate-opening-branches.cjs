@@ -1004,6 +1004,24 @@ function lineKey(line) {
   return `${line.openingId}::${line.lineId}`;
 }
 
+function buildBranchEvalCpByPly(generatedSans, branchTrace, evalPerspective) {
+  const evalCpByPly = Array(generatedSans.length + 1).fill(null);
+  for (const step of branchTrace) {
+    if (
+      step.side !== "trained" ||
+      !Number.isInteger(step.ply) ||
+      step.ply < 0 ||
+      step.ply >= evalCpByPly.length ||
+      !Number.isFinite(step.trainedEvalCp)
+    ) {
+      continue;
+    }
+    evalCpByPly[step.ply] =
+      evalPerspective === "white" ? step.trainedEvalCp : -step.trainedEvalCp;
+  }
+  return evalCpByPly.some((value) => Number.isFinite(value)) ? evalCpByPly : null;
+}
+
 function buildBranchRecord({ parent, stemSans, trigger, branch, finalState, args }) {
   const parentLineId = parent.lineId ?? slugify(parent.fullName);
   const triggerSlug = slugify(`${stemSans.length}-${trigger.san}`);
@@ -1027,6 +1045,8 @@ function buildBranchRecord({ parent, stemSans, trigger, branch, finalState, args
     .filter(Number.isFinite);
   const avgDepth =
     depths.length > 0 ? Math.round(depths.reduce((sum, value) => sum + value, 0) / depths.length) : null;
+  const finalEvalPerspective = parent.openingColor;
+  const evalCpByPly = buildBranchEvalCpByPly(branch.generatedSans, branchTrace, finalEvalPerspective);
 
   return {
     ...parent,
@@ -1067,7 +1087,8 @@ function buildBranchRecord({ parent, stemSans, trigger, branch, finalState, args
     stopReason: branch.stopReason,
     finalFen: branch.finalFen,
     finalEvalCp: finalState.trainedEvalCp,
-    finalEvalPerspective: parent.openingColor,
+    finalEvalPerspective,
+    evalCpByPly,
     finalPositionSummary: "Practical human continuation selected by popularity and resolved with trained-side engine moves.",
     advantageTypePrimary: category === "tactical_payoff" ? "punishment" : "practical_advantage",
     advantageTypeSecondary: ["human_popularity"],
