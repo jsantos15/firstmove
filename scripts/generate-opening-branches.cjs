@@ -56,6 +56,8 @@ function parseArgs(argv) {
     deepAddedPlies: 12,
     maxBranchPliesFromAnchor: 18,
     softBranchPliesFromAnchor: 12,
+    softBranchExtensionPlies: 4,
+    softBranchContinueWithinTargetCp: 80,
     maxTotalPlies: 40,
     minAcceptTrainedEvalCp: 20,
     fallbackAcceptTrainedEvalCp: -40,
@@ -122,6 +124,8 @@ function parseArgs(argv) {
     else if (token === "--deep-added-plies") args.deepAddedPlies = Number(next());
     else if (token === "--max-branch-plies-from-anchor") args.maxBranchPliesFromAnchor = Number(next());
     else if (token === "--soft-branch-plies-from-anchor") args.softBranchPliesFromAnchor = Number(next());
+    else if (token === "--soft-branch-extension-plies") args.softBranchExtensionPlies = Number(next());
+    else if (token === "--soft-branch-continue-within-target-cp") args.softBranchContinueWithinTargetCp = Number(next());
     else if (token === "--max-total-plies") args.maxTotalPlies = Number(next());
     else if (token === "--min-accept-trained-eval-cp") args.minAcceptTrainedEvalCp = Number(next());
     else if (token === "--fallback-accept-trained-eval-cp") args.fallbackAcceptTrainedEvalCp = Number(next());
@@ -1239,6 +1243,8 @@ function buildBranchRecord({ parent, stemSans, trigger, branch, finalState, args
           minResolutionNodeGames: args.minResolutionNodeGames,
           minResolutionMoveGames: args.minResolutionMoveGames,
           advantageResolutionMinPlies: args.advantageResolutionMinPlies,
+          softBranchExtensionPlies: args.softBranchExtensionPlies,
+          softBranchContinueWithinTargetCp: args.softBranchContinueWithinTargetCp,
           maxBranchesPerVariation: args.maxBranchesPerVariation,
           continuationOpponentCandidateMoves: args.continuationOpponentCandidateMoves,
           maxContinuationBranchesPerTrigger: args.maxContinuationBranchesPerTrigger,
@@ -1446,12 +1452,16 @@ async function generateBranchVariantsFromTrigger({
           analysis: nextFinalAnalysis,
         });
 
-        const belowOpportunityTarget =
-          !Number.isFinite(state.trainedEvalCp) ||
-          state.trainedEvalCp < args.trainedOpportunityMinEvalCp;
+        const nextAddedFromAnchor =
+          nextGeneratedSans.length - (parent.variationAnchorSans?.length ?? 0);
+        const softOverrun = nextAddedFromAnchor - args.softBranchPliesFromAnchor;
+        const closeToOpportunityTarget =
+          Number.isFinite(state.trainedEvalCp) &&
+          state.trainedEvalCp >= args.trainedOpportunityMinEvalCp - args.softBranchContinueWithinTargetCp;
+        const withinSoftExtension = softOverrun <= args.softBranchExtensionPlies;
         if (
-          addedFromAnchor >= args.softBranchPliesFromAnchor &&
-          !belowOpportunityTarget &&
+          softOverrun >= 0 &&
+          (!closeToOpportunityTarget || !withinSoftExtension) &&
           !checkpointNeedsResolution(state)
         ) {
           continue;
@@ -2045,6 +2055,9 @@ async function main() {
         maxNewBranchesPerVariation: args.maxNewBranchesPerVariation,
         minBranchesPerVariation: args.minBranchesPerVariation,
         maxBranchPliesFromAnchor: args.maxBranchPliesFromAnchor,
+        softBranchPliesFromAnchor: args.softBranchPliesFromAnchor,
+        softBranchExtensionPlies: args.softBranchExtensionPlies,
+        softBranchContinueWithinTargetCp: args.softBranchContinueWithinTargetCp,
         cloudEvalMode: args.cloudEvalMode,
         stockfishDepth: args.stockfishDepth,
         stockfishEngine: args.stockfishEngine,
