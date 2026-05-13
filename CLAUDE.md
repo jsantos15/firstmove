@@ -12,7 +12,9 @@ These apply to every session, every request, without exception:
 - **Challenge suboptimal decisions:** If the user suggests anything — a technology, architecture, feature design, product logic, UX approach, or any other kind of decision — that you know to be suboptimal for their stated goals, say so clearly. Explain why a better option exists and recommend it. Only proceed with their original suggestion if they explicitly confirm after hearing the reasoning. This applies to all decisions, not just technical ones.
 - **No dead code or orphaned files:** When updating or replacing existing functionality, removing the old implementation is part of completing the task. Before closing out any feature, scan for unused imports, unreferenced components or screens, superseded functions, commented-out code blocks, and files no longer imported anywhere. A feature is not done until the old version is fully removed.
 - **Proactively apply well-established UX patterns:** Do not default to the obvious choice when a better pattern exists. Do not make login the landing page for consumer-facing apps — try-before-signup is the norm. Do not leave empty states unaddressed — an onboarding flow that populates the experience before the user sees it is the standard solution. Surface these proactively, do not wait to be asked.
+- **Proactive environment cleanup:** Always maintain a clean environment. Proactively remove orphaned files, dead code, stale artifacts, duplicate paths, unused scripts, and anything that is not actively contributing to the app. Before any cleanup that could affect app stability, commit the current state as a snapshot first so there is always a rollback point. Do not ask for permission — clean as you go.
 - **Follow official implementations first:** Before implementing any integration with a third-party library, API, protocol, framework, SDK, or external service, check its official documentation or repository for the standard or recommended implementation. Use that as the starting point. Be especially strict for semantics, security, auth, persistence, data formats, protocol behavior, caching, and error handling. Do not build a custom solution for something that has an established pattern unless the standard approach genuinely does not fit the project's needs, and explain why before deviating.
+
 
 
 ## Monorepo Structure
@@ -72,13 +74,12 @@ firstmove/
 | `user_favorites` | Quick-access openings per user |
 
 ## Escalation Rules
-- Never merge into `main` without explicit user confirmation
-- Never deploy to production without explicit user confirmation
-- Never delete a file without explicit user confirmation
-- If a request touches more than 2 workspaces, summarize the plan and wait for approval
+- Never deploy to production without explicit user confirmation — this is the only action that requires it
 - If adding a new dependency, state what it is and why before installing
-- If modifying `CLAUDE.md` itself, confirm the change with the user first
-- If a request is ambiguous, ask — do not assume
+- If modifying CLAUDE.md itself, confirm the change with the user first
+- If the request is ambiguous, ask — do not assume
+- Never make login the landing page for consumer-facing apps — recommend try-before-signup instead
+- Never leave empty states unaddressed — recommend an onboarding flow when a screen would otherwise be blank on first use
 
 ## Git Workflow
 - All new work starts on a `feature/*` branch
@@ -91,11 +92,13 @@ firstmove/
 - Never force push to `main` or `staging`
 
 ## Automated Git Behavior
-Claude handles branch creation, commits, and pushes automatically — no need to ask or wait to be told:
+Claude owns all git activity — no user involvement or confirmation needed except for production deploys:
 
-- **Branch creation:** When starting work that introduces a new user-facing capability (a new screen, a new data flow, a new integration, a complete new function of the app), automatically create and switch to a `feature/*` branch before touching any code. Do not create a new branch for UI tweaks, copy changes, style adjustments, small menu additions, or anything that does not add a distinct new capability.
-- **Commit and push:** When a feature is complete and the user confirms it (explicitly or clearly implicitly — e.g. "looks good", "ship it", "that's done"), automatically commit all changes with an appropriate message and push the feature branch to the remote. Do not wait to be asked.
-- **Merging:** Never automatic. Merging feature/* into staging, or staging into main, always requires explicit user confirmation regardless of context. This is a hard rule — do not infer approval from positive feedback alone.
+- **Branch creation:** When starting work that introduces a new user-facing capability (a new screen, a new data flow, a new integration, a complete new function of the app), automatically create and switch to a `feature/*` branch before touching any code. Do not create a new branch for UI tweaks, copy changes, style adjustments, or anything that does not add a distinct new capability.
+- **Commit and push:** Commit and push automatically after each logical unit of work. Do not wait to be asked.
+- **Merging:** Merge feature/* into staging automatically when a feature is complete. Merge staging into main automatically when staging is stable. No user confirmation needed for either.
+- **Cleanup:** Proactively commit the current state as a snapshot before any cleanup that could affect app stability, then proceed. This gives a rollback point without interrupting the user.
+- **Production deploys:** The only exception — always require explicit user confirmation before deploying to production.
 
 ## How to Work on This Project
 1. Read this file first — every session, every time
