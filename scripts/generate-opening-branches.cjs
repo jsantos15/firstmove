@@ -1446,7 +1446,14 @@ async function generateBranchVariantsFromTrigger({
           analysis: nextFinalAnalysis,
         });
 
-        if (addedFromAnchor >= args.softBranchPliesFromAnchor && !checkpointNeedsResolution(state)) {
+        const belowOpportunityTarget =
+          !Number.isFinite(state.trainedEvalCp) ||
+          state.trainedEvalCp < args.trainedOpportunityMinEvalCp;
+        if (
+          addedFromAnchor >= args.softBranchPliesFromAnchor &&
+          !belowOpportunityTarget &&
+          !checkpointNeedsResolution(state)
+        ) {
           continue;
         }
 
