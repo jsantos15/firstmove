@@ -34,6 +34,7 @@ function parseArgs(argv) {
     maxNewBranchesPerVariation: null,
     maxCandidateMovesPerNode: 4,
     trainedCandidateMoves: 3,
+    stockfishTrainedCandidateMoves: 2,
     trainedCandidateMaxLossCp: 60,
     trainedOpportunityMinEvalCp: 200,
     minNodeGames: 250,
@@ -103,6 +104,7 @@ function parseArgs(argv) {
     else if (token === "--max-new-branches-per-variation") args.maxNewBranchesPerVariation = Number(next());
     else if (token === "--max-candidate-moves-per-node") args.maxCandidateMovesPerNode = Number(next());
     else if (token === "--trained-candidate-moves") args.trainedCandidateMoves = Number(next());
+    else if (token === "--stockfish-trained-candidate-moves") args.stockfishTrainedCandidateMoves = Number(next());
     else if (token === "--trained-candidate-max-loss-cp") args.trainedCandidateMaxLossCp = Number(next());
     else if (token === "--trained-opportunity-min-eval-cp") args.trainedOpportunityMinEvalCp = Number(next());
     else if (token === "--min-node-games") args.minNodeGames = Number(next());
@@ -942,7 +944,15 @@ async function analysisForTrainedCandidates(fen, analysis, args) {
   return analysis;
 }
 
+function trainedMoveCandidateLimit(analysis, args) {
+  if (analysis?.source === "stockfish") {
+    return Math.max(1, Math.floor(args.stockfishTrainedCandidateMoves));
+  }
+  return Math.max(1, Math.floor(args.trainedCandidateMoves));
+}
+
 function trainedMoveCandidates({ chess, analysis, openingColor, args }) {
+  const candidateLimit = trainedMoveCandidateLimit(analysis, args);
   const byUci = new Map();
   for (const line of analysis.lines ?? []) {
     const uci = line.uci ?? line.pv?.[0] ?? null;
@@ -990,7 +1000,7 @@ function trainedMoveCandidates({ chess, analysis, openingColor, args }) {
     })
     .filter((candidate, index) => {
       if (index === 0) return true;
-      if (index >= args.trainedCandidateMoves) return false;
+      if (index >= candidateLimit) return false;
       return candidate.evalLossCp <= args.trainedCandidateMaxLossCp;
     });
 }
@@ -1254,6 +1264,7 @@ function buildBranchRecord({ parent, stemSans, trigger, branch, finalState, args
           fallback: branch.fallback,
           trainedOpportunity: branch.trainedOpportunity,
           trainedCandidateMoves: args.trainedCandidateMoves,
+          stockfishTrainedCandidateMoves: args.stockfishTrainedCandidateMoves,
           trainedCandidateMaxLossCp: args.trainedCandidateMaxLossCp,
           trainedOpportunityMinEvalCp: args.trainedOpportunityMinEvalCp,
           minResolutionNodeGames: args.minResolutionNodeGames,
@@ -2068,6 +2079,7 @@ async function main() {
         prefixPruneMinEvalGainPerPlyCp: args.prefixPruneMinEvalGainPerPlyCp,
         maxBranchesPerVariation: args.maxBranchesPerVariation,
         trainedCandidateMoves: args.trainedCandidateMoves,
+        stockfishTrainedCandidateMoves: args.stockfishTrainedCandidateMoves,
         trainedCandidateMaxLossCp: args.trainedCandidateMaxLossCp,
         trainedOpportunityMinEvalCp: args.trainedOpportunityMinEvalCp,
         advantageResolutionMinPlies: args.advantageResolutionMinPlies,
