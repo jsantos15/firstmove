@@ -839,7 +839,7 @@ function checkpointScore({
     Number.isFinite(advantageResolutionPlies) &&
     advantageResolutionPlies < args.advantageResolutionMinPlies;
   const unresolvedForcing = Boolean(
-    pendingCapture ||
+    materialConversionPending ||
       pendingCheckReply ||
       nextMoveIsForcing ||
       materialThreatPending ||
@@ -926,6 +926,20 @@ function checkpointAccepts(state, args, allowFallback) {
 
 function checkpointNeedsResolution(state) {
   return Boolean(state?.unresolvedForcing || state?.materialConversionPending);
+}
+
+async function analysisForTrainedCandidates(fen, analysis, args) {
+  const desiredLineCount = Math.max(2, Math.min(args.trainedCandidateMoves, args.multipvCount));
+  if (analysisLineCount(analysis) >= desiredLineCount) return analysis;
+
+  const localAnalysis = await analyzeFenCached(fen, args);
+  if (
+    analysisMatchesFen(localAnalysis, fen) &&
+    analysisLineCount(localAnalysis) > analysisLineCount(analysis)
+  ) {
+    return localAnalysis;
+  }
+  return analysis;
 }
 
 function trainedMoveCandidates({ chess, analysis, openingColor, args }) {
@@ -1366,11 +1380,12 @@ async function generateBranchVariantsFromTrigger({
     const sideToMove = chess.turn() === "w" ? "white" : "black";
     if (sideToMove === openingColor) {
       const analysis = await analyzeWithRouter(chess.fen(), args, caches);
+      const candidateAnalysis = await analysisForTrainedCandidates(chess.fen(), analysis, args);
       const currentEvalCp = latestState?.trainedEvalCp;
       const settledAdvantage =
         advantageLock ||
         (Number.isFinite(currentEvalCp) && currentEvalCp >= args.trainedOpportunityMinEvalCp);
-      const trainedCandidateOptions = trainedMoveCandidates({ chess, analysis, openingColor, args });
+      const trainedCandidateOptions = trainedMoveCandidates({ chess, analysis: candidateAnalysis, openingColor, args });
       const trainedCandidates =
         forcedFirstTrainedCandidate && !usedForcedFirstTrainedCandidate
           ? [forcedFirstTrainedCandidate]
@@ -1405,7 +1420,7 @@ async function generateBranchVariantsFromTrigger({
             ply: nextGeneratedSans.length,
             san: move.san,
             uci: trainedCandidate.uci,
-            analysis,
+            analysis: candidateAnalysis,
             trainedEvalCp,
             trainedCandidate,
           }),
@@ -1639,9 +1654,10 @@ async function firstTrainedCandidatesForTrigger({ parent, stemSans, trigger, arg
   const sideToMove = chess.turn() === "w" ? "white" : "black";
   if (sideToMove !== parent.openingColor) return [];
   const analysis = await analyzeWithRouter(chess.fen(), args, caches);
+  const candidateAnalysis = await analysisForTrainedCandidates(chess.fen(), analysis, args);
   return trainedMoveCandidates({
     chess,
-    analysis,
+    analysis: candidateAnalysis,
     openingColor: parent.openingColor,
     args,
   });
