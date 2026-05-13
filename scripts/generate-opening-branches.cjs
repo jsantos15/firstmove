@@ -56,6 +56,7 @@ function parseArgs(argv) {
     deepAddedPlies: 12,
     maxBranchPliesFromAnchor: 18,
     softBranchPliesFromAnchor: 12,
+    softBranchProbePlies: 2,
     softBranchExtensionPlies: 4,
     softBranchContinueWithinTargetCp: 80,
     maxTotalPlies: 40,
@@ -124,6 +125,7 @@ function parseArgs(argv) {
     else if (token === "--deep-added-plies") args.deepAddedPlies = Number(next());
     else if (token === "--max-branch-plies-from-anchor") args.maxBranchPliesFromAnchor = Number(next());
     else if (token === "--soft-branch-plies-from-anchor") args.softBranchPliesFromAnchor = Number(next());
+    else if (token === "--soft-branch-probe-plies") args.softBranchProbePlies = Number(next());
     else if (token === "--soft-branch-extension-plies") args.softBranchExtensionPlies = Number(next());
     else if (token === "--soft-branch-continue-within-target-cp") args.softBranchContinueWithinTargetCp = Number(next());
     else if (token === "--max-total-plies") args.maxTotalPlies = Number(next());
@@ -1243,6 +1245,7 @@ function buildBranchRecord({ parent, stemSans, trigger, branch, finalState, args
           minResolutionNodeGames: args.minResolutionNodeGames,
           minResolutionMoveGames: args.minResolutionMoveGames,
           advantageResolutionMinPlies: args.advantageResolutionMinPlies,
+          softBranchProbePlies: args.softBranchProbePlies,
           softBranchExtensionPlies: args.softBranchExtensionPlies,
           softBranchContinueWithinTargetCp: args.softBranchContinueWithinTargetCp,
           maxBranchesPerVariation: args.maxBranchesPerVariation,
@@ -1458,10 +1461,13 @@ async function generateBranchVariantsFromTrigger({
         const closeToOpportunityTarget =
           Number.isFinite(state.trainedEvalCp) &&
           state.trainedEvalCp >= args.trainedOpportunityMinEvalCp - args.softBranchContinueWithinTargetCp;
-        const withinSoftExtension = softOverrun <= args.softBranchExtensionPlies;
+        const allowedSoftOverrun = closeToOpportunityTarget
+          ? args.softBranchExtensionPlies
+          : args.softBranchProbePlies;
+        const withinSoftExtension = softOverrun <= allowedSoftOverrun;
         if (
           softOverrun >= 0 &&
-          (!closeToOpportunityTarget || !withinSoftExtension) &&
+          !withinSoftExtension &&
           !checkpointNeedsResolution(state)
         ) {
           continue;
@@ -2056,6 +2062,7 @@ async function main() {
         minBranchesPerVariation: args.minBranchesPerVariation,
         maxBranchPliesFromAnchor: args.maxBranchPliesFromAnchor,
         softBranchPliesFromAnchor: args.softBranchPliesFromAnchor,
+        softBranchProbePlies: args.softBranchProbePlies,
         softBranchExtensionPlies: args.softBranchExtensionPlies,
         softBranchContinueWithinTargetCp: args.softBranchContinueWithinTargetCp,
         cloudEvalMode: args.cloudEvalMode,
