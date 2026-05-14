@@ -7,6 +7,7 @@ function parseArgs(argv) {
   const args = {
     openingSlug: null,
     parentLineSlugs: null,
+    allOpeningBranches: false,
     apply: false,
   };
 
@@ -21,13 +22,20 @@ function parseArgs(argv) {
         .map((value) => value.trim())
         .filter(Boolean);
       index += 1;
+    } else if (token === "--all-opening-branches") {
+      args.allOpeningBranches = true;
     } else if (token === "--apply") {
       args.apply = true;
     }
   }
 
   if (!args.openingSlug) throw new Error("Pass --opening <opening-slug>.");
-  if (!args.parentLineSlugs?.length) throw new Error("Pass --parent-line-slugs <slug,slug>.");
+  if (args.allOpeningBranches && args.parentLineSlugs?.length) {
+    throw new Error("Pass either --all-opening-branches or --parent-line-slugs, not both.");
+  }
+  if (!args.allOpeningBranches && !args.parentLineSlugs?.length) {
+    throw new Error("Pass --parent-line-slugs <slug,slug> or --all-opening-branches.");
+  }
   return args;
 }
 
@@ -68,7 +76,9 @@ async function fetchBranchMetadata(args, headers, supabaseUrl) {
     const url = new URL(`${supabaseUrl}/rest/v1/opening_line_branch_metadata`);
     url.searchParams.set("select", "opening_slug,line_slug,parent_line_slug,lesson_title");
     url.searchParams.set("opening_slug", `eq.${args.openingSlug}`);
-    url.searchParams.set("or", buildParentFilter(args.parentLineSlugs));
+    if (!args.allOpeningBranches) {
+      url.searchParams.set("or", buildParentFilter(args.parentLineSlugs));
+    }
     url.searchParams.set("limit", String(pageSize));
     url.searchParams.set("offset", String(offset));
 
@@ -127,6 +137,7 @@ async function main() {
         {
           dryRun: true,
           openingSlug: args.openingSlug,
+          allOpeningBranches: args.allOpeningBranches,
           parentLineSlugs: args.parentLineSlugs,
           branchRowsMatched: rows.length,
           sample: rows.slice(0, 20),
@@ -144,6 +155,7 @@ async function main() {
       {
         deleted: true,
         openingSlug: args.openingSlug,
+        allOpeningBranches: args.allOpeningBranches,
         parentLineSlugs: args.parentLineSlugs,
         branchRowsDeleted: rows.length,
       },

@@ -105,7 +105,8 @@ Options:
   --all                  Run all known openings
   --start-at <stage>     Start from: ${STAGES.join(", ")} (default: generate)
   --dry-run-import       Run import stage as a dry-run
-  --reset-branches       Delete existing remote branch rows for the selected parent line slugs before import
+  --reset-branches       Delete existing remote branch rows before import; scopes to parent slugs when supplied,
+                         otherwise resets all practical branches for the selected opening
   --parent-line-slugs    Comma-separated parent reference line slugs to generate/reset
   --generate-arg <value> Pass one raw argument to generate-opening-branches.cjs
 
@@ -189,14 +190,12 @@ function runOpening(opening, args) {
   const payloadSummary = assertPayload(opening);
 
   if (args.resetBranches && !args.dryRunImport) {
-    if (!args.parentLineSlugs?.length) {
-      throw new Error("--reset-branches requires --parent-line-slugs so deletion is scoped.");
-    }
     runStep(`${opening.label} branch reset`, "delete-opening-branches.cjs", [
       "--opening",
       opening.slug,
-      "--parent-line-slugs",
-      args.parentLineSlugs.join(","),
+      ...(args.parentLineSlugs?.length
+        ? ["--parent-line-slugs", args.parentLineSlugs.join(",")]
+        : ["--all-opening-branches"]),
       "--apply",
     ]);
   }
