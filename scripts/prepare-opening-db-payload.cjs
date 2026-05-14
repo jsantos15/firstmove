@@ -73,6 +73,14 @@ function sourceFamilyFromFullName(fullName) {
 }
 
 function buildNameSuffix(line) {
+  if (line.lineType === "practical_branch") {
+    const trace = line.generation?.branch?.continuationTrace ?? line.generation?.extension ?? [];
+    const lastTrained = [...trace].reverse().find((step) => step?.side === "trained" && step?.san)?.san;
+    const lastOpponent = [...trace].reverse().find((step) => step?.side === "opponent" && step?.san)?.san;
+    if (lastTrained && lastOpponent) return `${lastOpponent} ${lastTrained}`;
+    if (lastTrained) return `ends ${lastTrained}`;
+  }
+
   const sourceFamily = sourceFamilyFromFullName(line.fullName);
   if (sourceFamily && normalizeText(sourceFamily) !== normalizeText(line.openingName)) {
     return `${sourceFamily} move order`;

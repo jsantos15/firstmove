@@ -1047,22 +1047,64 @@ function buildTraceStepForTrained({
   };
 }
 
-function makeBranchName({ triggerSan, category, finalState, trace = [] }) {
-  const followupOpponentSan = trace
-    .filter((step) => step.side === "opponent")
-    .slice(1, 2)
-    .map((step) => step.san)
-    .find(Boolean);
-  const triggerLabel = followupOpponentSan ? `${triggerSan} ${followupOpponentSan}` : triggerSan;
-  if (category === "tactical_payoff") {
-    if (finalState.materialEdgePawns >= 1) return `Punish ${triggerLabel}`;
-    if (/[+#]/.test(triggerSan)) return `${triggerLabel} tactic`;
-    return `${triggerLabel} tactical response`;
+function cleanSanForTitle(san) {
+  return String(san ?? "")
+    .replace(/[+#?!]/g, "")
+    .replace(/=([QRBN])/g, "$1")
+    .trim();
+}
+
+function sanPieceLabel(san) {
+  const clean = cleanSanForTitle(san);
+  if (/^Q/.test(clean)) return "Queen";
+  if (/^R/.test(clean)) return "Rook";
+  if (/^B/.test(clean)) return "Bishop";
+  if (/^N/.test(clean)) return "Knight";
+  if (/^K/.test(clean)) return "King";
+  const file = clean.match(/^[a-h]/)?.[0]?.toUpperCase();
+  return file ? `${file}-Pawn` : "Move";
+}
+
+function branchTitleMotif({ triggerSan, finalState, trace }) {
+  const opponentSans = trace.filter((step) => step.side === "opponent").map((step) => step.san);
+  const trainedSans = trace.filter((step) => step.side === "trained").map((step) => step.san);
+  const text = [...opponentSans, ...trainedSans].join(" ");
+  const finalEval = finalState.trainedEvalCp ?? 0;
+  const triggerPiece = sanPieceLabel(triggerSan);
+
+  if (finalState.visibleMaterialThreat || finalState.forkedByOnePiece) return "Fork";
+  if (finalState.materialEdgePawns >= 3) return "Heist";
+  if (finalState.materialEdgePawns >= 1) return "Harvest";
+  if (/[+#]/.test(text)) return "King Chase";
+  if (/Q/.test(text) && /x/.test(text)) return "Queen Snare";
+  if (/R/.test(text) && /x/.test(text)) return "Rook Lure";
+  if (finalEval >= 300) return "Breakthrough";
+  if (finalEval >= 200) return "Sting";
+  if (triggerPiece === "F-Pawn") return "Folly";
+  if (finalState.category === "setup") return "Clamp";
+  return "Pressure";
+}
+
+function branchTitleLead({ triggerSan, trace }) {
+  const opponentSans = trace.filter((step) => step.side === "opponent").map((step) => cleanSanForTitle(step.san));
+  const trigger = cleanSanForTitle(triggerSan);
+  const followup = opponentSans.find((san) => san && san !== trigger);
+
+  if (/^[a-h]/.test(trigger)) {
+    return sanPieceLabel(triggerSan);
   }
-  if (category === "forcing") return `${triggerLabel} forcing line`;
-  if (category === "setup") return `${triggerLabel} setup response`;
-  if (finalState.castled || finalState.developed >= 3) return `${triggerLabel} practical setup`;
-  return `${triggerLabel} practical response`;
+
+  if (followup && opponentSans.length > 1) {
+    return `${trigger} ${followup}`;
+  }
+
+  return trigger || sanPieceLabel(triggerSan);
+}
+
+function makeBranchName({ triggerSan, category, finalState, trace = [] }) {
+  const lead = branchTitleLead({ triggerSan, trace });
+  const motif = branchTitleMotif({ triggerSan, finalState: { ...finalState, category }, trace });
+  return `${lead} ${motif}`;
 }
 
 function countBy(values) {

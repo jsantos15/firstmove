@@ -190,6 +190,32 @@ function formatBranchEval(value?: number | null) {
   return `${value > 0 ? '+' : '-'}${(Math.abs(value) / 100).toFixed(1)}`;
 }
 
+function branchEvalValue(branch: AppVariation) {
+  return branch.branchMetadata?.final_trained_eval_cp ?? branch.finalEvalCp ?? Number.NEGATIVE_INFINITY;
+}
+
+function sortAndLimitDisplayedBranches(branches: AppVariation[]) {
+  let lowEvalCount = 0;
+  return [...branches]
+    .sort((left, right) => {
+      const leftEval = branchEvalValue(left);
+      const rightEval = branchEvalValue(right);
+      if (leftEval !== rightEval) return rightEval - leftEval;
+      const leftScore = left.branchMetadata?.branch_score ?? Number.NEGATIVE_INFINITY;
+      const rightScore = right.branchMetadata?.branch_score ?? Number.NEGATIVE_INFINITY;
+      if (leftScore !== rightScore) return rightScore - leftScore;
+      return left.name.localeCompare(right.name);
+    })
+    .filter(branch => {
+      const evalCp = branchEvalValue(branch);
+      if (Number.isFinite(evalCp) && evalCp < 100) {
+        lowEvalCount += 1;
+        return lowEvalCount <= 3;
+      }
+      return true;
+    });
+}
+
 function PracticalBranchRow({
   branch,
   isActive,
@@ -532,8 +558,10 @@ export default function PracticePage({ params, searchParams }: PageProps) {
   const activeGroup = groups.find(g => g.lines.some(l => l.id === activeReferenceLineId));
   const selectedVariation = allPracticeLines.find(v => v.id === selectedLineId) ?? opening.variations[0];
   const activeReferenceGlobalIndex = opening.variations.findIndex(v => v.id === activeReferenceLineId);
-  const selectedReferenceBranches = opening.practicalBranches.filter(
-    branch => branch.branchMetadata?.parent_line_slug === activeReferenceLineId
+  const selectedReferenceBranches = sortAndLimitDisplayedBranches(
+    opening.practicalBranches.filter(
+      branch => branch.branchMetadata?.parent_line_slug === activeReferenceLineId
+    )
   );
 
   const coachBubbleText = coachFeedback?.message ?? opening.description;

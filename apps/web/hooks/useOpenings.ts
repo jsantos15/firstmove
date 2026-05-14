@@ -168,6 +168,10 @@ function compareLineRows(left: OpeningLineRow, right: OpeningLineRow) {
   return left.name.localeCompare(right.name);
 }
 
+function branchEvalForSort(line: OpeningLineRow, metadata?: OpeningLineBranchMetadataRow) {
+  return metadata?.final_trained_eval_cp ?? line.final_eval_cp ?? Number.NEGATIVE_INFINITY;
+}
+
 function buildOpening(
   catalog: OpeningCatalogRow,
   lines: OpeningLineRow[],
@@ -186,6 +190,9 @@ function buildOpening(
   const sortedBranches = [...branchLines].sort((left, right) => {
     const leftMeta = branchMetadataByLineSlug.get(left.slug);
     const rightMeta = branchMetadataByLineSlug.get(right.slug);
+    const leftEval = branchEvalForSort(left, leftMeta);
+    const rightEval = branchEvalForSort(right, rightMeta);
+    if (leftEval !== rightEval) return rightEval - leftEval;
     const leftScore = leftMeta?.branch_score ?? Number.NEGATIVE_INFINITY;
     const rightScore = rightMeta?.branch_score ?? Number.NEGATIVE_INFINITY;
     if (leftScore !== rightScore) return rightScore - leftScore;
