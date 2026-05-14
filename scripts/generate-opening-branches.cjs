@@ -25,6 +25,8 @@ function parseArgs(argv) {
   const args = {
     input: DEFAULT_INPUT,
     output: DEFAULT_OUTPUT,
+    checkpoint: null,
+    resume: true,
     limitReferences: null,
     parentLineSlugs: null,
     maxBranchesPerVariation: 10,
@@ -88,6 +90,8 @@ function parseArgs(argv) {
 
     if (token === "--input") args.input = path.resolve(next());
     else if (token === "--output") args.output = path.resolve(next());
+    else if (token === "--checkpoint") args.checkpoint = path.resolve(next());
+    else if (token === "--no-resume") args.resume = false;
     else if (token === "--limit-references") args.limitReferences = Number(next());
     else if (token === "--parent-line-slugs") {
       args.parentLineSlugs = new Set(
@@ -154,6 +158,7 @@ function parseArgs(argv) {
   if (!["off", "full", "authoritative"].includes(args.cloudEvalMode)) {
     throw new Error(`Unsupported --cloud-eval-mode "${args.cloudEvalMode}".`);
   }
+  args.checkpoint = args.checkpoint ?? `${args.output}.checkpoint.json`;
 
   return args;
 }
@@ -237,6 +242,11 @@ function writeJsonObject(filePath, value) {
       }`
     );
   }
+}
+
+function writeJsonFile(filePath, value) {
+  fs.mkdirSync(path.dirname(filePath), { recursive: true });
+  fs.writeFileSync(filePath, `${JSON.stringify(value, null, 2)}\n`, "utf8");
 }
 
 function uciToMoveObject(uci) {
@@ -2009,6 +2019,66 @@ function countBranchesByParent(lines) {
   return counts;
 }
 
+function checkpointScopeKey({ args, selectedReferences }) {
+  return {
+    input: args.input,
+    output: args.output,
+    parentLineSlugs: args.parentLineSlugs ? Array.from(args.parentLineSlugs).sort() : null,
+    limitReferences: Number.isFinite(args.limitReferences) ? args.limitReferences : null,
+    selectedReferenceIds: selectedReferences.map((line) => line.lineId ?? slugify(line.fullName)),
+  };
+}
+
+function sameJsonValue(left, right) {
+  return JSON.stringify(left) === JSON.stringify(right);
+}
+
+function readBranchCheckpoint({ args, scopeKey }) {
+  if (!args.resume || !args.checkpoint || !fs.existsSync(args.checkpoint)) {
+    return { branches: [], completedParentIds: new Set() };
+  }
+
+  try {
+    const checkpoint = JSON.parse(fs.readFileSync(args.checkpoint, "utf8"));
+    if (checkpoint.status !== "in_progress" || !sameJsonValue(checkpoint.scopeKey, scopeKey)) {
+      console.log(`Ignoring stale branch checkpoint: ${args.checkpoint}`);
+      return { branches: [], completedParentIds: new Set() };
+    }
+    const branches = Array.isArray(checkpoint.generatedBranches) ? checkpoint.generatedBranches : [];
+    const completedParentIds = new Set(
+      Array.isArray(checkpoint.completedParentIds) ? checkpoint.completedParentIds : []
+    );
+    console.log(
+      `Resuming branch checkpoint: ${completedParentIds.size} completed parent line(s), ` +
+        `${branches.length} generated branch(es).`
+    );
+    return { branches, completedParentIds };
+  } catch (error) {
+    console.warn(
+      `Could not read branch checkpoint ${args.checkpoint}; starting fresh: ${
+        error instanceof Error ? error.message : String(error)
+      }`
+    );
+    return { branches: [], completedParentIds: new Set() };
+  }
+}
+
+function writeBranchCheckpoint({ args, scopeKey, generatedBranches, completedParentIds }) {
+  if (!args.checkpoint) return;
+  writeJsonFile(args.checkpoint, {
+    status: "in_progress",
+    updatedAt: new Date().toISOString(),
+    scopeKey,
+    completedParentIds: Array.from(completedParentIds),
+    generatedBranches,
+  });
+}
+
+function removeBranchCheckpoint(args) {
+  if (!args.checkpoint || !fs.existsSync(args.checkpoint)) return;
+  fs.unlinkSync(args.checkpoint);
+}
+
 async function main() {
   const args = parseArgs(process.argv.slice(2));
   args.router = new CloudEvalRouter({ cooldownMs: args.cloudEngineCooldownMs });
@@ -2043,10 +2113,23 @@ async function main() {
     explorer: new Map(),
     bestEval: loadJsonObject(args.bestEvalCache),
   };
-  const generatedBranches = [];
+  const scopeKey = checkpointScopeKey({ args, selectedReferences });
+  const checkpoint = readBranchCheckpoint({ args, scopeKey });
+  const generatedBranches = checkpoint.branches;
+  const completedParentIds = checkpoint.completedParentIds;
+  for (const branch of generatedBranches) {
+    const key = branchKeyFromLine(branch);
+    if (key) existingBranchKeys.add(key);
+  }
 
   for (const [index, parent] of selectedReferences.entries()) {
     const parentLineId = parent.lineId ?? slugify(parent.fullName);
+    if (completedParentIds.has(parentLineId)) {
+      console.log(
+        `[${index + 1}/${selectedReferences.length}] ${parent.fullName}: resumed from checkpoint`
+      );
+      continue;
+    }
     const existingCount = existingBranchCountsByParent.get(parentLineId) ?? 0;
     if (
       Number.isFinite(args.onlyUnderBranchCount) &&
@@ -2083,6 +2166,8 @@ async function main() {
       if (key) existingBranchKeys.add(key);
     }
     generatedBranches.push(...branches);
+    completedParentIds.add(parentLineId);
+    writeBranchCheckpoint({ args, scopeKey, generatedBranches, completedParentIds });
     console.log(
       `[${index + 1}/${selectedReferences.length}] ${parent.fullName}: ` +
         `${branches.length} new branch(es), ${existingCount} existing`
@@ -2149,7 +2234,8 @@ async function main() {
   };
 
   fs.mkdirSync(path.dirname(args.output), { recursive: true });
-  fs.writeFileSync(args.output, `${JSON.stringify(output, null, 2)}\n`, "utf8");
+  writeJsonFile(args.output, output);
+  removeBranchCheckpoint(args);
   console.log(`Wrote ${generatedBranches.length} new practical branch line(s) to ${args.output}`);
 }
 
