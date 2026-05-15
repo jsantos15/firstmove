@@ -922,7 +922,9 @@ function checkpointScore({
 
 function checkpointAccepts(state, args, allowFallback) {
   const threshold = allowFallback ? args.fallbackAcceptTrainedEvalCp : args.minAcceptTrainedEvalCp;
-  if (!Number.isFinite(state.trainedEvalCp) || state.trainedEvalCp < threshold) return false;
+  if (!Number.isFinite(state.trainedEvalCp)) return false;
+  if (allowFallback) return state.trainedEvalCp > 0;
+  if (state.trainedEvalCp < threshold) return false;
   if (state.unresolvedForcing || state.materialConversionPending) return false;
   if (state.category === "tactical_payoff") {
     return state.materialEdgePawns >= 1 || state.trainedEvalCp >= 120;
@@ -1997,9 +1999,9 @@ async function generateBranchesForParent({ parent, args, caches, existingKeys })
     );
   }
 
-  if (branches.length < args.minBranchesPerVariation && candidates.length > 0) {
+  if (branches.length === 0 && candidates.length > 0) {
+    const fallbackBranches = [];
     for (const candidate of candidates) {
-      if (branches.length >= args.minBranchesPerVariation) break;
       const branchVariants = await generateBranchVariantsFromTrigger({
         parent,
         stemSans: candidate.stemSans,
@@ -2008,19 +2010,21 @@ async function generateBranchesForParent({ parent, args, caches, existingKeys })
         caches,
         allowFallback: true,
       });
-      const branch = branchVariants[0];
-      if (!branch) continue;
-      branches.push(
-        buildBranchRecord({
+      for (const branch of branchVariants) {
+        if (!Number.isFinite(branch.finalState.trainedEvalCp) || branch.finalState.trainedEvalCp <= 0) {
+          continue;
+        }
+        fallbackBranches.push(buildBranchRecord({
           parent,
           stemSans: candidate.stemSans,
           trigger: candidate,
           branch,
           finalState: branch.finalState,
           args,
-        })
-      );
+        }));
+      }
     }
+    branches.push(...selectMinimumFallbackBranches(fallbackBranches, parentBranchLimit));
   }
 
   return dedupeBranches(branches)
@@ -2038,6 +2042,15 @@ function dedupeBranches(branches) {
     }
   }
   return Array.from(byKey.values());
+}
+
+function selectMinimumFallbackBranches(branches, limit) {
+  const sorted = dedupeBranches(branches)
+    .filter((branch) => Number.isFinite(branch.finalEvalCp) && branch.finalEvalCp > 0)
+    .sort(compareBranchesForSelection);
+  const strong = sorted.filter((branch) => branch.finalEvalCp >= 100);
+  const modest = sorted.filter((branch) => branch.finalEvalCp < 100).slice(0, 3);
+  return [...strong, ...modest].slice(0, limit);
 }
 
 function compareBranchesForSelection(left, right) {
