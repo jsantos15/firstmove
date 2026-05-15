@@ -1179,6 +1179,38 @@ function lineKey(line) {
   return `${line.openingId}::${line.lineId}`;
 }
 
+function referenceAnchorSans(line) {
+  if (Array.isArray(line.variationAnchorSans) && line.variationAnchorSans.length > 0) {
+    return line.variationAnchorSans;
+  }
+  return Array.isArray(line.generatedSans) ? line.generatedSans : [];
+}
+
+function sanSequenceKey(sans) {
+  return Array.isArray(sans) ? sans.join(" ") : "";
+}
+
+function buildReferenceAnchorIndex(references) {
+  const bySans = new Map();
+  for (const reference of references) {
+    const key = sanSequenceKey(referenceAnchorSans(reference));
+    if (!key) continue;
+    if (!bySans.has(key)) bySans.set(key, []);
+    bySans.get(key).push({
+      lineId: reference.lineId ?? slugify(reference.fullName),
+      fullName: reference.fullName,
+    });
+  }
+  return bySans;
+}
+
+function transposedReferenceForSans(generatedSans, parent, referenceAnchors) {
+  const key = sanSequenceKey(generatedSans);
+  if (!key || !referenceAnchors) return null;
+  const parentLineId = parent.lineId ?? slugify(parent.fullName);
+  return referenceAnchors.get(key)?.find((reference) => reference.lineId !== parentLineId) ?? null;
+}
+
 function buildBranchEvalCpByPly(generatedSans, branchTrace, evalPerspective) {
   const evalCpByPly = Array(generatedSans.length + 1).fill(null);
   for (const step of branchTrace) {
@@ -1381,6 +1413,7 @@ async function generateBranchVariantsFromTrigger({
   trigger,
   args,
   caches,
+  referenceAnchors,
   allowFallback,
   forcedFirstTrainedCandidate = null,
 }) {
@@ -1405,6 +1438,9 @@ async function generateBranchVariantsFromTrigger({
       source: "lichess-explorer-trigger",
     }),
   ];
+  if (transposedReferenceForSans(initialSans, parent, referenceAnchors)) {
+    return [];
+  }
   const checkpoints = [];
   let bestPayoffFallback = null;
   const responseCategory = branchCategory(parent, triggerMove.san, "");
@@ -1548,6 +1584,9 @@ async function generateBranchVariantsFromTrigger({
             trainedCandidate,
           }),
         ];
+        if (transposedReferenceForSans(nextGeneratedSans, parent, referenceAnchors)) {
+          continue;
+        }
         let nextAdvantageLock = advantageLock;
         const category = branchCategory(parent, triggerMove.san, move.san || "");
         let state = checkpointScore({
@@ -1663,6 +1702,9 @@ async function generateBranchVariantsFromTrigger({
           source: candidate.source ?? "lichess-explorer-continuation",
         }),
       ];
+      if (transposedReferenceForSans(nextGeneratedSans, parent, referenceAnchors)) {
+        continue;
+      }
       if (
         checkpointNeedsResolution(latestState) ||
         (Number.isFinite(latestState?.trainedEvalCp) &&
@@ -1877,7 +1919,7 @@ async function forcedResolutionMove({ chess, explorer, args, caches }) {
   };
 }
 
-async function generateBranchesForParent({ parent, args, caches, existingKeys }) {
+async function generateBranchesForParent({ parent, args, caches, existingKeys, referenceAnchors }) {
   const branches = [];
   const candidates = [];
   const anchorPly = parent.variationAnchorSans?.length ?? parent.generation?.sourcePlies ?? 0;
@@ -1973,6 +2015,7 @@ async function generateBranchesForParent({ parent, args, caches, existingKeys })
           trigger: candidate,
           args,
           caches,
+          referenceAnchors,
           allowFallback: false,
           forcedFirstTrainedCandidate: trainedCandidate,
         });
@@ -2014,6 +2057,7 @@ async function generateBranchesForParent({ parent, args, caches, existingKeys })
       trigger: candidate,
       args,
       caches,
+      referenceAnchors,
       allowFallback: false,
     });
     for (const branch of branchVariants) {
@@ -2050,6 +2094,7 @@ async function generateBranchesForParent({ parent, args, caches, existingKeys })
         trigger: candidate,
         args,
         caches,
+        referenceAnchors,
         allowFallback: true,
       });
       for (const branch of branchVariants) {
@@ -2249,6 +2294,7 @@ async function main() {
   const references = (referencePayload.results ?? []).filter(
     (line) => Array.isArray(line.generatedSans) && line.lineType !== "practical_branch"
   );
+  const referenceAnchors = buildReferenceAnchorIndex(references);
   const scopedReferences = args.parentLineSlugs
     ? references.filter((line) => args.parentLineSlugs.has(line.lineId ?? slugify(line.fullName)))
     : references;
@@ -2319,6 +2365,7 @@ async function main() {
       args: generationArgs,
       caches,
       existingKeys: existingBranchKeys,
+      referenceAnchors,
     });
     for (const branch of branches) {
       const key = branchKeyFromLine(branch);
