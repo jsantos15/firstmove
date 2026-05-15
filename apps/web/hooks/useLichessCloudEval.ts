@@ -6,10 +6,14 @@ const cache = new Map<string, number | null>();
 const DEBOUNCE_MS = 300;
 const MATE_CP = 9999;
 
-export function useLichessCloudEval(fen: string | undefined): number | undefined {
+export function useLichessCloudEval(
+  fen: string | undefined,
+  options: { enabled?: boolean } = {}
+): number | undefined {
   const [evalCp, setEvalCp] = useState<number | undefined>(undefined);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const abortRef = useRef<AbortController | null>(null);
+  const enabled = options.enabled ?? true;
 
   useEffect(() => {
     let cancelled = false;
@@ -19,7 +23,7 @@ export function useLichessCloudEval(fen: string | undefined): number | undefined
       });
     };
 
-    if (!fen) {
+    if (!fen || !enabled) {
       setEvalLater(undefined);
       return () => {
         cancelled = true;
@@ -75,7 +79,7 @@ export function useLichessCloudEval(fen: string | undefined): number | undefined
       cancelled = true;
       if (timerRef.current) clearTimeout(timerRef.current);
     };
-  }, [fen]);
+  }, [enabled, fen]);
 
   return evalCp;
 }

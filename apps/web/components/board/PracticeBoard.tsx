@@ -14,6 +14,7 @@ import {
   type CoachFeedback,
 } from '@/lib/coachFeedback';
 import { useLichessCloudEval } from '@/hooks/useLichessCloudEval';
+import { useOpeningPositionEval } from '@/hooks/useOpeningPositionEval';
 
 export type PracticeMode = 'learn' | 'practice';
 
@@ -562,13 +563,17 @@ export function PracticeBoard({
     return undefined;
   };
 
-  const cloudEvalCp = useLichessCloudEval(displayPosition);
   const currentStaticEvalCp = getEvalAtPly(displayIndex);
-  const displayedEvalCp = currentStaticEvalCp ?? cloudEvalCp;
+  const dbEvalCp = useOpeningPositionEval(displayPosition);
+  const cloudEvalCp = useLichessCloudEval(displayPosition, {
+    enabled: currentStaticEvalCp == null && dbEvalCp == null,
+  });
+  const displayedEvalCp = currentStaticEvalCp ?? dbEvalCp ?? cloudEvalCp;
 
   // Keep board offset stable from the start whenever this line can show eval data.
   const hasVisibleEvalBar =
     (typeof cloudEvalCp === 'number' && Number.isFinite(cloudEvalCp)) ||
+    (typeof dbEvalCp === 'number' && Number.isFinite(dbEvalCp)) ||
     (typeof currentStaticEvalCp === 'number' && Number.isFinite(currentStaticEvalCp)) ||
     (typeof variation.finalEvalCp === 'number' && Number.isFinite(variation.finalEvalCp));
   const boardAlignedClassName = `mx-auto w-full ${hasVisibleEvalBar ? 'sm:translate-x-[18px]' : ''}`;

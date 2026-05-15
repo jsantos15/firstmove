@@ -221,6 +221,69 @@ export type Database = {
           },
         ];
       };
+      opening_position_evals: {
+        Row: {
+          best_move_uci: string;
+          created_at: string;
+          depth: number | null;
+          engine_model: string | null;
+          fen: string;
+          line_count: number;
+          lines: Json;
+          multipv: number | null;
+          ponder_uci: string | null;
+          position_key: string;
+          provider: string;
+          quality: Json;
+          raw_eval: Json;
+          score_type: string | null;
+          score_value: number | null;
+          source: string;
+          updated_at: string;
+          white_score_value: number | null;
+        };
+        Insert: {
+          best_move_uci: string;
+          created_at?: string;
+          depth?: number | null;
+          engine_model?: string | null;
+          fen: string;
+          line_count?: number;
+          lines?: Json;
+          multipv?: number | null;
+          ponder_uci?: string | null;
+          position_key: string;
+          provider: string;
+          quality?: Json;
+          raw_eval?: Json;
+          score_type?: string | null;
+          score_value?: number | null;
+          source: string;
+          updated_at?: string;
+          white_score_value?: number | null;
+        };
+        Update: {
+          best_move_uci?: string;
+          created_at?: string;
+          depth?: number | null;
+          engine_model?: string | null;
+          fen?: string;
+          line_count?: number;
+          lines?: Json;
+          multipv?: number | null;
+          ponder_uci?: string | null;
+          position_key?: string;
+          provider?: string;
+          quality?: Json;
+          raw_eval?: Json;
+          score_type?: string | null;
+          score_value?: number | null;
+          source?: string;
+          updated_at?: string;
+          white_score_value?: number | null;
+        };
+        Relationships: [];
+      };
       opening_positions: {
         Row: {
           created_at: string;
