@@ -2,6 +2,7 @@
 
 const fs = require("fs");
 const path = require("path");
+const crypto = require("crypto");
 const { Chess } = require("./lib/chess-js.cjs");
 const { fetchLichessExplorer, totalGames } = require("./lib/lichess-explorer.cjs");
 const { createStockfishEngine, parseInfoLine } = require("./lib/stockfish.cjs");
@@ -1197,18 +1198,23 @@ function buildBranchEvalCpByPly(generatedSans, branchTrace, evalPerspective) {
 }
 
 function branchTraceSlug(branchTrace) {
-  return slugify(
+  const readable = slugify(
     branchTrace
-      .slice(1, 5)
+      .slice(1, 9)
       .map((step) => step.san || step.uci)
       .filter(Boolean)
       .join("-")
   );
+  const fullTrace = branchTrace
+    .map((step) => step.uci || step.san)
+    .filter(Boolean)
+    .join(".");
+  const suffix = crypto.createHash("sha1").update(fullTrace).digest("hex").slice(0, 8);
+  return readable ? `${readable}-${suffix}` : suffix;
 }
 
 function branchTraceKey(branchTrace) {
   return branchTrace
-    .slice(0, 8)
     .map((step) => step.uci)
     .filter(Boolean)
     .join(".");
@@ -1878,6 +1884,42 @@ async function generateBranchesForParent({ parent, args, caches, existingKeys })
   const parentBranchLimit = Number.isFinite(args.maxNewBranchesPerVariation)
     ? Math.min(args.maxBranchesPerVariation, args.maxNewBranchesPerVariation)
     : args.maxBranchesPerVariation;
+
+  if (anchorPly > 0) {
+    const anchorChess = applySans(parent.generatedSans.slice(0, anchorPly));
+    const anchorSideToMove = anchorChess.turn() === "w" ? "white" : "black";
+    if (anchorSideToMove === parent.openingColor) {
+      const stemSans = parent.generatedSans.slice(0, anchorPly - 1);
+      const referenceSan = parent.generatedSans[anchorPly - 1] ?? null;
+      const stemChess = applySans(stemSans);
+      const sideToMove = stemChess.turn() === "w" ? "white" : "black";
+      const referenceUci = sanToUciAtPosition(stemChess.fen(), referenceSan);
+      if (sideToMove !== parent.openingColor && referenceSan && referenceUci) {
+        const explorer = await fetchExplorerNode(stemChess.fen(), args, caches.explorer);
+        const anchorMove = explorer.topMoves.find((move) => move.uci === referenceUci);
+        const playRate =
+          anchorMove && explorer.totalGamesAtNode > 0
+            ? anchorMove.totalGames / explorer.totalGamesAtNode
+            : null;
+        const key = `${parent.openingId}::${parent.lineId}::${anchorPly - 1}::${referenceUci}`;
+        if (!existingKeys.has(key)) {
+          candidates.push({
+            ...(anchorMove ?? { san: referenceSan, uci: referenceUci, totalGames: null }),
+            san: anchorMove?.san ?? referenceSan,
+            uci: referenceUci,
+            playRate,
+            cumulativePlayRate: playRate,
+            selectedBy: "variation_anchor",
+            nodeGames: explorer.totalGamesAtNode,
+            referenceSan,
+            referenceUci,
+            stemSans,
+            stemPly: anchorPly - 1,
+          });
+        }
+      }
+    }
+  }
 
   for (let plyIndex = Math.max(anchorPly, 0); plyIndex < parent.generatedSans.length; plyIndex += 1) {
     if (branches.length + candidates.length >= parentBranchLimit * 3) break;
