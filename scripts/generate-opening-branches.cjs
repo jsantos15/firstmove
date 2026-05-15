@@ -940,6 +940,21 @@ function checkpointNeedsResolution(state) {
   return Boolean(state?.unresolvedForcing || state?.materialConversionPending);
 }
 
+function payoffFallbackAccepts({ state, chess, trace, openingColor, args }) {
+  if (!Number.isFinite(state?.trainedEvalCp)) return false;
+  if (state.trainedEvalCp < args.trainedOpportunityMinEvalCp) return false;
+  const sideToMove = chess.turn() === "w" ? "white" : "black";
+  if (chess.inCheck() && sideToMove === openingColor) return false;
+  const pliesAfterTrigger = Math.max(0, trace.length - 1);
+  if (pliesAfterTrigger < 4) return false;
+  return (
+    state.trainedEvalCp >= args.trainedOpportunityMinEvalCp + 150 ||
+    state.materialEdgePawns >= 1 ||
+    state.visibleMaterialThreat ||
+    state.forkedByOnePiece
+  );
+}
+
 async function analysisForTrainedCandidates(fen, analysis, args) {
   const desiredLineCount = Math.max(2, Math.min(args.trainedCandidateMoves, args.multipvCount));
   if (analysisLineCount(analysis) >= desiredLineCount) return analysis;
@@ -1314,6 +1329,9 @@ function buildBranchRecord({ parent, stemSans, trigger, branch, finalState, args
         continuationTrace: branchTrace,
         selectionMetadata: {
           fallback: branch.fallback,
+          fallbackKind: branch.fallbackKind ?? null,
+          endpointSide: branch.endpointSide ?? null,
+          fallbackReason: branch.fallbackReason ?? null,
           trainedOpportunity: branch.trainedOpportunity,
           trainedCandidateMoves: args.trainedCandidateMoves,
           stockfishTrainedCandidateMoves: args.stockfishTrainedCandidateMoves,
@@ -1380,6 +1398,7 @@ async function generateBranchVariantsFromTrigger({
     }),
   ];
   const checkpoints = [];
+  let bestPayoffFallback = null;
   const responseCategory = branchCategory(parent, triggerMove.san, "");
   let visitedNodes = 0;
   const searchStartedAt = Date.now();
@@ -1419,6 +1438,39 @@ async function generateBranchVariantsFromTrigger({
       analysis,
       fallback,
     });
+  }
+
+  function considerPayoffFallback({
+    state,
+    generatedSans,
+    trace,
+    fen,
+    analysis,
+    chess,
+    endpointSide,
+    reason,
+  }) {
+    if (!payoffFallbackAccepts({ state, chess, trace, openingColor, args })) return;
+    const currentEval = Number.isFinite(bestPayoffFallback?.state?.trainedEvalCp)
+      ? bestPayoffFallback.state.trainedEvalCp
+      : Number.NEGATIVE_INFINITY;
+    const stateEval = state.trainedEvalCp;
+    if (
+      !bestPayoffFallback ||
+      stateEval > currentEval ||
+      (stateEval === currentEval && state.score > bestPayoffFallback.state.score)
+    ) {
+      bestPayoffFallback = {
+        state,
+        generatedSans: [...generatedSans],
+        trace: trace.map((step) => ({ ...step })),
+        fen,
+        analysis,
+        fallback: "payoff_cap",
+        endpointSide,
+        fallbackReason: reason,
+      };
+    }
   }
 
   async function search({
@@ -1532,6 +1584,16 @@ async function generateBranchVariantsFromTrigger({
           fen: nextChess.fen(),
           analysis: nextFinalAnalysis,
         });
+        considerPayoffFallback({
+          state,
+          generatedSans: nextGeneratedSans,
+          trace: nextTrace,
+          fen: nextChess.fen(),
+          analysis: nextFinalAnalysis,
+          chess: nextChess,
+          endpointSide: "trained",
+          reason: "best_high_eval_trained_payoff",
+        });
 
         const nextAddedFromAnchor =
           nextGeneratedSans.length - (parent.variationAnchorSans?.length ?? 0);
@@ -1583,18 +1645,48 @@ async function generateBranchVariantsFromTrigger({
       const nextChess = new Chess(chess.fen());
       const applied = nextChess.move(uciToMoveObject(candidate.uci));
       if (!applied) continue;
+      const nextGeneratedSans = [...generatedSans, applied.san];
+      const nextTrace = [
+        ...trace,
+        buildTraceStepForOpponent({
+          ply: generatedSans.length + 1,
+          move: candidate,
+          san: applied.san,
+          source: candidate.source ?? "lichess-explorer-continuation",
+        }),
+      ];
+      if (
+        checkpointNeedsResolution(latestState) ||
+        (Number.isFinite(latestState?.trainedEvalCp) &&
+          latestState.trainedEvalCp >= args.trainedOpportunityMinEvalCp)
+      ) {
+        const opponentEndpointAnalysis = await analyzeWithRouter(nextChess.fen(), args, caches);
+        const opponentEndpointState = checkpointScore({
+          chess: nextChess,
+          line: parent,
+          analysis: opponentEndpointAnalysis,
+          openingColor,
+          branchSansFromAnchor: nextGeneratedSans.slice(parent.variationAnchorSans?.length ?? 0),
+          trace: nextTrace,
+          category: latestState?.category ?? responseCategory,
+          args,
+          advantageStartPly: advantageLock?.startPly ?? null,
+        });
+        considerPayoffFallback({
+          state: opponentEndpointState,
+          generatedSans: nextGeneratedSans,
+          trace: nextTrace,
+          fen: nextChess.fen(),
+          analysis: opponentEndpointAnalysis,
+          chess: nextChess,
+          endpointSide: "opponent",
+          reason: "best_high_eval_opponent_payoff",
+        });
+      }
       await search({
         chess: nextChess,
-        generatedSans: [...generatedSans, applied.san],
-        trace: [
-          ...trace,
-          buildTraceStepForOpponent({
-            ply: generatedSans.length + 1,
-            move: candidate,
-            san: applied.san,
-            source: candidate.source ?? "lichess-explorer-continuation",
-          }),
-        ],
+        generatedSans: nextGeneratedSans,
+        trace: nextTrace,
         latestState,
         finalAnalysis,
         advantageLock,
@@ -1637,6 +1729,13 @@ async function generateBranchVariantsFromTrigger({
     }
   }
 
+  if (bestPayoffFallback) {
+    const hasSameLine = checkpoints.some(
+      (checkpoint) => checkpoint.generatedSans.join(" ") === bestPayoffFallback.generatedSans.join(" ")
+    );
+    if (!hasSameLine) checkpoints.push(bestPayoffFallback);
+  }
+
   const variantsByLine = new Map();
   for (const variant of checkpoints.map((checkpoint) => ({
       generatedSans: checkpoint.generatedSans,
@@ -1648,6 +1747,9 @@ async function generateBranchVariantsFromTrigger({
       finalAnalysis: checkpoint.analysis,
       finalState: checkpoint.state,
       fallback: Boolean(checkpoint.fallback || allowFallback),
+      fallbackKind: typeof checkpoint.fallback === "string" ? checkpoint.fallback : null,
+      endpointSide: checkpoint.endpointSide ?? null,
+      fallbackReason: checkpoint.fallbackReason ?? null,
       trainedOpportunity: forcedFirstTrainedCandidate
         ? {
             firstTrainedUci: forcedFirstTrainedCandidate.uci,
@@ -1661,7 +1763,9 @@ async function generateBranchVariantsFromTrigger({
           }
         : null,
       stopReason: checkpoint.fallback
-        ? "Kept as the best available practical fallback branch for this variation."
+        ? checkpoint.fallback === "payoff_cap"
+          ? "Kept at the best high-eval payoff reached before a clean branch endpoint was found."
+          : "Kept as the best available practical fallback branch for this variation."
         : "Stopped at a practical branch checkpoint found by bounded continuation search.",
     }))) {
     const key = variant.generatedSans.join(" ");
