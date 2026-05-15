@@ -128,6 +128,21 @@ function resolveOpeningLines(opening) {
       currentCount === 0 ? baseSlug : `${baseSlug}-${currentCount + 1}`;
   }
 
+  const resolvedReferenceIds = new Map();
+  for (const line of lines) {
+    if (line.lineType !== "practical_branch" && line.lineId) {
+      resolvedReferenceIds.set(line.lineId, line.resolvedLineId);
+    }
+  }
+
+  for (const line of lines) {
+    if (line.lineType !== "practical_branch") continue;
+    const parentLineId =
+      line.parentLineId ?? line.generation?.branch?.parentLineId ?? null;
+    line.resolvedParentLineId =
+      resolvedReferenceIds.get(parentLineId) ?? parentLineId;
+  }
+
   return lines;
 }
 
@@ -259,7 +274,8 @@ function buildBranchMetadataRow(line) {
   }
 
   const branch = line.generation?.branch ?? {};
-  const parentLineSlug = line.parentLineId ?? branch.parentLineId ?? null;
+  const parentLineSlug =
+    line.resolvedParentLineId ?? line.parentLineId ?? branch.parentLineId ?? null;
   const lessonStemPly = line.lessonStemPly ?? branch.lessonStemPly ?? null;
   const lessonStemFen = line.lessonStemFen ?? branch.lessonStemFen ?? null;
   const triggerMoveSan = line.triggerMoveSan ?? branch.triggerMoveSan ?? null;
@@ -392,6 +408,7 @@ function buildGenerationMetadata(line) {
       (line.lineType === "practical_branch"
         ? {
             parentLineId: line.parentLineId ?? null,
+            resolvedParentLineId: line.resolvedParentLineId ?? null,
             branchDepth: line.branchDepth ?? null,
             lessonStemPly: line.lessonStemPly ?? null,
             lessonStemFen: line.lessonStemFen ?? null,
@@ -460,6 +477,7 @@ function buildLineMetadata(line) {
     avgEngineDepth: inferAverageEngineDepth(line),
     generationMetadata: buildGenerationMetadata(line),
     parentLineId: line.parentLineId ?? null,
+    resolvedParentLineId: line.resolvedParentLineId ?? null,
     branchDepth: line.branchDepth ?? null,
     lessonStemPly: line.lessonStemPly ?? null,
     lessonStemFen: line.lessonStemFen ?? null,
