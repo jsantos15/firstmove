@@ -258,9 +258,9 @@
 
 ## 2026-05-15 - Generate dense per-ply eval timelines for opening lines
 
-**Decision:** Build `opening_lines.eval_cp_by_ply` by replaying every final SAN line and analyzing each resulting board position during generation. Store index `0` as the starting board eval and every later index as a White-perspective centipawn value after that ply. Set `final_eval_cp` from the last timeline value and keep `final_eval_perspective = white`.
+**Decision:** Build `opening_lines.eval_cp_by_ply` as a dense timeline during generation. Store index `0` as the starting board eval and every later index as a White-perspective centipawn value after that ply. Keep evals already produced by the accepted reference checkpoint or practical branch path, then replay only missing plies before writing output. Set `final_eval_cp` from the last timeline value and keep `final_eval_perspective = white`.
 
-**Reason:** The practice eval bar must be deterministic and should not depend on browser-side engine calls or sparse trace metadata. Replaying the final line makes reference and practical-branch rows consistent even when the original move came from Lichess cloud, Chess-API, cached best-known evals, or local Stockfish fallback.
+**Reason:** The practice eval bar must be deterministic and should not depend on browser-side engine calls or sparse trace metadata. Reusing evals that generation already computed avoids unnecessary engine work, while the final gap-fill pass keeps reference and practical-branch rows consistent even when the original move came from Lichess cloud, Chess-API, cached best-known evals, or local Stockfish fallback.
 
 ## 2026-05-03 - Resolve opening names by position index, not PGN scanning
 

@@ -653,8 +653,23 @@ function perspectiveEvalCp(score, turnColor, targetColor) {
   return turnColor === targetColor ? cp : -cp;
 }
 
-async function buildWhiteEvalCpByPlyFromSans(generatedSans, args, caches) {
-  const evalCpByPly = [0];
+function whiteEvalCpFromAnalysis(analysis) {
+  return perspectiveEvalCp(analysis?.lines?.[0]?.score ?? null, analysis?.turnColor, "white");
+}
+
+function timelineWithEvalAtPly(timeline, ply, whiteEvalCp) {
+  const next = Array.isArray(timeline) ? [...timeline] : [];
+  if (!Number.isFinite(whiteEvalCp) || !Number.isInteger(ply) || ply < 0) {
+    return next;
+  }
+  while (next.length <= ply) next.push(null);
+  next[ply] = whiteEvalCp;
+  return next;
+}
+
+async function buildWhiteEvalCpByPlyFromSans(generatedSans, args, caches, seedTimeline = null) {
+  const evalCpByPly = Array.isArray(seedTimeline) ? [...seedTimeline] : [0];
+  if (!Number.isFinite(evalCpByPly[0])) evalCpByPly[0] = 0;
   const chess = new Chess();
 
   for (const san of generatedSans) {
@@ -663,16 +678,18 @@ async function buildWhiteEvalCpByPlyFromSans(generatedSans, args, caches) {
       throw new Error(`Cannot build eval timeline; illegal SAN "${san}" in ${generatedSans.join(" ")}`);
     }
 
+    const ply = chess.history().length;
+    if (Number.isFinite(evalCpByPly[ply])) {
+      continue;
+    }
+
     const analysis = await analyzePosition(chess.fen(), args, caches);
-    const whiteEvalCp = perspectiveEvalCp(
-      analysis.lines[0]?.score ?? null,
-      analysis.turnColor,
-      "white"
-    );
+    const whiteEvalCp = whiteEvalCpFromAnalysis(analysis);
     if (!Number.isFinite(whiteEvalCp)) {
       throw new Error(`Cannot build eval timeline; no eval returned for ${chess.fen()}`);
     }
-    evalCpByPly.push(whiteEvalCp);
+    while (evalCpByPly.length <= ply) evalCpByPly.push(null);
+    evalCpByPly[ply] = whiteEvalCp;
   }
 
   return evalCpByPly;
@@ -2253,6 +2270,7 @@ async function extendMainVariationLine(entry, args, caches) {
   const openingColor = inferOpeningColor(entry.family);
   const category = inferPrimaryCategory(entry);
   const evalHistory = [];
+  let evalCpByPly = [0];
   const referenceTrace = [];
   let bestReferenceCheckpoint = null;
   let finalStop = {
@@ -2277,6 +2295,7 @@ async function extendMainVariationLine(entry, args, caches) {
       score,
       generatedSans: [...generatedSans],
       continuationSteps: continuationSteps.map((step) => ({ ...step })),
+      evalCpByPly: [...evalCpByPly],
       fen: chess.fen(),
       stop: {
         ...stopState,
@@ -2348,6 +2367,7 @@ async function extendMainVariationLine(entry, args, caches) {
     generatedSans.push(...bestReferenceCheckpoint.generatedSans);
     continuationSteps.length = 0;
     continuationSteps.push(...bestReferenceCheckpoint.continuationSteps);
+    evalCpByPly = [...bestReferenceCheckpoint.evalCpByPly];
     chess.load(bestReferenceCheckpoint.fen);
     finalStop = {
       ...bestReferenceCheckpoint.stop,
@@ -2376,6 +2396,11 @@ async function extendMainVariationLine(entry, args, caches) {
 
     const analysis = await analyzePosition(chess.fen(), args, caches);
     const explorer = await fetchExplorerNode(chess.fen(), args, caches.explorer);
+    evalCpByPly = timelineWithEvalAtPly(
+      evalCpByPly,
+      generatedSans.length,
+      whiteEvalCpFromAnalysis(analysis)
+    );
     const currentEval = perspectiveEvalCp(
       analysis.lines[0]?.score ?? null,
       analysis.turnColor,
@@ -2512,7 +2537,12 @@ async function extendMainVariationLine(entry, args, caches) {
   }
 
   const finalAnalysis = await analyzePosition(chess.fen(), args, caches);
-  const evalCpByPly = await buildWhiteEvalCpByPlyFromSans(generatedSans, args, caches);
+  evalCpByPly = timelineWithEvalAtPly(
+    evalCpByPly,
+    generatedSans.length,
+    whiteEvalCpFromAnalysis(finalAnalysis)
+  );
+  evalCpByPly = await buildWhiteEvalCpByPlyFromSans(generatedSans, args, caches, evalCpByPly);
   const engineSummary = summarizeGenerationEngines(continuationSteps, finalAnalysis);
 
   return {

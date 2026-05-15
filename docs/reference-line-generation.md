@@ -63,9 +63,11 @@ Supabase tables populated by the pipeline:
 
 `opening_lines.eval_cp_by_ply` is written as a dense White-perspective
 centipawn timeline. Index `0` is the starting board, and each later index is
-the board evaluation after that SAN ply has been played. The practice board
-uses this timeline first, with `opening_position_evals` only as a fallback for
-older or incomplete rows.
+the board evaluation after that SAN ply has been played. Generators keep evals
+that were already produced during accepted-line search/checkpointing, then
+replay only missing plies before writing output. The practice board uses this
+timeline first, with `opening_position_evals` only as a fallback for older or
+incomplete rows.
 
 ## Current Algorithm Summary
 

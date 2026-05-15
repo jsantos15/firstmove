@@ -280,6 +280,20 @@ function perspectiveEvalCp(score, turnColor, targetColor) {
   return turnColor === targetColor ? cp : -cp;
 }
 
+function whiteEvalCpFromAnalysis(analysis) {
+  return perspectiveEvalCp(analysis?.lines?.[0]?.score ?? null, analysis?.turnColor, "white");
+}
+
+function timelineWithEvalAtPly(timeline, ply, whiteEvalCp) {
+  const next = Array.isArray(timeline) ? [...timeline] : [];
+  if (!Number.isFinite(whiteEvalCp) || !Number.isInteger(ply) || ply < 0) {
+    return next;
+  }
+  while (next.length <= ply) next.push(null);
+  next[ply] = whiteEvalCp;
+  return next;
+}
+
 function applySans(sans) {
   const chess = new Chess();
   for (const san of sans) {
@@ -1211,8 +1225,9 @@ function transposedReferenceForSans(generatedSans, parent, referenceAnchors) {
   return referenceAnchors.get(key)?.find((reference) => reference.lineId !== parentLineId) ?? null;
 }
 
-async function buildWhiteEvalCpByPlyFromSans(generatedSans, args, caches) {
-  const evalCpByPly = [0];
+async function buildWhiteEvalCpByPlyFromSans(generatedSans, args, caches, seedTimeline = null) {
+  const evalCpByPly = Array.isArray(seedTimeline) ? [...seedTimeline] : [0];
+  if (!Number.isFinite(evalCpByPly[0])) evalCpByPly[0] = 0;
   const chess = new Chess();
 
   for (const san of generatedSans) {
@@ -1221,16 +1236,18 @@ async function buildWhiteEvalCpByPlyFromSans(generatedSans, args, caches) {
       throw new Error(`Cannot build eval timeline; illegal SAN "${san}" in ${generatedSans.join(" ")}`);
     }
 
+    const ply = chess.history().length;
+    if (Number.isFinite(evalCpByPly[ply])) {
+      continue;
+    }
+
     const analysis = await analyzeWithRouter(chess.fen(), args, caches);
-    const whiteEvalCp = perspectiveEvalCp(
-      analysis.lines[0]?.score ?? null,
-      analysis.turnColor,
-      "white"
-    );
+    const whiteEvalCp = whiteEvalCpFromAnalysis(analysis);
     if (!Number.isFinite(whiteEvalCp)) {
       throw new Error(`Cannot build eval timeline; no eval returned for ${chess.fen()}`);
     }
-    evalCpByPly.push(whiteEvalCp);
+    while (evalCpByPly.length <= ply) evalCpByPly.push(null);
+    evalCpByPly[ply] = whiteEvalCp;
   }
 
   return evalCpByPly;
@@ -1286,7 +1303,12 @@ async function buildBranchRecord({ parent, stemSans, trigger, branch, finalState
   const avgDepth =
     depths.length > 0 ? Math.round(depths.reduce((sum, value) => sum + value, 0) / depths.length) : null;
   const finalEvalPerspective = "white";
-  const evalCpByPly = await buildWhiteEvalCpByPlyFromSans(branch.generatedSans, args, caches);
+  const evalCpByPly = await buildWhiteEvalCpByPlyFromSans(
+    branch.generatedSans,
+    args,
+    caches,
+    branch.evalCpByPly
+  );
   const finalEvalCp = evalCpByPly.at(-1) ?? null;
 
   return {
@@ -1435,6 +1457,14 @@ async function generateBranchVariantsFromTrigger({
     beforeAnalysis.turnColor,
     openingColor
   );
+  const seedEvalCpByPly = Array.isArray(parent.evalCpByPly)
+    ? parent.evalCpByPly.slice(0, stemSans.length + 1)
+    : [0];
+  const initialEvalCpByPly = timelineWithEvalAtPly(
+    seedEvalCpByPly,
+    stemSans.length,
+    whiteEvalCpFromAnalysis(beforeAnalysis)
+  );
   const triggerMove = root.move(uciToMoveObject(trigger.uci));
   if (!triggerMove) return [];
 
@@ -1478,6 +1508,7 @@ async function generateBranchVariantsFromTrigger({
     state,
     generatedSans,
     trace,
+    evalCpByPly,
     fen,
     analysis,
     fallback = false,
@@ -1487,6 +1518,7 @@ async function generateBranchVariantsFromTrigger({
       state,
       generatedSans: [...generatedSans],
       trace: trace.map((step) => ({ ...step })),
+      evalCpByPly: [...evalCpByPly],
       fen,
       analysis,
       fallback,
@@ -1497,6 +1529,7 @@ async function generateBranchVariantsFromTrigger({
     state,
     generatedSans,
     trace,
+    evalCpByPly,
     fen,
     analysis,
     chess,
@@ -1517,6 +1550,7 @@ async function generateBranchVariantsFromTrigger({
         state,
         generatedSans: [...generatedSans],
         trace: trace.map((step) => ({ ...step })),
+        evalCpByPly: [...evalCpByPly],
         fen,
         analysis,
         fallback: "payoff_cap",
@@ -1530,6 +1564,7 @@ async function generateBranchVariantsFromTrigger({
     chess,
     generatedSans,
     trace,
+    evalCpByPly,
     latestState,
     finalAnalysis,
     advantageLock,
@@ -1546,8 +1581,14 @@ async function generateBranchVariantsFromTrigger({
     if ((overBranchCap || overTotalCap) && !needsResolution) return;
 
     const sideToMove = chess.turn() === "w" ? "white" : "black";
+    let currentEvalCpByPly = evalCpByPly;
     if (sideToMove === openingColor) {
       const analysis = await analyzeWithRouter(chess.fen(), args, caches);
+      currentEvalCpByPly = timelineWithEvalAtPly(
+        currentEvalCpByPly,
+        generatedSans.length,
+        whiteEvalCpFromAnalysis(analysis)
+      );
       const candidateAnalysis = await analysisForTrainedCandidates(chess.fen(), analysis, args);
       const currentEvalCp = latestState?.trainedEvalCp;
       const settledAdvantage =
@@ -1581,6 +1622,11 @@ async function generateBranchVariantsFromTrigger({
           nextFinalAnalysis.lines[0]?.score ?? null,
           nextFinalAnalysis.turnColor,
           openingColor
+        );
+        const nextEvalCpByPly = timelineWithEvalAtPly(
+          currentEvalCpByPly,
+          nextGeneratedSans.length,
+          whiteEvalCpFromAnalysis(nextFinalAnalysis)
         );
         const nextTrace = [
           ...trace,
@@ -1637,6 +1683,7 @@ async function generateBranchVariantsFromTrigger({
           state,
           generatedSans: nextGeneratedSans,
           trace: nextTrace,
+          evalCpByPly: nextEvalCpByPly,
           fen: nextChess.fen(),
           analysis: nextFinalAnalysis,
         });
@@ -1644,6 +1691,7 @@ async function generateBranchVariantsFromTrigger({
           state,
           generatedSans: nextGeneratedSans,
           trace: nextTrace,
+          evalCpByPly: nextEvalCpByPly,
           fen: nextChess.fen(),
           analysis: nextFinalAnalysis,
           chess: nextChess,
@@ -1673,6 +1721,7 @@ async function generateBranchVariantsFromTrigger({
           chess: nextChess,
           generatedSans: nextGeneratedSans,
           trace: nextTrace,
+          evalCpByPly: nextEvalCpByPly,
           latestState: state,
           finalAnalysis: nextFinalAnalysis,
           advantageLock: nextAdvantageLock,
@@ -1714,12 +1763,18 @@ async function generateBranchVariantsFromTrigger({
       if (transposedReferenceForSans(nextGeneratedSans, parent, referenceAnchors)) {
         continue;
       }
+      let nextEvalCpByPly = currentEvalCpByPly;
       if (
         checkpointNeedsResolution(latestState) ||
         (Number.isFinite(latestState?.trainedEvalCp) &&
           latestState.trainedEvalCp >= args.trainedOpportunityMinEvalCp)
       ) {
         const opponentEndpointAnalysis = await analyzeWithRouter(nextChess.fen(), args, caches);
+        nextEvalCpByPly = timelineWithEvalAtPly(
+          currentEvalCpByPly,
+          nextGeneratedSans.length,
+          whiteEvalCpFromAnalysis(opponentEndpointAnalysis)
+        );
         const opponentEndpointState = checkpointScore({
           chess: nextChess,
           line: parent,
@@ -1735,6 +1790,7 @@ async function generateBranchVariantsFromTrigger({
           state: opponentEndpointState,
           generatedSans: nextGeneratedSans,
           trace: nextTrace,
+          evalCpByPly: nextEvalCpByPly,
           fen: nextChess.fen(),
           analysis: opponentEndpointAnalysis,
           chess: nextChess,
@@ -1746,6 +1802,7 @@ async function generateBranchVariantsFromTrigger({
         chess: nextChess,
         generatedSans: nextGeneratedSans,
         trace: nextTrace,
+        evalCpByPly: nextEvalCpByPly,
         latestState,
         finalAnalysis,
         advantageLock,
@@ -1758,6 +1815,7 @@ async function generateBranchVariantsFromTrigger({
     chess: root,
     generatedSans: initialSans,
     trace: initialTrace,
+    evalCpByPly: initialEvalCpByPly,
     latestState: null,
     finalAnalysis: beforeAnalysis,
     advantageLock: null,
@@ -1781,6 +1839,11 @@ async function generateBranchVariantsFromTrigger({
         state,
         generatedSans: initialSans,
         trace: initialTrace,
+        evalCpByPly: timelineWithEvalAtPly(
+          initialEvalCpByPly,
+          initialSans.length,
+          whiteEvalCpFromAnalysis(fallbackAnalysis)
+        ),
         fen: root.fen(),
         analysis: fallbackAnalysis,
         fallback: true,
@@ -1799,6 +1862,7 @@ async function generateBranchVariantsFromTrigger({
   for (const variant of checkpoints.map((checkpoint) => ({
       generatedSans: checkpoint.generatedSans,
       trace: checkpoint.trace,
+      evalCpByPly: checkpoint.evalCpByPly,
       stemFen,
       evalBeforeTrigger,
       evalAfterTrigger: checkpoint.state.trainedEvalCp,
