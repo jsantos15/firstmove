@@ -1211,22 +1211,29 @@ function transposedReferenceForSans(generatedSans, parent, referenceAnchors) {
   return referenceAnchors.get(key)?.find((reference) => reference.lineId !== parentLineId) ?? null;
 }
 
-function buildBranchEvalCpByPly(generatedSans, branchTrace, evalPerspective) {
-  const evalCpByPly = Array(generatedSans.length + 1).fill(null);
-  for (const step of branchTrace) {
-    if (
-      step.side !== "trained" ||
-      !Number.isInteger(step.ply) ||
-      step.ply < 0 ||
-      step.ply >= evalCpByPly.length ||
-      !Number.isFinite(step.trainedEvalCp)
-    ) {
-      continue;
+async function buildWhiteEvalCpByPlyFromSans(generatedSans, args, caches) {
+  const evalCpByPly = [0];
+  const chess = new Chess();
+
+  for (const san of generatedSans) {
+    const move = chess.move(san);
+    if (!move) {
+      throw new Error(`Cannot build eval timeline; illegal SAN "${san}" in ${generatedSans.join(" ")}`);
     }
-    evalCpByPly[step.ply] =
-      evalPerspective === "white" ? step.trainedEvalCp : -step.trainedEvalCp;
+
+    const analysis = await analyzeWithRouter(chess.fen(), args, caches);
+    const whiteEvalCp = perspectiveEvalCp(
+      analysis.lines[0]?.score ?? null,
+      analysis.turnColor,
+      "white"
+    );
+    if (!Number.isFinite(whiteEvalCp)) {
+      throw new Error(`Cannot build eval timeline; no eval returned for ${chess.fen()}`);
+    }
+    evalCpByPly.push(whiteEvalCp);
   }
-  return evalCpByPly.some((value) => Number.isFinite(value)) ? evalCpByPly : null;
+
+  return evalCpByPly;
 }
 
 function branchTraceSlug(branchTrace) {
@@ -1252,7 +1259,7 @@ function branchTraceKey(branchTrace) {
     .join(".");
 }
 
-function buildBranchRecord({ parent, stemSans, trigger, branch, finalState, args }) {
+async function buildBranchRecord({ parent, stemSans, trigger, branch, finalState, args, caches }) {
   const parentLineId = parent.lineId ?? slugify(parent.fullName);
   const triggerSlug = slugify(`${stemSans.length}-${trigger.san}`);
   const category = finalState.category;
@@ -1278,8 +1285,9 @@ function buildBranchRecord({ parent, stemSans, trigger, branch, finalState, args
     .filter(Number.isFinite);
   const avgDepth =
     depths.length > 0 ? Math.round(depths.reduce((sum, value) => sum + value, 0) / depths.length) : null;
-  const finalEvalPerspective = parent.openingColor;
-  const evalCpByPly = buildBranchEvalCpByPly(branch.generatedSans, branchTrace, finalEvalPerspective);
+  const finalEvalPerspective = "white";
+  const evalCpByPly = await buildWhiteEvalCpByPlyFromSans(branch.generatedSans, args, caches);
+  const finalEvalCp = evalCpByPly.at(-1) ?? null;
 
   return {
     ...parent,
@@ -1319,7 +1327,8 @@ function buildBranchRecord({ parent, stemSans, trigger, branch, finalState, args
     sourceConfidence: branch.fallback ? "low" : "medium",
     stopReason: branch.stopReason,
     finalFen: branch.finalFen,
-    finalEvalCp: finalState.trainedEvalCp,
+    finalTrainedEvalCp: finalState.trainedEvalCp,
+    finalEvalCp,
     finalEvalPerspective,
     evalCpByPly,
     finalPositionSummary: "Practical human continuation selected by popularity and resolved with trained-side engine moves.",
@@ -2033,13 +2042,14 @@ async function generateBranchesForParent({ parent, args, caches, existingKeys, r
     if (opportunityBranches.length > 0) {
       for (const branch of opportunityBranches) {
         branches.push(
-          buildBranchRecord({
+          await buildBranchRecord({
             parent,
             stemSans: candidate.stemSans,
             trigger: candidate,
             branch,
             finalState: branch.finalState,
             args,
+            caches,
           })
         );
       }
@@ -2062,13 +2072,14 @@ async function generateBranchesForParent({ parent, args, caches, existingKeys, r
     });
     for (const branch of branchVariants) {
       branches.push(
-        buildBranchRecord({
+        await buildBranchRecord({
           parent,
           stemSans: candidate.stemSans,
           trigger: candidate,
           branch,
           finalState: branch.finalState,
           args,
+          caches,
         })
       );
     }
@@ -2101,13 +2112,14 @@ async function generateBranchesForParent({ parent, args, caches, existingKeys, r
         if (!Number.isFinite(branch.finalState.trainedEvalCp) || branch.finalState.trainedEvalCp <= 0) {
           continue;
         }
-        fallbackBranches.push(buildBranchRecord({
+        fallbackBranches.push(await buildBranchRecord({
           parent,
           stemSans: candidate.stemSans,
           trigger: candidate,
           branch,
           finalState: branch.finalState,
           args,
+          caches,
         }));
       }
     }
@@ -2133,16 +2145,16 @@ function dedupeBranches(branches) {
 
 function selectMinimumFallbackBranches(branches, limit) {
   const sorted = dedupeBranches(branches)
-    .filter((branch) => Number.isFinite(branch.finalEvalCp) && branch.finalEvalCp > 0)
+    .filter((branch) => Number.isFinite(branch.finalTrainedEvalCp) && branch.finalTrainedEvalCp > 0)
     .sort(compareBranchesForSelection);
-  const strong = sorted.filter((branch) => branch.finalEvalCp >= 100);
-  const modest = sorted.filter((branch) => branch.finalEvalCp < 100).slice(0, 3);
+  const strong = sorted.filter((branch) => branch.finalTrainedEvalCp >= 100);
+  const modest = sorted.filter((branch) => branch.finalTrainedEvalCp < 100).slice(0, 3);
   return [...strong, ...modest].slice(0, limit);
 }
 
 function compareBranchesForSelection(left, right) {
-  const rightEval = Number.isFinite(right.finalEvalCp) ? right.finalEvalCp : -999999;
-  const leftEval = Number.isFinite(left.finalEvalCp) ? left.finalEvalCp : -999999;
+  const rightEval = Number.isFinite(right.finalTrainedEvalCp) ? right.finalTrainedEvalCp : -999999;
+  const leftEval = Number.isFinite(left.finalTrainedEvalCp) ? left.finalTrainedEvalCp : -999999;
   if (rightEval !== leftEval) return rightEval - leftEval;
   return (right.branchScore ?? -999) - (left.branchScore ?? -999);
 }

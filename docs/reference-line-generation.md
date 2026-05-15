@@ -61,6 +61,12 @@ Supabase tables populated by the pipeline:
 - `opening_lines`
 - `opening_position_evals`
 
+`opening_lines.eval_cp_by_ply` is written as a dense White-perspective
+centipawn timeline. Index `0` is the starting board, and each later index is
+the board evaluation after that SAN ply has been played. The practice board
+uses this timeline first, with `opening_position_evals` only as a fallback for
+older or incomplete rows.
+
 ## Current Algorithm Summary
 
 Reference generation starts from Lichess-authoritative named opening anchors

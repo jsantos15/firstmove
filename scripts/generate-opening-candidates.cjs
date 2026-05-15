@@ -653,6 +653,31 @@ function perspectiveEvalCp(score, turnColor, targetColor) {
   return turnColor === targetColor ? cp : -cp;
 }
 
+async function buildWhiteEvalCpByPlyFromSans(generatedSans, args, caches) {
+  const evalCpByPly = [0];
+  const chess = new Chess();
+
+  for (const san of generatedSans) {
+    const move = chess.move(san);
+    if (!move) {
+      throw new Error(`Cannot build eval timeline; illegal SAN "${san}" in ${generatedSans.join(" ")}`);
+    }
+
+    const analysis = await analyzePosition(chess.fen(), args, caches);
+    const whiteEvalCp = perspectiveEvalCp(
+      analysis.lines[0]?.score ?? null,
+      analysis.turnColor,
+      "white"
+    );
+    if (!Number.isFinite(whiteEvalCp)) {
+      throw new Error(`Cannot build eval timeline; no eval returned for ${chess.fen()}`);
+    }
+    evalCpByPly.push(whiteEvalCp);
+  }
+
+  return evalCpByPly;
+}
+
 function evalStabilityCp(history) {
   if (history.length === 0) {
     return 0;
@@ -2487,6 +2512,7 @@ async function extendMainVariationLine(entry, args, caches) {
   }
 
   const finalAnalysis = await analyzePosition(chess.fen(), args, caches);
+  const evalCpByPly = await buildWhiteEvalCpByPlyFromSans(generatedSans, args, caches);
   const engineSummary = summarizeGenerationEngines(continuationSteps, finalAnalysis);
 
   return {
@@ -2505,6 +2531,8 @@ async function extendMainVariationLine(entry, args, caches) {
     referenceTrace: args.traceReferenceCheckpoints ? referenceTrace : undefined,
     finalFen: chess.fen(),
     stockfish: finalAnalysis,
+    evalCpByPly,
+    finalEvalCp: evalCpByPly.at(-1) ?? null,
     engineProvider: engineSummary.engineProvider,
     engineProviderCounts: engineSummary.providerCounts,
     extensionSourceCounts: engineSummary.extensionSourceCounts,
@@ -2601,12 +2629,9 @@ function buildCandidateRecord(entry, generated) {
     sourceConfidence: "medium",
     stopReason: generated.stopReason,
     finalFen: generated.finalFen,
-    finalEvalCp: perspectiveEvalCp(
-      generated.stockfish.lines[0]?.score ?? null,
-      generated.stockfish.turnColor,
-      generated.openingColor
-    ),
-    finalEvalPerspective: generated.openingColor,
+    finalEvalCp: generated.finalEvalCp,
+    finalEvalPerspective: "white",
+    evalCpByPly: generated.evalCpByPly,
     finalPositionSummary: generated.finalPositionSummary,
     advantageTypePrimary: generated.advantageTypePrimary,
     advantageTypeSecondary: generated.advantageTypeSecondary,

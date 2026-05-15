@@ -256,6 +256,12 @@
 
 **Reason:** The coach should eventually explain more than openings, but live AI calls are paid, slower, and less deterministic. A structured payload lets a future model write friendlier text from facts supplied by FirstMove, while deterministic local narration and cached generated messages keep the current app reliable and inexpensive.
 
+## 2026-05-15 - Generate dense per-ply eval timelines for opening lines
+
+**Decision:** Build `opening_lines.eval_cp_by_ply` by replaying every final SAN line and analyzing each resulting board position during generation. Store index `0` as the starting board eval and every later index as a White-perspective centipawn value after that ply. Set `final_eval_cp` from the last timeline value and keep `final_eval_perspective = white`.
+
+**Reason:** The practice eval bar must be deterministic and should not depend on browser-side engine calls or sparse trace metadata. Replaying the final line makes reference and practical-branch rows consistent even when the original move came from Lichess cloud, Chess-API, cached best-known evals, or local Stockfish fallback.
+
 ## 2026-05-03 - Resolve opening names by position index, not PGN scanning
 
 **Decision:** Add a Supabase-backed `opening_positions` index generated from `lichess-org/chess-openings`, keyed by normalized FEN position. Opening practice and future game analysis views should batch lookup position keys and then display the latest matched opening name as the user navigates moves.
