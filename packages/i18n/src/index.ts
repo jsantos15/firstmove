@@ -1,3 +1,5 @@
+import type { CoachClassification, CoachEvent, CoachTone } from '@firstmove/core';
+
 export const DEFAULT_LOCALE = 'en' as const;
 
 export const SUPPORTED_LOCALES = ['en'] as const;
@@ -39,43 +41,31 @@ export const EN_MESSAGES = {
   'coach.title.wrong': 'Not this move',
   'coach.title.complete': 'Line complete',
 
-  'coach.expected.tactical_payoff.0':
-    'There it is. {moveSan} is the moment the earlier pressure starts to pay off.',
-  'coach.expected.tactical_payoff.1':
-    'That is the point of the line. {moveSan} turns the pressure into something concrete.',
-  'coach.expected.tactical_payoff.2':
-    'Good, now the idea has teeth. {moveSan} makes the opponent deal with the tactic instead of playing freely.',
-  'coach.expected.forcing.0':
-    'Now you are asking a direct question. {moveSan} limits the replies and keeps the initiative with you.',
-  'coach.expected.forcing.1':
-    'Good tempo. {moveSan} makes the opponent respond to your idea before they get comfortable.',
-  'coach.expected.forcing.2':
-    '{moveSan} keeps the game on your terms. The opponent has fewer useful choices now.',
-  'coach.expected.setup.0':
+  'coach.event.opening_book_move.message':
+    '{moveSan} fits the line in {variationName}. Keep following the opening plan.',
+  'coach.event.opening_setup.message':
     'Nice quiet move. {moveSan} prepares the position before you start forcing things.',
-  'coach.expected.setup.1':
-    'This is useful patience. {moveSan} gets the structure ready for the next idea.',
-  'coach.expected.setup.2':
-    '{moveSan} does the groundwork. You are making the coming plan easier to play.',
-  'coach.expected.strategic.0':
-    '{moveSan} fits the plan in {variationName}. You improve first, then look for the payoff.',
-  'coach.expected.strategic.1':
-    'Good practical move. {moveSan} keeps your pieces coordinated and your plan clear.',
-  'coach.expected.strategic.2':
-    'This keeps the line healthy. {moveSan} improves the position without rushing.',
-
-  'coach.eval.progress': ' The engine also likes the progress: you are up to {evalPawns} now.',
-  'coach.eval.precision':
-    ' The engine still keeps this playable at {evalPawns}, but be precise from here.',
-  'coach.eval.position': ' The position is {evalPawns} for your side.',
-  'coach.final': ' Nice work, that finishes the line.',
-
-  'coach.wrong.attempted':
+  'coach.event.opening_forcing.message':
+    'Now you are asking a direct question. {moveSan} limits the replies and keeps the initiative with you.',
+  'coach.event.tactical_payoff.message':
+    'That is the point of the line. {moveSan} turns the pressure into something concrete.',
+  'coach.event.wrong_move.message':
     '{attemptedSan} is not the move for this position. In {variationName}, look for {expectedSan}.',
-  'coach.wrong.generic':
+  'coach.event.wrong_move.generic_message':
     'That is not the move for this position. In {variationName}, look for {expectedSan}.',
-  'coach.spoken': '{label}. {title}. {message}',
-  'coach.spoken.wrong': 'Try again. {message}',
+  'coach.event.line_complete.message': 'Nice work, that finishes the line.',
+  'coach.event.eval_gain.message':
+    'The engine likes the progress: after {moveSan}, your position reaches {evalPawns}.',
+  'coach.event.eval_loss.message':
+    '{moveSan} gives up some ground. The position is still {evalPawns}, but be precise from here.',
+  'coach.event.missed_tactic.message':
+    'There was a tactic here. {bestMoveSan} would have created a stronger practical chance.',
+  'coach.event.best_move.message': '{moveSan} is the best move in this position.',
+  'coach.event.only_move.message':
+    '{moveSan} is important because it keeps the position together when other moves fail.',
+
+  'coach.spoken.event': '{label}. {title}. {message}',
+  'coach.spoken.wrong_move': 'Try again. {message}',
 } as const;
 
 export const MESSAGES_BY_LOCALE = {
@@ -83,6 +73,117 @@ export const MESSAGES_BY_LOCALE = {
 } as const;
 
 export type I18nMessageKey = keyof typeof EN_MESSAGES;
+
+export interface RenderedCoachEvent {
+  id: string;
+  event: CoachEvent;
+  classification: CoachClassification;
+  labelKey: I18nMessageKey;
+  label: string;
+  titleKey: I18nMessageKey;
+  title: string;
+  messageKey: I18nMessageKey;
+  spokenTextKey: I18nMessageKey;
+  variables: CoachMessageVariables;
+  message: string;
+  spokenText: string;
+  tone: CoachTone;
+}
+
+const COACH_EVENT_MESSAGE_KEYS = {
+  opening_book_move: 'coach.event.opening_book_move.message',
+  opening_setup: 'coach.event.opening_setup.message',
+  opening_forcing: 'coach.event.opening_forcing.message',
+  tactical_payoff: 'coach.event.tactical_payoff.message',
+  wrong_move: 'coach.event.wrong_move.message',
+  line_complete: 'coach.event.line_complete.message',
+  eval_gain: 'coach.event.eval_gain.message',
+  eval_loss: 'coach.event.eval_loss.message',
+  missed_tactic: 'coach.event.missed_tactic.message',
+  best_move: 'coach.event.best_move.message',
+  only_move: 'coach.event.only_move.message',
+} as const satisfies Record<CoachEvent['eventType'], I18nMessageKey>;
+
+const COACH_CLASSIFICATION_PRESENTATION = {
+  brilliant: {
+    labelKey: 'coach.label.brilliant',
+    titleKey: 'coach.title.brilliant',
+    tone: 'payoff',
+  },
+  great: {
+    labelKey: 'coach.label.great',
+    titleKey: 'coach.title.great',
+    tone: 'positive',
+  },
+  book: {
+    labelKey: 'coach.label.book',
+    titleKey: 'coach.title.book',
+    tone: 'neutral',
+  },
+  setup: {
+    labelKey: 'coach.label.setup',
+    titleKey: 'coach.title.setup',
+    tone: 'neutral',
+  },
+  forcing: {
+    labelKey: 'coach.label.forcing',
+    titleKey: 'coach.title.forcing',
+    tone: 'positive',
+  },
+  payoff: {
+    labelKey: 'coach.label.payoff',
+    titleKey: 'coach.title.payoff',
+    tone: 'payoff',
+  },
+  best: {
+    labelKey: 'coach.label.best',
+    titleKey: 'coach.title.best',
+    tone: 'positive',
+  },
+  excellent: {
+    labelKey: 'coach.label.excellent',
+    titleKey: 'coach.title.excellent',
+    tone: 'positive',
+  },
+  good: {
+    labelKey: 'coach.label.good',
+    titleKey: 'coach.title.good',
+    tone: 'positive',
+  },
+  inaccuracy: {
+    labelKey: 'coach.label.inaccuracy',
+    titleKey: 'coach.title.inaccuracy',
+    tone: 'warning',
+  },
+  mistake: {
+    labelKey: 'coach.label.mistake',
+    titleKey: 'coach.title.mistake',
+    tone: 'negative',
+  },
+  blunder: {
+    labelKey: 'coach.label.blunder',
+    titleKey: 'coach.title.blunder',
+    tone: 'negative',
+  },
+  miss: {
+    labelKey: 'coach.label.miss',
+    titleKey: 'coach.title.miss',
+    tone: 'warning',
+  },
+  wrong: {
+    labelKey: 'coach.label.wrong',
+    titleKey: 'coach.title.wrong',
+    tone: 'negative',
+  },
+  complete: {
+    labelKey: 'coach.label.complete',
+    titleKey: 'coach.title.complete',
+    tone: 'complete',
+  },
+} as const satisfies Record<
+  CoachClassification,
+  { labelKey: I18nMessageKey; titleKey: I18nMessageKey; tone: CoachTone }
+>;
 
 export function isSupportedLocale(value: string): value is FirstMoveLocale {
   return (SUPPORTED_LOCALES as readonly string[]).includes(value);
@@ -113,4 +214,48 @@ export function formatMessage(
     if (value === null || typeof value === 'undefined') return match;
     return String(value);
   });
+}
+
+function isMessageKey(value: string): value is I18nMessageKey {
+  return value in EN_MESSAGES;
+}
+
+export function getCoachEventMessageKey(event: CoachEvent): I18nMessageKey {
+  if (isMessageKey(event.messageKey)) return event.messageKey;
+  return COACH_EVENT_MESSAGE_KEYS[event.eventType];
+}
+
+export function getCoachEventSpokenKey(event: CoachEvent): I18nMessageKey {
+  if (isMessageKey(event.spokenKey)) return event.spokenKey;
+  if (event.eventType === 'wrong_move') return 'coach.spoken.wrong_move';
+  return 'coach.spoken.event';
+}
+
+export function renderCoachEvent(
+  event: CoachEvent,
+  locale: string = DEFAULT_LOCALE
+): RenderedCoachEvent {
+  const presentation = COACH_CLASSIFICATION_PRESENTATION[event.classification];
+  const messageKey = getCoachEventMessageKey(event);
+  const spokenTextKey = getCoachEventSpokenKey(event);
+  const label = formatMessage(presentation.labelKey, {}, locale);
+  const title = formatMessage(presentation.titleKey, {}, locale);
+  const message = formatMessage(messageKey, event.variables, locale);
+  const spokenText = formatMessage(spokenTextKey, { label, title, message }, locale);
+
+  return {
+    id: event.id,
+    event,
+    classification: event.classification,
+    labelKey: presentation.labelKey,
+    label,
+    titleKey: presentation.titleKey,
+    title,
+    messageKey,
+    spokenTextKey,
+    variables: event.variables,
+    message,
+    spokenText,
+    tone: event.tone,
+  };
 }

@@ -13,6 +13,9 @@
     "validate": "node scripts/validate-locales.cjs",
     "clean": "rm -rf dist"
   },
+  "dependencies": {
+    "@firstmove/core": "workspace:*"
+  },
   "devDependencies": {
     "typescript": "^5.5.0"
   }

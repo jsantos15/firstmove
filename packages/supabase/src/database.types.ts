@@ -221,8 +221,9 @@ export type Database = {
           },
         ];
       };
-      opening_line_coach_events: {
+      coach_events: {
         Row: {
+          analysis_facts: Json;
           classification:
             | 'brilliant'
             | 'great'
@@ -241,16 +242,36 @@ export type Database = {
             | 'complete';
           content_version: number;
           created_at: string;
-          event_key: string;
-          line_slug: string;
-          opening_slug: string;
+          domain: 'opening_practice' | 'game_analysis' | 'tactics' | 'endgame';
+          event_type:
+            | 'opening_book_move'
+            | 'opening_setup'
+            | 'opening_forcing'
+            | 'tactical_payoff'
+            | 'wrong_move'
+            | 'line_complete'
+            | 'eval_gain'
+            | 'eval_loss'
+            | 'missed_tactic'
+            | 'best_move'
+            | 'only_move';
+          id: string;
+          message_key: string;
+          parent_subject_id: string | null;
+          phase: 'opening' | 'middlegame' | 'endgame' | null;
           ply_index: number;
-          source: string;
+          severity: 'info' | 'minor' | 'medium' | 'major' | 'critical';
+          source: 'opening_practice' | 'engine_analysis' | 'tactical_detector' | 'manual';
+          spoken_key: string;
+          subject_id: string;
+          subject_kind: 'opening_line' | 'game' | 'position' | 'session';
+          theme_tags: string[];
           tone: 'neutral' | 'positive' | 'payoff' | 'warning' | 'negative' | 'complete';
           updated_at: string;
           variables: Json;
         };
         Insert: {
+          analysis_facts?: Json;
           classification:
             | 'brilliant'
             | 'great'
@@ -269,16 +290,36 @@ export type Database = {
             | 'complete';
           content_version?: number;
           created_at?: string;
-          event_key: string;
-          line_slug: string;
-          opening_slug: string;
+          domain: 'opening_practice' | 'game_analysis' | 'tactics' | 'endgame';
+          event_type:
+            | 'opening_book_move'
+            | 'opening_setup'
+            | 'opening_forcing'
+            | 'tactical_payoff'
+            | 'wrong_move'
+            | 'line_complete'
+            | 'eval_gain'
+            | 'eval_loss'
+            | 'missed_tactic'
+            | 'best_move'
+            | 'only_move';
+          id: string;
+          message_key: string;
+          parent_subject_id?: string | null;
+          phase?: 'opening' | 'middlegame' | 'endgame' | null;
           ply_index: number;
-          source?: string;
+          severity: 'info' | 'minor' | 'medium' | 'major' | 'critical';
+          source: 'opening_practice' | 'engine_analysis' | 'tactical_detector' | 'manual';
+          spoken_key: string;
+          subject_id: string;
+          subject_kind: 'opening_line' | 'game' | 'position' | 'session';
+          theme_tags?: string[];
           tone: 'neutral' | 'positive' | 'payoff' | 'warning' | 'negative' | 'complete';
           updated_at?: string;
           variables?: Json;
         };
         Update: {
+          analysis_facts?: Json;
           classification?:
             | 'brilliant'
             | 'great'
@@ -297,24 +338,35 @@ export type Database = {
             | 'complete';
           content_version?: number;
           created_at?: string;
-          event_key?: string;
-          line_slug?: string;
-          opening_slug?: string;
+          domain?: 'opening_practice' | 'game_analysis' | 'tactics' | 'endgame';
+          event_type?:
+            | 'opening_book_move'
+            | 'opening_setup'
+            | 'opening_forcing'
+            | 'tactical_payoff'
+            | 'wrong_move'
+            | 'line_complete'
+            | 'eval_gain'
+            | 'eval_loss'
+            | 'missed_tactic'
+            | 'best_move'
+            | 'only_move';
+          id?: string;
+          message_key?: string;
+          parent_subject_id?: string | null;
+          phase?: 'opening' | 'middlegame' | 'endgame' | null;
           ply_index?: number;
-          source?: string;
+          severity?: 'info' | 'minor' | 'medium' | 'major' | 'critical';
+          source?: 'opening_practice' | 'engine_analysis' | 'tactical_detector' | 'manual';
+          spoken_key?: string;
+          subject_id?: string;
+          subject_kind?: 'opening_line' | 'game' | 'position' | 'session';
+          theme_tags?: string[];
           tone?: 'neutral' | 'positive' | 'payoff' | 'warning' | 'negative' | 'complete';
           updated_at?: string;
           variables?: Json;
         };
-        Relationships: [
-          {
-            foreignKeyName: 'opening_line_coach_events_line_fkey';
-            columns: ['opening_slug', 'line_slug'];
-            isOneToOne: false;
-            referencedRelation: 'opening_lines';
-            referencedColumns: ['opening_slug', 'slug'];
-          },
-        ];
+        Relationships: [];
       };
       opening_position_evals: {
         Row: {

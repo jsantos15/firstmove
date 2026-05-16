@@ -61,7 +61,8 @@ function isCaptureStyleMove(flags?: string) {
 
 function normalizePromotionPiece(piece?: string): PromotionPiece {
   const normalized = piece?.toLowerCase();
-  if (normalized === 'q' || normalized === 'r' || normalized === 'b' || normalized === 'n') return normalized;
+  if (normalized === 'q' || normalized === 'r' || normalized === 'b' || normalized === 'n')
+    return normalized;
   return 'q';
 }
 
@@ -88,13 +89,7 @@ function toWhiteEvalCp(
   return evalPerspective === 'white' ? finalEvalCp : -finalEvalCp;
 }
 
-function EvalBar({
-  evalCp,
-  reserveSpace = false,
-}: {
-  evalCp?: number;
-  reserveSpace?: boolean;
-}) {
+function EvalBar({ evalCp, reserveSpace = false }: { evalCp?: number; reserveSpace?: boolean }) {
   if (typeof evalCp !== 'number' || !Number.isFinite(evalCp)) {
     return reserveSpace ? (
       <div
@@ -119,7 +114,10 @@ function EvalBar({
       title={`Engine evaluation: ${label}`}
       aria-label={`Engine evaluation ${label}`}
     >
-      <div className="absolute inset-x-0 bottom-0 bg-zinc-100 transition-[height] duration-300" style={{ height: `${whiteHeight}%` }} />
+      <div
+        className="absolute inset-x-0 bottom-0 bg-zinc-100 transition-[height] duration-300"
+        style={{ height: `${whiteHeight}%` }}
+      />
       <div className="pointer-events-none absolute inset-x-0 top-1/2 h-px bg-amber-400/45" />
       <div
         className={`pointer-events-none absolute left-1/2 -translate-x-1/2 text-[10px] font-semibold tabular-nums ${
@@ -261,7 +259,8 @@ function playMoveSound(enabled: boolean) {
       return;
     }
 
-    void ctx.resume()
+    void ctx
+      .resume()
       .then(() => {
         if (ctx.state === 'running') startMoveSound(ctx);
       })
@@ -283,7 +282,9 @@ export function PracticeBoard({
   const recordCompletion = useRecordCompletion();
   const recordLearned = useRecordLearned();
 
-  const chessboardRef = useRef<{ clearPremoves: (clearLastPieceColour?: boolean) => void } | null>(null);
+  const chessboardRef = useRef<{ clearPremoves: (clearLastPieceColour?: boolean) => void } | null>(
+    null
+  );
   const chessRef = useRef(new Chess());
   const wrapperRef = useRef<HTMLDivElement>(null);
   const wrongResetRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -321,7 +322,11 @@ export function PracticeBoard({
     if (isLive) return position;
     const chess = new Chess();
     for (let i = 0; i < displayIndex; i++) {
-      try { chess.move(moves[i].san); } catch { break; }
+      try {
+        chess.move(moves[i].san);
+      } catch {
+        break;
+      }
     }
     return chess.fen();
   }, [isLive, displayIndex, moves, position]);
@@ -339,9 +344,7 @@ export function PracticeBoard({
   const highlightedMoveIndex = useMemo(() => {
     if (moves.length === 0) return -1;
     if (isLive) {
-      return currentMoveIndex > 0
-        ? Math.min(currentMoveIndex - 1, moves.length - 1)
-        : -1;
+      return currentMoveIndex > 0 ? Math.min(currentMoveIndex - 1, moves.length - 1) : -1;
     }
 
     return displayIndex > 0 ? Math.min(displayIndex - 1, moves.length - 1) : -1;
@@ -384,7 +387,7 @@ export function PracticeBoard({
 
   useEffect(() => {
     resetPractice();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode, opening.id, variation.id]);
 
   useEffect(() => {
@@ -452,7 +455,9 @@ export function PracticeBoard({
     }
   }, [mode, opening.id, recordCompletion, recordLearned, status, user, variation.id]);
 
-  useEffect(() => { setHintActive(false); }, [currentMoveIndex]);
+  useEffect(() => {
+    setHintActive(false);
+  }, [currentMoveIndex]);
 
   useEffect(() => {
     if (status === 'wrong' || status === 'complete' || !isLive) {
@@ -478,7 +483,11 @@ export function PracticeBoard({
       const reply = moves[currentMoveIndex];
       if (!reply) return;
       const nextChess = new Chess(chessRef.current.fen());
-      try { nextChess.move(reply.san); } catch { return; }
+      try {
+        nextChess.move(reply.san);
+      } catch {
+        return;
+      }
       playMoveSound(settings.moveSound);
       chessRef.current = nextChess;
       setPosition(nextChess.fen());
@@ -499,8 +508,16 @@ export function PracticeBoard({
     }, animationDuration);
 
     return () => clearTimeout(timer);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [animationDuration, currentMoveIndex, moves, opening.color, queuedClickPremove, settings.moveSound, status]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    animationDuration,
+    currentMoveIndex,
+    moves,
+    opening.color,
+    queuedClickPremove,
+    settings.moveSound,
+    status,
+  ]);
 
   // ─── Derived display values ───────────────────────────────────────────────────
 
@@ -523,11 +540,15 @@ export function PracticeBoard({
     // Replay up to displayIndex to find the move that landed there
     const chess = new Chess();
     for (let i = 0; i < displayIndex; i++) {
-      try { chess.move(moves[i].san); } catch { break; }
+      try {
+        chess.move(moves[i].san);
+      } catch {
+        break;
+      }
     }
     const h = chess.history({ verbose: true });
     return h[h.length - 1] ?? null;
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isLive, displayIndex, moves, position]);
 
   const progressPct = moves.length > 0 ? (displayIndex / moves.length) * 100 : 0;
@@ -552,11 +573,10 @@ export function PracticeBoard({
     }
 
     if (ply === moves.length) {
-      return toWhiteEvalCp(
-        variation.finalEvalCp,
-        variation.finalEvalPerspective,
-        opening.color
-      ) ?? undefined;
+      return (
+        toWhiteEvalCp(variation.finalEvalCp, variation.finalEvalPerspective, opening.color) ??
+        undefined
+      );
     }
 
     return undefined;
@@ -604,11 +624,11 @@ export function PracticeBoard({
     }
     if (lastMove && status !== 'wrong') {
       styles[lastMove.from] = { background: 'rgba(255, 210, 0, 0.38)' };
-      styles[lastMove.to]   = { background: 'rgba(255, 210, 0, 0.38)' };
+      styles[lastMove.to] = { background: 'rgba(255, 210, 0, 0.38)' };
     }
     if (isLive && status === 'wrong' && wrongMoveFrom && wrongMoveTo) {
       styles[wrongMoveFrom] = { background: 'rgba(220, 38, 38, 0.5)' };
-      styles[wrongMoveTo]   = { background: 'rgba(220, 38, 38, 0.5)' };
+      styles[wrongMoveTo] = { background: 'rgba(220, 38, 38, 0.5)' };
     }
     if (isLive && selectedSquare && status === 'playing') {
       for (const move of legalTargets) {
@@ -622,14 +642,15 @@ export function PracticeBoard({
             }
           : {
               ...base,
-              background:
-                'radial-gradient(circle, rgba(36, 40, 50, 0.42) 22%, rgba(0,0,0,0) 24%)',
+              background: 'radial-gradient(circle, rgba(36, 40, 50, 0.42) 22%, rgba(0,0,0,0) 24%)',
             };
       }
     }
     if (isLive && isMyTurn && moves[currentMoveIndex]) {
       const hintChess = new Chess(chessRef.current.fen());
-      const match = hintChess.moves({ verbose: true }).find(m => m.san === moves[currentMoveIndex].san);
+      const match = hintChess
+        .moves({ verbose: true })
+        .find(m => m.san === moves[currentMoveIndex].san);
       if (match?.from) {
         const existingStyle = styles[match.from] ?? {};
         if (mode === 'learn') {
@@ -657,7 +678,21 @@ export function PracticeBoard({
       };
     }
     return styles;
-  }, [currentMoveIndex, hintActive, isLive, isMyTurn, lastMove, legalTargets, mode, moves, queuedClickPremove, selectedSquare, status, wrongMoveFrom, wrongMoveTo]);
+  }, [
+    currentMoveIndex,
+    hintActive,
+    isLive,
+    isMyTurn,
+    lastMove,
+    legalTargets,
+    mode,
+    moves,
+    queuedClickPremove,
+    selectedSquare,
+    status,
+    wrongMoveFrom,
+    wrongMoveTo,
+  ]);
 
   // ─── Input handlers (disabled while reviewing) ────────────────────────────────
 
@@ -670,7 +705,9 @@ export function PracticeBoard({
       afterReply.move(opponentReply.san);
       const queued = afterReply.move({ from: sourceSquare, to: targetSquare, promotion: 'q' });
       return queued.san === expectedFollowUp.san;
-    } catch { return false; }
+    } catch {
+      return false;
+    }
   };
 
   const commitMove = (
@@ -685,12 +722,16 @@ export function PracticeBoard({
     try {
       const move = baseChess.move({ from: sourceSquare, to: targetSquare, promotion });
       if (move.san !== expectedMove.san) {
-        onCoachFeedbackChange?.(buildWrongMoveCoachFeedback({
-          attemptedSan: move.san,
-          expectedSan: expectedMove.san,
-          variationName: variation.name,
-          moveIndex: expectedIndex,
-        }));
+        onCoachFeedbackChange?.(
+          buildWrongMoveCoachFeedback({
+            attemptedSan: move.san,
+            expectedSan: expectedMove.san,
+            openingId: opening.id,
+            variationId: variation.id,
+            variationName: variation.name,
+            moveIndex: expectedIndex,
+          })
+        );
         setStatus('wrong');
         setWrongMoveFrom(sourceSquare);
         setWrongMoveTo(targetSquare);
@@ -707,17 +748,21 @@ export function PracticeBoard({
       setQueuedClickPremove(null);
       const nextIndex = expectedIndex + 1;
       updateMoveIndex(nextIndex);
-      onCoachFeedbackChange?.(buildMoveCoachFeedback({
-        openingColor: opening.color,
-        variationName: variation.name,
-        moveSan: move.san,
-        moveIndex: expectedIndex,
-        moveCount: moves.length,
-        beforeEvalCp: getEvalAtPly(expectedIndex),
-        afterEvalCp: getEvalAtPly(nextIndex),
-        primaryCategory: variation.primaryCategory,
-        isFinalMove: nextIndex >= moves.length,
-      }));
+      onCoachFeedbackChange?.(
+        buildMoveCoachFeedback({
+          openingColor: opening.color,
+          openingId: opening.id,
+          variationId: variation.id,
+          variationName: variation.name,
+          moveSan: move.san,
+          moveIndex: expectedIndex,
+          moveCount: moves.length,
+          beforeEvalCp: getEvalAtPly(expectedIndex),
+          afterEvalCp: getEvalAtPly(nextIndex),
+          primaryCategory: variation.primaryCategory,
+          isFinalMove: nextIndex >= moves.length,
+        })
+      );
       setWrongMoveFrom(null);
       setWrongMoveTo(null);
       setStatus(nextIndex >= moves.length ? 'complete' : 'playing');
@@ -790,7 +835,11 @@ export function PracticeBoard({
       return;
     }
 
-    const opensPromotion = isPromotionCandidate(new Chess(chessRef.current.fen()), selectedSquare, square);
+    const opensPromotion = isPromotionCandidate(
+      new Chess(chessRef.current.fen()),
+      selectedSquare,
+      square
+    );
     const moved = attemptMove(selectedSquare, square);
     if (!moved && !opensPromotion) setSelectedSquare(selectedSquare);
   };
@@ -820,22 +869,25 @@ export function PracticeBoard({
   // ─── Keyboard navigation ─────────────────────────────────────────────────────
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'ArrowLeft')  navigateTo(displayIndex - 1);
+      if (e.key === 'ArrowLeft') navigateTo(displayIndex - 1);
       if (e.key === 'ArrowRight') navigateTo(displayIndex + 1);
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [displayIndex, currentMoveIndex]);
 
   return (
     <div className="relative flex h-full w-full select-none flex-col">
-
       {/* Status + progress */}
       <div className={`${boardAlignedClassName} -mt-1 shrink-0`} style={{ maxWidth: boardSize }}>
         <div className="mb-1.5 flex items-center justify-between gap-3 text-sm">
-          <span className={`min-w-0 truncate ${!isLive ? 'text-blue-400' : 'text-gray-400'}`}>{statusLabel}</span>
-          <span className="min-w-0 truncate text-right text-gray-500">{currentMoveIndex}/{moves.length} moves</span>
+          <span className={`min-w-0 truncate ${!isLive ? 'text-blue-400' : 'text-gray-400'}`}>
+            {statusLabel}
+          </span>
+          <span className="min-w-0 truncate text-right text-gray-500">
+            {currentMoveIndex}/{moves.length} moves
+          </span>
         </div>
         <div className="h-1 overflow-hidden rounded-full bg-white/10">
           <div
@@ -849,20 +901,17 @@ export function PracticeBoard({
 
       {/* Board */}
       <div ref={wrapperRef} className="flex min-h-0 flex-1 items-center justify-center">
-        <EvalBar
-          evalCp={displayedEvalCp}
-          reserveSpace={hasVisibleEvalBar}
-        />
+        <EvalBar evalCp={displayedEvalCp} reserveSpace={hasVisibleEvalBar} />
         <div className="relative">
           <div
             className={`overflow-hidden rounded-xl transition-all duration-150 ${
               !isLive
                 ? 'ring-2 ring-blue-500/40'
                 : status === 'wrong'
-                ? 'ring-2 ring-red-500/60'
-                : status === 'complete'
-                ? 'ring-2 ring-green-400/60'
-                : 'ring-1 ring-white/10'
+                  ? 'ring-2 ring-red-500/60'
+                  : status === 'complete'
+                    ? 'ring-2 ring-green-400/60'
+                    : 'ring-1 ring-white/10'
             }`}
           >
             <Chessboard
@@ -893,8 +942,10 @@ export function PracticeBoard({
       </div>
 
       {/* Controls — 3 columns: restart left · nav center · spacer right */}
-      <div className={`${boardAlignedClassName} grid shrink-0 grid-cols-3 items-center`} style={{ maxWidth: boardSize }}>
-
+      <div
+        className={`${boardAlignedClassName} grid shrink-0 grid-cols-3 items-center`}
+        style={{ maxWidth: boardSize }}
+      >
         {/* Restart + Hint — far left */}
         <div className="flex items-center gap-2">
           <button
@@ -905,7 +956,10 @@ export function PracticeBoard({
           </button>
           {mode === 'practice' && isMyTurn && (
             <button
-              onClick={() => { hintUsedRef.current = true; setHintActive(true); }}
+              onClick={() => {
+                hintUsedRef.current = true;
+                setHintActive(true);
+              }}
               disabled={hintActive}
               className="rounded-lg border border-white/10 px-4 py-2 text-sm text-gray-400 transition-colors hover:border-white/20 hover:text-white disabled:opacity-40"
             >
@@ -919,41 +973,51 @@ export function PracticeBoard({
           <div className="flex items-center divide-x divide-white/10 overflow-hidden rounded-lg border border-white/10">
             <NavBtn onClick={() => navigateTo(0)} disabled={!canGoBack} title="First move">
               <svg viewBox="0 0 16 16" fill="currentColor" className="w-5 h-5">
-                <path d="M3.5 3a.5.5 0 0 1 .5.5v3.793l6.146-4.439A.5.5 0 0 1 11 3.5v9a.5.5 0 0 1-.854.354L4 8.707V12.5a.5.5 0 0 1-1 0v-9a.5.5 0 0 1 .5-.5z"/>
+                <path d="M3.5 3a.5.5 0 0 1 .5.5v3.793l6.146-4.439A.5.5 0 0 1 11 3.5v9a.5.5 0 0 1-.854.354L4 8.707V12.5a.5.5 0 0 1-1 0v-9a.5.5 0 0 1 .5-.5z" />
               </svg>
             </NavBtn>
-            <NavBtn onClick={() => navigateTo(displayIndex - 1)} disabled={!canGoBack} title="Previous move">
+            <NavBtn
+              onClick={() => navigateTo(displayIndex - 1)}
+              disabled={!canGoBack}
+              title="Previous move"
+            >
               <svg viewBox="0 0 16 16" fill="currentColor" className="w-5 h-5">
-                <path d="M11.354 3.646a.5.5 0 0 1 0 .708L6.707 9l4.647 4.646a.5.5 0 0 1-.708.708l-5-5a.5.5 0 0 1 0-.708l5-5a.5.5 0 0 1 .708 0z"/>
+                <path d="M11.354 3.646a.5.5 0 0 1 0 .708L6.707 9l4.647 4.646a.5.5 0 0 1-.708.708l-5-5a.5.5 0 0 1 0-.708l5-5a.5.5 0 0 1 .708 0z" />
               </svg>
             </NavBtn>
-            <NavBtn onClick={() => navigateTo(displayIndex + 1)} disabled={!canGoForward} title="Next move">
+            <NavBtn
+              onClick={() => navigateTo(displayIndex + 1)}
+              disabled={!canGoForward}
+              title="Next move"
+            >
               <svg viewBox="0 0 16 16" fill="currentColor" className="w-5 h-5">
-                <path d="M4.646 3.646a.5.5 0 0 1 .708 0l5 5a.5.5 0 0 1 0 .708l-5 5a.5.5 0 0 1-.708-.708L9.293 9 4.646 4.354a.5.5 0 0 1 0-.708z"/>
+                <path d="M4.646 3.646a.5.5 0 0 1 .708 0l5 5a.5.5 0 0 1 0 .708l-5 5a.5.5 0 0 1-.708-.708L9.293 9 4.646 4.354a.5.5 0 0 1 0-.708z" />
               </svg>
             </NavBtn>
-            <NavBtn onClick={() => navigateTo(currentMoveIndex)} disabled={isLive} title="Latest move">
+            <NavBtn
+              onClick={() => navigateTo(currentMoveIndex)}
+              disabled={isLive}
+              title="Latest move"
+            >
               <svg viewBox="0 0 16 16" fill="currentColor" className="w-5 h-5">
-                <path d="M12.5 3a.5.5 0 0 0-.5.5v3.793L5.854 2.854A.5.5 0 0 0 5 3.5v9a.5.5 0 0 0 .854.354L12 8.207V12.5a.5.5 0 0 0 1 0v-9a.5.5 0 0 0-.5-.5z"/>
+                <path d="M12.5 3a.5.5 0 0 0-.5.5v3.793L5.854 2.854A.5.5 0 0 0 5 3.5v9a.5.5 0 0 0 .854.354L12 8.207V12.5a.5.5 0 0 0 1 0v-9a.5.5 0 0 0-.5-.5z" />
               </svg>
             </NavBtn>
           </div>
         </div>
 
         {/* Spacer — keeps nav truly centered */}
-        <div className="flex justify-end">
-          {controlsRight}
-        </div>
-
+        <div className="flex justify-end">{controlsRight}</div>
       </div>
-      {((status === 'complete' && isLive) || (mode === 'learn' && isViewingLineEnd)) && !overlayDismissed && (
-        <CompletionOverlay
-          variationName={variation.name}
-          moveCount={moves.length}
-          onPracticeAgain={resetPractice}
-          onDismiss={() => setOverlayDismissed(true)}
-        />
-      )}
+      {((status === 'complete' && isLive) || (mode === 'learn' && isViewingLineEnd)) &&
+        !overlayDismissed && (
+          <CompletionOverlay
+            variationName={variation.name}
+            moveCount={moves.length}
+            onPracticeAgain={resetPractice}
+            onDismiss={() => setOverlayDismissed(true)}
+          />
+        )}
     </div>
   );
 }

@@ -73,3 +73,92 @@ export interface PracticeSession {
   isComplete: boolean;
   errors: number;
 }
+
+// Coach event types ----------------------------------------------------------
+
+export type CoachDomain = 'opening_practice' | 'game_analysis' | 'tactics' | 'endgame';
+
+export type CoachClassification =
+  | 'brilliant'
+  | 'great'
+  | 'book'
+  | 'setup'
+  | 'forcing'
+  | 'payoff'
+  | 'best'
+  | 'excellent'
+  | 'good'
+  | 'inaccuracy'
+  | 'mistake'
+  | 'blunder'
+  | 'miss'
+  | 'wrong'
+  | 'complete';
+
+export type CoachTone = 'neutral' | 'positive' | 'payoff' | 'warning' | 'negative' | 'complete';
+
+export type CoachSeverity = 'info' | 'minor' | 'medium' | 'major' | 'critical';
+
+export type CoachGamePhase = 'opening' | 'middlegame' | 'endgame';
+
+export type CoachEventType =
+  | 'opening_book_move'
+  | 'opening_setup'
+  | 'opening_forcing'
+  | 'tactical_payoff'
+  | 'wrong_move'
+  | 'line_complete'
+  | 'eval_gain'
+  | 'eval_loss'
+  | 'missed_tactic'
+  | 'best_move'
+  | 'only_move';
+
+export type CoachThemeTag =
+  | 'development'
+  | 'center'
+  | 'king_safety'
+  | 'initiative'
+  | 'tempo'
+  | 'material'
+  | 'pawn_structure'
+  | 'piece_activity'
+  | 'fork'
+  | 'pin'
+  | 'skewer'
+  | 'discovered_attack'
+  | 'mate_threat'
+  | 'defense'
+  | 'endgame_conversion';
+
+export type CoachEventVariableValue = string | number | boolean | null;
+export type CoachEventVariables = Record<string, CoachEventVariableValue>;
+export type CoachAnalysisFacts = Record<
+  string,
+  CoachEventVariableValue | CoachEventVariableValue[]
+>;
+
+export interface CoachSubjectRef {
+  kind: 'opening_line' | 'game' | 'position' | 'session';
+  id: string;
+  parentId?: string;
+}
+
+export interface CoachEvent {
+  id: string;
+  domain: CoachDomain;
+  subject: CoachSubjectRef;
+  plyIndex: number;
+  eventType: CoachEventType;
+  classification: CoachClassification;
+  tone: CoachTone;
+  severity: CoachSeverity;
+  phase?: CoachGamePhase;
+  themeTags: CoachThemeTag[];
+  messageKey: string;
+  spokenKey: string;
+  variables: CoachEventVariables;
+  analysisFacts: CoachAnalysisFacts;
+  source: 'opening_practice' | 'engine_analysis' | 'tactical_detector' | 'manual';
+  contentVersion: number;
+}

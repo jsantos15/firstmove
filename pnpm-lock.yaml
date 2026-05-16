@@ -182,6 +182,10 @@ importers:
         version: 5.9.3
 
   packages/i18n:
+    dependencies:
+      '@firstmove/core':
+        specifier: workspace:*
+        version: link:../core
     devDependencies:
       typescript:
         specifier: ^5.5.0

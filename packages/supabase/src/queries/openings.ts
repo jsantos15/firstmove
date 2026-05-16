@@ -5,8 +5,7 @@ export type OpeningCatalogRow = Database['public']['Tables']['openings_catalog']
 export type OpeningLineRow = Database['public']['Tables']['opening_lines']['Row'];
 export type OpeningLineBranchMetadataRow =
   Database['public']['Tables']['opening_line_branch_metadata']['Row'];
-export type OpeningLineCoachEventRow =
-  Database['public']['Tables']['opening_line_coach_events']['Row'];
+export type CoachEventRow = Database['public']['Tables']['coach_events']['Row'];
 
 const PAGE_SIZE = 1000;
 
@@ -102,16 +101,15 @@ export async function getOpeningLineBranchMetadataBySlug(
   return data;
 }
 
-export async function getOpeningLineCoachEventsBySlug(
-  openingSlug: string
-): Promise<OpeningLineCoachEventRow[]> {
+export async function getOpeningCoachEventsBySlug(openingSlug: string): Promise<CoachEventRow[]> {
   const { data, error } = await supabase
-    .from('opening_line_coach_events')
+    .from('coach_events')
     .select('*')
-    .eq('opening_slug', openingSlug)
-    .order('line_slug', { ascending: true })
+    .eq('domain', 'opening_practice')
+    .eq('parent_subject_id', openingSlug)
+    .order('subject_id', { ascending: true })
     .order('ply_index', { ascending: true })
-    .order('event_key', { ascending: true });
+    .order('event_type', { ascending: true });
 
   if (error) {
     throw error;
