@@ -328,6 +328,7 @@ Each filtered Lichess entry becomes a "variation anchor" — the named position 
 Reference generation does **not** use Lichess Explorer for opponent replies. Explorer-backed human-popular opponent choices belong to future practical branch generation, not current reference lines.
 
 **Shared reference stopping model:**
+
 - Category labels (`setup`, `strategic`, `tactical_payoff`, `forcing`) do not affect reference-line stopping.
 - Minimum added plies must be met (`--reference-min-added-plies`, default 2), unless the total line has already reached the soft reference length.
 - A mature checkpoint must look like a stable tabiya: low tactical volatility or clear material/compensation, visible plan/development/castling/eval shape, no critical trained king safety, no only-move pressure, no narrow/critical top-move gap, and stable eval.
@@ -336,6 +337,7 @@ Reference generation does **not** use Lichess Explorer for opponent replies. Exp
 - If no mature checkpoint exists, the line stops at the cap and marks the endpoint as a weaker fallback.
 
 **Reference caps:**
+
 - `--reference-soft-total-plies` (default 22): preferred endpoint area.
 - `--reference-hard-total-plies` (default 28): force a stop unless the position is still unusually forcing.
 - `--reference-exception-total-plies` (default 32): hard reference cap.
@@ -353,6 +355,7 @@ Engines are tried in priority order: `lichess → chess-api`. Rules:
 - **Fallback:** if all cloud engines are cooling or have no data, fall through to local Stockfish (depth 18).
 
 **Output fields per line (key ones):**
+
 - `generatedSans` — the full teaching line as a SAN array (this is what gets stored in the DB and shown to users)
 - `variationAnchorSans` — the source anchor moves (subset of `generatedSans`)
 - `finalEvalCp` / `finalEvalPerspective` — centipawn eval at the last position, white-perspective
@@ -365,6 +368,7 @@ Engines are tried in priority order: `lichess → chess-api`. Rules:
 **Resumability:** pass `--resume` to skip already-processed source names and continue from where a previous interrupted run left off. The script writes a checkpoint after every `--checkpoint-every` lines (default 10).
 
 **Example invocation:**
+
 ```
 node scripts/generate-opening-candidates.cjs \
   --starts-with "Italian Game" \
@@ -385,6 +389,7 @@ node scripts/generate-opening-candidates.cjs \
 **Chain handling:** if A ⊂ B ⊂ C, both A and B are removed. Only C is kept.
 
 **Usage:**
+
 ```
 # Preview first
 node scripts/dedup-opening-candidates.cjs --input <file> --dry-run
@@ -408,6 +413,7 @@ Transforms the generator JSON into DB-ready row shapes. No network calls. Pure t
 - Outputs a structured payload JSON with `currentSchema`, `seedPayload`, and sidecar metadata
 
 **Usage:**
+
 ```
 node scripts/prepare-opening-db-payload.cjs \
   --input scripts/output/generated-opening-candidates-<opening>-cloud-reference.json \
@@ -425,6 +431,7 @@ Upserts the prepared payload into Supabase. Adds or updates rows; never deletes.
 - Idempotent — safe to run multiple times on the same payload
 
 **Usage:**
+
 ```
 node scripts/import-opening-db-payload.cjs --input scripts/output/opening-db-payload-<opening>.json
 ```
@@ -439,6 +446,7 @@ Prunes stale rows from Supabase — lines that existed from a prior import but a
 - `--apply` required to actually delete; omit for a dry-run report
 
 **Usage:**
+
 ```
 node scripts/sync-opening-db-payload.cjs \
   --input scripts/output/opening-db-payload-<opening>.json \
@@ -549,3 +557,11 @@ node scripts/run-opening-reference-pipeline.cjs --openings italian-game,caro-kan
 **Update:** Practical branch search should not keep lines after they transpose into another reference variation anchor. Exact duplicate practical branches are deduped globally by generated SAN sequence, but reference-anchor transpositions are now stopped during search so ownership moves to the more specific variation instead of duplicating the same teachable line under an earlier parent.
 
 **Update:** The practice-board eval bar must not depend on live browser calls to external engine APIs. Runtime eval display should use imported line-level `eval_cp_by_ply` first, then FirstMove's own `opening_position_evals` table keyed by normalized FEN. If neither source has a value, the UI keeps the reserved eval-bar shell neutral instead of calling Lichess from the client.
+
+---
+
+## 2026-05-16 - Keep localized coach templates in source control
+
+**Decision:** Add a shared `@firstmove/i18n` workspace package as the source-controlled home for locale config, message keys, fallback rules, and coach display/spoken templates. Coach feedback should be built from stable keys plus named variables, with rendered text produced by the app for the active locale. Supabase should store coach event facts later, such as line, ply, event key, tone, classification, and variables, but not translated prose.
+
+**Reason:** FirstMove needs the coach to work consistently on web, iOS, and Android across multiple countries. Translation strings need PR review, version history, deploy-time consistency with the code that references them, and automated missing-key checks. Keeping display text and spoken text as separate templates also prepares the app for free native TTS first and cached generated audio later without coupling the coach model to one voice provider.

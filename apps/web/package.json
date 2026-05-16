@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@firstmove/core": "workspace:*",
+    "@firstmove/i18n": "workspace:*",
     "@firstmove/supabase": "workspace:*",
     "@supabase/ssr": "^0.10.2",
     "@supabase/supabase-js": "^2.47.0",

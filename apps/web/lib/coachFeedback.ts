@@ -1,3 +1,5 @@
+import { formatMessage, type CoachMessageVariables, type I18nMessageKey } from '@firstmove/i18n';
+
 export type CoachMoveClassification =
   | 'brilliant'
   | 'great'
@@ -15,13 +17,25 @@ export type CoachMoveClassification =
   | 'wrong'
   | 'complete';
 
-export type CoachFeedbackTone = 'neutral' | 'positive' | 'payoff' | 'warning' | 'negative' | 'complete';
+export type CoachFeedbackTone =
+  | 'neutral'
+  | 'positive'
+  | 'payoff'
+  | 'warning'
+  | 'negative'
+  | 'complete';
 
 export interface CoachFeedback {
   id: string;
   classification: CoachMoveClassification;
+  labelKey: I18nMessageKey;
   label: string;
+  titleKey: I18nMessageKey;
   title: string;
+  messageKey: I18nMessageKey;
+  messageKeys: I18nMessageKey[];
+  spokenTextKey: I18nMessageKey;
+  variables: CoachMessageVariables;
   message: string;
   spokenText: string;
   tone: CoachFeedbackTone;
@@ -52,6 +66,7 @@ interface MoveCoachInput {
   afterEvalCp?: number;
   primaryCategory?: LineCategory;
   isFinalMove?: boolean;
+  locale?: string;
 }
 
 export interface CoachNarrationPayload {
@@ -85,6 +100,7 @@ interface WrongMoveCoachInput {
   expectedSan: string;
   variationName: string;
   moveIndex: number;
+  locale?: string;
 }
 
 function toTrainedSideEval(evalCp: number | undefined, openingColor: OpeningColor) {
@@ -110,7 +126,12 @@ function moveNumberFromPly(moveIndex: number) {
 }
 
 function normalizeCategory(category?: LineCategory) {
-  if (category === 'tactical_payoff' || category === 'forcing' || category === 'strategic' || category === 'setup') {
+  if (
+    category === 'tactical_payoff' ||
+    category === 'forcing' ||
+    category === 'strategic' ||
+    category === 'setup'
+  ) {
     return category;
   }
   return 'strategic';
@@ -145,7 +166,9 @@ export function classifyAnalyzedMoveByCentipawnLoss({
   }
   if (
     isBestMove &&
-    (isOnlyGoodMove || isCriticalMove || (centipawnGain ?? 0) >= COACH_CLASSIFICATION_THRESHOLDS.greatGainCp) &&
+    (isOnlyGoodMove ||
+      isCriticalMove ||
+      (centipawnGain ?? 0) >= COACH_CLASSIFICATION_THRESHOLDS.greatGainCp) &&
     centipawnLoss <= COACH_CLASSIFICATION_THRESHOLDS.greatMaxLossCp
   ) {
     return 'great';
@@ -164,85 +187,135 @@ export function classifyAnalyzedMoveByCentipawnLoss({
   return 'good';
 }
 
-function getCategoryMessage(
+function getCategoryMessageKey(
   category: ReturnType<typeof normalizeCategory>,
-  moveSan: string,
-  variationName: string,
   seed: string
-) {
+): I18nMessageKey {
   if (category === 'tactical_payoff') {
     return pickStable(
       [
-        `There it is. ${moveSan} is the moment the earlier pressure starts to pay off.`,
-        `That is the point of the line. ${moveSan} turns the pressure into something concrete.`,
-        `Good, now the idea has teeth. ${moveSan} makes Black deal with the tactic instead of playing freely.`,
+        'coach.expected.tactical_payoff.0',
+        'coach.expected.tactical_payoff.1',
+        'coach.expected.tactical_payoff.2',
       ],
       seed
     );
   }
   if (category === 'forcing') {
     return pickStable(
-      [
-        `Now you are asking a direct question. ${moveSan} limits the replies and keeps the initiative with you.`,
-        `Good tempo. ${moveSan} makes the opponent respond to your idea before they get comfortable.`,
-        `${moveSan} keeps the game on your terms. The opponent has fewer useful choices now.`,
-      ],
+      ['coach.expected.forcing.0', 'coach.expected.forcing.1', 'coach.expected.forcing.2'],
       seed
     );
   }
   if (category === 'setup') {
     return pickStable(
-      [
-        `Nice quiet move. ${moveSan} prepares the position before you start forcing things.`,
-        `This is useful patience. ${moveSan} gets the structure ready for the next idea.`,
-        `${moveSan} does the groundwork. You are making the coming plan easier to play.`,
-      ],
+      ['coach.expected.setup.0', 'coach.expected.setup.1', 'coach.expected.setup.2'],
       seed
     );
   }
   return pickStable(
-    [
-      `${moveSan} fits the plan in ${variationName}. You improve first, then look for the payoff.`,
-      `Good practical move. ${moveSan} keeps your pieces coordinated and your plan clear.`,
-      `This keeps the line healthy. ${moveSan} improves the position without rushing.`,
-    ],
+    ['coach.expected.strategic.0', 'coach.expected.strategic.1', 'coach.expected.strategic.2'],
     seed
   );
 }
 
-function getClassificationPresentation(classification: CoachMoveClassification) {
+function getClassificationPresentation(classification: CoachMoveClassification): {
+  labelKey: I18nMessageKey;
+  titleKey: I18nMessageKey;
+  tone: CoachFeedbackTone;
+} {
   switch (classification) {
     case 'brilliant':
-      return { label: 'Brilliant', title: 'Brilliant idea', tone: 'payoff' as const };
+      return {
+        labelKey: 'coach.label.brilliant',
+        titleKey: 'coach.title.brilliant',
+        tone: 'payoff' as const,
+      };
     case 'great':
-      return { label: 'Great', title: 'Great move', tone: 'positive' as const };
+      return {
+        labelKey: 'coach.label.great',
+        titleKey: 'coach.title.great',
+        tone: 'positive' as const,
+      };
     case 'setup':
-      return { label: 'Setup', title: 'Build the structure', tone: 'neutral' as const };
+      return {
+        labelKey: 'coach.label.setup',
+        titleKey: 'coach.title.setup',
+        tone: 'neutral' as const,
+      };
     case 'forcing':
-      return { label: 'Forcing', title: 'Keep the initiative', tone: 'positive' as const };
+      return {
+        labelKey: 'coach.label.forcing',
+        titleKey: 'coach.title.forcing',
+        tone: 'positive' as const,
+      };
     case 'payoff':
-      return { label: 'Payoff', title: 'Tactical idea', tone: 'payoff' as const };
+      return {
+        labelKey: 'coach.label.payoff',
+        titleKey: 'coach.title.payoff',
+        tone: 'payoff' as const,
+      };
     case 'best':
-      return { label: 'Best', title: 'Best move', tone: 'positive' as const };
+      return {
+        labelKey: 'coach.label.best',
+        titleKey: 'coach.title.best',
+        tone: 'positive' as const,
+      };
     case 'excellent':
-      return { label: 'Excellent', title: 'Excellent move', tone: 'positive' as const };
+      return {
+        labelKey: 'coach.label.excellent',
+        titleKey: 'coach.title.excellent',
+        tone: 'positive' as const,
+      };
     case 'good':
-      return { label: 'Good', title: 'Good move', tone: 'positive' as const };
+      return {
+        labelKey: 'coach.label.good',
+        titleKey: 'coach.title.good',
+        tone: 'positive' as const,
+      };
     case 'inaccuracy':
-      return { label: 'Inaccuracy', title: 'A little imprecise', tone: 'warning' as const };
+      return {
+        labelKey: 'coach.label.inaccuracy',
+        titleKey: 'coach.title.inaccuracy',
+        tone: 'warning' as const,
+      };
     case 'mistake':
-      return { label: 'Mistake', title: 'This loses ground', tone: 'negative' as const };
+      return {
+        labelKey: 'coach.label.mistake',
+        titleKey: 'coach.title.mistake',
+        tone: 'negative' as const,
+      };
     case 'blunder':
-      return { label: 'Blunder', title: 'Major problem', tone: 'negative' as const };
+      return {
+        labelKey: 'coach.label.blunder',
+        titleKey: 'coach.title.blunder',
+        tone: 'negative' as const,
+      };
     case 'miss':
-      return { label: 'Miss', title: 'Missed opportunity', tone: 'warning' as const };
+      return {
+        labelKey: 'coach.label.miss',
+        titleKey: 'coach.title.miss',
+        tone: 'warning' as const,
+      };
     case 'wrong':
-      return { label: 'Try again', title: 'Not this move', tone: 'negative' as const };
+      return {
+        labelKey: 'coach.label.wrong',
+        titleKey: 'coach.title.wrong',
+        tone: 'negative' as const,
+      };
     case 'complete':
-      return { label: 'Complete', title: 'Line complete', tone: 'complete' as const };
+      return {
+        labelKey: 'coach.label.complete',
+        titleKey: 'coach.title.complete',
+        tone: 'complete' as const,
+      };
     case 'book':
     default:
-      return { label: 'Book', title: 'Good opening move', tone: 'neutral' as const };
+      return {
+        labelKey: 'coach.label.book',
+        titleKey: 'coach.title.book',
+        tone: 'neutral' as const,
+      };
   }
 }
 
@@ -258,19 +331,29 @@ function shouldMentionEval({
   isFinalMove?: boolean;
 }) {
   if (after === null) return false;
-  if (classification === 'payoff' || classification === 'great' || classification === 'brilliant') return true;
+  if (classification === 'payoff' || classification === 'great' || classification === 'brilliant')
+    return true;
   if (isFinalMove) return true;
   return delta !== null && Math.abs(delta) >= 50;
 }
 
 function buildEvalNote(after: number, delta: number | null) {
   if (delta !== null && delta >= 50) {
-    return ` The engine also likes the progress: you are up to ${formatPawns(after)} now.`;
+    return {
+      key: 'coach.eval.progress' as const,
+      variables: { evalPawns: formatPawns(after) },
+    };
   }
   if (delta !== null && delta <= -50) {
-    return ` The engine still keeps this playable at ${formatPawns(after)}, but be precise from here.`;
+    return {
+      key: 'coach.eval.precision' as const,
+      variables: { evalPawns: formatPawns(after) },
+    };
   }
-  return ` The position is ${formatPawns(after)} for your side.`;
+  return {
+    key: 'coach.eval.position' as const,
+    variables: { evalPawns: formatPawns(after) },
+  };
 }
 
 export function buildCoachNarrationPayload(input: MoveCoachInput): CoachNarrationPayload {
@@ -324,7 +407,8 @@ function classifyExpectedOpeningMove({
   if (category === 'tactical_payoff') return 'payoff';
   if (category === 'forcing') return 'forcing';
   if (category === 'setup') return 'setup';
-  if (delta !== null && delta >= COACH_CLASSIFICATION_THRESHOLDS.excellentGainCp) return 'excellent';
+  if (delta !== null && delta >= COACH_CLASSIFICATION_THRESHOLDS.excellentGainCp)
+    return 'excellent';
   return 'book';
 }
 
@@ -338,38 +422,76 @@ export function buildMoveCoachFeedback(input: MoveCoachInput): CoachFeedback {
     delta,
     isFinalMove: input.isFinalMove,
   });
-  const { label, title, tone } = getClassificationPresentation(classification);
+  const { labelKey, titleKey, tone } = getClassificationPresentation(classification);
 
   const seed = `${input.variationName}:${input.moveIndex}:${input.moveSan}:${category}:${classification}`;
-  const evalNote = shouldMentionEval({ classification, delta, after, isFinalMove: input.isFinalMove })
-    ? buildEvalNote(after as number, delta)
-    : '';
-  const finalNote = input.isFinalMove ? ' Nice work, that finishes the line.' : '';
-  const message = `${getCategoryMessage(category, input.moveSan, input.variationName, seed)}${evalNote}${finalNote}`;
+  const variables: CoachMessageVariables = {
+    moveSan: input.moveSan,
+    variationName: input.variationName,
+  };
+  const messageKey = getCategoryMessageKey(category, seed);
+  const messageParts = [formatMessage(messageKey, variables, input.locale)];
+  const messageKeys = [messageKey];
+  if (shouldMentionEval({ classification, delta, after, isFinalMove: input.isFinalMove })) {
+    const evalNote = buildEvalNote(after as number, delta);
+    messageKeys.push(evalNote.key);
+    Object.assign(variables, evalNote.variables);
+    messageParts.push(formatMessage(evalNote.key, evalNote.variables, input.locale));
+  }
+  if (input.isFinalMove) {
+    messageKeys.push('coach.final');
+    messageParts.push(formatMessage('coach.final', {}, input.locale));
+  }
+
+  const label = formatMessage(labelKey, {}, input.locale);
+  const title = formatMessage(titleKey, {}, input.locale);
+  const message = messageParts.join('');
+  const spokenTextKey = 'coach.spoken';
+  const spokenText = formatMessage(spokenTextKey, { label, title, message }, input.locale);
 
   return {
     id: `move-${input.moveIndex}-${input.moveSan}`,
     classification,
+    labelKey,
     label,
+    titleKey,
     title,
+    messageKey,
+    messageKeys,
+    spokenTextKey,
+    variables,
     message,
-    spokenText: `${label}. ${title}. ${message}`,
+    spokenText,
     tone,
   };
 }
 
 export function buildWrongMoveCoachFeedback(input: WrongMoveCoachInput): CoachFeedback {
-  const attemptedText = input.attemptedSan ? `${input.attemptedSan} is not the move for this position.` : 'That is not the move for this position.';
-  const message = `${attemptedText} In ${input.variationName}, look for ${input.expectedSan}.`;
+  const variables: CoachMessageVariables = {
+    attemptedSan: input.attemptedSan,
+    expectedSan: input.expectedSan,
+    variationName: input.variationName,
+  };
+  const messageKey = input.attemptedSan ? 'coach.wrong.attempted' : 'coach.wrong.generic';
+  const message = formatMessage(messageKey, variables, input.locale);
   const presentation = getClassificationPresentation('wrong');
+  const label = formatMessage(presentation.labelKey, {}, input.locale);
+  const title = formatMessage(presentation.titleKey, {}, input.locale);
+  const spokenTextKey = 'coach.spoken.wrong';
 
   return {
     id: `wrong-${input.moveIndex}-${input.attemptedSan ?? 'move'}-${input.expectedSan}`,
     classification: 'wrong',
-    label: presentation.label,
-    title: presentation.title,
+    labelKey: presentation.labelKey,
+    label,
+    titleKey: presentation.titleKey,
+    title,
+    messageKey,
+    messageKeys: [messageKey],
+    spokenTextKey,
+    variables,
     message,
-    spokenText: `Try again. ${message}`,
+    spokenText: formatMessage(spokenTextKey, { message }, input.locale),
     tone: presentation.tone,
   };
 }

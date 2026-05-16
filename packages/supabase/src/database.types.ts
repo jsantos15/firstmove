@@ -221,6 +221,101 @@ export type Database = {
           },
         ];
       };
+      opening_line_coach_events: {
+        Row: {
+          classification:
+            | 'brilliant'
+            | 'great'
+            | 'book'
+            | 'setup'
+            | 'forcing'
+            | 'payoff'
+            | 'best'
+            | 'excellent'
+            | 'good'
+            | 'inaccuracy'
+            | 'mistake'
+            | 'blunder'
+            | 'miss'
+            | 'wrong'
+            | 'complete';
+          content_version: number;
+          created_at: string;
+          event_key: string;
+          line_slug: string;
+          opening_slug: string;
+          ply_index: number;
+          source: string;
+          tone: 'neutral' | 'positive' | 'payoff' | 'warning' | 'negative' | 'complete';
+          updated_at: string;
+          variables: Json;
+        };
+        Insert: {
+          classification:
+            | 'brilliant'
+            | 'great'
+            | 'book'
+            | 'setup'
+            | 'forcing'
+            | 'payoff'
+            | 'best'
+            | 'excellent'
+            | 'good'
+            | 'inaccuracy'
+            | 'mistake'
+            | 'blunder'
+            | 'miss'
+            | 'wrong'
+            | 'complete';
+          content_version?: number;
+          created_at?: string;
+          event_key: string;
+          line_slug: string;
+          opening_slug: string;
+          ply_index: number;
+          source?: string;
+          tone: 'neutral' | 'positive' | 'payoff' | 'warning' | 'negative' | 'complete';
+          updated_at?: string;
+          variables?: Json;
+        };
+        Update: {
+          classification?:
+            | 'brilliant'
+            | 'great'
+            | 'book'
+            | 'setup'
+            | 'forcing'
+            | 'payoff'
+            | 'best'
+            | 'excellent'
+            | 'good'
+            | 'inaccuracy'
+            | 'mistake'
+            | 'blunder'
+            | 'miss'
+            | 'wrong'
+            | 'complete';
+          content_version?: number;
+          created_at?: string;
+          event_key?: string;
+          line_slug?: string;
+          opening_slug?: string;
+          ply_index?: number;
+          source?: string;
+          tone?: 'neutral' | 'positive' | 'payoff' | 'warning' | 'negative' | 'complete';
+          updated_at?: string;
+          variables?: Json;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'opening_line_coach_events_line_fkey';
+            columns: ['opening_slug', 'line_slug'];
+            isOneToOne: false;
+            referencedRelation: 'opening_lines';
+            referencedColumns: ['opening_slug', 'slug'];
+          },
+        ];
+      };
       opening_position_evals: {
         Row: {
           best_move_uci: string;
