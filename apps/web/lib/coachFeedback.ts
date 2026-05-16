@@ -243,6 +243,7 @@ export function buildMoveCoachEvent(input: MoveCoachInput): CoachEvent {
     severity: eventSeverity(classification),
     phase: 'opening',
     themeTags: categoryThemeTags(category),
+    persona: 'neutral',
     messageKey: '',
     spokenKey: '',
     variables,
@@ -276,6 +277,7 @@ export function buildWrongMoveCoachEvent(input: WrongMoveCoachInput): CoachEvent
     severity: 'medium',
     phase: 'opening',
     themeTags: [],
+    persona: 'neutral',
     messageKey: input.attemptedSan
       ? 'coach.event.wrong_move.message'
       : 'coach.event.wrong_move.generic_message',

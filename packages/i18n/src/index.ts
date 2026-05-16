@@ -1,4 +1,13 @@
-import type { CoachClassification, CoachEvent, CoachTone } from '@firstmove/core';
+import {
+  COACH_CLASSIFICATIONS,
+  COACH_EVENT_TYPES,
+  type CoachClassification,
+  type CoachEvent,
+  type CoachPersona,
+  type CoachTone,
+  getCoachEventMessageFallbacks,
+  getCoachEventSpokenFallbacks,
+} from '@firstmove/core';
 
 export const DEFAULT_LOCALE = 'en' as const;
 
@@ -9,6 +18,8 @@ export type FirstMoveLocale = (typeof SUPPORTED_LOCALES)[number];
 export type CoachMessageVariables = Record<string, string | number | boolean | null | undefined>;
 
 export const EN_MESSAGES = {
+  'coach.event.generic.message': '{moveSan} is the key move in this position.',
+
   'coach.label.brilliant': 'Brilliant',
   'coach.label.great': 'Great',
   'coach.label.book': 'Book',
@@ -66,6 +77,13 @@ export const EN_MESSAGES = {
 
   'coach.spoken.event': '{label}. {title}. {message}',
   'coach.spoken.wrong_move': 'Try again. {message}',
+
+  'coach.persona.friendly.spoken.event': '{label}. {title}. {message}',
+  'coach.persona.strict.spoken.event': '{label}. {message}',
+  'coach.persona.calm.spoken.event': '{title}. {message}',
+  'coach.persona.hype.spoken.event': '{label}. {message}',
+  'coach.persona.beginner.spoken.event': '{title}. {message}',
+  'coach.persona.technical.spoken.event': '{label}. {title}. {message}',
 } as const;
 
 export const MESSAGES_BY_LOCALE = {
@@ -88,21 +106,8 @@ export interface RenderedCoachEvent {
   message: string;
   spokenText: string;
   tone: CoachTone;
+  persona: CoachPersona;
 }
-
-const COACH_EVENT_MESSAGE_KEYS = {
-  opening_book_move: 'coach.event.opening_book_move.message',
-  opening_setup: 'coach.event.opening_setup.message',
-  opening_forcing: 'coach.event.opening_forcing.message',
-  tactical_payoff: 'coach.event.tactical_payoff.message',
-  wrong_move: 'coach.event.wrong_move.message',
-  line_complete: 'coach.event.line_complete.message',
-  eval_gain: 'coach.event.eval_gain.message',
-  eval_loss: 'coach.event.eval_loss.message',
-  missed_tactic: 'coach.event.missed_tactic.message',
-  best_move: 'coach.event.best_move.message',
-  only_move: 'coach.event.only_move.message',
-} as const satisfies Record<CoachEvent['eventType'], I18nMessageKey>;
 
 const COACH_CLASSIFICATION_PRESENTATION = {
   brilliant: {
@@ -222,7 +227,7 @@ function isMessageKey(value: string): value is I18nMessageKey {
 
 export function getCoachEventMessageKey(event: CoachEvent): I18nMessageKey {
   if (isMessageKey(event.messageKey)) return event.messageKey;
-  return COACH_EVENT_MESSAGE_KEYS[event.eventType];
+  return 'coach.event.generic.message';
 }
 
 export function getCoachEventSpokenKey(event: CoachEvent): I18nMessageKey {
@@ -231,13 +236,25 @@ export function getCoachEventSpokenKey(event: CoachEvent): I18nMessageKey {
   return 'coach.spoken.event';
 }
 
+function firstExistingMessageKey(keys: readonly string[]): I18nMessageKey {
+  for (const key of keys) {
+    if (isMessageKey(key)) return key;
+  }
+  return 'coach.event.generic.message';
+}
+
 export function renderCoachEvent(
   event: CoachEvent,
-  locale: string = DEFAULT_LOCALE
+  locale: string = DEFAULT_LOCALE,
+  persona: CoachPersona = event.persona ?? 'neutral'
 ): RenderedCoachEvent {
   const presentation = COACH_CLASSIFICATION_PRESENTATION[event.classification];
-  const messageKey = getCoachEventMessageKey(event);
-  const spokenTextKey = getCoachEventSpokenKey(event);
+  const messageKey = isMessageKey(event.messageKey)
+    ? event.messageKey
+    : firstExistingMessageKey(getCoachEventMessageFallbacks(event.eventType, persona));
+  const spokenTextKey = isMessageKey(event.spokenKey)
+    ? event.spokenKey
+    : firstExistingMessageKey(getCoachEventSpokenFallbacks(event.eventType, persona));
   const label = formatMessage(presentation.labelKey, {}, locale);
   const title = formatMessage(presentation.titleKey, {}, locale);
   const message = formatMessage(messageKey, event.variables, locale);
@@ -257,5 +274,17 @@ export function renderCoachEvent(
     message,
     spokenText,
     tone: event.tone,
+    persona,
   };
 }
+
+export const REQUIRED_COACH_MESSAGE_KEYS = [
+  ...COACH_CLASSIFICATIONS.flatMap(classification => [
+    `coach.label.${classification}`,
+    `coach.title.${classification}`,
+  ]),
+  ...COACH_EVENT_TYPES.map(eventType => `coach.event.${eventType}.message`),
+  'coach.event.generic.message',
+  'coach.spoken.event',
+  'coach.spoken.wrong_move',
+] as const;

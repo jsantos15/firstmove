@@ -49,6 +49,9 @@ create table if not exists public.coach_events (
   tone text not null check (
     tone in ('neutral', 'positive', 'payoff', 'warning', 'negative', 'complete')
   ),
+  persona text not null default 'neutral' check (
+    persona in ('friendly', 'neutral', 'strict', 'calm', 'hype', 'beginner', 'technical')
+  ),
   severity text not null check (
     severity in ('info', 'minor', 'medium', 'major', 'critical')
   ),

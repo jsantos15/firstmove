@@ -258,6 +258,7 @@ export type Database = {
           id: string;
           message_key: string;
           parent_subject_id: string | null;
+          persona: 'friendly' | 'neutral' | 'strict' | 'calm' | 'hype' | 'beginner' | 'technical';
           phase: 'opening' | 'middlegame' | 'endgame' | null;
           ply_index: number;
           severity: 'info' | 'minor' | 'medium' | 'major' | 'critical';
@@ -306,6 +307,7 @@ export type Database = {
           id: string;
           message_key: string;
           parent_subject_id?: string | null;
+          persona?: 'friendly' | 'neutral' | 'strict' | 'calm' | 'hype' | 'beginner' | 'technical';
           phase?: 'opening' | 'middlegame' | 'endgame' | null;
           ply_index: number;
           severity: 'info' | 'minor' | 'medium' | 'major' | 'critical';
@@ -354,6 +356,7 @@ export type Database = {
           id?: string;
           message_key?: string;
           parent_subject_id?: string | null;
+          persona?: 'friendly' | 'neutral' | 'strict' | 'calm' | 'hype' | 'beginner' | 'technical';
           phase?: 'opening' | 'middlegame' | 'endgame' | null;
           ply_index?: number;
           severity?: 'info' | 'minor' | 'medium' | 'major' | 'critical';
