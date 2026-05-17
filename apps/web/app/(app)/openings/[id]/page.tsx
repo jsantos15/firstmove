@@ -11,6 +11,7 @@ import { CoachBubble } from '@/components/practice/CoachBubble';
 import { useAuth } from '@/app/providers';
 import { useAllProgress, MASTERY_COLORS } from '@/hooks/useProgress';
 import { BOARD_THEMES, useBoardSettings } from '@/hooks/useBoardSettings';
+import { COACH_PERSONA_OPTIONS, useCoachSettings } from '@/hooks/useCoachSettings';
 import { PIECE_SETS } from '@/lib/piecesets';
 import type { CoachFeedback } from '@/lib/coachFeedback';
 
@@ -284,6 +285,7 @@ function PracticalBranchRow({
 
 function BoardSettingsPopover() {
   const { settings, setSettings } = useBoardSettings();
+  const { settings: coachSettings, setSettings: setCoachSettings } = useCoachSettings();
   const [open, setOpen] = useState(false);
   const popoverRef = useRef<HTMLDivElement>(null);
 
@@ -397,6 +399,35 @@ function BoardSettingsPopover() {
               </div>
             </div>
 
+            <div>
+              <label className="mb-2 block text-[11px] font-medium uppercase tracking-wider text-gray-500">Coach</label>
+              <div className="grid grid-cols-2 gap-2">
+                {COACH_PERSONA_OPTIONS.map(option => (
+                  <button
+                    key={option.id}
+                    type="button"
+                    onClick={() => setCoachSettings({ persona: option.id })}
+                    className={`rounded-xl border p-2 text-left transition-colors ${
+                      coachSettings.persona === option.id
+                        ? 'border-amber-400/40 bg-amber-400/10'
+                        : 'border-white/10 bg-white/5 hover:border-white/20'
+                    }`}
+                  >
+                    <span
+                      className={`block text-xs font-medium ${
+                        coachSettings.persona === option.id ? 'text-amber-300' : 'text-gray-300'
+                      }`}
+                    >
+                      {option.label}
+                    </span>
+                    <span className="mt-1 block text-[10px] leading-4 text-gray-500">
+                      {option.description}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
             <div className="grid grid-cols-3 gap-2">
               <ToggleChip
                 label="Coords"
@@ -459,6 +490,7 @@ export default function PracticePage({ params, searchParams }: PageProps) {
   const [currentMoveIndex, setCurrentMoveIndex] = useState(-1);
   const [mode, setMode] = useState<PracticeMode>('learn');
   const [coachFeedback, setCoachFeedback] = useState<CoachFeedback | null>(null);
+  const { settings: coachSettings } = useCoachSettings();
   const allPracticeLines = useMemo(
     () => [...(opening?.variations ?? []), ...(opening?.practicalBranches ?? [])],
     [opening?.practicalBranches, opening?.variations]
@@ -643,6 +675,7 @@ export default function PracticePage({ params, searchParams }: PageProps) {
                 opening={opening}
                 variation={selectedVariation}
                 mode={mode}
+                coachPersona={coachSettings.persona}
                 onMoveIndexChange={setCurrentMoveIndex}
                 onCoachFeedbackChange={setCoachFeedback}
                 controlsRight={<BoardSettingsPopover />}

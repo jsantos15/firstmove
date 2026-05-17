@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Chessboard } from 'react-chessboard';
-import { Chess, type Opening, type OpeningVariation } from '@firstmove/core';
+import { Chess, type CoachPersona, type Opening, type OpeningVariation } from '@firstmove/core';
 import { useRecordCompletion, useRecordLearned } from '@/hooks/useProgress';
 import { useAuth } from '@/app/providers';
 import { CompletionOverlay } from './CompletionOverlay';
@@ -27,6 +27,7 @@ interface PracticeBoardProps {
     primaryCategory?: string;
   };
   mode: PracticeMode;
+  coachPersona?: CoachPersona;
   onMoveIndexChange?: (index: number) => void;
   onCoachFeedbackChange?: (feedback: CoachFeedback | null) => void;
   controlsRight?: React.ReactNode;
@@ -272,6 +273,7 @@ export function PracticeBoard({
   opening,
   variation,
   mode,
+  coachPersona = 'neutral',
   onMoveIndexChange,
   onCoachFeedbackChange,
   controlsRight,
@@ -730,6 +732,7 @@ export function PracticeBoard({
             variationId: variation.id,
             variationName: variation.name,
             moveIndex: expectedIndex,
+            persona: coachPersona,
           })
         );
         setStatus('wrong');
@@ -761,6 +764,7 @@ export function PracticeBoard({
           afterEvalCp: getEvalAtPly(nextIndex),
           primaryCategory: variation.primaryCategory,
           isFinalMove: nextIndex >= moves.length,
+          persona: coachPersona,
         })
       );
       setWrongMoveFrom(null);
