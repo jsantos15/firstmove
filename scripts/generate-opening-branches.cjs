@@ -39,6 +39,7 @@ function parseArgs(argv) {
     trainedCandidateMoves: 3,
     stockfishTrainedCandidateMoves: 2,
     trainedCandidateMaxLossCp: 60,
+    trainedMaterialRecoveryMaxLossCp: 180,
     trainedOpportunityMinEvalCp: 200,
     advantageLockMinEvalCp: 350,
     minNodeGames: 250,
@@ -112,6 +113,7 @@ function parseArgs(argv) {
     else if (token === "--trained-candidate-moves") args.trainedCandidateMoves = Number(next());
     else if (token === "--stockfish-trained-candidate-moves") args.stockfishTrainedCandidateMoves = Number(next());
     else if (token === "--trained-candidate-max-loss-cp") args.trainedCandidateMaxLossCp = Number(next());
+    else if (token === "--trained-material-recovery-max-loss-cp") args.trainedMaterialRecoveryMaxLossCp = Number(next());
     else if (token === "--trained-opportunity-min-eval-cp") args.trainedOpportunityMinEvalCp = Number(next());
     else if (token === "--advantage-lock-min-eval-cp") args.advantageLockMinEvalCp = Number(next());
     else if (token === "--min-node-games") args.minNodeGames = Number(next());
@@ -780,6 +782,33 @@ function materialThreatState(chess, openingColor) {
   };
 }
 
+function directMaterialThreatState(chess, openingColor) {
+  const trainedColorCode = openingColor === "white" ? "w" : "b";
+  const opponentColorCode = trainedColorCode === "w" ? "b" : "w";
+  const values = { p: 1, n: 3, b: 3, r: 5, q: 9, k: 0 };
+  let threatenedMaterialPawns = 0;
+  let threatenedPieceCount = 0;
+  let highestThreatenedValue = 0;
+
+  chess.board().forEach((row, rowIndex) => {
+    row.forEach((piece, colIndex) => {
+      if (!piece || piece.color !== opponentColorCode || piece.type === "k") return;
+      const square = squareFromBoardIndexes(rowIndex, colIndex);
+      if (chess.attackers(square, trainedColorCode).length === 0) return;
+      const value = values[piece.type] ?? 0;
+      threatenedMaterialPawns += value;
+      threatenedPieceCount += 1;
+      highestThreatenedValue = Math.max(highestThreatenedValue, value);
+    });
+  });
+
+  return {
+    threatenedMaterialPawns,
+    threatenedPieceCount,
+    highestThreatenedValue,
+  };
+}
+
 function moveDescriptorFromUci(chess, uci) {
   if (!uci || uci === "(none)") return null;
   const clone = new Chess(chess.fen());
@@ -795,6 +824,15 @@ function moveDescriptorFromUci(chess, uci) {
     isCapture: move.san.includes("x"),
     givesCheck: clone.inCheck(),
   };
+}
+
+function trainedCandidateCreatesMaterialRecovery({ chess, candidate, openingColor }) {
+  const descriptor = moveDescriptorFromUci(chess, candidate.uci);
+  if (!descriptor?.givesCheck) return false;
+  const nextChess = new Chess(chess.fen());
+  if (!nextChess.move(uciToMoveObject(candidate.uci))) return false;
+  const threat = directMaterialThreatState(nextChess, openingColor);
+  return threat.highestThreatenedValue >= 3 || threat.threatenedMaterialPawns >= 3;
 }
 
 function branchCategory(line, triggerSan, responseSan) {
@@ -968,6 +1006,9 @@ function payoffFallbackAccepts({ state, chess, trace, openingColor, args }) {
   if (state.trainedEvalCp < args.trainedOpportunityMinEvalCp) return false;
   const sideToMove = chess.turn() === "w" ? "white" : "black";
   if (chess.inCheck() && sideToMove === openingColor) return false;
+  if (sideToMove === openingColor && (state.unresolvedForcing || state.materialConversionPending)) {
+    return false;
+  }
   const pliesAfterTrigger = Math.max(0, trace.length - 1);
   if (pliesAfterTrigger < 4) return false;
   return (
@@ -1039,18 +1080,43 @@ function trainedMoveCandidates({ chess, analysis, openingColor, args }) {
         Number.isFinite(bestEvalCp) && Number.isFinite(candidate.evalCp)
           ? Math.max(0, bestEvalCp - candidate.evalCp)
           : 0;
+      const materialRecoveryCandidate = trainedCandidateCreatesMaterialRecovery({
+        chess,
+        candidate,
+        openingColor,
+      });
       return {
         ...candidate,
         rank: index + 1,
         bestEvalCp,
         evalLossCp,
+        materialRecoveryCandidate,
       };
     })
     .filter((candidate, index) => {
       if (index === 0) return true;
       if (index >= candidateLimit) return false;
+      if (
+        candidate.materialRecoveryCandidate &&
+        candidate.evalLossCp <= args.trainedMaterialRecoveryMaxLossCp
+      ) {
+        return true;
+      }
       return candidate.evalLossCp <= args.trainedCandidateMaxLossCp;
     });
+}
+
+function settledTrainedCandidates(candidates) {
+  const selected = [];
+  const seen = new Set();
+  for (const candidate of candidates) {
+    if (selected.length === 0 || candidate.materialRecoveryCandidate) {
+      if (!candidate.uci || seen.has(candidate.uci)) continue;
+      selected.push(candidate);
+      seen.add(candidate.uci);
+    }
+  }
+  return selected;
 }
 
 function buildTraceStepForOpponent({ ply, move, san, source }) {
@@ -1642,7 +1708,7 @@ async function generateBranchVariantsFromTrigger({
         forcedFirstTrainedCandidate && !usedForcedFirstTrainedCandidate
           ? [forcedFirstTrainedCandidate]
           : settledAdvantage
-            ? trainedCandidateOptions.slice(0, 1)
+            ? settledTrainedCandidates(trainedCandidateOptions)
             : trainedCandidateOptions;
       if (trainedCandidates.length === 0 && analysis.bestMove && analysis.bestMove !== "(none)") {
         trainedCandidates.push({
