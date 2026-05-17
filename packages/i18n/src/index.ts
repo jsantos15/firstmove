@@ -52,12 +52,16 @@ export const EN_MESSAGES = {
   'coach.title.wrong': 'Not this move',
   'coach.title.complete': 'Line complete',
 
+  'coach.event.opening_principle.message':
+    '{moveSan} follows an important opening principle in this position.',
   'coach.event.opening_book_move.message':
     '{moveSan} fits the line in {variationName}. Keep following the opening plan.',
   'coach.event.opening_setup.message':
     'Nice quiet move. {moveSan} prepares the position before you start forcing things.',
   'coach.event.opening_forcing.message':
     'Now you are asking a direct question. {moveSan} limits the replies and keeps the initiative with you.',
+  'coach.event.opening_deviation.message':
+    '{moveSan} leaves the main line. Now the important question is whether the idea still holds together.',
   'coach.event.tactical_payoff.message':
     'That is the point of the line. {moveSan} turns the pressure into something concrete.',
   'coach.event.wrong_move.message':
@@ -69,11 +73,56 @@ export const EN_MESSAGES = {
     'The engine likes the progress: after {moveSan}, your position reaches {evalPawns}.',
   'coach.event.eval_loss.message':
     '{moveSan} gives up some ground. The position is still {evalPawns}, but be precise from here.',
+  'coach.event.advantage_gained.message':
+    '{moveSan} changes the position in your favor. You have created a real advantage.',
+  'coach.event.advantage_lost.message':
+    '{moveSan} lets the advantage slip. Look for a more forcing or safer continuation.',
+  'coach.event.advantage_preserved.message':
+    '{moveSan} keeps the advantage without giving the opponent counterplay.',
+  'coach.event.missed_win.message':
+    'There was a winning chance here. {bestMoveSan} was the move to look for.',
   'coach.event.missed_tactic.message':
     'There was a tactic here. {bestMoveSan} would have created a stronger practical chance.',
+  'coach.event.tactic_found.message':
+    '{moveSan} finds the tactic. The position now has a concrete payoff.',
   'coach.event.best_move.message': '{moveSan} is the best move in this position.',
   'coach.event.only_move.message':
     '{moveSan} is important because it keeps the position together when other moves fail.',
+  'coach.event.brilliant_move.message':
+    '{moveSan} is a rare resource. It solves the position while creating a concrete threat.',
+  'coach.event.great_move.message':
+    '{moveSan} is a strong practical move that improves your position immediately.',
+  'coach.event.good_move.message': '{moveSan} is a solid move that keeps your position healthy.',
+  'coach.event.inaccuracy.message':
+    '{moveSan} is a little imprecise. The position is playable, but there was a cleaner choice.',
+  'coach.event.mistake.message':
+    '{moveSan} gives the opponent a real chance. Recheck the tactical and defensive details.',
+  'coach.event.blunder.message':
+    '{moveSan} is a serious problem. The position needed immediate attention.',
+  'coach.event.king_safety.message':
+    '{moveSan} changes the king-safety picture. Watch the threats around the king.',
+  'coach.event.development.message':
+    '{moveSan} improves development and brings another piece into the game.',
+  'coach.event.center_control.message':
+    '{moveSan} fights for the center and limits the opponent’s freedom.',
+  'coach.event.piece_activity.message':
+    '{moveSan} improves piece activity and makes your next moves easier to find.',
+  'coach.event.pawn_structure.message':
+    '{moveSan} changes the pawn structure. The long-term weaknesses now matter.',
+  'coach.event.material_trade.message':
+    '{moveSan} changes the material balance. Make sure the resulting position favors you.',
+  'coach.event.defensive_resource.message':
+    '{moveSan} is the defensive resource that keeps the position under control.',
+  'coach.event.conversion.message':
+    '{moveSan} helps convert the advantage instead of letting the opponent create counterplay.',
+  'coach.event.endgame_transition.message':
+    '{moveSan} steers the game toward an endgame. The resulting structure matters now.',
+  'coach.event.time_to_simplify.message':
+    '{moveSan} is a moment to simplify. Trading can make the advantage easier to convert.',
+  'coach.event.game_turning_point.message':
+    '{moveSan} is a turning point. The evaluation and practical plans change here.',
+  'coach.event.phase_summary.message': 'In this phase, the key pattern was {summaryTheme}.',
+  'coach.event.game_summary.message': 'The main lesson from this game is {summaryTheme}.',
 
   'coach.spoken.event': '{label}. {title}. {message}',
   'coach.spoken.wrong_move': 'Try again. {message}',

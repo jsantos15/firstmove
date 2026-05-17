@@ -244,17 +244,43 @@ export type Database = {
           created_at: string;
           domain: 'opening_practice' | 'game_analysis' | 'tactics' | 'endgame';
           event_type:
+            | 'opening_principle'
             | 'opening_book_move'
             | 'opening_setup'
             | 'opening_forcing'
+            | 'opening_deviation'
             | 'tactical_payoff'
             | 'wrong_move'
             | 'line_complete'
             | 'eval_gain'
             | 'eval_loss'
+            | 'advantage_gained'
+            | 'advantage_lost'
+            | 'advantage_preserved'
+            | 'missed_win'
             | 'missed_tactic'
+            | 'tactic_found'
             | 'best_move'
-            | 'only_move';
+            | 'only_move'
+            | 'brilliant_move'
+            | 'great_move'
+            | 'good_move'
+            | 'inaccuracy'
+            | 'mistake'
+            | 'blunder'
+            | 'king_safety'
+            | 'development'
+            | 'center_control'
+            | 'piece_activity'
+            | 'pawn_structure'
+            | 'material_trade'
+            | 'defensive_resource'
+            | 'conversion'
+            | 'endgame_transition'
+            | 'time_to_simplify'
+            | 'game_turning_point'
+            | 'phase_summary'
+            | 'game_summary';
           id: string;
           message_key: string;
           parent_subject_id: string | null;
@@ -293,17 +319,43 @@ export type Database = {
           created_at?: string;
           domain: 'opening_practice' | 'game_analysis' | 'tactics' | 'endgame';
           event_type:
+            | 'opening_principle'
             | 'opening_book_move'
             | 'opening_setup'
             | 'opening_forcing'
+            | 'opening_deviation'
             | 'tactical_payoff'
             | 'wrong_move'
             | 'line_complete'
             | 'eval_gain'
             | 'eval_loss'
+            | 'advantage_gained'
+            | 'advantage_lost'
+            | 'advantage_preserved'
+            | 'missed_win'
             | 'missed_tactic'
+            | 'tactic_found'
             | 'best_move'
-            | 'only_move';
+            | 'only_move'
+            | 'brilliant_move'
+            | 'great_move'
+            | 'good_move'
+            | 'inaccuracy'
+            | 'mistake'
+            | 'blunder'
+            | 'king_safety'
+            | 'development'
+            | 'center_control'
+            | 'piece_activity'
+            | 'pawn_structure'
+            | 'material_trade'
+            | 'defensive_resource'
+            | 'conversion'
+            | 'endgame_transition'
+            | 'time_to_simplify'
+            | 'game_turning_point'
+            | 'phase_summary'
+            | 'game_summary';
           id: string;
           message_key: string;
           parent_subject_id?: string | null;
@@ -342,17 +394,43 @@ export type Database = {
           created_at?: string;
           domain?: 'opening_practice' | 'game_analysis' | 'tactics' | 'endgame';
           event_type?:
+            | 'opening_principle'
             | 'opening_book_move'
             | 'opening_setup'
             | 'opening_forcing'
+            | 'opening_deviation'
             | 'tactical_payoff'
             | 'wrong_move'
             | 'line_complete'
             | 'eval_gain'
             | 'eval_loss'
+            | 'advantage_gained'
+            | 'advantage_lost'
+            | 'advantage_preserved'
+            | 'missed_win'
             | 'missed_tactic'
+            | 'tactic_found'
             | 'best_move'
-            | 'only_move';
+            | 'only_move'
+            | 'brilliant_move'
+            | 'great_move'
+            | 'good_move'
+            | 'inaccuracy'
+            | 'mistake'
+            | 'blunder'
+            | 'king_safety'
+            | 'development'
+            | 'center_control'
+            | 'piece_activity'
+            | 'pawn_structure'
+            | 'material_trade'
+            | 'defensive_resource'
+            | 'conversion'
+            | 'endgame_transition'
+            | 'time_to_simplify'
+            | 'game_turning_point'
+            | 'phase_summary'
+            | 'game_summary';
           id?: string;
           message_key?: string;
           parent_subject_id?: string | null;
