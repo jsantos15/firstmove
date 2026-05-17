@@ -149,4 +149,5 @@ export function getCoachEventSpokenFallbacks(
 }
 
 export * from './analysis';
+export * from './gameAnalysis';
 export * from './openingPractice';
