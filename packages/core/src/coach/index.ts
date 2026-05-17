@@ -147,3 +147,6 @@ export function getCoachEventSpokenFallbacks(
     eventType === 'wrong_move' ? 'coach.spoken.wrong_move' : 'coach.spoken.event',
   ] as const;
 }
+
+export * from './analysis';
+export * from './openingPractice';
