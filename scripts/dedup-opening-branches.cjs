@@ -46,6 +46,82 @@ function branchKey(line) {
   );
 }
 
+function normalizeText(value) {
+  return String(value ?? "")
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+}
+
+function isStrictSanPrefix(prefixSans, fullSans) {
+  if (!Array.isArray(prefixSans) || !Array.isArray(fullSans)) return false;
+  if (prefixSans.length >= fullSans.length) return false;
+  return prefixSans.every((san, index) => san === fullSans[index]);
+}
+
+function parentLineId(line) {
+  return line.parentLineId ?? line.generation?.branch?.parentLineId ?? null;
+}
+
+function branchNameSuffix(line) {
+  const trace = line.generation?.branch?.continuationTrace ?? line.generation?.extension ?? [];
+  const traceTail = trace
+    .map((step) => step?.san)
+    .filter(Boolean)
+    .slice(-2)
+    .join(" ");
+  if (traceTail) return traceTail;
+  return line.generatedSans?.slice(-2).join(" ") || line.lineId?.slice(-8) || "alternate";
+}
+
+function prunePrefixBranches(branches) {
+  return branches.filter((branch) => {
+    const branchParentLineId = parentLineId(branch);
+    return !branches.some((other) => {
+      if (other === branch) return false;
+      if (branch.openingId !== other.openingId) return false;
+      if (branchParentLineId !== parentLineId(other)) return false;
+      return isStrictSanPrefix(branch.generatedSans, other.generatedSans);
+    });
+  });
+}
+
+function withUniqueBranchNames(branches) {
+  const counts = new Map();
+  for (const branch of branches) {
+    const branchParentLineId = parentLineId(branch);
+    if (!branchParentLineId || !branch.lineName) continue;
+    const key = `${branchParentLineId}::${normalizeText(branch.lineName)}`;
+    counts.set(key, (counts.get(key) ?? 0) + 1);
+  }
+
+  return branches.map((branch) => {
+    const branchParentLineId = parentLineId(branch);
+    if (!branchParentLineId || !branch.lineName) return branch;
+    const key = `${branchParentLineId}::${normalizeText(branch.lineName)}`;
+    if ((counts.get(key) ?? 0) <= 1) return branch;
+
+    const lineName = `${branch.lineName} (${branchNameSuffix(branch)})`;
+    const parentName = branch.fullName.includes(": ")
+      ? branch.fullName.split(": ").slice(0, -1).join(": ")
+      : branch.fullName;
+    const fullName = `${parentName}: ${lineName}`;
+    return {
+      ...branch,
+      lineName,
+      fullName,
+      lineDisplayName: fullName,
+      generation: {
+        ...(branch.generation ?? {}),
+        branch: {
+          ...(branch.generation?.branch ?? {}),
+          lessonTitle: lineName,
+        },
+      },
+    };
+  });
+}
+
 function dedupeLines(lines) {
   const references = lines.filter((line) => line.lineType !== "practical_branch");
   const branches = lines.filter((line) => line.lineType === "practical_branch");
@@ -68,10 +144,13 @@ function dedupeLines(lines) {
     }
   }
 
+  const prefixPruned = prunePrefixBranches(Array.from(bySans.values()));
+  const finalBranches = withUniqueBranchNames(prefixPruned);
+
   return {
     references,
-    branches: Array.from(bySans.values()),
-    removed: branches.length - bySans.size,
+    branches: finalBranches,
+    removed: branches.length - finalBranches.length,
   };
 }
 

@@ -560,6 +560,8 @@ node scripts/run-opening-reference-pipeline.cjs --openings italian-game,caro-kan
 
 **Update:** Terminal checkmate and draw positions are valid branch endpoints even though they have no legal best move. The branch generator's terminal analysis may use `bestMove: "(none)"`; scoring must still trust that analysis when its normalized FEN matches the current board. This lets unresolved forcing lines continue through the forced reply and finish on the actual mate or draw endpoint instead of keeping the previous checking move as a `payoff_cap` fallback.
 
+**Update:** Practical branches under the same parent variation must not include strict-prefix duplicates. If one branch PGN is fully contained at the start of a longer branch for the same parent line, keep only the longer branch because the shorter row does not teach a distinct decision. Branch names should also be unique within a parent variation; if the generated title motif collides, append a short continuation suffix. Once a branch has reached a trained-side advantage, opponent continuation should still consider the bounded popular-move set unless the current state specifically needs forced tactical/material resolution; otherwise common second replies such as a 25%+ Explorer move can be incorrectly skipped.
+
 ---
 
 ## 2026-05-16 - Keep localized coach templates in source control

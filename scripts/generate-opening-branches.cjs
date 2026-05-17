@@ -1170,25 +1170,10 @@ function isStrictSanPrefix(prefixSans, fullSans) {
 
 function pruneSupersededBranchVariants(variants, args) {
   return variants.filter((variant) => {
-    const variantEval = Number.isFinite(variant.finalState?.trainedEvalCp)
-      ? variant.finalState.trainedEvalCp
-      : Number.NEGATIVE_INFINITY;
     return !variants.some((other) => {
       if (other === variant) return false;
       if (!isStrictSanPrefix(variant.generatedSans, other.generatedSans)) return false;
-      const otherEval = Number.isFinite(other.finalState?.trainedEvalCp)
-        ? other.finalState.trainedEvalCp
-        : Number.NEGATIVE_INFINITY;
-      if (otherEval <= variantEval) return false;
-      const evalGain = otherEval - variantEval;
-      const addedPlies = other.generatedSans.length - variant.generatedSans.length;
-      const crossesOpportunity =
-        variantEval < args.trainedOpportunityMinEvalCp &&
-        otherEval >= args.trainedOpportunityMinEvalCp;
-      const efficientGain =
-        evalGain >= args.prefixPruneMinEvalGainCp &&
-        evalGain / Math.max(1, addedPlies) >= args.prefixPruneMinEvalGainPerPlyCp;
-      return crossesOpportunity || efficientGain;
+      return true;
     });
   });
 }
@@ -1278,6 +1263,57 @@ function branchTraceKey(branchTrace) {
     .map((step) => step.uci)
     .filter(Boolean)
     .join(".");
+}
+
+function branchParentLineId(branch) {
+  return branch.parentLineId ?? branch.generation?.branch?.parentLineId ?? null;
+}
+
+function branchNameSuffix(branch) {
+  const trace = branch.generation?.branch?.continuationTrace ?? branch.generation?.extension ?? [];
+  const traceTail = trace
+    .map((step) => step?.san)
+    .filter(Boolean)
+    .slice(-2)
+    .join(" ");
+  if (traceTail) return traceTail;
+  return branch.generatedSans?.slice(-2).join(" ") || branch.lineId?.slice(-8) || "alternate";
+}
+
+function withUniqueBranchNames(branches) {
+  const counts = new Map();
+  for (const branch of branches) {
+    const parentLineId = branchParentLineId(branch);
+    if (!parentLineId || !branch.lineName) continue;
+    const key = `${parentLineId}::${normalizeText(branch.lineName)}`;
+    counts.set(key, (counts.get(key) ?? 0) + 1);
+  }
+
+  return branches.map((branch) => {
+    const parentLineId = branchParentLineId(branch);
+    if (!parentLineId || !branch.lineName) return branch;
+    const key = `${parentLineId}::${normalizeText(branch.lineName)}`;
+    if ((counts.get(key) ?? 0) <= 1) return branch;
+
+    const lineName = `${branch.lineName} (${branchNameSuffix(branch)})`;
+    const parentName = branch.fullName.includes(": ")
+      ? branch.fullName.split(": ").slice(0, -1).join(": ")
+      : branch.fullName;
+    const fullName = `${parentName}: ${lineName}`;
+    return {
+      ...branch,
+      lineName,
+      fullName,
+      lineDisplayName: fullName,
+      generation: {
+        ...(branch.generation ?? {}),
+        branch: {
+          ...(branch.generation?.branch ?? {}),
+          lessonTitle: lineName,
+        },
+      },
+    };
+  });
 }
 
 async function buildBranchRecord({ parent, stemSans, trigger, branch, finalState, args, caches }) {
@@ -1739,11 +1775,7 @@ async function generateBranchVariantsFromTrigger({
     const explorer = await fetchExplorerNode(chess.fen(), args, caches.explorer);
     const moves = popularMovesForNode({ explorer, addedPlies: addedFromAnchor, args });
     let candidateMoves = moves;
-    if (
-      checkpointNeedsResolution(latestState) ||
-      (Number.isFinite(latestState?.trainedEvalCp) &&
-        latestState.trainedEvalCp >= args.trainedOpportunityMinEvalCp)
-    ) {
+    if (checkpointNeedsResolution(latestState)) {
       const forcedMove = moves[0] ?? (await forcedResolutionMove({ chess, explorer, args, caches }));
       candidateMoves = forcedMove ? [forcedMove] : [];
     } else {
@@ -2194,9 +2226,11 @@ async function generateBranchesForParent({ parent, args, caches, existingKeys, r
     branches.push(...selectMinimumFallbackBranches(fallbackBranches, parentBranchLimit));
   }
 
-  return dedupeBranches(branches)
-    .sort(compareBranchesForSelection)
-    .slice(0, parentBranchLimit);
+  return withUniqueBranchNames(
+    dedupeBranches(branches)
+      .sort(compareBranchesForSelection)
+      .slice(0, parentBranchLimit)
+  );
 }
 
 function dedupeBranches(branches) {
@@ -2208,7 +2242,16 @@ function dedupeBranches(branches) {
       byKey.set(key, branch);
     }
   }
-  return Array.from(byKey.values());
+  const exactDeduped = Array.from(byKey.values());
+  return exactDeduped.filter((branch) => {
+    const parentLineId = branchParentLineId(branch);
+    return !exactDeduped.some((other) => {
+      if (other === branch) return false;
+      if (branch.openingId !== other.openingId) return false;
+      if (parentLineId !== branchParentLineId(other)) return false;
+      return isStrictSanPrefix(branch.generatedSans, other.generatedSans);
+    });
+  });
 }
 
 function selectMinimumFallbackBranches(branches, limit) {
