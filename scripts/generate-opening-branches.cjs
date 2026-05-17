@@ -40,6 +40,7 @@ function parseArgs(argv) {
     stockfishTrainedCandidateMoves: 2,
     trainedCandidateMaxLossCp: 60,
     trainedOpportunityMinEvalCp: 200,
+    advantageLockMinEvalCp: 350,
     minNodeGames: 250,
     minMoveGames: 35,
     minMoveShare: 0.03,
@@ -112,6 +113,7 @@ function parseArgs(argv) {
     else if (token === "--stockfish-trained-candidate-moves") args.stockfishTrainedCandidateMoves = Number(next());
     else if (token === "--trained-candidate-max-loss-cp") args.trainedCandidateMaxLossCp = Number(next());
     else if (token === "--trained-opportunity-min-eval-cp") args.trainedOpportunityMinEvalCp = Number(next());
+    else if (token === "--advantage-lock-min-eval-cp") args.advantageLockMinEvalCp = Number(next());
     else if (token === "--min-node-games") args.minNodeGames = Number(next());
     else if (token === "--min-move-games") args.minMoveGames = Number(next());
     else if (token === "--min-move-share") args.minMoveShare = Number(next());
@@ -1448,6 +1450,7 @@ async function buildBranchRecord({ parent, stemSans, trigger, branch, finalState
           stockfishTrainedCandidateMoves: args.stockfishTrainedCandidateMoves,
           trainedCandidateMaxLossCp: args.trainedCandidateMaxLossCp,
           trainedOpportunityMinEvalCp: args.trainedOpportunityMinEvalCp,
+          advantageLockMinEvalCp: args.advantageLockMinEvalCp,
           minResolutionNodeGames: args.minResolutionNodeGames,
           minResolutionMoveGames: args.minResolutionMoveGames,
           advantageResolutionMinPlies: args.advantageResolutionMinPlies,
@@ -1633,7 +1636,7 @@ async function generateBranchVariantsFromTrigger({
       const currentEvalCp = latestState?.trainedEvalCp;
       const settledAdvantage =
         advantageLock ||
-        (Number.isFinite(currentEvalCp) && currentEvalCp >= args.trainedOpportunityMinEvalCp);
+        (Number.isFinite(currentEvalCp) && currentEvalCp >= args.advantageLockMinEvalCp);
       const trainedCandidateOptions = trainedMoveCandidates({ chess, analysis: candidateAnalysis, openingColor, args });
       const trainedCandidates =
         forcedFirstTrainedCandidate && !usedForcedFirstTrainedCandidate
@@ -1698,7 +1701,7 @@ async function generateBranchVariantsFromTrigger({
         if (
           !nextAdvantageLock &&
           Number.isFinite(state.trainedEvalCp) &&
-          state.trainedEvalCp >= args.trainedOpportunityMinEvalCp &&
+          state.trainedEvalCp >= args.advantageLockMinEvalCp &&
           state.materialEdgePawns < 1 &&
           !state.visibleMaterialThreat
         ) {
@@ -2538,6 +2541,7 @@ async function main() {
         stockfishTrainedCandidateMoves: args.stockfishTrainedCandidateMoves,
         trainedCandidateMaxLossCp: args.trainedCandidateMaxLossCp,
         trainedOpportunityMinEvalCp: args.trainedOpportunityMinEvalCp,
+        advantageLockMinEvalCp: args.advantageLockMinEvalCp,
         advantageResolutionMinPlies: args.advantageResolutionMinPlies,
         parentLineSlugs: args.parentLineSlugs ? Array.from(args.parentLineSlugs) : null,
         onlyUnderBranchCount: args.onlyUnderBranchCount,

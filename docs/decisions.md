@@ -562,6 +562,8 @@ node scripts/run-opening-reference-pipeline.cjs --openings italian-game,caro-kan
 
 **Update:** Practical branches under the same parent variation must not include strict-prefix duplicates. If one branch PGN is fully contained at the start of a longer branch for the same parent line, keep only the longer branch because the shorter row does not teach a distinct decision. Branch names should also be unique within a parent variation; if the generated title motif collides, append a short continuation suffix. Once a branch has reached a trained-side advantage, opponent continuation should still consider the bounded popular-move set unless the current state specifically needs forced tactical/material resolution; otherwise common second replies such as a 25%+ Explorer move can be incorrectly skipped.
 
+**Update:** Do not use the same eval threshold for "worth teaching" and "stop exploring." `trainedOpportunityMinEvalCp` remains the lower practical-opportunity floor for keeping positive branches, while `advantageLockMinEvalCp` is a higher threshold for treating the trained-side advantage as settled enough to narrow trained-side continuations. This prevents positions that are already around +200cp at or near the anchor from suppressing useful branch discovery.
+
 ---
 
 ## 2026-05-16 - Keep localized coach templates in source control
