@@ -428,10 +428,14 @@ function isLegalUciForFen(fen, uci) {
 }
 
 function analysisMatchesFen(analysis, fen) {
-  if (!analysis?.bestMove || analysis.bestMove === "(none)") return false;
+  if (!analysis) return false;
   if (analysis.fen && normalizedPositionKey(analysis.fen) !== normalizedPositionKey(fen)) {
     return false;
   }
+  if (analysis.source === "terminal" && analysis.bestMove === "(none)") {
+    return true;
+  }
+  if (!analysis.bestMove || analysis.bestMove === "(none)") return false;
   return isLegalUciForFen(fen, analysis.bestMove);
 }
 

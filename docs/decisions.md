@@ -558,6 +558,8 @@ node scripts/run-opening-reference-pipeline.cjs --openings italian-game,caro-kan
 
 **Update:** The practice-board eval bar must not depend on live browser calls to external engine APIs. Runtime eval display should use imported line-level `eval_cp_by_ply` first, then FirstMove's own `opening_position_evals` table keyed by normalized FEN. If neither source has a value, the UI keeps the reserved eval-bar shell neutral instead of calling Lichess from the client.
 
+**Update:** Terminal checkmate and draw positions are valid branch endpoints even though they have no legal best move. The branch generator's terminal analysis may use `bestMove: "(none)"`; scoring must still trust that analysis when its normalized FEN matches the current board. This lets unresolved forcing lines continue through the forced reply and finish on the actual mate or draw endpoint instead of keeping the previous checking move as a `payoff_cap` fallback.
+
 ---
 
 ## 2026-05-16 - Keep localized coach templates in source control
