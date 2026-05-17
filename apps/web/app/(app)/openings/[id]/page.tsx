@@ -3,11 +3,11 @@
 import { useState, use, useEffect, useMemo, useRef } from 'react';
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
-import Image from 'next/image';
 import { PracticeBoard, type PracticeMode } from '@/components/board/PracticeBoard';
 import { useOpening, type AppVariation } from '@/hooks/useOpenings';
 import { useOpeningPositionLabels } from '@/hooks/useOpeningPositionLabels';
 import { MoveList } from '@/components/board/MoveList';
+import { CoachBubble } from '@/components/practice/CoachBubble';
 import { useAuth } from '@/app/providers';
 import { useAllProgress, MASTERY_COLORS } from '@/hooks/useProgress';
 import { BOARD_THEMES, useBoardSettings } from '@/hooks/useBoardSettings';
@@ -564,8 +564,6 @@ export default function PracticePage({ params, searchParams }: PageProps) {
     )
   );
 
-  const coachBubbleText = coachFeedback?.message ?? opening.description;
-
   // Group header click: toggle expand/collapse and auto-select first child if needed
   function handleGroupClick(group: VariationGroup) {
     const isExpanded = expandedGroupId === group.id;
@@ -657,27 +655,7 @@ export default function PracticePage({ params, searchParams }: PageProps) {
           <div className="w-[24rem] lg:w-108 shrink-0 h-full flex flex-col gap-3">
 
             {/* Coach — fixed */}
-            <div className="h-23 shrink-0">
-              <div className="flex h-full items-start gap-1">
-                <div className="flex w-22 shrink-0 items-start">
-                  <div className="relative h-23 w-24">
-                    <Image
-                      src="/coaches/jazmin.png"
-                      alt="Jazmin, your opening coach"
-                      fill
-                      sizes="96px"
-                      className="object-contain object-bottom drop-shadow-lg"
-                      priority
-                      unoptimized
-                    />
-                  </div>
-                </div>
-                <div className="relative h-23 min-w-0 flex-1 rounded-2xl border border-zinc-200 bg-white px-5 py-4 text-zinc-900 shadow-lg shadow-black/20">
-                  <div className="absolute -left-1.75 top-8 h-4 w-4 rotate-45 border-b border-l border-zinc-200 bg-white" />
-                  <p className="max-h-full overflow-hidden text-sm leading-5 text-zinc-700">{coachBubbleText}</p>
-                </div>
-              </div>
-            </div>
+            <CoachBubble feedback={coachFeedback} fallbackText={opening.description} />
 
             {/* Move list — only in Learn mode */}
             {mode === 'learn' && selectedVariation && (
