@@ -114,6 +114,15 @@ export interface GameAnalysisMoveFacts {
   materialRiskAttackers?: number;
   materialRiskDefenders?: number;
   materialRiskIsHanging?: boolean;
+  opponentThreatMoveSan?: string;
+  opponentThreatKind?: string;
+  opponentThreatFrom?: string;
+  opponentThreatTo?: string;
+  opponentThreatCapturedPiece?: string;
+  opponentThreatCapturedValue?: number;
+  opponentThreatIsCapture?: boolean;
+  opponentThreatGivesCheck?: boolean;
+  opponentThreatGivesCheckmate?: boolean;
   beforeEvalCp?: number;
   afterPlayedEvalCp: number;
   afterBestEvalCp?: number;
@@ -148,6 +157,18 @@ interface MaterialRiskFacts {
   attackers: number;
   defenders: number;
   isHanging: boolean;
+}
+
+interface OpponentThreatFacts {
+  moveSan: string;
+  kind: 'mate' | 'checking_capture' | 'capture' | 'check';
+  from: string;
+  to: string;
+  capturedPiece?: string;
+  capturedValue?: number;
+  isCapture: boolean;
+  givesCheck: boolean;
+  givesCheckmate: boolean;
 }
 
 type ChessColor = 'w' | 'b';
@@ -352,6 +373,61 @@ function detectMaterialRiskFacts({
           b.value - a.value ||
           b.attackers - a.attackers ||
           a.defenders - b.defenders
+      )[0] ?? null
+    );
+  } catch {
+    return null;
+  }
+}
+
+function detectOpponentThreatFacts(afterFen?: string): OpponentThreatFacts | null {
+  if (!afterFen) return null;
+
+  try {
+    const chess = new Chess(afterFen);
+    const threats: OpponentThreatFacts[] = chess.moves({ verbose: true }).flatMap(move => {
+      const next = new Chess(afterFen);
+      next.move(move.san);
+
+      const isCapture =
+        Boolean(move.captured) || move.flags.includes('c') || move.flags.includes('e');
+      const givesCheck = next.isCheck();
+      const givesCheckmate = next.isCheckmate();
+
+      if (!isCapture && !givesCheck && !givesCheckmate) return [];
+
+      const capturedPiece = move.captured ? PIECE_NAMES[move.captured] : undefined;
+      const capturedValue = move.captured ? PIECE_VALUES[move.captured] : undefined;
+      const kind = givesCheckmate
+        ? 'mate'
+        : givesCheck && isCapture
+          ? 'checking_capture'
+          : isCapture
+            ? 'capture'
+            : 'check';
+
+      return [
+        {
+          moveSan: move.san,
+          kind,
+          from: move.from,
+          to: move.to,
+          capturedPiece,
+          capturedValue,
+          isCapture,
+          givesCheck,
+          givesCheckmate,
+        },
+      ];
+    });
+
+    return (
+      threats.sort(
+        (a, b) =>
+          Number(b.givesCheckmate) - Number(a.givesCheckmate) ||
+          Number(b.givesCheck && b.isCapture) - Number(a.givesCheck && a.isCapture) ||
+          (b.capturedValue ?? 0) - (a.capturedValue ?? 0) ||
+          Number(b.givesCheck) - Number(a.givesCheck)
       )[0] ?? null
     );
   } catch {
@@ -601,6 +677,7 @@ function buildFactsBase(input: GameAnalysisMoveEventInput): GameAnalysisMoveFact
     afterFen: chessFacts.afterFen,
     playedBy: input.playedBy ?? 'white',
   });
+  const opponentThreat = detectOpponentThreatFacts(chessFacts.afterFen);
 
   return {
     gameId: input.gameId,
@@ -628,6 +705,15 @@ function buildFactsBase(input: GameAnalysisMoveEventInput): GameAnalysisMoveFact
     materialRiskAttackers: materialRisk?.attackers,
     materialRiskDefenders: materialRisk?.defenders,
     materialRiskIsHanging: materialRisk?.isHanging,
+    opponentThreatMoveSan: opponentThreat?.moveSan,
+    opponentThreatKind: opponentThreat?.kind,
+    opponentThreatFrom: opponentThreat?.from,
+    opponentThreatTo: opponentThreat?.to,
+    opponentThreatCapturedPiece: opponentThreat?.capturedPiece,
+    opponentThreatCapturedValue: opponentThreat?.capturedValue,
+    opponentThreatIsCapture: opponentThreat?.isCapture,
+    opponentThreatGivesCheck: opponentThreat?.givesCheck,
+    opponentThreatGivesCheckmate: opponentThreat?.givesCheckmate,
     beforeEvalCp: input.beforeEvalCp,
     afterPlayedEvalCp: afterPlayerEvalCp,
     afterBestEvalCp:
@@ -658,9 +744,10 @@ function candidateVariables(facts: GameAnalysisMoveFacts): CoachEventVariables {
   return cleanVariables({
     moveSan: facts.moveSan,
     bestMoveSan: facts.bestMoveSan ?? null,
+    threatMoveSan: facts.opponentThreatMoveSan ?? null,
     evalPawns: formatPawns(facts.afterPlayerEvalCp),
-    targetPiece: facts.materialRiskPiece ?? null,
-    targetSquare: facts.materialRiskSquare ?? null,
+    targetPiece: facts.materialRiskPiece ?? facts.opponentThreatCapturedPiece ?? null,
+    targetSquare: facts.materialRiskSquare ?? facts.opponentThreatTo ?? null,
   });
 }
 
@@ -699,6 +786,15 @@ function candidateAnalysisFacts(
     materialRiskAttackers: facts.materialRiskAttackers ?? null,
     materialRiskDefenders: facts.materialRiskDefenders ?? null,
     materialRiskIsHanging: facts.materialRiskIsHanging ?? null,
+    opponentThreatMoveSan: facts.opponentThreatMoveSan ?? null,
+    opponentThreatKind: facts.opponentThreatKind ?? null,
+    opponentThreatFrom: facts.opponentThreatFrom ?? null,
+    opponentThreatTo: facts.opponentThreatTo ?? null,
+    opponentThreatCapturedPiece: facts.opponentThreatCapturedPiece ?? null,
+    opponentThreatCapturedValue: facts.opponentThreatCapturedValue ?? null,
+    opponentThreatIsCapture: facts.opponentThreatIsCapture ?? null,
+    opponentThreatGivesCheck: facts.opponentThreatGivesCheck ?? null,
+    opponentThreatGivesCheckmate: facts.opponentThreatGivesCheckmate ?? null,
     ...extraFacts,
   });
 }
@@ -838,6 +934,74 @@ function materialRiskCandidate(facts: GameAnalysisMoveFacts): GameAnalysisCoachC
   });
 }
 
+function opponentThreatCandidate(facts: GameAnalysisMoveFacts): GameAnalysisCoachCandidate | null {
+  if (!facts.opponentThreatMoveSan || !facts.opponentThreatKind) return null;
+
+  const capturedValue = facts.opponentThreatCapturedValue ?? 0;
+  const isHighValueCapture = capturedValue >= PIECE_VALUES.n;
+  const isMeaningfulThreat =
+    facts.opponentThreatGivesCheckmate ||
+    isHighValueCapture ||
+    (facts.opponentThreatGivesCheck &&
+      facts.centipawnLoss >= COACH_CLASSIFICATION_THRESHOLDS.inaccuracyLossCp);
+
+  if (!isMeaningfulThreat) return null;
+
+  const classification = facts.opponentThreatGivesCheckmate
+    ? 'blunder'
+    : facts.centipawnLoss >= COACH_CLASSIFICATION_THRESHOLDS.mistakeLossCp
+      ? 'mistake'
+      : 'inaccuracy';
+  const priority =
+    (facts.opponentThreatGivesCheckmate
+      ? 3000
+      : facts.opponentThreatGivesCheck && facts.opponentThreatIsCapture
+        ? 1180
+        : facts.opponentThreatIsCapture
+          ? 980
+          : 760) +
+    capturedValue * 55 +
+    Math.max(0, facts.centipawnLoss);
+
+  return makeCandidate({
+    facts,
+    eventType: 'opponent_threat',
+    classification,
+    priority,
+    teachingWeight: facts.opponentThreatGivesCheckmate ? 100 : 75,
+    reason: facts.opponentThreatGivesCheckmate
+      ? 'opponent_mate_reply_after_move'
+      : facts.opponentThreatGivesCheck && facts.opponentThreatIsCapture
+        ? 'opponent_checking_capture_after_move'
+        : facts.opponentThreatIsCapture
+          ? 'opponent_capture_after_move'
+          : 'opponent_check_after_move',
+    themeTags: [
+      ...(facts.opponentThreatGivesCheck ? (['king_safety', 'tempo'] as CoachThemeTag[]) : []),
+      ...(facts.opponentThreatIsCapture ? (['material'] as CoachThemeTag[]) : []),
+      'defense',
+    ],
+    evidence: {
+      kind: 'single_move',
+      title: facts.opponentThreatGivesCheckmate
+        ? 'Show the mate threat'
+        : 'Show the opponent reply',
+      move: {
+        san: facts.opponentThreatMoveSan,
+        side: facts.playedBy === 'white' ? 'black' : 'white',
+        plyIndex: facts.plyIndex + 1,
+        isKeyMove: true,
+        comment: facts.opponentThreatGivesCheckmate
+          ? 'This reply would be checkmate.'
+          : facts.opponentThreatIsCapture
+            ? 'This reply wins material immediately.'
+            : 'This reply gives check and takes the initiative.',
+      },
+      summary: `${facts.moveSan} gives the opponent ${facts.opponentThreatMoveSan}.`,
+    },
+  });
+}
+
 export function buildGameAnalysisCoachCandidatesFromFacts(
   facts: GameAnalysisMoveFacts
 ): GameAnalysisCoachCandidate[] {
@@ -928,6 +1092,11 @@ export function buildGameAnalysisCoachCandidatesFromFacts(
   const riskCandidate = materialRiskCandidate(facts);
   if (riskCandidate) {
     candidates.push(riskCandidate);
+  }
+
+  const threatCandidate = opponentThreatCandidate(facts);
+  if (threatCandidate) {
+    candidates.push(threatCandidate);
   }
 
   const missedTacticCandidate = missedTacticalIdea(facts);

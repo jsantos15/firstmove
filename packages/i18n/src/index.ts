@@ -103,6 +103,8 @@ export const EN_MESSAGES = {
     '{moveSan} leaves {targetPiece} on {targetSquare} hanging. The opponent can aim at that material now.',
   'coach.event.loose_piece.message':
     '{moveSan} leaves {targetPiece} on {targetSquare} under pressure. Check whether it is defended enough.',
+  'coach.event.opponent_threat.message':
+    '{moveSan} allows {threatMoveSan}. That reply creates an immediate threat you need to account for.',
   'coach.event.king_safety.message':
     '{moveSan} changes the king-safety picture. Watch the threats around the king.',
   'coach.event.development.message':

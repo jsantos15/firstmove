@@ -253,6 +253,15 @@ test('board-state detector flags hanging material after the move', () => {
   assert.equal(hangingEvent.analysisFacts.materialRiskPiece, 'rook');
   assert.equal(hangingEvent.analysisFacts.materialRiskIsHanging, true);
   assert.equal(hangingEvent.evidence?.kind, 'piece');
+
+  const threatEvent = events.find(
+    event => event.analysisFacts.candidateReason === 'opponent_capture_after_move'
+  );
+  assert.ok(threatEvent);
+  assert.equal(threatEvent.eventType, 'opponent_threat');
+  assert.equal(threatEvent.analysisFacts.opponentThreatMoveSan, 'Bxa1');
+  assert.equal(threatEvent.analysisFacts.opponentThreatCapturedPiece, 'rook');
+  assert.equal(threatEvent.evidence?.kind, 'single_move');
 });
 
 console.log('Coach contract tests passed.');

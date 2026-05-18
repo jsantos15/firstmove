@@ -68,6 +68,7 @@ export const COACH_EVENT_TYPES = [
   'blunder',
   'hanging_material',
   'loose_piece',
+  'opponent_threat',
   'king_safety',
   'development',
   'center_control',
