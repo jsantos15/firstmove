@@ -95,10 +95,12 @@ test('engine adapter emits missed-win and blunder events from white-perspective 
 
   assert.deepEqual(
     events.map(event => event.eventType),
-    ['missed_win', 'blunder', 'material_trade']
+    ['missed_tactic', 'missed_win', 'blunder', 'material_trade']
   );
   assert.equal(events[0].classification, 'miss');
-  assert.equal(events[1].classification, 'blunder');
+  assert.equal(events[0].analysisFacts.candidateReason, 'missed_forcing_capture');
+  assert.equal(events[1].classification, 'miss');
+  assert.equal(events[2].classification, 'blunder');
   assert.equal(events[0].analysisFacts.centipawnLoss, 460);
   assert.equal(events[0].analysisFacts.missedOpportunityCp, 460);
   assert.equal(events[0].evidence?.kind, 'line');
@@ -160,7 +162,7 @@ test('analyzed-game adapter emits timeline coach events from PGN-shaped input', 
 
   assert.deepEqual(
     events.map(event => event.eventType),
-    ['great_move', 'missed_win', 'blunder', 'material_trade']
+    ['great_move', 'missed_tactic', 'missed_win', 'blunder', 'material_trade']
   );
   assert.ok(events.every(event => event.subject.id === 'game-4'));
   assert.ok(events.every(event => event.persona === 'beginner'));
@@ -180,9 +182,9 @@ test('analysis candidates are ranked before coach events are rendered', () => {
     themeTags: ['fork'],
   })[0];
 
-  assert.equal(event.eventType, 'missed_win');
-  assert.equal(event.analysisFacts.candidateReason, 'missed_higher_value_line');
-  assert.ok(Number(event.analysisFacts.candidatePriority) > 1000);
+  assert.equal(event.eventType, 'missed_tactic');
+  assert.equal(event.analysisFacts.candidateReason, 'missed_forcing_capture');
+  assert.ok(Number(event.analysisFacts.candidatePriority) > 2000);
 });
 
 test('chess-state detector adds check candidate from move position', () => {
@@ -206,6 +208,26 @@ test('chess-state detector adds check candidate from move position', () => {
   assert.equal(checkEvent.eventType, 'king_safety');
   assert.equal(checkEvent.analysisFacts.givesCheck, true);
   assert.equal(checkEvent.evidence?.kind, 'square');
+});
+
+test('best-line detector ranks missed forcing ideas above generic eval loss', () => {
+  const events = core.buildGameAnalysisMoveEventsFromEngine({
+    gameId: 'game-7',
+    moveSan: 'h3',
+    plyIndex: 20,
+    playedBy: 'white',
+    phase: 'middlegame',
+    beforeEvalCp: 40,
+    afterPlayedEvalCp: -120,
+    afterBestEvalCp: 260,
+    bestMoveSan: 'Qxf7+',
+  });
+
+  assert.equal(events[0].eventType, 'missed_tactic');
+  assert.equal(events[0].analysisFacts.candidateReason, 'missed_forcing_capture');
+  assert.equal(events[0].analysisFacts.bestMoveGivesCheck, true);
+  assert.equal(events[0].analysisFacts.bestMoveIsCapture, true);
+  assert.ok(Number(events[0].analysisFacts.candidatePriority) > 2000);
 });
 
 console.log('Coach contract tests passed.');

@@ -103,6 +103,11 @@ export interface GameAnalysisMoveFacts {
   isCapture: boolean;
   givesCheck: boolean;
   givesCheckmate: boolean;
+  bestMoveTo?: string;
+  bestMoveCapturedPiece?: string;
+  bestMoveIsCapture: boolean;
+  bestMoveGivesCheck: boolean;
+  bestMoveGivesCheckmate: boolean;
   beforeEvalCp?: number;
   afterPlayedEvalCp: number;
   afterBestEvalCp?: number;
@@ -120,6 +125,14 @@ export interface GameAnalysisMoveFacts {
   themeTags: CoachThemeTag[];
   persona?: CoachPersona;
   evidence?: CoachEvidence;
+}
+
+interface BestMoveTacticalFacts {
+  bestMoveTo?: string;
+  bestMoveCapturedPiece?: string;
+  bestMoveIsCapture: boolean;
+  bestMoveGivesCheck: boolean;
+  bestMoveGivesCheckmate: boolean;
 }
 
 export interface GameAnalysisCoachCandidate {
@@ -202,31 +215,92 @@ function detectChessStateFacts({
   }
 }
 
-function buildBestMoveEvidence({
+function sanLooksLikeCapture(moveSan: string | undefined) {
+  return Boolean(moveSan?.includes('x'));
+}
+
+function sanLooksLikeCheck(moveSan: string | undefined) {
+  return Boolean(moveSan?.includes('+') || moveSan?.includes('#'));
+}
+
+function sanLooksLikeCheckmate(moveSan: string | undefined) {
+  return Boolean(moveSan?.includes('#'));
+}
+
+function detectBestMoveTacticalFacts({
+  beforeFen,
   bestMoveSan,
   bestLine,
 }: {
+  beforeFen?: string;
   bestMoveSan?: string;
   bestLine?: CoachEvidenceMove[];
+}): BestMoveTacticalFacts {
+  const firstBestLineMove = bestLine?.[0]?.san;
+  const moveSan = bestMoveSan ?? firstBestLineMove;
+  if (!moveSan) {
+    return {
+      bestMoveIsCapture: false,
+      bestMoveGivesCheck: false,
+      bestMoveGivesCheckmate: false,
+    };
+  }
+
+  if (beforeFen) {
+    try {
+      const chess = new Chess(beforeFen);
+      const move = chess.move(moveSan);
+      if (move) {
+        return {
+          bestMoveTo: move.to,
+          bestMoveCapturedPiece: move.captured,
+          bestMoveIsCapture:
+            Boolean(move.captured) || move.flags.includes('c') || move.flags.includes('e'),
+          bestMoveGivesCheck: chess.isCheck(),
+          bestMoveGivesCheckmate: chess.isCheckmate(),
+        };
+      }
+    } catch {
+      // Fall through to SAN markers below.
+    }
+  }
+
+  return {
+    bestMoveIsCapture: sanLooksLikeCapture(moveSan),
+    bestMoveGivesCheck: sanLooksLikeCheck(moveSan),
+    bestMoveGivesCheckmate: sanLooksLikeCheckmate(moveSan),
+  };
+}
+
+function buildBestMoveEvidence({
+  bestMoveSan,
+  bestLine,
+  title = 'Show the better line',
+  summary = 'This is the continuation behind the coach recommendation.',
+}: {
+  bestMoveSan?: string;
+  bestLine?: CoachEvidenceMove[];
+  title?: string;
+  summary?: string;
 }): CoachEvidence | undefined {
   if (bestLine?.length) {
     return {
       kind: 'line',
-      title: 'Show the better line',
+      title,
       moves: bestLine,
-      summary: 'This is the continuation behind the coach recommendation.',
+      summary,
     };
   }
 
   if (bestMoveSan) {
     return {
       kind: 'single_move',
-      title: 'Show the better move',
+      title,
       move: {
         san: bestMoveSan,
         isKeyMove: true,
       },
-      summary: 'This move is the key improvement in the position.',
+      summary,
     };
   }
 
@@ -314,6 +388,16 @@ function buildFactsBase(input: GameAnalysisMoveEventInput): GameAnalysisMoveFact
     beforeFen: input.beforeFen,
     moveSan: input.moveSan,
   });
+  const bestMoveFacts = detectBestMoveTacticalFacts({
+    beforeFen: input.beforeFen,
+    bestMoveSan: input.bestMoveSan,
+    bestLine:
+      input.evidence?.kind === 'line'
+        ? input.evidence.moves
+        : input.evidence?.kind === 'single_move'
+          ? [input.evidence.move]
+          : undefined,
+  });
 
   return {
     gameId: input.gameId,
@@ -330,6 +414,11 @@ function buildFactsBase(input: GameAnalysisMoveEventInput): GameAnalysisMoveFact
     isCapture: chessFacts.isCapture,
     givesCheck: chessFacts.givesCheck,
     givesCheckmate: chessFacts.givesCheckmate,
+    bestMoveTo: bestMoveFacts.bestMoveTo,
+    bestMoveCapturedPiece: bestMoveFacts.bestMoveCapturedPiece,
+    bestMoveIsCapture: bestMoveFacts.bestMoveIsCapture,
+    bestMoveGivesCheck: bestMoveFacts.bestMoveGivesCheck,
+    bestMoveGivesCheckmate: bestMoveFacts.bestMoveGivesCheckmate,
     beforeEvalCp: input.beforeEvalCp,
     afterPlayedEvalCp: afterPlayerEvalCp,
     afterBestEvalCp:
@@ -388,7 +477,73 @@ function candidateAnalysisFacts(
     moveTo: facts.moveTo ?? null,
     movedPiece: facts.movedPiece ?? null,
     capturedPiece: facts.capturedPiece ?? null,
+    bestMoveTo: facts.bestMoveTo ?? null,
+    bestMoveCapturedPiece: facts.bestMoveCapturedPiece ?? null,
+    bestMoveIsCapture: facts.bestMoveIsCapture,
+    bestMoveGivesCheck: facts.bestMoveGivesCheck,
+    bestMoveGivesCheckmate: facts.bestMoveGivesCheckmate,
     ...extraFacts,
+  });
+}
+
+function missedTacticalIdea(facts: GameAnalysisMoveFacts): GameAnalysisCoachCandidate | null {
+  if (
+    typeof facts.missedOpportunityCp !== 'number' ||
+    facts.missedOpportunityCp < COACH_CLASSIFICATION_THRESHOLDS.missOpportunityCp ||
+    !facts.bestMoveSan ||
+    facts.bestMoveSan === facts.moveSan
+  ) {
+    return null;
+  }
+
+  if (!facts.bestMoveGivesCheckmate && !facts.bestMoveGivesCheck && !facts.bestMoveIsCapture) {
+    return null;
+  }
+
+  const eventType = facts.bestMoveGivesCheckmate
+    ? 'missed_win'
+    : facts.bestMoveGivesCheck || facts.bestMoveIsCapture
+      ? 'missed_tactic'
+      : missedOpportunityEventType(facts.missedOpportunityCp);
+  const reason = facts.bestMoveGivesCheckmate
+    ? 'missed_forced_mate'
+    : facts.bestMoveGivesCheck && facts.bestMoveIsCapture
+      ? 'missed_forcing_capture'
+      : facts.bestMoveGivesCheck
+        ? 'missed_checking_resource'
+        : 'missed_material_tactic';
+  const title = facts.bestMoveGivesCheckmate
+    ? 'Show the missed mate'
+    : facts.bestMoveGivesCheck
+      ? 'Show the forcing move'
+      : 'Show the material tactic';
+  const summary = facts.bestMoveGivesCheckmate
+    ? `${facts.bestMoveSan} was the forcing mate idea in the position.`
+    : facts.bestMoveGivesCheck
+      ? `${facts.bestMoveSan} starts with check, so the opponent has to answer it.`
+      : `${facts.bestMoveSan} was the material idea hidden in the position.`;
+
+  return makeCandidate({
+    facts,
+    eventType,
+    classification: 'miss',
+    priority:
+      (facts.bestMoveGivesCheckmate ? 2600 : facts.bestMoveGivesCheck ? 1800 : 1500) +
+      facts.missedOpportunityCp,
+    teachingWeight: facts.bestMoveGivesCheckmate ? 100 : 95,
+    reason,
+    themeTags: [
+      ...(facts.bestMoveGivesCheckmate ? (['mate_threat'] as CoachThemeTag[]) : []),
+      ...(facts.bestMoveGivesCheck ? (['king_safety', 'tempo'] as CoachThemeTag[]) : []),
+      ...(facts.bestMoveIsCapture ? (['material'] as CoachThemeTag[]) : []),
+    ],
+    evidence:
+      facts.evidence ??
+      buildBestMoveEvidence({
+        bestMoveSan: facts.bestMoveSan,
+        title,
+        summary,
+      }),
   });
 }
 
@@ -515,6 +670,11 @@ export function buildGameAnalysisCoachCandidatesFromFacts(
           : facts.evidence,
       })
     );
+  }
+
+  const missedTacticCandidate = missedTacticalIdea(facts);
+  if (missedTacticCandidate) {
+    candidates.push(missedTacticCandidate);
   }
 
   if (
