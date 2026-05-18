@@ -24,6 +24,7 @@ const SAMPLE_ANALYZED_GAME: AnalyzedGame = {
       plyIndex: 15,
       playedBy: 'white',
       phase: 'opening',
+      beforeFen: 'rnbqkbnr/pppp1ppp/8/4p3/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 0 2',
       beforeEvalCp: 20,
       afterPlayedEvalCp: 160,
       afterBestEvalCp: 165,
@@ -36,6 +37,7 @@ const SAMPLE_ANALYZED_GAME: AnalyzedGame = {
       plyIndex: 23,
       playedBy: 'white',
       phase: 'middlegame',
+      beforeFen: '4k3/8/8/3p4/8/8/8/3QK3 w - - 0 1',
       beforeEvalCp: 30,
       afterPlayedEvalCp: -320,
       afterBestEvalCp: 140,
@@ -69,6 +71,7 @@ const SAMPLE_ANALYZED_GAME: AnalyzedGame = {
       plyIndex: 28,
       playedBy: 'black',
       phase: 'middlegame',
+      beforeFen: 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR b KQkq - 0 1',
       beforeEvalCp: 10,
       afterPlayedEvalCp: -90,
       afterBestEvalCp: -90,
@@ -160,6 +163,31 @@ function EvidencePanel({ feedback }: { feedback: CoachFeedback | null }) {
           {evidence.move.comment && (
             <p className="mt-1 text-xs leading-5 text-gray-400">{evidence.move.comment}</p>
           )}
+        </div>
+      )}
+      {evidence.kind === 'square' && (
+        <div className="flex flex-wrap gap-2">
+          {evidence.squares.map(square => (
+            <span
+              key={square}
+              className="rounded-lg border border-amber-400/30 bg-amber-400/10 px-3 py-2 text-sm font-semibold text-white"
+            >
+              {square}
+            </span>
+          ))}
+        </div>
+      )}
+      {evidence.kind === 'piece' && (
+        <div className="flex flex-col gap-2">
+          {evidence.pieces.map(piece => (
+            <div
+              key={`${piece.square}-${piece.role}`}
+              className="rounded-lg border border-amber-400/30 bg-amber-400/10 px-3 py-2"
+            >
+              <span className="text-sm font-semibold text-white">{piece.square}</span>
+              {piece.role && <p className="mt-1 text-xs leading-5 text-gray-400">{piece.role}</p>}
+            </div>
+          ))}
         </div>
       )}
     </div>

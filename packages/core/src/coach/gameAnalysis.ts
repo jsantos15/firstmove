@@ -1,3 +1,4 @@
+import { Chess } from 'chess.js';
 import { COACH_CLASSIFICATION_THRESHOLDS, classifyAnalyzedMoveByCentipawnLoss } from './analysis';
 import type {
   CoachAnalysisFacts,
@@ -20,6 +21,7 @@ export interface GameAnalysisMoveEventInput {
   plyIndex: number;
   playedBy?: GameAnalysisSide;
   phase: CoachGamePhase;
+  beforeFen?: string;
   beforeEvalCp?: number;
   afterEvalCp?: number;
   centipawnLoss?: number;
@@ -43,6 +45,7 @@ export interface GameAnalysisEngineMoveInput {
   plyIndex: number;
   playedBy: GameAnalysisSide;
   phase: CoachGamePhase;
+  beforeFen?: string;
   beforeEvalCp?: number;
   afterPlayedEvalCp: number;
   afterBestEvalCp?: number;
@@ -61,6 +64,7 @@ export interface AnalyzedGameMove {
   plyIndex: number;
   playedBy: GameAnalysisSide;
   phase: CoachGamePhase;
+  beforeFen?: string;
   beforeEvalCp?: number;
   afterPlayedEvalCp: number;
   afterBestEvalCp?: number;
@@ -90,6 +94,15 @@ export interface GameAnalysisMoveFacts {
   plyIndex: number;
   playedBy: GameAnalysisSide;
   phase: CoachGamePhase;
+  beforeFen?: string;
+  afterFen?: string;
+  moveFrom?: string;
+  moveTo?: string;
+  movedPiece?: string;
+  capturedPiece?: string;
+  isCapture: boolean;
+  givesCheck: boolean;
+  givesCheckmate: boolean;
   beforeEvalCp?: number;
   afterPlayedEvalCp: number;
   afterBestEvalCp?: number;
@@ -132,6 +145,61 @@ function formatPawns(cp: number) {
 function toPlayerPerspective(evalCp: number | undefined, playedBy: GameAnalysisSide) {
   if (typeof evalCp !== 'number' || !Number.isFinite(evalCp)) return undefined;
   return playedBy === 'white' ? evalCp : -evalCp;
+}
+
+function detectChessStateFacts({
+  beforeFen,
+  moveSan,
+}: {
+  beforeFen?: string;
+  moveSan: string;
+}): Pick<
+  GameAnalysisMoveFacts,
+  | 'afterFen'
+  | 'moveFrom'
+  | 'moveTo'
+  | 'movedPiece'
+  | 'capturedPiece'
+  | 'isCapture'
+  | 'givesCheck'
+  | 'givesCheckmate'
+> {
+  if (!beforeFen) {
+    return {
+      isCapture: false,
+      givesCheck: moveSan.includes('+') || moveSan.includes('#'),
+      givesCheckmate: moveSan.includes('#'),
+    };
+  }
+
+  try {
+    const chess = new Chess(beforeFen);
+    const move = chess.move(moveSan);
+    if (!move) {
+      return {
+        isCapture: false,
+        givesCheck: moveSan.includes('+') || moveSan.includes('#'),
+        givesCheckmate: moveSan.includes('#'),
+      };
+    }
+
+    return {
+      afterFen: chess.fen(),
+      moveFrom: move.from,
+      moveTo: move.to,
+      movedPiece: move.piece,
+      capturedPiece: move.captured,
+      isCapture: Boolean(move.captured) || move.flags.includes('c') || move.flags.includes('e'),
+      givesCheck: chess.isCheck(),
+      givesCheckmate: chess.isCheckmate(),
+    };
+  } catch {
+    return {
+      isCapture: false,
+      givesCheck: moveSan.includes('+') || moveSan.includes('#'),
+      givesCheckmate: moveSan.includes('#'),
+    };
+  }
 }
 
 function buildBestMoveEvidence({
@@ -242,6 +310,10 @@ function buildFactsBase(input: GameAnalysisMoveEventInput): GameAnalysisMoveFact
     typeof input.afterEvalCp === 'number' && Number.isFinite(input.afterEvalCp)
       ? input.afterEvalCp
       : 0;
+  const chessFacts = detectChessStateFacts({
+    beforeFen: input.beforeFen,
+    moveSan: input.moveSan,
+  });
 
   return {
     gameId: input.gameId,
@@ -249,6 +321,15 @@ function buildFactsBase(input: GameAnalysisMoveEventInput): GameAnalysisMoveFact
     plyIndex: input.plyIndex,
     playedBy: input.playedBy ?? 'white',
     phase: input.phase,
+    beforeFen: input.beforeFen,
+    afterFen: chessFacts.afterFen,
+    moveFrom: chessFacts.moveFrom,
+    moveTo: chessFacts.moveTo,
+    movedPiece: chessFacts.movedPiece,
+    capturedPiece: chessFacts.capturedPiece,
+    isCapture: chessFacts.isCapture,
+    givesCheck: chessFacts.givesCheck,
+    givesCheckmate: chessFacts.givesCheckmate,
     beforeEvalCp: input.beforeEvalCp,
     afterPlayedEvalCp: afterPlayerEvalCp,
     afterBestEvalCp:
@@ -298,6 +379,15 @@ function candidateAnalysisFacts(
     isCriticalMove: facts.isCriticalMove ?? null,
     isSacrifice: facts.isSacrifice ?? null,
     missedOpportunityCp: facts.missedOpportunityCp ?? null,
+    isCapture: facts.isCapture,
+    givesCheck: facts.givesCheck,
+    givesCheckmate: facts.givesCheckmate,
+    beforeFen: facts.beforeFen ?? null,
+    afterFen: facts.afterFen ?? null,
+    moveFrom: facts.moveFrom ?? null,
+    moveTo: facts.moveTo ?? null,
+    movedPiece: facts.movedPiece ?? null,
+    capturedPiece: facts.capturedPiece ?? null,
     ...extraFacts,
   });
 }
@@ -353,6 +443,79 @@ export function buildGameAnalysisCoachCandidatesFromFacts(
     isCriticalMove: facts.isCriticalMove,
     missedOpportunityCp: facts.missedOpportunityCp,
   });
+
+  if (facts.givesCheckmate) {
+    candidates.push(
+      makeCandidate({
+        facts,
+        eventType: 'tactic_found',
+        classification: 'brilliant',
+        priority: 5000,
+        teachingWeight: 100,
+        reason: 'move_gives_checkmate',
+        themeTags: ['mate_threat', 'king_safety'],
+        evidence: facts.moveTo
+          ? {
+              kind: 'square',
+              title: 'Show the mating square',
+              squares: [facts.moveTo],
+              summary: `${facts.moveSan} ends the game by attacking the king.`,
+            }
+          : facts.evidence,
+      })
+    );
+  } else if (facts.givesCheck) {
+    candidates.push(
+      makeCandidate({
+        facts,
+        eventType: 'king_safety',
+        classification:
+          classification === 'blunder' || classification === 'mistake'
+            ? 'good'
+            : classification === 'best'
+              ? 'best'
+              : 'good',
+        priority: 520 + Math.max(0, facts.centipawnGain),
+        teachingWeight: 45,
+        reason: 'move_gives_check',
+        themeTags: ['king_safety', 'tempo'],
+        evidence: facts.moveTo
+          ? {
+              kind: 'square',
+              title: 'Show the checking move',
+              squares: [facts.moveTo],
+              summary: `${facts.moveSan} gives check and forces the opponent to respond.`,
+            }
+          : facts.evidence,
+      })
+    );
+  }
+
+  if (facts.isCapture) {
+    candidates.push(
+      makeCandidate({
+        facts,
+        eventType: 'material_trade',
+        classification:
+          facts.centipawnGain >= COACH_CLASSIFICATION_THRESHOLDS.excellentGainCp
+            ? 'excellent'
+            : 'good',
+        priority: 480 + Math.max(0, facts.centipawnGain),
+        teachingWeight:
+          facts.centipawnGain >= COACH_CLASSIFICATION_THRESHOLDS.excellentGainCp ? 60 : 35,
+        reason: facts.capturedPiece ? `move_captures_${facts.capturedPiece}` : 'move_captures',
+        themeTags: ['material'],
+        evidence: facts.moveTo
+          ? {
+              kind: 'piece',
+              title: 'Show the captured material',
+              pieces: [{ square: facts.moveTo, role: 'captured_piece_square' }],
+              summary: `${facts.moveSan} changes the material balance.`,
+            }
+          : facts.evidence,
+      })
+    );
+  }
 
   if (
     typeof facts.missedOpportunityCp === 'number' &&
@@ -530,6 +693,7 @@ export function buildGameAnalysisMoveEventsFromEngine(
     plyIndex: input.plyIndex,
     playedBy: input.playedBy,
     phase: input.phase,
+    beforeFen: input.beforeFen,
     beforeEvalCp: beforePlayerEval,
     afterEvalCp: playedPlayerEval,
     centipawnLoss,
@@ -561,6 +725,7 @@ export function buildGameAnalysisMoveEventsFromAnalyzedGameMove({
     plyIndex: move.plyIndex,
     playedBy: move.playedBy,
     phase: move.phase,
+    beforeFen: move.beforeFen,
     beforeEvalCp: move.beforeEvalCp,
     afterPlayedEvalCp: move.afterPlayedEvalCp,
     afterBestEvalCp: move.afterBestEvalCp,

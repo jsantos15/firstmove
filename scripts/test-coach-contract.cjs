@@ -80,6 +80,7 @@ test('engine adapter emits missed-win and blunder events from white-perspective 
     plyIndex: 18,
     playedBy: 'white',
     phase: 'middlegame',
+    beforeFen: '4k3/8/8/3p4/8/8/8/3QK3 w - - 0 1',
     beforeEvalCp: 30,
     afterPlayedEvalCp: -320,
     afterBestEvalCp: 140,
@@ -94,13 +95,15 @@ test('engine adapter emits missed-win and blunder events from white-perspective 
 
   assert.deepEqual(
     events.map(event => event.eventType),
-    ['missed_win', 'blunder']
+    ['missed_win', 'blunder', 'material_trade']
   );
   assert.equal(events[0].classification, 'miss');
   assert.equal(events[1].classification, 'blunder');
   assert.equal(events[0].analysisFacts.centipawnLoss, 460);
   assert.equal(events[0].analysisFacts.missedOpportunityCp, 460);
   assert.equal(events[0].evidence?.kind, 'line');
+  assert.equal(events[0].analysisFacts.isCapture, true);
+  assert.ok(events.some(event => event.eventType === 'material_trade'));
 });
 
 test('engine adapter normalizes black moves into player perspective', () => {
@@ -144,6 +147,7 @@ test('analyzed-game adapter emits timeline coach events from PGN-shaped input', 
         plyIndex: 23,
         playedBy: 'white',
         phase: 'middlegame',
+        beforeFen: '4k3/8/8/3p4/8/8/8/3QK3 w - - 0 1',
         beforeEvalCp: 30,
         afterPlayedEvalCp: -320,
         afterBestEvalCp: 140,
@@ -156,7 +160,7 @@ test('analyzed-game adapter emits timeline coach events from PGN-shaped input', 
 
   assert.deepEqual(
     events.map(event => event.eventType),
-    ['great_move', 'missed_win', 'blunder']
+    ['great_move', 'missed_win', 'blunder', 'material_trade']
   );
   assert.ok(events.every(event => event.subject.id === 'game-4'));
   assert.ok(events.every(event => event.persona === 'beginner'));
@@ -179,6 +183,29 @@ test('analysis candidates are ranked before coach events are rendered', () => {
   assert.equal(event.eventType, 'missed_win');
   assert.equal(event.analysisFacts.candidateReason, 'missed_higher_value_line');
   assert.ok(Number(event.analysisFacts.candidatePriority) > 1000);
+});
+
+test('chess-state detector adds check candidate from move position', () => {
+  const events = core.buildGameAnalysisMoveEventsFromEngine({
+    gameId: 'game-6',
+    moveSan: 'Ra8+',
+    plyIndex: 10,
+    playedBy: 'white',
+    phase: 'middlegame',
+    beforeFen: '4k3/8/8/8/8/8/8/R3K3 w Q - 0 1',
+    beforeEvalCp: 20,
+    afterPlayedEvalCp: 80,
+    afterBestEvalCp: 85,
+    bestMoveSan: 'Ra8+',
+  });
+  const checkEvent = events.find(
+    event => event.analysisFacts.candidateReason === 'move_gives_check'
+  );
+
+  assert.ok(checkEvent);
+  assert.equal(checkEvent.eventType, 'king_safety');
+  assert.equal(checkEvent.analysisFacts.givesCheck, true);
+  assert.equal(checkEvent.evidence?.kind, 'square');
 });
 
 console.log('Coach contract tests passed.');
