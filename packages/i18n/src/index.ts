@@ -19,6 +19,7 @@ export type CoachMessageVariables = Record<string, string | number | boolean | n
 
 export const EN_MESSAGES = {
   'coach.event.generic.message': '{moveSan} is the key move in this position.',
+  'coach.composition.secondary': 'Also: {secondaryMessage}',
 
   'coach.label.brilliant': 'Brilliant',
   'coach.label.great': 'Great',
@@ -162,6 +163,15 @@ export interface RenderedCoachEvent {
   spokenText: string;
   tone: CoachTone;
   persona: CoachPersona;
+  secondary?: {
+    id: string;
+    event: CoachEvent;
+    classification: CoachClassification;
+    label: string;
+    title: string;
+    message: string;
+    tone: CoachTone;
+  };
 }
 
 const COACH_CLASSIFICATION_PRESENTATION = {
@@ -333,12 +343,60 @@ export function renderCoachEvent(
   };
 }
 
+export function renderCoachEventComposition({
+  primary,
+  secondary,
+  locale = DEFAULT_LOCALE,
+  persona = primary.persona ?? 'neutral',
+}: {
+  primary: CoachEvent;
+  secondary?: CoachEvent | null;
+  locale?: string;
+  persona?: CoachPersona;
+}): RenderedCoachEvent {
+  const renderedPrimary = renderCoachEvent(primary, locale, persona);
+  if (!secondary) return renderedPrimary;
+
+  const renderedSecondary = renderCoachEvent(secondary, locale, persona);
+  const secondaryNote = formatMessage(
+    'coach.composition.secondary',
+    { secondaryMessage: renderedSecondary.message },
+    locale
+  );
+  const message = `${renderedPrimary.message} ${secondaryNote}`;
+  const spokenText = formatMessage(
+    renderedPrimary.spokenTextKey,
+    {
+      label: renderedPrimary.label,
+      title: renderedPrimary.title,
+      message,
+    },
+    locale
+  );
+
+  return {
+    ...renderedPrimary,
+    message,
+    spokenText,
+    secondary: {
+      id: renderedSecondary.id,
+      event: renderedSecondary.event,
+      classification: renderedSecondary.classification,
+      label: renderedSecondary.label,
+      title: renderedSecondary.title,
+      message: renderedSecondary.message,
+      tone: renderedSecondary.tone,
+    },
+  };
+}
+
 export const REQUIRED_COACH_MESSAGE_KEYS = [
   ...COACH_CLASSIFICATIONS.flatMap(classification => [
     `coach.label.${classification}`,
     `coach.title.${classification}`,
   ]),
   ...COACH_EVENT_TYPES.map(eventType => `coach.event.${eventType}.message`),
+  'coach.composition.secondary',
   'coach.event.generic.message',
   'coach.spoken.event',
   'coach.spoken.wrong_move',

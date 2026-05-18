@@ -340,4 +340,31 @@ test('pawn-structure detector flags doubled pawns and passed pawns', () => {
   assert.equal(passedEvent.evidence?.kind, 'square');
 });
 
+test('coach composition combines a primary lesson with a complementary note', () => {
+  const events = core.buildGameAnalysisMoveEventsFromEngine({
+    gameId: 'game-12',
+    moveSan: 'h3',
+    plyIndex: 12,
+    playedBy: 'white',
+    phase: 'middlegame',
+    beforeFen: '4k3/6b1/8/8/8/8/7P/R3K3 w - - 0 1',
+    beforeEvalCp: 15,
+    afterPlayedEvalCp: 10,
+    afterBestEvalCp: 10,
+    bestMoveSan: 'h3',
+  });
+  const secondary = core.selectComplementaryGameAnalysisEvent(events);
+  const rendered = i18n.renderCoachEventComposition({
+    primary: events[0],
+    secondary,
+    locale: 'en',
+  });
+
+  assert.ok(secondary);
+  assert.notEqual(secondary.eventType, events[0].eventType);
+  assert.ok(rendered.secondary);
+  assert.match(rendered.message, /Also:/);
+  assert.match(rendered.spokenText, /Also:/);
+});
+
 console.log('Coach contract tests passed.');

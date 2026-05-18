@@ -256,6 +256,20 @@ export interface GameAnalysisCoachCandidate {
   evidence?: CoachEvidence;
 }
 
+const COMPLEMENTARY_EVENT_TYPES = [
+  'hanging_material',
+  'loose_piece',
+  'opponent_threat',
+  'missed_tactic',
+  'missed_win',
+  'development',
+  'center_control',
+  'piece_activity',
+  'pawn_structure',
+  'conversion',
+  'material_trade',
+] as const satisfies readonly CoachEventType[];
+
 function formatPawns(cp: number) {
   if (Math.abs(cp) < 10) return 'level';
   return `${cp > 0 ? '+' : '-'}${(Math.abs(cp) / 100).toFixed(1)}`;
@@ -1689,6 +1703,46 @@ function buildGameAnalysisEventFromCandidate({
     source: candidate.themeTags.length ? 'tactical_detector' : 'engine_analysis',
     contentVersion: 1,
   };
+}
+
+function hasOverlappingTeachingPoint(primary: CoachEvent, candidate: CoachEvent) {
+  if (primary.eventType === candidate.eventType) return true;
+
+  const primaryReason = String(primary.analysisFacts.candidateReason ?? '');
+  const candidateReason = String(candidate.analysisFacts.candidateReason ?? '');
+  if (primaryReason && primaryReason === candidateReason) return true;
+
+  if (
+    primary.eventType === 'missed_tactic' &&
+    (candidate.eventType === 'missed_win' || candidate.eventType === 'blunder')
+  ) {
+    return true;
+  }
+
+  if (
+    primary.eventType === 'hanging_material' &&
+    candidate.eventType === 'opponent_threat' &&
+    primary.analysisFacts.materialRiskSquare === candidate.analysisFacts.opponentThreatTo
+  ) {
+    return false;
+  }
+
+  return false;
+}
+
+export function selectComplementaryGameAnalysisEvent(events: CoachEvent[]): CoachEvent | null {
+  const [primary, ...candidates] = events;
+  if (!primary) return null;
+
+  return (
+    candidates.find(candidate => {
+      if (!(COMPLEMENTARY_EVENT_TYPES as readonly CoachEventType[]).includes(candidate.eventType)) {
+        return false;
+      }
+      if (hasOverlappingTeachingPoint(primary, candidate)) return false;
+      return true;
+    }) ?? null
+  );
 }
 
 export function buildGameAnalysisMoveEvents(input: GameAnalysisMoveEventInput): CoachEvent[] {
