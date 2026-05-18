@@ -385,4 +385,25 @@ test('PGN parser builds a structure-only analyzed game timeline', () => {
   assert.ok(!events.some(event => event.eventType === 'best_move'));
 });
 
+test('move conversion helpers keep engine UCI output inside core', () => {
+  const startFen = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
+  const sanMove = core.applySanMoveToFen(startFen, 'Nf3');
+  const uciMove = core.applyUciMoveToFen(startFen, 'g1f3');
+  const line = core.buildSanLineFromUci({
+    fen: startFen,
+    uciMoves: ['g1f3', 'g8f6', 'e2e4'],
+    startPlyIndex: 0,
+  });
+
+  assert.equal(sanMove.san, 'Nf3');
+  assert.equal(sanMove.afterFen, uciMove.afterFen);
+  assert.equal(uciMove.san, 'Nf3');
+  assert.deepEqual(
+    line.map(move => move.san),
+    ['Nf3', 'Nf6', 'e4']
+  );
+  assert.equal(line[0].isKeyMove, true);
+  assert.equal(line[1].side, 'black');
+});
+
 console.log('Coach contract tests passed.');

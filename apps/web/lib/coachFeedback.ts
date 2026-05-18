@@ -40,7 +40,6 @@ export {
 };
 
 function renderGameAnalysisCoachEvents(events: CoachEvent[], locale?: string): CoachFeedback[] {
-  const primary = events[0];
   const secondary = selectComplementaryGameAnalysisEvent(events);
 
   return events.map((event, index) =>

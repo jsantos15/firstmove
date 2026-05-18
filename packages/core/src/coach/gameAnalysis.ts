@@ -68,6 +68,7 @@ export interface AnalyzedGameMove {
   phase: CoachGamePhase;
   hasEngineAnalysis?: boolean;
   beforeFen?: string;
+  afterFen?: string;
   beforeEvalCp?: number;
   afterPlayedEvalCp: number;
   afterBestEvalCp?: number;
@@ -95,6 +96,27 @@ export interface AnalyzedGameFromPgnInput {
   id: string;
   pgn: string;
   initialFen?: string;
+}
+
+export interface AppliedSanMove {
+  san: string;
+  from: string;
+  to: string;
+  promotion?: string;
+  playedBy: GameAnalysisSide;
+  beforeFen: string;
+  afterFen: string;
+}
+
+export interface AppliedUciMove extends AppliedSanMove {
+  uci: string;
+}
+
+export interface BuildSanLineFromUciInput {
+  fen: string;
+  uciMoves: string[];
+  startPlyIndex?: number;
+  maxMoves?: number;
 }
 
 export interface GameAnalysisMoveFacts {
@@ -924,6 +946,7 @@ export function buildAnalyzedGameFromPgn({
       phase: gamePhaseFromPly(index),
       hasEngineAnalysis: false,
       beforeFen: move.before,
+      afterFen: move.after,
       afterPlayedEvalCp: 0,
     })
   );
@@ -934,6 +957,78 @@ export function buildAnalyzedGameFromPgn({
     initialFen,
     moves,
   };
+}
+
+export function applySanMoveToFen(fen: string, san: string): AppliedSanMove {
+  const chess = new Chess(fen);
+  const beforeFen = chess.fen();
+  const move = chess.move(san);
+
+  if (!move) {
+    throw new Error(`Illegal SAN move "${san}" for FEN: ${fen}`);
+  }
+
+  return {
+    san: move.san,
+    from: move.from,
+    to: move.to,
+    promotion: move.promotion,
+    playedBy: move.color === 'w' ? 'white' : 'black',
+    beforeFen,
+    afterFen: chess.fen(),
+  };
+}
+
+export function applyUciMoveToFen(fen: string, uci: string): AppliedUciMove {
+  const from = uci.slice(0, 2);
+  const to = uci.slice(2, 4);
+  const promotion = uci.length > 4 ? uci.slice(4, 5) : undefined;
+  const chess = new Chess(fen);
+  const beforeFen = chess.fen();
+  const move = chess.move({ from, to, promotion });
+
+  if (!move) {
+    throw new Error(`Illegal UCI move "${uci}" for FEN: ${fen}`);
+  }
+
+  return {
+    uci,
+    san: move.san,
+    from: move.from,
+    to: move.to,
+    promotion: move.promotion,
+    playedBy: move.color === 'w' ? 'white' : 'black',
+    beforeFen,
+    afterFen: chess.fen(),
+  };
+}
+
+export function buildSanLineFromUci({
+  fen,
+  uciMoves,
+  startPlyIndex = 0,
+  maxMoves = 4,
+}: BuildSanLineFromUciInput): CoachEvidenceMove[] {
+  const chess = new Chess(fen);
+  const moves: CoachEvidenceMove[] = [];
+
+  for (const uci of uciMoves.slice(0, maxMoves)) {
+    const from = uci.slice(0, 2);
+    const to = uci.slice(2, 4);
+    const promotion = uci.length > 4 ? uci.slice(4, 5) : undefined;
+    const move = chess.move({ from, to, promotion });
+
+    if (!move) break;
+
+    moves.push({
+      san: move.san,
+      side: move.color === 'w' ? 'white' : 'black',
+      plyIndex: startPlyIndex + moves.length,
+      isKeyMove: moves.length === 0,
+    });
+  }
+
+  return moves;
 }
 
 function moveQualityEventType(

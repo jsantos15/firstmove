@@ -101,6 +101,15 @@ const ANALYSIS_SAMPLES: AnalysisSample[] = [
 ];
 
 const SAMPLE_PGN = '1. e4 e5 2. Nf3 Nc6 3. Bb5 a6 4. Ba4 Nf6';
+const STOCKFISH_MOVE_LIMIT = 40;
+
+type StockfishAnalysisResponse = {
+  game: AnalyzedGame;
+  analyzedMoves: number;
+  requestedMoves: number;
+  maxMoves: number;
+  depth: number;
+};
 
 function evalLabel(cp: number | undefined) {
   if (typeof cp !== 'number') return 'n/a';
@@ -202,6 +211,9 @@ export default function AnalysisPage() {
   const [pgnInput, setPgnInput] = useState(SAMPLE_PGN);
   const [fenInput, setFenInput] = useState('');
   const [parseError, setParseError] = useState<string | null>(null);
+  const [engineError, setEngineError] = useState<string | null>(null);
+  const [engineStatus, setEngineStatus] = useState<string | null>(null);
+  const [isEngineRunning, setIsEngineRunning] = useState(false);
   const [selectedSampleId, setSelectedSampleId] = useState(ANALYSIS_SAMPLES[0].id);
   const { settings: coachSettings, setSettings: setCoachSettings } = useCoachSettings();
   const analysisSamples = useMemo<AnalysisSample[]>(
@@ -234,8 +246,61 @@ export default function AnalysisPage() {
       setAnalyzedGame(game);
       setSelectedSampleId(game.moves[0]?.id ?? `${game.id}:0`);
       setParseError(null);
+      setEngineError(null);
+      setEngineStatus(null);
     } catch (error) {
       setParseError(error instanceof Error ? error.message : 'Could not parse that PGN/FEN.');
+    }
+  }
+
+  async function runStockfishAnalysis() {
+    if (!analyzedGame.moves.length || isEngineRunning) return;
+
+    setIsEngineRunning(true);
+    setEngineError(null);
+    setEngineStatus(
+      `Running Stockfish depth 8 for up to ${Math.min(
+        analyzedGame.moves.length,
+        STOCKFISH_MOVE_LIMIT
+      )} moves...`
+    );
+
+    try {
+      const response = await fetch('/api/analysis/stockfish', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          game: analyzedGame,
+          depth: 8,
+          maxMoves: STOCKFISH_MOVE_LIMIT,
+        }),
+      });
+
+      const payload = (await response.json()) as Partial<StockfishAnalysisResponse> & {
+        error?: string;
+      };
+
+      if (!response.ok || !payload.game) {
+        throw new Error(payload.error ?? 'Stockfish analysis failed.');
+      }
+
+      setAnalyzedGame(payload.game);
+      setSelectedSampleId(
+        payload.game.moves.find(move => move.plyIndex === selectedSample?.move.plyIndex)?.id ??
+          payload.game.moves[0]?.id ??
+          `${payload.game.id}:0`
+      );
+      setEngineStatus(
+        `Stockfish analyzed ${payload.analyzedMoves ?? 0}/${payload.requestedMoves ?? 0} moves at depth ${
+          payload.depth ?? 8
+        }.`
+      );
+    } catch (error) {
+      setEngineError(error instanceof Error ? error.message : 'Stockfish analysis failed.');
+    } finally {
+      setIsEngineRunning(false);
     }
   }
 
@@ -244,6 +309,8 @@ export default function AnalysisPage() {
     const text = await file.text();
     setPgnInput(text);
     setParseError(null);
+    setEngineError(null);
+    setEngineStatus(null);
   }
 
   return (
@@ -263,7 +330,7 @@ export default function AnalysisPage() {
               <div>
                 <h2 className="text-base font-semibold text-white">Import game</h2>
                 <p className="mt-1 text-xs text-gray-500">
-                  This preview parses PGN/FEN locally. Engine evals come in the next analyzer slice.
+                  Parse PGN/FEN locally, then run Stockfish to add evals and best moves.
                 </p>
               </div>
               <label className="cursor-pointer rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2 text-xs font-semibold text-gray-300 hover:border-white/20">
@@ -295,18 +362,32 @@ export default function AnalysisPage() {
                 className="rounded-lg border border-white/10 bg-black/20 px-3 py-2 font-mono text-xs text-gray-200 outline-none focus:border-amber-400/50"
               />
               <div className="flex items-center justify-between gap-3">
-                <button
-                  type="button"
-                  onClick={analyzePgn}
-                  className="rounded-lg border border-amber-400/30 bg-amber-400/10 px-4 py-2 text-sm font-semibold text-amber-200 hover:border-amber-400/50"
-                >
-                  Analyze PGN
-                </button>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={analyzePgn}
+                    className="rounded-lg border border-amber-400/30 bg-amber-400/10 px-4 py-2 text-sm font-semibold text-amber-200 hover:border-amber-400/50"
+                  >
+                    Parse PGN
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void runStockfishAnalysis()}
+                    disabled={isEngineRunning || !analyzedGame.moves.length}
+                    className="rounded-lg border border-white/10 bg-white/[0.03] px-4 py-2 text-sm font-semibold text-gray-200 hover:border-white/20 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {isEngineRunning ? 'Running Stockfish...' : 'Run Stockfish'}
+                  </button>
+                </div>
                 <span className="text-xs text-gray-500">
                   {analyzedGame.moves.length} moves loaded
                 </span>
               </div>
               {parseError && <p className="text-sm leading-6 text-red-300">{parseError}</p>}
+              {engineError && <p className="text-sm leading-6 text-red-300">{engineError}</p>}
+              {engineStatus && !engineError && (
+                <p className="text-sm leading-6 text-gray-400">{engineStatus}</p>
+              )}
             </div>
           </div>
 
@@ -323,7 +404,7 @@ export default function AnalysisPage() {
                 value={
                   analyzedGame.moves.some(move => move.hasEngineAnalysis)
                     ? 'available'
-                    : 'not yet wired'
+                    : 'pending'
                 }
               />
             </dl>
