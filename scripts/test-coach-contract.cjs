@@ -367,4 +367,22 @@ test('coach composition combines a primary lesson with a complementary note', ()
   assert.match(rendered.spokenText, /Also:/);
 });
 
+test('PGN parser builds a structure-only analyzed game timeline', () => {
+  const game = core.buildAnalyzedGameFromPgn({
+    id: 'game-13',
+    pgn: '1. Nf3 d5 2. g3',
+  });
+  const events = core.buildGameAnalysisMoveEventsFromAnalyzedGameMove({
+    game,
+    move: game.moves[0],
+  });
+
+  assert.equal(game.moves.length, 3);
+  assert.equal(game.moves[0].san, 'Nf3');
+  assert.equal(game.moves[0].beforeFen, 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1');
+  assert.equal(game.moves[0].hasEngineAnalysis, false);
+  assert.ok(events.some(event => event.eventType === 'development'));
+  assert.ok(!events.some(event => event.eventType === 'best_move'));
+});
+
 console.log('Coach contract tests passed.');

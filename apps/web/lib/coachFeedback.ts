@@ -4,6 +4,7 @@ import {
   buildGameAnalysisMoveEvents,
   buildGameAnalysisMoveEventsFromAnalyzedGameMove,
   buildGameAnalysisMoveEventsFromEngine,
+  buildAnalyzedGameFromPgn,
   buildOpeningPracticeMoveEvent,
   buildOpeningPracticeWrongMoveEvent,
   classifyAnalyzedMoveByCentipawnLoss,
@@ -34,6 +35,7 @@ export type CoachCandidateFeedback = GameAnalysisCoachCandidate;
 export {
   COACH_CLASSIFICATION_THRESHOLDS,
   buildGameAnalysisCoachCandidatesFromFacts,
+  buildAnalyzedGameFromPgn,
   classifyAnalyzedMoveByCentipawnLoss,
 };
 

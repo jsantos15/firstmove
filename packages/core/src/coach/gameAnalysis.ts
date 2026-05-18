@@ -21,6 +21,7 @@ export interface GameAnalysisMoveEventInput {
   plyIndex: number;
   playedBy?: GameAnalysisSide;
   phase: CoachGamePhase;
+  hasEngineAnalysis?: boolean;
   beforeFen?: string;
   beforeEvalCp?: number;
   afterEvalCp?: number;
@@ -45,6 +46,7 @@ export interface GameAnalysisEngineMoveInput {
   plyIndex: number;
   playedBy: GameAnalysisSide;
   phase: CoachGamePhase;
+  hasEngineAnalysis?: boolean;
   beforeFen?: string;
   beforeEvalCp?: number;
   afterPlayedEvalCp: number;
@@ -64,6 +66,7 @@ export interface AnalyzedGameMove {
   plyIndex: number;
   playedBy: GameAnalysisSide;
   phase: CoachGamePhase;
+  hasEngineAnalysis?: boolean;
   beforeFen?: string;
   beforeEvalCp?: number;
   afterPlayedEvalCp: number;
@@ -88,12 +91,19 @@ export interface GameAnalysisEventsFromGameInput {
   persona?: CoachPersona;
 }
 
+export interface AnalyzedGameFromPgnInput {
+  id: string;
+  pgn: string;
+  initialFen?: string;
+}
+
 export interface GameAnalysisMoveFacts {
   gameId: string;
   moveSan: string;
   plyIndex: number;
   playedBy: GameAnalysisSide;
   phase: CoachGamePhase;
+  hasEngineAnalysis: boolean;
   beforeFen?: string;
   afterFen?: string;
   moveFrom?: string;
@@ -891,6 +901,41 @@ function missedOpportunityEventType(missedOpportunityCp?: number): CoachEventTyp
   return 'missed_tactic';
 }
 
+function gamePhaseFromPly(plyIndex: number): CoachGamePhase {
+  if (plyIndex < 16) return 'opening';
+  if (plyIndex >= 60) return 'endgame';
+  return 'middlegame';
+}
+
+export function buildAnalyzedGameFromPgn({
+  id,
+  pgn,
+  initialFen,
+}: AnalyzedGameFromPgnInput): AnalyzedGame {
+  const chess = initialFen ? new Chess(initialFen) : new Chess();
+  chess.loadPgn(pgn);
+
+  const moves = chess.history({ verbose: true }).map(
+    (move, index): AnalyzedGameMove => ({
+      id: `${id}:${index}`,
+      san: move.san,
+      plyIndex: index,
+      playedBy: move.color === 'w' ? 'white' : 'black',
+      phase: gamePhaseFromPly(index),
+      hasEngineAnalysis: false,
+      beforeFen: move.before,
+      afterPlayedEvalCp: 0,
+    })
+  );
+
+  return {
+    id,
+    pgn,
+    initialFen,
+    moves,
+  };
+}
+
 function moveQualityEventType(
   classification: CoachClassification,
   input: GameAnalysisMoveEventInput
@@ -967,6 +1012,7 @@ function buildFactsBase(input: GameAnalysisMoveEventInput): GameAnalysisMoveFact
     plyIndex: input.plyIndex,
     playedBy: input.playedBy ?? 'white',
     phase: input.phase,
+    hasEngineAnalysis: input.hasEngineAnalysis ?? true,
     beforeFen: input.beforeFen,
     afterFen: chessFacts.afterFen,
     moveFrom: chessFacts.moveFrom,
@@ -1068,6 +1114,7 @@ function candidateAnalysisFacts(
     isOnlyGoodMove: facts.isOnlyGoodMove ?? null,
     isCriticalMove: facts.isCriticalMove ?? null,
     isSacrifice: facts.isSacrifice ?? null,
+    hasEngineAnalysis: facts.hasEngineAnalysis,
     missedOpportunityCp: facts.missedOpportunityCp ?? null,
     isCapture: facts.isCapture,
     givesCheck: facts.givesCheck,
@@ -1571,6 +1618,7 @@ export function buildGameAnalysisCoachCandidatesFromFacts(
   }
 
   if (
+    facts.hasEngineAnalysis &&
     typeof facts.missedOpportunityCp === 'number' &&
     facts.missedOpportunityCp >= COACH_CLASSIFICATION_THRESHOLDS.missOpportunityCp &&
     facts.bestMoveSan
@@ -1589,7 +1637,10 @@ export function buildGameAnalysisCoachCandidatesFromFacts(
     );
   }
 
-  if (facts.centipawnLoss >= COACH_CLASSIFICATION_THRESHOLDS.inaccuracyLossCp) {
+  if (
+    facts.hasEngineAnalysis &&
+    facts.centipawnLoss >= COACH_CLASSIFICATION_THRESHOLDS.inaccuracyLossCp
+  ) {
     const lossClassification =
       classification === 'miss'
         ? classifyAnalyzedMoveByCentipawnLoss({
@@ -1618,7 +1669,7 @@ export function buildGameAnalysisCoachCandidatesFromFacts(
     );
   }
 
-  if (facts.isBestMove || facts.centipawnLoss <= 10) {
+  if (facts.hasEngineAnalysis && (facts.isBestMove || facts.centipawnLoss <= 10)) {
     const bestClassification = classifyAnalyzedMoveByCentipawnLoss({
       centipawnLoss: facts.centipawnLoss,
       centipawnGain: facts.centipawnGain,
@@ -1643,7 +1694,10 @@ export function buildGameAnalysisCoachCandidatesFromFacts(
         themeTags: facts.isOnlyGoodMove || facts.isCriticalMove ? ['defense'] : facts.themeTags,
       })
     );
-  } else if (facts.centipawnGain >= COACH_CLASSIFICATION_THRESHOLDS.excellentGainCp) {
+  } else if (
+    facts.hasEngineAnalysis &&
+    facts.centipawnGain >= COACH_CLASSIFICATION_THRESHOLDS.excellentGainCp
+  ) {
     const gainClassification = classifyAnalyzedMoveByCentipawnLoss({
       centipawnLoss: facts.centipawnLoss,
       centipawnGain: facts.centipawnGain,
@@ -1786,6 +1840,7 @@ export function buildGameAnalysisMoveEventsFromEngine(
     plyIndex: input.plyIndex,
     playedBy: input.playedBy,
     phase: input.phase,
+    hasEngineAnalysis: input.hasEngineAnalysis ?? true,
     beforeFen: input.beforeFen,
     beforeEvalCp: beforePlayerEval,
     afterEvalCp: playedPlayerEval,
@@ -1818,6 +1873,7 @@ export function buildGameAnalysisMoveEventsFromAnalyzedGameMove({
     plyIndex: move.plyIndex,
     playedBy: move.playedBy,
     phase: move.phase,
+    hasEngineAnalysis: move.hasEngineAnalysis,
     beforeFen: move.beforeFen,
     beforeEvalCp: move.beforeEvalCp,
     afterPlayedEvalCp: move.afterPlayedEvalCp,

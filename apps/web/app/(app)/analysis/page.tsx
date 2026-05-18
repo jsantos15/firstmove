@@ -5,6 +5,7 @@ import type { AnalyzedGame, AnalyzedGameMove } from '@firstmove/core';
 import { CoachBubble } from '@/components/practice/CoachBubble';
 import { COACH_PERSONA_OPTIONS, useCoachSettings } from '@/hooks/useCoachSettings';
 import {
+  buildAnalyzedGameFromPgn,
   buildGameAnalysisCoachFeedbackFromAnalyzedGame,
   type CoachFeedback,
 } from '@/lib/coachFeedback';
@@ -98,6 +99,8 @@ const ANALYSIS_SAMPLES: AnalysisSample[] = [
     move: SAMPLE_ANALYZED_GAME.moves[2],
   },
 ];
+
+const SAMPLE_PGN = '1. e4 e5 2. Nf3 Nc6 3. Bb5 a6 4. Ba4 Nf6';
 
 function evalLabel(cp: number | undefined) {
   if (typeof cp !== 'number') return 'n/a';
@@ -195,19 +198,53 @@ function EvidencePanel({ feedback }: { feedback: CoachFeedback | null }) {
 }
 
 export default function AnalysisPage() {
+  const [analyzedGame, setAnalyzedGame] = useState<AnalyzedGame>(SAMPLE_ANALYZED_GAME);
+  const [pgnInput, setPgnInput] = useState(SAMPLE_PGN);
+  const [fenInput, setFenInput] = useState('');
+  const [parseError, setParseError] = useState<string | null>(null);
   const [selectedSampleId, setSelectedSampleId] = useState(ANALYSIS_SAMPLES[0].id);
   const { settings: coachSettings, setSettings: setCoachSettings } = useCoachSettings();
-  const selectedSample =
-    ANALYSIS_SAMPLES.find(sample => sample.id === selectedSampleId) ?? ANALYSIS_SAMPLES[0];
-  const feedbacks = useMemo(
+  const analysisSamples = useMemo<AnalysisSample[]>(
     () =>
-      buildGameAnalysisCoachFeedbackFromAnalyzedGame({
-        game: SAMPLE_ANALYZED_GAME,
-        persona: coachSettings.persona,
-      }).filter(feedback => feedback.event.plyIndex === selectedSample.move.plyIndex),
-    [coachSettings.persona, selectedSample.move.plyIndex]
+      analyzedGame.moves.map(move => ({
+        id: move.id ?? `${analyzedGame.id}:${move.plyIndex}`,
+        label: move.san,
+        move,
+      })),
+    [analyzedGame]
   );
+  const selectedSample =
+    analysisSamples.find(sample => sample.id === selectedSampleId) ?? analysisSamples[0] ?? null;
+  const feedbacks = useMemo(() => {
+    if (!selectedSample) return [];
+    return buildGameAnalysisCoachFeedbackFromAnalyzedGame({
+      game: analyzedGame,
+      persona: coachSettings.persona,
+    }).filter(feedback => feedback.event.plyIndex === selectedSample.move.plyIndex);
+  }, [analyzedGame, coachSettings.persona, selectedSample]);
   const primaryFeedback: CoachFeedback | null = feedbacks[0] ?? null;
+
+  function analyzePgn() {
+    try {
+      const game = buildAnalyzedGameFromPgn({
+        id: `analysis-${Date.now()}`,
+        pgn: pgnInput,
+        initialFen: fenInput.trim() || undefined,
+      });
+      setAnalyzedGame(game);
+      setSelectedSampleId(game.moves[0]?.id ?? `${game.id}:0`);
+      setParseError(null);
+    } catch (error) {
+      setParseError(error instanceof Error ? error.message : 'Could not parse that PGN/FEN.');
+    }
+  }
+
+  async function handlePgnFile(file: File | null) {
+    if (!file) return;
+    const text = await file.text();
+    setPgnInput(text);
+    setParseError(null);
+  }
 
   return (
     <div className="h-full overflow-y-auto bg-(--bg-base)">
@@ -215,10 +252,83 @@ export default function AnalysisPage() {
         <header>
           <p className="mb-1 text-2xl font-bold text-white">Analysis Coach</p>
           <p className="max-w-2xl text-sm leading-6 text-gray-400">
-            Review a sample analyzed game through the same coach event pipeline used by opening
-            practice.
+            Paste or upload a PGN, then review each move through the same coach event pipeline used
+            by opening practice.
           </p>
         </header>
+
+        <section className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_24rem]">
+          <div className="rounded-xl border border-white/5 bg-(--bg-panel) p-4">
+            <div className="mb-4 flex items-center justify-between gap-3">
+              <div>
+                <h2 className="text-base font-semibold text-white">Import game</h2>
+                <p className="mt-1 text-xs text-gray-500">
+                  This preview parses PGN/FEN locally. Engine evals come in the next analyzer slice.
+                </p>
+              </div>
+              <label className="cursor-pointer rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2 text-xs font-semibold text-gray-300 hover:border-white/20">
+                Upload PGN
+                <input
+                  type="file"
+                  accept=".pgn,.txt"
+                  className="sr-only"
+                  onChange={event => {
+                    void handlePgnFile(event.target.files?.[0] ?? null);
+                    event.currentTarget.value = '';
+                  }}
+                />
+              </label>
+            </div>
+
+            <div className="grid gap-3">
+              <textarea
+                value={pgnInput}
+                onChange={event => setPgnInput(event.target.value)}
+                rows={6}
+                className="min-h-36 resize-y rounded-lg border border-white/10 bg-black/20 px-3 py-2 font-mono text-xs leading-5 text-gray-200 outline-none focus:border-amber-400/50"
+                spellCheck={false}
+              />
+              <input
+                value={fenInput}
+                onChange={event => setFenInput(event.target.value)}
+                placeholder="Optional starting FEN for non-standard positions"
+                className="rounded-lg border border-white/10 bg-black/20 px-3 py-2 font-mono text-xs text-gray-200 outline-none focus:border-amber-400/50"
+              />
+              <div className="flex items-center justify-between gap-3">
+                <button
+                  type="button"
+                  onClick={analyzePgn}
+                  className="rounded-lg border border-amber-400/30 bg-amber-400/10 px-4 py-2 text-sm font-semibold text-amber-200 hover:border-amber-400/50"
+                >
+                  Analyze PGN
+                </button>
+                <span className="text-xs text-gray-500">
+                  {analyzedGame.moves.length} moves loaded
+                </span>
+              </div>
+              {parseError && <p className="text-sm leading-6 text-red-300">{parseError}</p>}
+            </div>
+          </div>
+
+          <div className="rounded-xl border border-white/5 bg-(--bg-panel) p-4">
+            <h2 className="mb-3 text-sm font-semibold text-white">Current source</h2>
+            <dl className="grid gap-3">
+              <FeedbackFact label="Moves" value={analyzedGame.moves.length} />
+              <FeedbackFact
+                label="Initial FEN"
+                value={analyzedGame.initialFen ? 'custom' : 'standard'}
+              />
+              <FeedbackFact
+                label="Engine eval"
+                value={
+                  analyzedGame.moves.some(move => move.hasEngineAnalysis)
+                    ? 'available'
+                    : 'not yet wired'
+                }
+              />
+            </dl>
+          </div>
+        </section>
 
         <section className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_24rem]">
           <div className="min-w-0 rounded-xl border border-white/5 bg-(--bg-panel) p-4">
@@ -234,9 +344,9 @@ export default function AnalysisPage() {
               </span>
             </div>
 
-            <div className="grid gap-3 md:grid-cols-3">
-              {ANALYSIS_SAMPLES.map(sample => {
-                const selected = sample.id === selectedSample.id;
+            <div className="grid max-h-96 gap-3 overflow-y-auto pr-1 md:grid-cols-3">
+              {analysisSamples.map(sample => {
+                const selected = sample.id === selectedSample?.id;
                 return (
                   <button
                     key={sample.id}
@@ -262,13 +372,21 @@ export default function AnalysisPage() {
                       <FeedbackFact label="Played" value={moveLabel(sample.move)} />
                       <FeedbackFact
                         label="Best"
-                        value={moveLabel(sample.move, sample.move.bestMoveSan)}
+                        value={
+                          sample.move.bestMoveSan
+                            ? moveLabel(sample.move, sample.move.bestMoveSan)
+                            : 'pending engine'
+                        }
                       />
                       <FeedbackFact
                         label="Eval"
-                        value={`${evalLabel(sample.move.afterPlayedEvalCp)} / ${evalLabel(
-                          sample.move.afterBestEvalCp
-                        )}`}
+                        value={
+                          sample.move.hasEngineAnalysis === false
+                            ? 'pending engine'
+                            : `${evalLabel(sample.move.afterPlayedEvalCp)} / ${evalLabel(
+                                sample.move.afterBestEvalCp
+                              )}`
+                        }
                       />
                     </dl>
                   </button>
@@ -303,7 +421,7 @@ export default function AnalysisPage() {
 
             <CoachBubble
               feedback={primaryFeedback}
-              fallbackText="Select a reviewed move to see the coach explanation."
+              fallbackText="Import a PGN and select a move to see the coach explanation."
             />
           </aside>
         </section>
