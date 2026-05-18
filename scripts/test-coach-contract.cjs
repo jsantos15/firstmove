@@ -294,4 +294,50 @@ test('positional detectors flag development and center-control gains', () => {
   assert.ok(Number(centerEvent.analysisFacts.centerControlDelta) >= 2);
 });
 
+test('pawn-structure detector flags doubled pawns and passed pawns', () => {
+  const doubledEvents = core.buildGameAnalysisMoveEventsFromEngine({
+    gameId: 'game-10',
+    moveSan: 'cxd3',
+    plyIndex: 18,
+    playedBy: 'white',
+    phase: 'middlegame',
+    beforeFen: '4k3/8/8/8/3P4/3p4/2P5/4K3 w - - 0 1',
+    beforeEvalCp: 20,
+    afterPlayedEvalCp: -60,
+    afterBestEvalCp: -60,
+    bestMoveSan: 'cxd3',
+  });
+  const doubledEvent = doubledEvents.find(
+    event => event.analysisFacts.candidateReason === 'doubled_pawn_created'
+  );
+
+  assert.ok(doubledEvent);
+  assert.equal(doubledEvent.eventType, 'pawn_structure');
+  assert.equal(doubledEvent.analysisFacts.pawnStructureIssue, 'doubled_pawn');
+  assert.equal(doubledEvent.analysisFacts.pawnStructureSquare, 'd3');
+  assert.equal(doubledEvent.evidence?.kind, 'square');
+
+  const passedEvents = core.buildGameAnalysisMoveEventsFromEngine({
+    gameId: 'game-11',
+    moveSan: 'dxe6',
+    plyIndex: 34,
+    playedBy: 'white',
+    phase: 'endgame',
+    beforeFen: '4k3/8/2p1p3/3P4/8/8/8/4K3 w - - 0 1',
+    beforeEvalCp: 80,
+    afterPlayedEvalCp: 180,
+    afterBestEvalCp: 180,
+    bestMoveSan: 'dxe6',
+  });
+  const passedEvent = passedEvents.find(
+    event => event.analysisFacts.candidateReason === 'passed_pawn_created'
+  );
+
+  assert.ok(passedEvent);
+  assert.equal(passedEvent.eventType, 'conversion');
+  assert.equal(passedEvent.analysisFacts.passedPawnSquare, 'e6');
+  assert.equal(passedEvent.analysisFacts.passedPawnRank, 6);
+  assert.equal(passedEvent.evidence?.kind, 'square');
+});
+
 console.log('Coach contract tests passed.');

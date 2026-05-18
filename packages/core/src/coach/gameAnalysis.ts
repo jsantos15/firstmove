@@ -132,6 +132,10 @@ export interface GameAnalysisMoveFacts {
   pieceActivityBefore?: number;
   pieceActivityAfter?: number;
   pieceActivityDelta?: number;
+  pawnStructureIssue?: string;
+  pawnStructureSquare?: string;
+  passedPawnSquare?: string;
+  passedPawnRank?: number;
   beforeEvalCp?: number;
   afterPlayedEvalCp: number;
   afterBestEvalCp?: number;
@@ -192,6 +196,13 @@ interface PositionalDeltaFacts {
   pieceActivityDelta?: number;
 }
 
+interface PawnStructureDeltaFacts {
+  pawnStructureIssue?: 'doubled_pawn' | 'isolated_pawn';
+  pawnStructureSquare?: string;
+  passedPawnSquare?: string;
+  passedPawnRank?: number;
+}
+
 type ChessColor = 'w' | 'b';
 type PieceCode = 'p' | 'n' | 'b' | 'r' | 'q' | 'k';
 
@@ -223,6 +234,12 @@ const PIECE_NAMES: Record<PieceCode, string> = {
   q: 'queen',
   k: 'king',
 };
+
+interface PawnInfo {
+  square: string;
+  file: number;
+  rank: number;
+}
 
 export interface GameAnalysisCoachCandidate {
   id: string;
@@ -387,6 +404,117 @@ function countPieceMobility(board: ReturnType<Chess['board']>, square: string) {
   }
 
   return mobility;
+}
+
+function collectPawns(board: ReturnType<Chess['board']>, color: ChessColor): PawnInfo[] {
+  const pawns: PawnInfo[] = [];
+
+  for (let rowIndex = 0; rowIndex < board.length; rowIndex += 1) {
+    for (let fileIndex = 0; fileIndex < board[rowIndex].length; fileIndex += 1) {
+      const piece = board[rowIndex][fileIndex];
+      if (!piece || piece.color !== color || piece.type !== 'p') continue;
+
+      const rank = 8 - rowIndex;
+      pawns.push({
+        square: coordsToSquare(fileIndex, rank),
+        file: fileIndex,
+        rank,
+      });
+    }
+  }
+
+  return pawns;
+}
+
+function pawnFileCounts(pawns: PawnInfo[]) {
+  return pawns.reduce<Record<number, number>>((counts, pawn) => {
+    counts[pawn.file] = (counts[pawn.file] ?? 0) + 1;
+    return counts;
+  }, {});
+}
+
+function isIsolatedPawn(pawn: PawnInfo, friendlyPawns: PawnInfo[]) {
+  return !friendlyPawns.some(
+    friendlyPawn =>
+      friendlyPawn.square !== pawn.square && Math.abs(friendlyPawn.file - pawn.file) === 1
+  );
+}
+
+function isPassedPawn(pawn: PawnInfo, opponentPawns: PawnInfo[], color: ChessColor) {
+  return !opponentPawns.some(opponentPawn => {
+    const sameOrAdjacentFile = Math.abs(opponentPawn.file - pawn.file) <= 1;
+    const blocksPath =
+      color === 'w' ? opponentPawn.rank > pawn.rank : opponentPawn.rank < pawn.rank;
+    return sameOrAdjacentFile && blocksPath;
+  });
+}
+
+function detectPawnStructureDeltaFacts({
+  beforeFen,
+  afterFen,
+  playedBy,
+  moveFrom,
+  moveTo,
+  movedPiece,
+}: {
+  beforeFen?: string;
+  afterFen?: string;
+  playedBy: GameAnalysisSide;
+  moveFrom?: string;
+  moveTo?: string;
+  movedPiece?: string;
+}): PawnStructureDeltaFacts {
+  if (!beforeFen || !afterFen || movedPiece !== 'p' || !moveTo) return {};
+
+  try {
+    const movedColor = playedSideColor(playedBy);
+    const beforeBoard = new Chess(beforeFen).board();
+    const afterBoard = new Chess(afterFen).board();
+    const beforeFriendlyPawns = collectPawns(beforeBoard, movedColor);
+    const afterFriendlyPawns = collectPawns(afterBoard, movedColor);
+    const beforeOpponentPawns = collectPawns(beforeBoard, oppositeColor(movedColor));
+    const afterOpponentPawns = collectPawns(afterBoard, oppositeColor(movedColor));
+    const beforeFileCounts = pawnFileCounts(beforeFriendlyPawns);
+    const afterFileCounts = pawnFileCounts(afterFriendlyPawns);
+    const movedPawnAfter = afterFriendlyPawns.find(pawn => pawn.square === moveTo);
+    const movedPawnBefore = beforeFriendlyPawns.find(pawn => pawn.square === moveFrom);
+
+    if (!movedPawnAfter) return {};
+
+    const createdDoubledPawn =
+      (afterFileCounts[movedPawnAfter.file] ?? 0) > 1 &&
+      (afterFileCounts[movedPawnAfter.file] ?? 0) > (beforeFileCounts[movedPawnAfter.file] ?? 0);
+    if (createdDoubledPawn) {
+      return {
+        pawnStructureIssue: 'doubled_pawn',
+        pawnStructureSquare: movedPawnAfter.square,
+      };
+    }
+
+    const createdIsolatedPawn =
+      isIsolatedPawn(movedPawnAfter, afterFriendlyPawns) &&
+      (!movedPawnBefore || !isIsolatedPawn(movedPawnBefore, beforeFriendlyPawns));
+    if (createdIsolatedPawn) {
+      return {
+        pawnStructureIssue: 'isolated_pawn',
+        pawnStructureSquare: movedPawnAfter.square,
+      };
+    }
+
+    const createdPassedPawn =
+      isPassedPawn(movedPawnAfter, afterOpponentPawns, movedColor) &&
+      (!movedPawnBefore || !isPassedPawn(movedPawnBefore, beforeOpponentPawns, movedColor));
+    if (createdPassedPawn) {
+      return {
+        passedPawnSquare: movedPawnAfter.square,
+        passedPawnRank: movedPawnAfter.rank,
+      };
+    }
+  } catch {
+    return {};
+  }
+
+  return {};
 }
 
 function detectPositionalDeltaFacts({
@@ -810,6 +938,14 @@ function buildFactsBase(input: GameAnalysisMoveEventInput): GameAnalysisMoveFact
     moveFrom: chessFacts.moveFrom,
     moveTo: chessFacts.moveTo,
   });
+  const pawnStructureDelta = detectPawnStructureDeltaFacts({
+    beforeFen: input.beforeFen,
+    afterFen: chessFacts.afterFen,
+    playedBy: input.playedBy ?? 'white',
+    moveFrom: chessFacts.moveFrom,
+    moveTo: chessFacts.moveTo,
+    movedPiece: chessFacts.movedPiece,
+  });
 
   return {
     gameId: input.gameId,
@@ -855,6 +991,10 @@ function buildFactsBase(input: GameAnalysisMoveEventInput): GameAnalysisMoveFact
     pieceActivityBefore: positionalDelta.pieceActivityBefore,
     pieceActivityAfter: positionalDelta.pieceActivityAfter,
     pieceActivityDelta: positionalDelta.pieceActivityDelta,
+    pawnStructureIssue: pawnStructureDelta.pawnStructureIssue,
+    pawnStructureSquare: pawnStructureDelta.pawnStructureSquare,
+    passedPawnSquare: pawnStructureDelta.passedPawnSquare,
+    passedPawnRank: pawnStructureDelta.passedPawnRank,
     beforeEvalCp: input.beforeEvalCp,
     afterPlayedEvalCp: afterPlayerEvalCp,
     afterBestEvalCp:
@@ -893,6 +1033,8 @@ function candidateVariables(facts: GameAnalysisMoveFacts): CoachEventVariables {
       facts.materialRiskSquare ??
       facts.opponentThreatTo ??
       facts.developedTo ??
+      facts.pawnStructureSquare ??
+      facts.passedPawnSquare ??
       facts.moveTo ??
       null,
   });
@@ -951,6 +1093,10 @@ function candidateAnalysisFacts(
     pieceActivityBefore: facts.pieceActivityBefore ?? null,
     pieceActivityAfter: facts.pieceActivityAfter ?? null,
     pieceActivityDelta: facts.pieceActivityDelta ?? null,
+    pawnStructureIssue: facts.pawnStructureIssue ?? null,
+    pawnStructureSquare: facts.pawnStructureSquare ?? null,
+    passedPawnSquare: facts.passedPawnSquare ?? null,
+    passedPawnRank: facts.passedPawnRank ?? null,
     ...extraFacts,
   });
 }
@@ -1227,6 +1373,62 @@ function pieceActivityCandidate(facts: GameAnalysisMoveFacts): GameAnalysisCoach
   });
 }
 
+function pawnStructureCandidate(facts: GameAnalysisMoveFacts): GameAnalysisCoachCandidate | null {
+  if (!facts.pawnStructureIssue || !facts.pawnStructureSquare) return null;
+  if (facts.centipawnLoss >= COACH_CLASSIFICATION_THRESHOLDS.blunderLossCp) return null;
+
+  const isDoubledPawn = facts.pawnStructureIssue === 'doubled_pawn';
+
+  return makeCandidate({
+    facts,
+    eventType: 'pawn_structure',
+    classification:
+      facts.centipawnLoss >= COACH_CLASSIFICATION_THRESHOLDS.mistakeLossCp
+        ? 'mistake'
+        : 'inaccuracy',
+    priority:
+      (isDoubledPawn ? 610 : 560) +
+      Math.max(0, facts.centipawnLoss) -
+      Math.max(0, facts.centipawnGain),
+    teachingWeight: isDoubledPawn ? 65 : 55,
+    reason: isDoubledPawn ? 'doubled_pawn_created' : 'isolated_pawn_created',
+    themeTags: ['pawn_structure'],
+    evidence: {
+      kind: 'square',
+      title: isDoubledPawn ? 'Show the doubled pawn' : 'Show the isolated pawn',
+      squares: [facts.pawnStructureSquare],
+      summary: isDoubledPawn
+        ? `${facts.moveSan} creates doubled pawns on the file.`
+        : `${facts.moveSan} leaves this pawn without neighboring pawn support.`,
+    },
+  });
+}
+
+function passedPawnCandidate(facts: GameAnalysisMoveFacts): GameAnalysisCoachCandidate | null {
+  if (!facts.passedPawnSquare || !facts.passedPawnRank) return null;
+  if (facts.centipawnLoss >= COACH_CLASSIFICATION_THRESHOLDS.mistakeLossCp) return null;
+
+  const promotionDistance =
+    facts.playedBy === 'white' ? 8 - facts.passedPawnRank : facts.passedPawnRank - 1;
+
+  return makeCandidate({
+    facts,
+    eventType: 'conversion',
+    classification:
+      facts.centipawnGain >= COACH_CLASSIFICATION_THRESHOLDS.excellentGainCp ? 'excellent' : 'good',
+    priority: 620 + (7 - promotionDistance) * 35 + Math.max(0, facts.centipawnGain),
+    teachingWeight: promotionDistance <= 3 ? 85 : 65,
+    reason: 'passed_pawn_created',
+    themeTags: ['passed_pawn', 'endgame_conversion'],
+    evidence: {
+      kind: 'square',
+      title: 'Show the passed pawn',
+      squares: [facts.passedPawnSquare],
+      summary: `${facts.moveSan} creates a passed pawn on ${facts.passedPawnSquare}.`,
+    },
+  });
+}
+
 export function buildGameAnalysisCoachCandidatesFromFacts(
   facts: GameAnalysisMoveFacts
 ): GameAnalysisCoachCandidate[] {
@@ -1337,6 +1539,16 @@ export function buildGameAnalysisCoachCandidatesFromFacts(
   const pieceActivity = pieceActivityCandidate(facts);
   if (pieceActivity) {
     candidates.push(pieceActivity);
+  }
+
+  const pawnStructure = pawnStructureCandidate(facts);
+  if (pawnStructure) {
+    candidates.push(pawnStructure);
+  }
+
+  const passedPawn = passedPawnCandidate(facts);
+  if (passedPawn) {
+    candidates.push(passedPawn);
   }
 
   const missedTacticCandidate = missedTacticalIdea(facts);
