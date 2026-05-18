@@ -1,6 +1,8 @@
 import {
   buildGameAnalysisMoveEvents,
+  buildGameAnalysisMoveEventsFromEngine,
   buildPrimaryGameAnalysisMoveEvent,
+  buildPrimaryGameAnalysisMoveEventFromEngine,
   buildOpeningPracticeMoveEvent,
   buildOpeningPracticeWrongMoveEvent,
   classifyAnalyzedMoveByCentipawnLoss,
@@ -8,6 +10,7 @@ import {
   type CoachClassification,
   type CoachTone,
   type GameAnalysisMoveEventInput,
+  type GameAnalysisEngineMoveInput,
   type OpeningPracticeMoveEventInput,
   type OpeningPracticeWrongMoveEventInput,
 } from '@firstmove/core';
@@ -31,6 +34,10 @@ type GameAnalysisCoachInput = GameAnalysisMoveEventInput & {
   locale?: string;
 };
 
+type GameAnalysisEngineCoachInput = GameAnalysisEngineMoveInput & {
+  locale?: string;
+};
+
 export function buildMoveCoachFeedback(input: MoveCoachInput): CoachFeedback {
   return renderCoachEvent(buildOpeningPracticeMoveEvent(input), input.locale);
 }
@@ -43,9 +50,24 @@ export function buildGameAnalysisCoachFeedback(input: GameAnalysisCoachInput): C
   return buildGameAnalysisMoveEvents(input).map(event => renderCoachEvent(event, input.locale));
 }
 
+export function buildGameAnalysisCoachFeedbackFromEngine(
+  input: GameAnalysisEngineCoachInput
+): CoachFeedback[] {
+  return buildGameAnalysisMoveEventsFromEngine(input).map(event =>
+    renderCoachEvent(event, input.locale)
+  );
+}
+
 export function buildPrimaryGameAnalysisCoachFeedback(
   input: GameAnalysisCoachInput
 ): CoachFeedback | null {
   const event = buildPrimaryGameAnalysisMoveEvent(input);
+  return event ? renderCoachEvent(event, input.locale) : null;
+}
+
+export function buildPrimaryGameAnalysisCoachFeedbackFromEngine(
+  input: GameAnalysisEngineCoachInput
+): CoachFeedback | null {
+  const event = buildPrimaryGameAnalysisMoveEventFromEngine(input);
   return event ? renderCoachEvent(event, input.locale) : null;
 }

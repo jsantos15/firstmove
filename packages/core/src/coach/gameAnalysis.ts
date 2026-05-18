@@ -31,9 +31,33 @@ export interface GameAnalysisMoveEventInput {
   persona?: CoachPersona;
 }
 
+export type GameAnalysisSide = 'white' | 'black';
+
+export interface GameAnalysisEngineMoveInput {
+  gameId: string;
+  moveSan: string;
+  plyIndex: number;
+  playedBy: GameAnalysisSide;
+  phase: CoachGamePhase;
+  beforeEvalCp?: number;
+  afterPlayedEvalCp: number;
+  afterBestEvalCp?: number;
+  bestMoveSan?: string;
+  isOnlyGoodMove?: boolean;
+  isCriticalMove?: boolean;
+  isSacrifice?: boolean;
+  themeTags?: CoachThemeTag[];
+  persona?: CoachPersona;
+}
+
 function formatPawns(cp: number) {
   if (Math.abs(cp) < 10) return 'level';
   return `${cp > 0 ? '+' : '-'}${(Math.abs(cp) / 100).toFixed(1)}`;
+}
+
+function toPlayerPerspective(evalCp: number | undefined, playedBy: GameAnalysisSide) {
+  if (typeof evalCp !== 'number' || !Number.isFinite(evalCp)) return undefined;
+  return playedBy === 'white' ? evalCp : -evalCp;
 }
 
 function cleanVariables(variables: CoachEventVariables): CoachEventVariables {
@@ -256,8 +280,62 @@ export function buildGameAnalysisMoveEvents(input: GameAnalysisMoveEventInput): 
   return events;
 }
 
+export function buildGameAnalysisMoveEventsFromEngine(
+  input: GameAnalysisEngineMoveInput
+): CoachEvent[] {
+  const beforePlayerEval = toPlayerPerspective(input.beforeEvalCp, input.playedBy);
+  const playedPlayerEval = toPlayerPerspective(input.afterPlayedEvalCp, input.playedBy);
+  const bestPlayerEval = toPlayerPerspective(input.afterBestEvalCp, input.playedBy);
+
+  if (typeof playedPlayerEval !== 'number') {
+    return [];
+  }
+
+  const centipawnLoss =
+    typeof bestPlayerEval === 'number' ? Math.max(0, bestPlayerEval - playedPlayerEval) : 0;
+  const centipawnGain =
+    typeof beforePlayerEval === 'number' ? Math.max(0, playedPlayerEval - beforePlayerEval) : 0;
+  const isBestMove =
+    input.bestMoveSan && input.bestMoveSan === input.moveSan
+      ? true
+      : typeof bestPlayerEval === 'number'
+        ? centipawnLoss <= 10
+        : undefined;
+  const missedOpportunityCp =
+    input.bestMoveSan &&
+    input.bestMoveSan !== input.moveSan &&
+    centipawnLoss >= COACH_CLASSIFICATION_THRESHOLDS.missOpportunityCp
+      ? centipawnLoss
+      : undefined;
+
+  return buildGameAnalysisMoveEvents({
+    gameId: input.gameId,
+    moveSan: input.moveSan,
+    plyIndex: input.plyIndex,
+    phase: input.phase,
+    beforeEvalCp: beforePlayerEval,
+    afterEvalCp: playedPlayerEval,
+    centipawnLoss,
+    centipawnGain,
+    bestMoveSan: input.bestMoveSan,
+    isBestMove,
+    isOnlyGoodMove: input.isOnlyGoodMove,
+    isCriticalMove: input.isCriticalMove,
+    isSacrifice: input.isSacrifice,
+    missedOpportunityCp,
+    themeTags: input.themeTags,
+    persona: input.persona,
+  });
+}
+
 export function buildPrimaryGameAnalysisMoveEvent(
   input: GameAnalysisMoveEventInput
 ): CoachEvent | null {
   return buildGameAnalysisMoveEvents(input)[0] ?? null;
+}
+
+export function buildPrimaryGameAnalysisMoveEventFromEngine(
+  input: GameAnalysisEngineMoveInput
+): CoachEvent | null {
+  return buildGameAnalysisMoveEventsFromEngine(input)[0] ?? null;
 }
