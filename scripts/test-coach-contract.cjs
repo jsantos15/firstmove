@@ -117,4 +117,43 @@ test('engine adapter normalizes black moves into player perspective', () => {
   assert.equal(event.analysisFacts.centipawnGain, 100);
 });
 
+test('analyzed-game adapter emits timeline coach events from PGN-shaped input', () => {
+  const game = {
+    id: 'game-4',
+    pgn: '1. e4 e5 2. Nf3 Nc6 3. Bc4 Bc5',
+    moves: [
+      {
+        san: 'Qh5',
+        plyIndex: 7,
+        playedBy: 'white',
+        phase: 'opening',
+        beforeEvalCp: 20,
+        afterPlayedEvalCp: 160,
+        afterBestEvalCp: 165,
+        bestMoveSan: 'Qh5',
+        isCriticalMove: true,
+      },
+      {
+        san: 'Qxd5',
+        plyIndex: 23,
+        playedBy: 'white',
+        phase: 'middlegame',
+        beforeEvalCp: 30,
+        afterPlayedEvalCp: -320,
+        afterBestEvalCp: 140,
+        bestMoveSan: 'Bxf7+',
+        themeTags: ['fork'],
+      },
+    ],
+  };
+  const events = core.buildGameAnalysisEventsFromAnalyzedGame({ game, persona: 'beginner' });
+
+  assert.deepEqual(
+    events.map(event => event.eventType),
+    ['great_move', 'missed_win', 'blunder']
+  );
+  assert.ok(events.every(event => event.subject.id === 'game-4'));
+  assert.ok(events.every(event => event.persona === 'beginner'));
+});
+
 console.log('Coach contract tests passed.');

@@ -1,30 +1,26 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import type { GameAnalysisEngineMoveInput } from '@firstmove/core';
+import type { AnalyzedGame, AnalyzedGameMove } from '@firstmove/core';
 import { CoachBubble } from '@/components/practice/CoachBubble';
 import { COACH_PERSONA_OPTIONS, useCoachSettings } from '@/hooks/useCoachSettings';
-import { buildGameAnalysisCoachFeedbackFromEngine, type CoachFeedback } from '@/lib/coachFeedback';
+import {
+  buildGameAnalysisCoachFeedbackFromAnalyzedGame,
+  type CoachFeedback,
+} from '@/lib/coachFeedback';
 
 type AnalysisSample = {
   id: string;
   label: string;
-  moveNumber: string;
-  played: string;
-  best: string;
-  input: Omit<GameAnalysisEngineMoveInput, 'persona'>;
+  move: AnalyzedGameMove;
 };
 
-const ANALYSIS_SAMPLES: AnalysisSample[] = [
-  {
-    id: 'best-resource',
-    label: 'Best resource',
-    moveNumber: '8',
-    played: '8. Qh5',
-    best: '8. Qh5',
-    input: {
-      gameId: 'analysis-preview',
-      moveSan: 'Qh5',
+const SAMPLE_ANALYZED_GAME: AnalyzedGame = {
+  id: 'analysis-preview',
+  pgn: 'Sample analyzed game timeline',
+  moves: [
+    {
+      san: 'Qh5',
       plyIndex: 15,
       playedBy: 'white',
       phase: 'opening',
@@ -35,16 +31,8 @@ const ANALYSIS_SAMPLES: AnalysisSample[] = [
       isCriticalMove: true,
       themeTags: ['initiative', 'king_safety'],
     },
-  },
-  {
-    id: 'missed-win',
-    label: 'Missed win',
-    moveNumber: '12',
-    played: '12. Qxd5',
-    best: '12. Bxf7+',
-    input: {
-      gameId: 'analysis-preview',
-      moveSan: 'Qxd5',
+    {
+      san: 'Qxd5',
       plyIndex: 23,
       playedBy: 'white',
       phase: 'middlegame',
@@ -54,16 +42,8 @@ const ANALYSIS_SAMPLES: AnalysisSample[] = [
       bestMoveSan: 'Bxf7+',
       themeTags: ['fork'],
     },
-  },
-  {
-    id: 'black-counterplay',
-    label: 'Black counterplay',
-    moveNumber: '14',
-    played: '14...Nf6',
-    best: '14...Nf6',
-    input: {
-      gameId: 'analysis-preview',
-      moveSan: 'Nf6',
+    {
+      san: 'Nf6',
       plyIndex: 28,
       playedBy: 'black',
       phase: 'middlegame',
@@ -73,6 +53,24 @@ const ANALYSIS_SAMPLES: AnalysisSample[] = [
       bestMoveSan: 'Nf6',
       themeTags: ['piece_activity'],
     },
+  ],
+};
+
+const ANALYSIS_SAMPLES: AnalysisSample[] = [
+  {
+    id: 'best-resource',
+    label: 'Best resource',
+    move: SAMPLE_ANALYZED_GAME.moves[0],
+  },
+  {
+    id: 'missed-win',
+    label: 'Missed win',
+    move: SAMPLE_ANALYZED_GAME.moves[1],
+  },
+  {
+    id: 'black-counterplay',
+    label: 'Black counterplay',
+    move: SAMPLE_ANALYZED_GAME.moves[2],
   },
 ];
 
@@ -91,6 +89,15 @@ function FeedbackFact({ label, value }: { label: string; value: string | number 
   );
 }
 
+function moveNumberLabel(move: AnalyzedGameMove) {
+  const moveNumber = Math.floor(move.plyIndex / 2) + 1;
+  return move.playedBy === 'white' ? `${moveNumber}.` : `${moveNumber}...`;
+}
+
+function moveLabel(move: AnalyzedGameMove, san: string | undefined = move.san) {
+  return `${moveNumberLabel(move)} ${san ?? 'n/a'}`;
+}
+
 export default function AnalysisPage() {
   const [selectedSampleId, setSelectedSampleId] = useState(ANALYSIS_SAMPLES[0].id);
   const { settings: coachSettings, setSettings: setCoachSettings } = useCoachSettings();
@@ -98,11 +105,11 @@ export default function AnalysisPage() {
     ANALYSIS_SAMPLES.find(sample => sample.id === selectedSampleId) ?? ANALYSIS_SAMPLES[0];
   const feedbacks = useMemo(
     () =>
-      buildGameAnalysisCoachFeedbackFromEngine({
-        ...selectedSample.input,
+      buildGameAnalysisCoachFeedbackFromAnalyzedGame({
+        game: SAMPLE_ANALYZED_GAME,
         persona: coachSettings.persona,
-      }),
-    [coachSettings.persona, selectedSample]
+      }).filter(feedback => feedback.event.plyIndex === selectedSample.move.plyIndex),
+    [coachSettings.persona, selectedSample.move.plyIndex]
   );
   const primaryFeedback: CoachFeedback | null = feedbacks[0] ?? null;
 
@@ -112,7 +119,7 @@ export default function AnalysisPage() {
         <header>
           <p className="mb-1 text-2xl font-bold text-white">Analysis Coach</p>
           <p className="max-w-2xl text-sm leading-6 text-gray-400">
-            Review sample engine moments through the same coach event pipeline used by opening
+            Review a sample analyzed game through the same coach event pipeline used by opening
             practice.
           </p>
         </header>
@@ -122,7 +129,9 @@ export default function AnalysisPage() {
             <div className="mb-4 flex items-center justify-between gap-3">
               <div>
                 <h2 className="text-base font-semibold text-white">Reviewed moves</h2>
-                <p className="mt-1 text-xs text-gray-500">Engine facts in, localized coach out.</p>
+                <p className="mt-1 text-xs text-gray-500">
+                  PGN and eval timeline in, localized coach out.
+                </p>
               </div>
               <span className="rounded-full border border-amber-400/20 bg-amber-400/10 px-3 py-1 text-xs font-medium text-amber-300">
                 Preview
@@ -151,15 +160,18 @@ export default function AnalysisPage() {
                       >
                         {sample.label}
                       </span>
-                      <span className="text-xs text-gray-500">Move {sample.moveNumber}</span>
+                      <span className="text-xs text-gray-500">{moveNumberLabel(sample.move)}</span>
                     </div>
                     <dl className="grid gap-3">
-                      <FeedbackFact label="Played" value={sample.played} />
-                      <FeedbackFact label="Best" value={sample.best} />
+                      <FeedbackFact label="Played" value={moveLabel(sample.move)} />
+                      <FeedbackFact
+                        label="Best"
+                        value={moveLabel(sample.move, sample.move.bestMoveSan)}
+                      />
                       <FeedbackFact
                         label="Eval"
-                        value={`${evalLabel(sample.input.afterPlayedEvalCp)} / ${evalLabel(
-                          sample.input.afterBestEvalCp
+                        value={`${evalLabel(sample.move.afterPlayedEvalCp)} / ${evalLabel(
+                          sample.move.afterBestEvalCp
                         )}`}
                       />
                     </dl>

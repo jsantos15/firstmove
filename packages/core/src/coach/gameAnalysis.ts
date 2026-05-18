@@ -50,6 +50,34 @@ export interface GameAnalysisEngineMoveInput {
   persona?: CoachPersona;
 }
 
+export interface AnalyzedGameMove {
+  id?: string;
+  san: string;
+  plyIndex: number;
+  playedBy: GameAnalysisSide;
+  phase: CoachGamePhase;
+  beforeEvalCp?: number;
+  afterPlayedEvalCp: number;
+  afterBestEvalCp?: number;
+  bestMoveSan?: string;
+  isOnlyGoodMove?: boolean;
+  isCriticalMove?: boolean;
+  isSacrifice?: boolean;
+  themeTags?: CoachThemeTag[];
+}
+
+export interface AnalyzedGame {
+  id: string;
+  pgn?: string;
+  initialFen?: string;
+  moves: AnalyzedGameMove[];
+}
+
+export interface GameAnalysisEventsFromGameInput {
+  game: AnalyzedGame;
+  persona?: CoachPersona;
+}
+
 function formatPawns(cp: number) {
   if (Math.abs(cp) < 10) return 'level';
   return `${cp > 0 ? '+' : '-'}${(Math.abs(cp) / 100).toFixed(1)}`;
@@ -328,6 +356,42 @@ export function buildGameAnalysisMoveEventsFromEngine(
   });
 }
 
+export function buildGameAnalysisMoveEventsFromAnalyzedGameMove({
+  game,
+  move,
+  persona,
+}: {
+  game: AnalyzedGame;
+  move: AnalyzedGameMove;
+  persona?: CoachPersona;
+}): CoachEvent[] {
+  return buildGameAnalysisMoveEventsFromEngine({
+    gameId: game.id,
+    moveSan: move.san,
+    plyIndex: move.plyIndex,
+    playedBy: move.playedBy,
+    phase: move.phase,
+    beforeEvalCp: move.beforeEvalCp,
+    afterPlayedEvalCp: move.afterPlayedEvalCp,
+    afterBestEvalCp: move.afterBestEvalCp,
+    bestMoveSan: move.bestMoveSan,
+    isOnlyGoodMove: move.isOnlyGoodMove,
+    isCriticalMove: move.isCriticalMove,
+    isSacrifice: move.isSacrifice,
+    themeTags: move.themeTags,
+    persona,
+  });
+}
+
+export function buildGameAnalysisEventsFromAnalyzedGame({
+  game,
+  persona,
+}: GameAnalysisEventsFromGameInput): CoachEvent[] {
+  return game.moves.flatMap(move =>
+    buildGameAnalysisMoveEventsFromAnalyzedGameMove({ game, move, persona })
+  );
+}
+
 export function buildPrimaryGameAnalysisMoveEvent(
   input: GameAnalysisMoveEventInput
 ): CoachEvent | null {
@@ -338,4 +402,16 @@ export function buildPrimaryGameAnalysisMoveEventFromEngine(
   input: GameAnalysisEngineMoveInput
 ): CoachEvent | null {
   return buildGameAnalysisMoveEventsFromEngine(input)[0] ?? null;
+}
+
+export function buildPrimaryGameAnalysisMoveEventFromAnalyzedGameMove({
+  game,
+  move,
+  persona,
+}: {
+  game: AnalyzedGame;
+  move: AnalyzedGameMove;
+  persona?: CoachPersona;
+}): CoachEvent | null {
+  return buildGameAnalysisMoveEventsFromAnalyzedGameMove({ game, move, persona })[0] ?? null;
 }
