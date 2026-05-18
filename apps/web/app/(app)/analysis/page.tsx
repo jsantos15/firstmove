@@ -40,6 +40,28 @@ const SAMPLE_ANALYZED_GAME: AnalyzedGame = {
       afterPlayedEvalCp: -320,
       afterBestEvalCp: 140,
       bestMoveSan: 'Bxf7+',
+      bestLine: [
+        {
+          san: 'Bxf7+',
+          side: 'white',
+          plyIndex: 23,
+          comment: 'The fork starts with check.',
+          evalCp: 140,
+          isKeyMove: true,
+        },
+        {
+          san: 'Kxf7',
+          side: 'black',
+          plyIndex: 24,
+          comment: 'Black is pulled into the tactic.',
+        },
+        {
+          san: 'Qxd5+',
+          side: 'white',
+          plyIndex: 25,
+          comment: 'White wins material with tempo.',
+        },
+      ],
       themeTags: ['fork'],
     },
     {
@@ -96,6 +118,52 @@ function moveNumberLabel(move: AnalyzedGameMove) {
 
 function moveLabel(move: AnalyzedGameMove, san: string | undefined = move.san) {
   return `${moveNumberLabel(move)} ${san ?? 'n/a'}`;
+}
+
+function EvidencePanel({ feedback }: { feedback: CoachFeedback | null }) {
+  const evidence = feedback?.event.evidence;
+  if (!evidence) return null;
+
+  return (
+    <div className="rounded-xl border border-white/5 bg-(--bg-panel) p-4">
+      <h2 className="mb-2 text-base font-semibold text-white">{evidence.title}</h2>
+      {'summary' in evidence && evidence.summary && (
+        <p className="mb-3 text-sm leading-6 text-gray-400">{evidence.summary}</p>
+      )}
+      {evidence.kind === 'line' && (
+        <div className="flex flex-col gap-2">
+          {evidence.moves.map((move, index) => (
+            <div
+              key={`${move.san}-${index}`}
+              className={`rounded-lg border px-3 py-2 ${
+                move.isKeyMove
+                  ? 'border-amber-400/30 bg-amber-400/10'
+                  : 'border-white/5 bg-white/[0.03]'
+              }`}
+            >
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-sm font-semibold text-white">{move.san}</span>
+                {typeof move.evalCp === 'number' && (
+                  <span className="text-xs text-gray-500">{evalLabel(move.evalCp)}</span>
+                )}
+              </div>
+              {move.comment && (
+                <p className="mt-1 text-xs leading-5 text-gray-400">{move.comment}</p>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+      {evidence.kind === 'single_move' && (
+        <div className="rounded-lg border border-amber-400/30 bg-amber-400/10 px-3 py-2">
+          <span className="text-sm font-semibold text-white">{evidence.move.san}</span>
+          {evidence.move.comment && (
+            <p className="mt-1 text-xs leading-5 text-gray-400">{evidence.move.comment}</p>
+          )}
+        </div>
+      )}
+    </div>
+  );
 }
 
 export default function AnalysisPage() {
@@ -214,7 +282,7 @@ export default function AnalysisPage() {
 
         <section className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_24rem]">
           <div className="rounded-xl border border-white/5 bg-(--bg-panel) p-4">
-            <h2 className="mb-3 text-base font-semibold text-white">Coach events</h2>
+            <h2 className="mb-3 text-base font-semibold text-white">Ranked coach matches</h2>
             <div className="flex flex-col gap-2">
               {feedbacks.map(feedback => (
                 <div
@@ -228,16 +296,22 @@ export default function AnalysisPage() {
                     <span className="text-sm font-semibold text-white">{feedback.title}</span>
                   </div>
                   <p className="text-sm leading-6 text-gray-400">{feedback.message}</p>
+                  <p className="mt-2 text-[10px] uppercase tracking-wider text-gray-600">
+                    {String(feedback.event.analysisFacts.candidateReason ?? 'matched_event')}
+                  </p>
                 </div>
               ))}
             </div>
           </div>
 
-          <div className="rounded-xl border border-white/5 bg-(--bg-panel) p-4">
-            <h2 className="mb-3 text-base font-semibold text-white">Speech text</h2>
-            <p className="text-sm leading-6 text-gray-400">
-              {primaryFeedback?.spokenText ?? 'No speech text available.'}
-            </p>
+          <div className="flex flex-col gap-4">
+            <EvidencePanel feedback={primaryFeedback} />
+            <div className="rounded-xl border border-white/5 bg-(--bg-panel) p-4">
+              <h2 className="mb-3 text-base font-semibold text-white">Speech text</h2>
+              <p className="text-sm leading-6 text-gray-400">
+                {primaryFeedback?.spokenText ?? 'No speech text available.'}
+              </p>
+            </div>
           </div>
         </section>
       </div>

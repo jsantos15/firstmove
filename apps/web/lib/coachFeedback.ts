@@ -1,5 +1,6 @@
 import {
   buildGameAnalysisEventsFromAnalyzedGame,
+  buildGameAnalysisCoachCandidatesFromFacts,
   buildGameAnalysisMoveEvents,
   buildGameAnalysisMoveEventsFromAnalyzedGameMove,
   buildGameAnalysisMoveEventsFromEngine,
@@ -14,6 +15,7 @@ import {
   type CoachTone,
   type AnalyzedGame,
   type AnalyzedGameMove,
+  type GameAnalysisCoachCandidate,
   type GameAnalysisMoveEventInput,
   type GameAnalysisEngineMoveInput,
   type OpeningPracticeMoveEventInput,
@@ -24,8 +26,13 @@ import { renderCoachEvent, type RenderedCoachEvent } from '@firstmove/i18n';
 export type CoachMoveClassification = CoachClassification;
 export type CoachFeedbackTone = CoachTone;
 export type CoachFeedback = RenderedCoachEvent;
+export type CoachCandidateFeedback = GameAnalysisCoachCandidate;
 
-export { COACH_CLASSIFICATION_THRESHOLDS, classifyAnalyzedMoveByCentipawnLoss };
+export {
+  COACH_CLASSIFICATION_THRESHOLDS,
+  buildGameAnalysisCoachCandidatesFromFacts,
+  classifyAnalyzedMoveByCentipawnLoss,
+};
 
 type MoveCoachInput = OpeningPracticeMoveEventInput & {
   locale?: string;

@@ -84,6 +84,11 @@ test('engine adapter emits missed-win and blunder events from white-perspective 
     afterPlayedEvalCp: -320,
     afterBestEvalCp: 140,
     bestMoveSan: 'Bxf7+',
+    bestLine: [
+      { san: 'Bxf7+', side: 'white', isKeyMove: true },
+      { san: 'Kxf7', side: 'black' },
+      { san: 'Qxd5+', side: 'white' },
+    ],
     themeTags: ['fork'],
   });
 
@@ -95,6 +100,7 @@ test('engine adapter emits missed-win and blunder events from white-perspective 
   assert.equal(events[1].classification, 'blunder');
   assert.equal(events[0].analysisFacts.centipawnLoss, 460);
   assert.equal(events[0].analysisFacts.missedOpportunityCp, 460);
+  assert.equal(events[0].evidence?.kind, 'line');
 });
 
 test('engine adapter normalizes black moves into player perspective', () => {
@@ -154,6 +160,25 @@ test('analyzed-game adapter emits timeline coach events from PGN-shaped input', 
   );
   assert.ok(events.every(event => event.subject.id === 'game-4'));
   assert.ok(events.every(event => event.persona === 'beginner'));
+});
+
+test('analysis candidates are ranked before coach events are rendered', () => {
+  const event = core.buildGameAnalysisMoveEventsFromEngine({
+    gameId: 'game-5',
+    moveSan: 'Qxd5',
+    plyIndex: 18,
+    playedBy: 'white',
+    phase: 'middlegame',
+    beforeEvalCp: 30,
+    afterPlayedEvalCp: -320,
+    afterBestEvalCp: 140,
+    bestMoveSan: 'Bxf7+',
+    themeTags: ['fork'],
+  })[0];
+
+  assert.equal(event.eventType, 'missed_win');
+  assert.equal(event.analysisFacts.candidateReason, 'missed_higher_value_line');
+  assert.ok(Number(event.analysisFacts.candidatePriority) > 1000);
 });
 
 console.log('Coach contract tests passed.');

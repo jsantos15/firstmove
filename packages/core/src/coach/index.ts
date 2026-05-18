@@ -135,6 +135,48 @@ export type CoachAnalysisFacts = Record<
   CoachEventVariableValue | CoachEventVariableValue[]
 >;
 
+export interface CoachEvidenceMove {
+  san: string;
+  side?: 'white' | 'black';
+  plyIndex?: number;
+  comment?: string;
+  evalCp?: number;
+  isKeyMove?: boolean;
+}
+
+export type CoachEvidence =
+  | {
+      kind: 'line';
+      title: string;
+      moves: CoachEvidenceMove[];
+      summary?: string;
+    }
+  | {
+      kind: 'single_move';
+      title: string;
+      move: CoachEvidenceMove;
+      summary?: string;
+    }
+  | {
+      kind: 'square';
+      title: string;
+      squares: string[];
+      summary?: string;
+    }
+  | {
+      kind: 'piece';
+      title: string;
+      pieces: Array<{ square: string; role: string }>;
+      summary?: string;
+    }
+  | {
+      kind: 'plan';
+      title: string;
+      keyMove?: string;
+      targetSquares?: string[];
+      summary: string;
+    };
+
 export interface CoachSubjectRef {
   kind: CoachSubjectKind;
   id: string;
@@ -157,6 +199,7 @@ export interface CoachEvent {
   spokenKey: string;
   variables: CoachEventVariables;
   analysisFacts: CoachAnalysisFacts;
+  evidence?: CoachEvidence;
   source: CoachEventSource;
   contentVersion: number;
 }

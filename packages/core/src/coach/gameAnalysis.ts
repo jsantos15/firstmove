@@ -2,6 +2,8 @@ import { COACH_CLASSIFICATION_THRESHOLDS, classifyAnalyzedMoveByCentipawnLoss } 
 import type {
   CoachAnalysisFacts,
   CoachClassification,
+  CoachEvidence,
+  CoachEvidenceMove,
   CoachEvent,
   CoachEventType,
   CoachEventVariables,
@@ -16,6 +18,7 @@ export interface GameAnalysisMoveEventInput {
   gameId: string;
   moveSan: string;
   plyIndex: number;
+  playedBy?: GameAnalysisSide;
   phase: CoachGamePhase;
   beforeEvalCp?: number;
   afterEvalCp?: number;
@@ -29,6 +32,7 @@ export interface GameAnalysisMoveEventInput {
   missedOpportunityCp?: number;
   themeTags?: CoachThemeTag[];
   persona?: CoachPersona;
+  evidence?: CoachEvidence;
 }
 
 export type GameAnalysisSide = 'white' | 'black';
@@ -43,6 +47,7 @@ export interface GameAnalysisEngineMoveInput {
   afterPlayedEvalCp: number;
   afterBestEvalCp?: number;
   bestMoveSan?: string;
+  bestLine?: CoachEvidenceMove[];
   isOnlyGoodMove?: boolean;
   isCriticalMove?: boolean;
   isSacrifice?: boolean;
@@ -60,6 +65,7 @@ export interface AnalyzedGameMove {
   afterPlayedEvalCp: number;
   afterBestEvalCp?: number;
   bestMoveSan?: string;
+  bestLine?: CoachEvidenceMove[];
   isOnlyGoodMove?: boolean;
   isCriticalMove?: boolean;
   isSacrifice?: boolean;
@@ -78,6 +84,46 @@ export interface GameAnalysisEventsFromGameInput {
   persona?: CoachPersona;
 }
 
+export interface GameAnalysisMoveFacts {
+  gameId: string;
+  moveSan: string;
+  plyIndex: number;
+  playedBy: GameAnalysisSide;
+  phase: CoachGamePhase;
+  beforeEvalCp?: number;
+  afterPlayedEvalCp: number;
+  afterBestEvalCp?: number;
+  beforePlayerEvalCp?: number;
+  afterPlayerEvalCp: number;
+  bestPlayerEvalCp?: number;
+  centipawnLoss: number;
+  centipawnGain: number;
+  bestMoveSan?: string;
+  isBestMove?: boolean;
+  isOnlyGoodMove?: boolean;
+  isCriticalMove?: boolean;
+  isSacrifice?: boolean;
+  missedOpportunityCp?: number;
+  themeTags: CoachThemeTag[];
+  persona?: CoachPersona;
+  evidence?: CoachEvidence;
+}
+
+export interface GameAnalysisCoachCandidate {
+  id: string;
+  eventType: CoachEventType;
+  classification: CoachClassification;
+  priority: number;
+  teachingWeight: number;
+  reason: string;
+  tone: CoachTone;
+  severity: CoachSeverity;
+  themeTags: CoachThemeTag[];
+  variables: CoachEventVariables;
+  analysisFacts: CoachAnalysisFacts;
+  evidence?: CoachEvidence;
+}
+
 function formatPawns(cp: number) {
   if (Math.abs(cp) < 10) return 'level';
   return `${cp > 0 ? '+' : '-'}${(Math.abs(cp) / 100).toFixed(1)}`;
@@ -88,10 +134,47 @@ function toPlayerPerspective(evalCp: number | undefined, playedBy: GameAnalysisS
   return playedBy === 'white' ? evalCp : -evalCp;
 }
 
+function buildBestMoveEvidence({
+  bestMoveSan,
+  bestLine,
+}: {
+  bestMoveSan?: string;
+  bestLine?: CoachEvidenceMove[];
+}): CoachEvidence | undefined {
+  if (bestLine?.length) {
+    return {
+      kind: 'line',
+      title: 'Show the better line',
+      moves: bestLine,
+      summary: 'This is the continuation behind the coach recommendation.',
+    };
+  }
+
+  if (bestMoveSan) {
+    return {
+      kind: 'single_move',
+      title: 'Show the better move',
+      move: {
+        san: bestMoveSan,
+        isKeyMove: true,
+      },
+      summary: 'This move is the key improvement in the position.',
+    };
+  }
+
+  return undefined;
+}
+
 function cleanVariables(variables: CoachEventVariables): CoachEventVariables {
   return Object.fromEntries(
     Object.entries(variables).filter(([, value]) => value !== null && typeof value !== 'undefined')
   );
+}
+
+function cleanAnalysisFacts(facts: CoachAnalysisFacts): CoachAnalysisFacts {
+  return Object.fromEntries(
+    Object.entries(facts).filter(([, value]) => value !== null && typeof value !== 'undefined')
+  ) as CoachAnalysisFacts;
 }
 
 function eventTone(classification: CoachClassification): CoachTone {
@@ -152,160 +235,265 @@ function moveQualityEventType(
   return input.centipawnLoss && input.centipawnLoss > 0 ? 'eval_loss' : 'eval_gain';
 }
 
-function buildGameAnalysisEvent({
-  input,
-  eventType,
-  classification,
-  extraVariables = {},
-  extraFacts = {},
-  themeTags = input.themeTags ?? [],
-}: {
-  input: GameAnalysisMoveEventInput;
-  eventType: CoachEventType;
-  classification: CoachClassification;
-  extraVariables?: CoachEventVariables;
-  extraFacts?: CoachAnalysisFacts;
-  themeTags?: CoachThemeTag[];
-}): CoachEvent {
-  const variables = cleanVariables({
-    moveSan: input.moveSan,
-    bestMoveSan: input.bestMoveSan ?? null,
-    evalPawns:
-      typeof input.afterEvalCp === 'number' && Number.isFinite(input.afterEvalCp)
-        ? formatPawns(input.afterEvalCp)
-        : null,
-    ...extraVariables,
-  });
-  const analysisFacts: CoachAnalysisFacts = cleanVariables({
-    beforeCp: input.beforeEvalCp ?? null,
-    afterCp: input.afterEvalCp ?? null,
-    centipawnLoss: input.centipawnLoss ?? null,
-    centipawnGain: input.centipawnGain ?? null,
-    bestMoveSan: input.bestMoveSan ?? null,
-    isBestMove: input.isBestMove ?? null,
-    isOnlyGoodMove: input.isOnlyGoodMove ?? null,
-    isCriticalMove: input.isCriticalMove ?? null,
-    isSacrifice: input.isSacrifice ?? null,
-    missedOpportunityCp: input.missedOpportunityCp ?? null,
-    ...extraFacts,
-  });
+function buildFactsBase(input: GameAnalysisMoveEventInput): GameAnalysisMoveFacts {
+  const centipawnLoss = input.centipawnLoss ?? 0;
+  const centipawnGain = input.centipawnGain ?? 0;
+  const afterPlayerEvalCp =
+    typeof input.afterEvalCp === 'number' && Number.isFinite(input.afterEvalCp)
+      ? input.afterEvalCp
+      : 0;
 
   return {
-    id: `game:${input.gameId}:${input.plyIndex}:${eventType}`,
+    gameId: input.gameId,
+    moveSan: input.moveSan,
+    plyIndex: input.plyIndex,
+    playedBy: input.playedBy ?? 'white',
+    phase: input.phase,
+    beforeEvalCp: input.beforeEvalCp,
+    afterPlayedEvalCp: afterPlayerEvalCp,
+    afterBestEvalCp:
+      typeof input.afterEvalCp === 'number' && typeof input.centipawnLoss === 'number'
+        ? input.afterEvalCp + input.centipawnLoss
+        : undefined,
+    beforePlayerEvalCp: input.beforeEvalCp,
+    afterPlayerEvalCp,
+    bestPlayerEvalCp:
+      typeof input.afterEvalCp === 'number' && typeof input.centipawnLoss === 'number'
+        ? input.afterEvalCp + input.centipawnLoss
+        : undefined,
+    centipawnLoss,
+    centipawnGain,
+    bestMoveSan: input.bestMoveSan,
+    isBestMove: input.isBestMove,
+    isOnlyGoodMove: input.isOnlyGoodMove,
+    isCriticalMove: input.isCriticalMove,
+    isSacrifice: input.isSacrifice,
+    missedOpportunityCp: input.missedOpportunityCp,
+    themeTags: input.themeTags ?? [],
+    persona: input.persona,
+    evidence: input.evidence,
+  };
+}
+
+function candidateVariables(facts: GameAnalysisMoveFacts): CoachEventVariables {
+  return cleanVariables({
+    moveSan: facts.moveSan,
+    bestMoveSan: facts.bestMoveSan ?? null,
+    evalPawns: formatPawns(facts.afterPlayerEvalCp),
+  });
+}
+
+function candidateAnalysisFacts(
+  facts: GameAnalysisMoveFacts,
+  extraFacts: CoachAnalysisFacts = {}
+): CoachAnalysisFacts {
+  return cleanAnalysisFacts({
+    beforeCp: facts.beforePlayerEvalCp ?? null,
+    afterCp: facts.afterPlayerEvalCp,
+    centipawnLoss: facts.centipawnLoss,
+    centipawnGain: facts.centipawnGain,
+    bestMoveSan: facts.bestMoveSan ?? null,
+    isBestMove: facts.isBestMove ?? null,
+    isOnlyGoodMove: facts.isOnlyGoodMove ?? null,
+    isCriticalMove: facts.isCriticalMove ?? null,
+    isSacrifice: facts.isSacrifice ?? null,
+    missedOpportunityCp: facts.missedOpportunityCp ?? null,
+    ...extraFacts,
+  });
+}
+
+function makeCandidate({
+  facts,
+  eventType,
+  classification,
+  priority,
+  teachingWeight,
+  reason,
+  themeTags = facts.themeTags,
+  evidence = facts.evidence,
+}: {
+  facts: GameAnalysisMoveFacts;
+  eventType: CoachEventType;
+  classification: CoachClassification;
+  priority: number;
+  teachingWeight: number;
+  reason: string;
+  themeTags?: CoachThemeTag[];
+  evidence?: CoachEvidence;
+}): GameAnalysisCoachCandidate {
+  return {
+    id: `candidate:${facts.gameId}:${facts.plyIndex}:${eventType}:${reason}`,
+    eventType,
+    classification,
+    priority,
+    teachingWeight,
+    reason,
+    tone: eventTone(classification),
+    severity: eventSeverity(classification),
+    themeTags,
+    variables: candidateVariables(facts),
+    analysisFacts: candidateAnalysisFacts(facts, {
+      candidatePriority: priority,
+      candidateReason: reason,
+    }),
+    evidence,
+  };
+}
+
+export function buildGameAnalysisCoachCandidatesFromFacts(
+  facts: GameAnalysisMoveFacts
+): GameAnalysisCoachCandidate[] {
+  const candidates: GameAnalysisCoachCandidate[] = [];
+  const classification = classifyAnalyzedMoveByCentipawnLoss({
+    centipawnLoss: facts.centipawnLoss,
+    centipawnGain: facts.centipawnGain,
+    isBestMove: facts.isBestMove,
+    isSacrifice: facts.isSacrifice,
+    isOnlyGoodMove: facts.isOnlyGoodMove,
+    isCriticalMove: facts.isCriticalMove,
+    missedOpportunityCp: facts.missedOpportunityCp,
+  });
+
+  if (
+    typeof facts.missedOpportunityCp === 'number' &&
+    facts.missedOpportunityCp >= COACH_CLASSIFICATION_THRESHOLDS.missOpportunityCp &&
+    facts.bestMoveSan
+  ) {
+    candidates.push(
+      makeCandidate({
+        facts,
+        eventType: missedOpportunityEventType(facts.missedOpportunityCp),
+        classification: 'miss',
+        priority: 1000 + facts.missedOpportunityCp,
+        teachingWeight: 100,
+        reason: 'missed_higher_value_line',
+        themeTags: facts.themeTags.length ? facts.themeTags : ['initiative'],
+        evidence: facts.evidence ?? buildBestMoveEvidence({ bestMoveSan: facts.bestMoveSan }),
+      })
+    );
+  }
+
+  if (facts.centipawnLoss >= COACH_CLASSIFICATION_THRESHOLDS.inaccuracyLossCp) {
+    const lossClassification =
+      classification === 'miss'
+        ? classifyAnalyzedMoveByCentipawnLoss({
+            centipawnLoss: facts.centipawnLoss,
+            centipawnGain: facts.centipawnGain,
+            isBestMove: facts.isBestMove,
+            isSacrifice: facts.isSacrifice,
+            isOnlyGoodMove: facts.isOnlyGoodMove,
+            isCriticalMove: facts.isCriticalMove,
+          })
+        : classification;
+
+    candidates.push(
+      makeCandidate({
+        facts,
+        eventType: moveQualityEventType(lossClassification, {
+          ...facts,
+          afterEvalCp: facts.afterPlayerEvalCp,
+          missedOpportunityCp: undefined,
+        }),
+        classification: lossClassification,
+        priority: 900 + facts.centipawnLoss,
+        teachingWeight: 90,
+        reason: 'eval_loss_after_move',
+      })
+    );
+  }
+
+  if (facts.isBestMove || facts.centipawnLoss <= 10) {
+    const bestClassification = classifyAnalyzedMoveByCentipawnLoss({
+      centipawnLoss: facts.centipawnLoss,
+      centipawnGain: facts.centipawnGain,
+      isBestMove: true,
+      isSacrifice: facts.isSacrifice,
+      isOnlyGoodMove: facts.isOnlyGoodMove,
+      isCriticalMove: facts.isCriticalMove,
+    });
+
+    candidates.push(
+      makeCandidate({
+        facts,
+        eventType: moveQualityEventType(bestClassification, {
+          ...facts,
+          afterEvalCp: facts.afterPlayerEvalCp,
+        }),
+        classification: bestClassification,
+        priority: 700 + facts.centipawnGain,
+        teachingWeight:
+          bestClassification === 'great' || bestClassification === 'brilliant' ? 85 : 65,
+        reason: facts.isOnlyGoodMove ? 'only_good_move_found' : 'best_or_engine_equal_move',
+        themeTags: facts.isOnlyGoodMove || facts.isCriticalMove ? ['defense'] : facts.themeTags,
+      })
+    );
+  } else if (facts.centipawnGain >= COACH_CLASSIFICATION_THRESHOLDS.excellentGainCp) {
+    const gainClassification = classifyAnalyzedMoveByCentipawnLoss({
+      centipawnLoss: facts.centipawnLoss,
+      centipawnGain: facts.centipawnGain,
+      isBestMove: facts.isBestMove,
+      isSacrifice: facts.isSacrifice,
+      isOnlyGoodMove: facts.isOnlyGoodMove,
+      isCriticalMove: facts.isCriticalMove,
+    });
+
+    candidates.push(
+      makeCandidate({
+        facts,
+        eventType: moveQualityEventType(gainClassification, {
+          ...facts,
+          afterEvalCp: facts.afterPlayerEvalCp,
+        }),
+        classification: gainClassification === 'best' ? 'excellent' : gainClassification,
+        priority: 650 + facts.centipawnGain,
+        teachingWeight: 70,
+        reason: hasTacticalTheme(facts.themeTags)
+          ? 'tactical_eval_gain_after_move'
+          : 'eval_gain_after_move',
+      })
+    );
+  }
+
+  return candidates.sort((a, b) => b.priority - a.priority || b.teachingWeight - a.teachingWeight);
+}
+
+function buildGameAnalysisEventFromCandidate({
+  facts,
+  candidate,
+}: {
+  facts: GameAnalysisMoveFacts;
+  candidate: GameAnalysisCoachCandidate;
+}): CoachEvent {
+  return {
+    id: `game:${facts.gameId}:${facts.plyIndex}:${candidate.eventType}`,
     domain: 'game_analysis',
     subject: {
       kind: 'game',
-      id: input.gameId,
+      id: facts.gameId,
     },
-    plyIndex: input.plyIndex,
-    eventType,
-    classification,
-    tone: eventTone(classification),
-    severity: eventSeverity(classification),
-    persona: input.persona ?? 'neutral',
-    phase: input.phase,
-    themeTags,
+    plyIndex: facts.plyIndex,
+    eventType: candidate.eventType,
+    classification: candidate.classification,
+    tone: candidate.tone,
+    severity: candidate.severity,
+    persona: facts.persona ?? 'neutral',
+    phase: facts.phase,
+    themeTags: candidate.themeTags,
     messageKey: '',
     spokenKey: '',
-    variables,
-    analysisFacts,
-    source: input.themeTags?.length ? 'tactical_detector' : 'engine_analysis',
+    variables: candidate.variables,
+    analysisFacts: candidate.analysisFacts,
+    evidence: candidate.evidence,
+    source: candidate.themeTags.length ? 'tactical_detector' : 'engine_analysis',
     contentVersion: 1,
   };
 }
 
 export function buildGameAnalysisMoveEvents(input: GameAnalysisMoveEventInput): CoachEvent[] {
-  const events: CoachEvent[] = [];
-  const centipawnLoss = input.centipawnLoss ?? 0;
-  const centipawnGain = input.centipawnGain ?? 0;
-  const classification = classifyAnalyzedMoveByCentipawnLoss({
-    centipawnLoss,
-    centipawnGain,
-    isBestMove: input.isBestMove,
-    isSacrifice: input.isSacrifice,
-    isOnlyGoodMove: input.isOnlyGoodMove,
-    isCriticalMove: input.isCriticalMove,
-    missedOpportunityCp: input.missedOpportunityCp,
-  });
-
-  if (
-    typeof input.missedOpportunityCp === 'number' &&
-    input.missedOpportunityCp >= COACH_CLASSIFICATION_THRESHOLDS.missOpportunityCp &&
-    input.bestMoveSan
-  ) {
-    events.push(
-      buildGameAnalysisEvent({
-        input,
-        eventType: missedOpportunityEventType(input.missedOpportunityCp),
-        classification: 'miss',
-        themeTags: input.themeTags?.length ? input.themeTags : ['initiative'],
-      })
-    );
-  }
-
-  if (centipawnLoss >= COACH_CLASSIFICATION_THRESHOLDS.inaccuracyLossCp) {
-    const lossClassification =
-      classification === 'miss'
-        ? classifyAnalyzedMoveByCentipawnLoss({
-            centipawnLoss,
-            centipawnGain,
-            isBestMove: input.isBestMove,
-            isSacrifice: input.isSacrifice,
-            isOnlyGoodMove: input.isOnlyGoodMove,
-            isCriticalMove: input.isCriticalMove,
-          })
-        : classification;
-
-    events.push(
-      buildGameAnalysisEvent({
-        input,
-        eventType: moveQualityEventType(lossClassification, {
-          ...input,
-          missedOpportunityCp: undefined,
-        }),
-        classification: lossClassification,
-      })
-    );
-  }
-
-  if (input.isBestMove || centipawnLoss <= 10) {
-    const bestClassification = classifyAnalyzedMoveByCentipawnLoss({
-      centipawnLoss,
-      centipawnGain,
-      isBestMove: true,
-      isSacrifice: input.isSacrifice,
-      isOnlyGoodMove: input.isOnlyGoodMove,
-      isCriticalMove: input.isCriticalMove,
-    });
-
-    events.push(
-      buildGameAnalysisEvent({
-        input,
-        eventType: moveQualityEventType(bestClassification, input),
-        classification: bestClassification,
-        themeTags: input.isOnlyGoodMove || input.isCriticalMove ? ['defense'] : input.themeTags,
-      })
-    );
-  } else if (centipawnGain >= COACH_CLASSIFICATION_THRESHOLDS.excellentGainCp) {
-    const gainClassification = classifyAnalyzedMoveByCentipawnLoss({
-      centipawnLoss,
-      centipawnGain,
-      isBestMove: input.isBestMove,
-      isSacrifice: input.isSacrifice,
-      isOnlyGoodMove: input.isOnlyGoodMove,
-      isCriticalMove: input.isCriticalMove,
-    });
-
-    events.push(
-      buildGameAnalysisEvent({
-        input,
-        eventType: moveQualityEventType(gainClassification, input),
-        classification: gainClassification === 'best' ? 'excellent' : gainClassification,
-      })
-    );
-  }
-
-  return events;
+  const facts = buildFactsBase(input);
+  return buildGameAnalysisCoachCandidatesFromFacts(facts).map(candidate =>
+    buildGameAnalysisEventFromCandidate({ facts, candidate })
+  );
 }
 
 export function buildGameAnalysisMoveEventsFromEngine(
@@ -340,6 +528,7 @@ export function buildGameAnalysisMoveEventsFromEngine(
     gameId: input.gameId,
     moveSan: input.moveSan,
     plyIndex: input.plyIndex,
+    playedBy: input.playedBy,
     phase: input.phase,
     beforeEvalCp: beforePlayerEval,
     afterEvalCp: playedPlayerEval,
@@ -353,6 +542,7 @@ export function buildGameAnalysisMoveEventsFromEngine(
     missedOpportunityCp,
     themeTags: input.themeTags,
     persona: input.persona,
+    evidence: buildBestMoveEvidence({ bestMoveSan: input.bestMoveSan, bestLine: input.bestLine }),
   });
 }
 
@@ -375,6 +565,7 @@ export function buildGameAnalysisMoveEventsFromAnalyzedGameMove({
     afterPlayedEvalCp: move.afterPlayedEvalCp,
     afterBestEvalCp: move.afterBestEvalCp,
     bestMoveSan: move.bestMoveSan,
+    bestLine: move.bestLine,
     isOnlyGoodMove: move.isOnlyGoodMove,
     isCriticalMove: move.isCriticalMove,
     isSacrifice: move.isSacrifice,
