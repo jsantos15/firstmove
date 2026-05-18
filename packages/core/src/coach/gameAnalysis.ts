@@ -108,6 +108,12 @@ export interface GameAnalysisMoveFacts {
   bestMoveIsCapture: boolean;
   bestMoveGivesCheck: boolean;
   bestMoveGivesCheckmate: boolean;
+  materialRiskSquare?: string;
+  materialRiskPiece?: string;
+  materialRiskValue?: number;
+  materialRiskAttackers?: number;
+  materialRiskDefenders?: number;
+  materialRiskIsHanging?: boolean;
   beforeEvalCp?: number;
   afterPlayedEvalCp: number;
   afterBestEvalCp?: number;
@@ -135,6 +141,36 @@ interface BestMoveTacticalFacts {
   bestMoveGivesCheckmate: boolean;
 }
 
+interface MaterialRiskFacts {
+  square: string;
+  piece: string;
+  value: number;
+  attackers: number;
+  defenders: number;
+  isHanging: boolean;
+}
+
+type ChessColor = 'w' | 'b';
+type PieceCode = 'p' | 'n' | 'b' | 'r' | 'q' | 'k';
+
+const FILES = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'] as const;
+const PIECE_VALUES: Record<PieceCode, number> = {
+  p: 1,
+  n: 3,
+  b: 3,
+  r: 5,
+  q: 9,
+  k: 0,
+};
+const PIECE_NAMES: Record<PieceCode, string> = {
+  p: 'pawn',
+  n: 'knight',
+  b: 'bishop',
+  r: 'rook',
+  q: 'queen',
+  k: 'king',
+};
+
 export interface GameAnalysisCoachCandidate {
   id: string;
   eventType: CoachEventType;
@@ -158,6 +194,169 @@ function formatPawns(cp: number) {
 function toPlayerPerspective(evalCp: number | undefined, playedBy: GameAnalysisSide) {
   if (typeof evalCp !== 'number' || !Number.isFinite(evalCp)) return undefined;
   return playedBy === 'white' ? evalCp : -evalCp;
+}
+
+function playedSideColor(playedBy: GameAnalysisSide): ChessColor {
+  return playedBy === 'white' ? 'w' : 'b';
+}
+
+function oppositeColor(color: ChessColor): ChessColor {
+  return color === 'w' ? 'b' : 'w';
+}
+
+function squareToCoords(square: string) {
+  const file = FILES.indexOf(square[0] as (typeof FILES)[number]);
+  const rank = Number(square[1]);
+  if (file < 0 || !Number.isInteger(rank) || rank < 1 || rank > 8) return null;
+  return { file, rank };
+}
+
+function coordsToSquare(file: number, rank: number) {
+  return `${FILES[file]}${rank}`;
+}
+
+function boardPieceAt(
+  board: ReturnType<Chess['board']>,
+  square: string
+): { type: PieceCode; color: ChessColor } | null {
+  const coords = squareToCoords(square);
+  if (!coords) return null;
+  return board[8 - coords.rank]?.[coords.file] ?? null;
+}
+
+function isPathClear(board: ReturnType<Chess['board']>, from: string, to: string) {
+  const fromCoords = squareToCoords(from);
+  const toCoords = squareToCoords(to);
+  if (!fromCoords || !toCoords) return false;
+
+  const fileStep = Math.sign(toCoords.file - fromCoords.file);
+  const rankStep = Math.sign(toCoords.rank - fromCoords.rank);
+  let file = fromCoords.file + fileStep;
+  let rank = fromCoords.rank + rankStep;
+
+  while (file !== toCoords.file || rank !== toCoords.rank) {
+    if (boardPieceAt(board, coordsToSquare(file, rank))) return false;
+    file += fileStep;
+    rank += rankStep;
+  }
+
+  return true;
+}
+
+function pieceAttacksSquare({
+  board,
+  from,
+  to,
+  piece,
+}: {
+  board: ReturnType<Chess['board']>;
+  from: string;
+  to: string;
+  piece: { type: PieceCode; color: ChessColor };
+}) {
+  if (from === to) return false;
+
+  const fromCoords = squareToCoords(from);
+  const toCoords = squareToCoords(to);
+  if (!fromCoords || !toCoords) return false;
+
+  const fileDelta = toCoords.file - fromCoords.file;
+  const rankDelta = toCoords.rank - fromCoords.rank;
+  const absFileDelta = Math.abs(fileDelta);
+  const absRankDelta = Math.abs(rankDelta);
+
+  if (piece.type === 'p') {
+    const direction = piece.color === 'w' ? 1 : -1;
+    return rankDelta === direction && absFileDelta === 1;
+  }
+
+  if (piece.type === 'n') {
+    return (absFileDelta === 1 && absRankDelta === 2) || (absFileDelta === 2 && absRankDelta === 1);
+  }
+
+  if (piece.type === 'k') {
+    return absFileDelta <= 1 && absRankDelta <= 1;
+  }
+
+  const isDiagonal = absFileDelta === absRankDelta;
+  const isStraight = fileDelta === 0 || rankDelta === 0;
+
+  if (piece.type === 'b') return isDiagonal && isPathClear(board, from, to);
+  if (piece.type === 'r') return isStraight && isPathClear(board, from, to);
+  if (piece.type === 'q') return (isDiagonal || isStraight) && isPathClear(board, from, to);
+
+  return false;
+}
+
+function countAttackers(board: ReturnType<Chess['board']>, square: string, color: ChessColor) {
+  let attackers = 0;
+
+  for (let rowIndex = 0; rowIndex < board.length; rowIndex += 1) {
+    for (let fileIndex = 0; fileIndex < board[rowIndex].length; fileIndex += 1) {
+      const piece = board[rowIndex][fileIndex];
+      if (!piece || piece.color !== color) continue;
+
+      const from = coordsToSquare(fileIndex, 8 - rowIndex);
+      if (pieceAttacksSquare({ board, from, to: square, piece })) {
+        attackers += 1;
+      }
+    }
+  }
+
+  return attackers;
+}
+
+function detectMaterialRiskFacts({
+  afterFen,
+  playedBy,
+}: {
+  afterFen?: string;
+  playedBy: GameAnalysisSide;
+}): MaterialRiskFacts | null {
+  if (!afterFen) return null;
+
+  try {
+    const chess = new Chess(afterFen);
+    const board = chess.board();
+    const movedColor = playedSideColor(playedBy);
+    const opponentColor = oppositeColor(movedColor);
+    const risks: MaterialRiskFacts[] = [];
+
+    for (let rowIndex = 0; rowIndex < board.length; rowIndex += 1) {
+      for (let fileIndex = 0; fileIndex < board[rowIndex].length; fileIndex += 1) {
+        const piece = board[rowIndex][fileIndex];
+        if (!piece || piece.color !== movedColor || piece.type === 'k') continue;
+
+        const square = coordsToSquare(fileIndex, 8 - rowIndex);
+        const attackers = countAttackers(board, square, opponentColor);
+        if (attackers === 0) continue;
+
+        const defenders = countAttackers(board, square, movedColor);
+        if (defenders >= attackers) continue;
+
+        risks.push({
+          square,
+          piece: PIECE_NAMES[piece.type],
+          value: PIECE_VALUES[piece.type],
+          attackers,
+          defenders,
+          isHanging: defenders === 0,
+        });
+      }
+    }
+
+    return (
+      risks.sort(
+        (a, b) =>
+          Number(b.isHanging) - Number(a.isHanging) ||
+          b.value - a.value ||
+          b.attackers - a.attackers ||
+          a.defenders - b.defenders
+      )[0] ?? null
+    );
+  } catch {
+    return null;
+  }
 }
 
 function detectChessStateFacts({
@@ -398,6 +597,10 @@ function buildFactsBase(input: GameAnalysisMoveEventInput): GameAnalysisMoveFact
           ? [input.evidence.move]
           : undefined,
   });
+  const materialRisk = detectMaterialRiskFacts({
+    afterFen: chessFacts.afterFen,
+    playedBy: input.playedBy ?? 'white',
+  });
 
   return {
     gameId: input.gameId,
@@ -419,6 +622,12 @@ function buildFactsBase(input: GameAnalysisMoveEventInput): GameAnalysisMoveFact
     bestMoveIsCapture: bestMoveFacts.bestMoveIsCapture,
     bestMoveGivesCheck: bestMoveFacts.bestMoveGivesCheck,
     bestMoveGivesCheckmate: bestMoveFacts.bestMoveGivesCheckmate,
+    materialRiskSquare: materialRisk?.square,
+    materialRiskPiece: materialRisk?.piece,
+    materialRiskValue: materialRisk?.value,
+    materialRiskAttackers: materialRisk?.attackers,
+    materialRiskDefenders: materialRisk?.defenders,
+    materialRiskIsHanging: materialRisk?.isHanging,
     beforeEvalCp: input.beforeEvalCp,
     afterPlayedEvalCp: afterPlayerEvalCp,
     afterBestEvalCp:
@@ -450,6 +659,8 @@ function candidateVariables(facts: GameAnalysisMoveFacts): CoachEventVariables {
     moveSan: facts.moveSan,
     bestMoveSan: facts.bestMoveSan ?? null,
     evalPawns: formatPawns(facts.afterPlayerEvalCp),
+    targetPiece: facts.materialRiskPiece ?? null,
+    targetSquare: facts.materialRiskSquare ?? null,
   });
 }
 
@@ -482,6 +693,12 @@ function candidateAnalysisFacts(
     bestMoveIsCapture: facts.bestMoveIsCapture,
     bestMoveGivesCheck: facts.bestMoveGivesCheck,
     bestMoveGivesCheckmate: facts.bestMoveGivesCheckmate,
+    materialRiskSquare: facts.materialRiskSquare ?? null,
+    materialRiskPiece: facts.materialRiskPiece ?? null,
+    materialRiskValue: facts.materialRiskValue ?? null,
+    materialRiskAttackers: facts.materialRiskAttackers ?? null,
+    materialRiskDefenders: facts.materialRiskDefenders ?? null,
+    materialRiskIsHanging: facts.materialRiskIsHanging ?? null,
     ...extraFacts,
   });
 }
@@ -585,6 +802,42 @@ function makeCandidate({
   };
 }
 
+function materialRiskCandidate(facts: GameAnalysisMoveFacts): GameAnalysisCoachCandidate | null {
+  if (!facts.materialRiskSquare || !facts.materialRiskPiece || !facts.materialRiskValue) {
+    return null;
+  }
+
+  const classification =
+    facts.centipawnLoss >= COACH_CLASSIFICATION_THRESHOLDS.blunderLossCp
+      ? 'blunder'
+      : facts.centipawnLoss >= COACH_CLASSIFICATION_THRESHOLDS.mistakeLossCp
+        ? 'mistake'
+        : 'inaccuracy';
+  const eventType = facts.materialRiskIsHanging ? 'hanging_material' : 'loose_piece';
+  const priority =
+    (facts.materialRiskIsHanging ? 860 : 620) +
+    facts.materialRiskValue * 45 +
+    Math.max(0, facts.centipawnLoss);
+
+  return makeCandidate({
+    facts,
+    eventType,
+    classification,
+    priority,
+    teachingWeight: facts.materialRiskIsHanging ? 85 : 60,
+    reason: facts.materialRiskIsHanging ? 'hanging_material_after_move' : 'loose_piece_after_move',
+    themeTags: ['material', 'defense'],
+    evidence: {
+      kind: 'piece',
+      title: facts.materialRiskIsHanging ? 'Show the hanging piece' : 'Show the loose piece',
+      pieces: [{ square: facts.materialRiskSquare, role: facts.materialRiskPiece }],
+      summary: facts.materialRiskIsHanging
+        ? `${facts.materialRiskPiece} on ${facts.materialRiskSquare} is attacked and not defended.`
+        : `${facts.materialRiskPiece} on ${facts.materialRiskSquare} is under more pressure than defense.`,
+    },
+  });
+}
+
 export function buildGameAnalysisCoachCandidatesFromFacts(
   facts: GameAnalysisMoveFacts
 ): GameAnalysisCoachCandidate[] {
@@ -670,6 +923,11 @@ export function buildGameAnalysisCoachCandidatesFromFacts(
           : facts.evidence,
       })
     );
+  }
+
+  const riskCandidate = materialRiskCandidate(facts);
+  if (riskCandidate) {
+    candidates.push(riskCandidate);
   }
 
   const missedTacticCandidate = missedTacticalIdea(facts);

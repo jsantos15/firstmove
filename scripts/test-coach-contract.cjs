@@ -230,4 +230,29 @@ test('best-line detector ranks missed forcing ideas above generic eval loss', ()
   assert.ok(Number(events[0].analysisFacts.candidatePriority) > 2000);
 });
 
+test('board-state detector flags hanging material after the move', () => {
+  const events = core.buildGameAnalysisMoveEventsFromEngine({
+    gameId: 'game-8',
+    moveSan: 'h3',
+    plyIndex: 12,
+    playedBy: 'white',
+    phase: 'middlegame',
+    beforeFen: '4k3/6b1/8/8/8/8/7P/R3K3 w - - 0 1',
+    beforeEvalCp: 15,
+    afterPlayedEvalCp: 10,
+    afterBestEvalCp: 10,
+    bestMoveSan: 'h3',
+  });
+  const hangingEvent = events.find(
+    event => event.analysisFacts.candidateReason === 'hanging_material_after_move'
+  );
+
+  assert.ok(hangingEvent);
+  assert.equal(hangingEvent.eventType, 'hanging_material');
+  assert.equal(hangingEvent.analysisFacts.materialRiskSquare, 'a1');
+  assert.equal(hangingEvent.analysisFacts.materialRiskPiece, 'rook');
+  assert.equal(hangingEvent.analysisFacts.materialRiskIsHanging, true);
+  assert.equal(hangingEvent.evidence?.kind, 'piece');
+});
+
 console.log('Coach contract tests passed.');

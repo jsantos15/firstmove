@@ -99,6 +99,10 @@ export const EN_MESSAGES = {
     '{moveSan} gives the opponent a real chance. Recheck the tactical and defensive details.',
   'coach.event.blunder.message':
     '{moveSan} is a serious problem. The position needed immediate attention.',
+  'coach.event.hanging_material.message':
+    '{moveSan} leaves {targetPiece} on {targetSquare} hanging. The opponent can aim at that material now.',
+  'coach.event.loose_piece.message':
+    '{moveSan} leaves {targetPiece} on {targetSquare} under pressure. Check whether it is defended enough.',
   'coach.event.king_safety.message':
     '{moveSan} changes the king-safety picture. Watch the threats around the king.',
   'coach.event.development.message':
