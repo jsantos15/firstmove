@@ -1001,22 +1001,14 @@ function checkpointNeedsResolution(state) {
   return Boolean(state?.unresolvedForcing || state?.materialConversionPending);
 }
 
-function payoffFallbackAccepts({ state, chess, trace, openingColor, args }) {
+function payoffFallbackAccepts({ state, chess, trace, openingColor, args, minPliesAfterTrigger = 4 }) {
   if (!Number.isFinite(state?.trainedEvalCp)) return false;
   if (state.trainedEvalCp < args.trainedOpportunityMinEvalCp) return false;
   const sideToMove = chess.turn() === "w" ? "white" : "black";
   if (chess.inCheck() && sideToMove === openingColor) return false;
-  if (sideToMove === openingColor && (state.unresolvedForcing || state.materialConversionPending)) {
-    return false;
-  }
   const pliesAfterTrigger = Math.max(0, trace.length - 1);
-  if (pliesAfterTrigger < 4) return false;
-  return (
-    state.trainedEvalCp >= args.trainedOpportunityMinEvalCp + 150 ||
-    state.materialEdgePawns >= 1 ||
-    state.visibleMaterialThreat ||
-    state.forkedByOnePiece
-  );
+  if (pliesAfterTrigger < minPliesAfterTrigger) return false;
+  return true;
 }
 
 async function analysisForTrainedCandidates(fen, analysis, args) {
@@ -1590,7 +1582,7 @@ async function generateBranchVariantsFromTrigger({
     return [];
   }
   const checkpoints = [];
-  let bestPayoffFallback = null;
+  const payoffFallbacksByLine = new Map();
   const responseCategory = branchCategory(parent, triggerMove.san, "");
   let visitedNodes = 0;
   const searchStartedAt = Date.now();
@@ -1644,18 +1636,21 @@ async function generateBranchVariantsFromTrigger({
     chess,
     endpointSide,
     reason,
+    minPliesAfterTrigger = 4,
   }) {
-    if (!payoffFallbackAccepts({ state, chess, trace, openingColor, args })) return;
-    const currentEval = Number.isFinite(bestPayoffFallback?.state?.trainedEvalCp)
-      ? bestPayoffFallback.state.trainedEvalCp
+    if (!payoffFallbackAccepts({ state, chess, trace, openingColor, args, minPliesAfterTrigger })) return;
+    const key = generatedSans.join(" ");
+    const current = payoffFallbacksByLine.get(key);
+    const currentEval = Number.isFinite(current?.state?.trainedEvalCp)
+      ? current.state.trainedEvalCp
       : Number.NEGATIVE_INFINITY;
     const stateEval = state.trainedEvalCp;
     if (
-      !bestPayoffFallback ||
+      !current ||
       stateEval > currentEval ||
-      (stateEval === currentEval && state.score > bestPayoffFallback.state.score)
+      (stateEval === currentEval && state.score > current.state.score)
     ) {
-      bestPayoffFallback = {
+      payoffFallbacksByLine.set(key, {
         state,
         generatedSans: [...generatedSans],
         trace: trace.map((step) => ({ ...step })),
@@ -1665,7 +1660,7 @@ async function generateBranchVariantsFromTrigger({
         fallback: "payoff_cap",
         endpointSide,
         fallbackReason: reason,
-      };
+      });
     }
   }
 
@@ -1806,6 +1801,7 @@ async function generateBranchVariantsFromTrigger({
           chess: nextChess,
           endpointSide: "trained",
           reason: "best_high_eval_trained_payoff",
+          minPliesAfterTrigger: forcedFirstTrainedCandidate ? 1 : 4,
         });
 
         const nextAddedFromAnchor =
@@ -1956,11 +1952,11 @@ async function generateBranchVariantsFromTrigger({
     }
   }
 
-  if (bestPayoffFallback) {
+  for (const payoffFallback of payoffFallbacksByLine.values()) {
     const hasSameLine = checkpoints.some(
-      (checkpoint) => checkpoint.generatedSans.join(" ") === bestPayoffFallback.generatedSans.join(" ")
+      (checkpoint) => checkpoint.generatedSans.join(" ") === payoffFallback.generatedSans.join(" ")
     );
-    if (!hasSameLine) checkpoints.push(bestPayoffFallback);
+    if (!hasSameLine) checkpoints.push(payoffFallback);
   }
 
   const variantsByLine = new Map();
