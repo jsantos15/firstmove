@@ -123,6 +123,15 @@ export interface GameAnalysisMoveFacts {
   opponentThreatIsCapture?: boolean;
   opponentThreatGivesCheck?: boolean;
   opponentThreatGivesCheckmate?: boolean;
+  developedPiece?: string;
+  developedFrom?: string;
+  developedTo?: string;
+  centerControlBefore?: number;
+  centerControlAfter?: number;
+  centerControlDelta?: number;
+  pieceActivityBefore?: number;
+  pieceActivityAfter?: number;
+  pieceActivityDelta?: number;
   beforeEvalCp?: number;
   afterPlayedEvalCp: number;
   afterBestEvalCp?: number;
@@ -171,10 +180,33 @@ interface OpponentThreatFacts {
   givesCheckmate: boolean;
 }
 
+interface PositionalDeltaFacts {
+  developedPiece?: string;
+  developedFrom?: string;
+  developedTo?: string;
+  centerControlBefore: number;
+  centerControlAfter: number;
+  centerControlDelta: number;
+  pieceActivityBefore?: number;
+  pieceActivityAfter?: number;
+  pieceActivityDelta?: number;
+}
+
 type ChessColor = 'w' | 'b';
 type PieceCode = 'p' | 'n' | 'b' | 'r' | 'q' | 'k';
 
 const FILES = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'] as const;
+const CENTER_SQUARES = ['d4', 'e4', 'd5', 'e5'] as const;
+const DEVELOPMENT_HOME_SQUARES: Record<ChessColor, Partial<Record<PieceCode, string[]>>> = {
+  w: {
+    n: ['b1', 'g1'],
+    b: ['c1', 'f1'],
+  },
+  b: {
+    n: ['b8', 'g8'],
+    b: ['c8', 'f8'],
+  },
+};
 const PIECE_VALUES: Record<PieceCode, number> = {
   p: 1,
   n: 3,
@@ -325,6 +357,99 @@ function countAttackers(board: ReturnType<Chess['board']>, square: string, color
   }
 
   return attackers;
+}
+
+function countControlledSquares(
+  board: ReturnType<Chess['board']>,
+  color: ChessColor,
+  squares: readonly string[]
+) {
+  return squares.reduce((total, square) => total + countAttackers(board, square, color), 0);
+}
+
+function countPieceMobility(board: ReturnType<Chess['board']>, square: string) {
+  const piece = boardPieceAt(board, square);
+  if (!piece || piece.type === 'k') return undefined;
+
+  let mobility = 0;
+  for (const file of FILES) {
+    for (let rank = 1; rank <= 8; rank += 1) {
+      const targetSquare = `${file}${rank}`;
+      if (targetSquare === square) continue;
+
+      const targetPiece = boardPieceAt(board, targetSquare);
+      if (targetPiece?.color === piece.color) continue;
+
+      if (pieceAttacksSquare({ board, from: square, to: targetSquare, piece })) {
+        mobility += 1;
+      }
+    }
+  }
+
+  return mobility;
+}
+
+function detectPositionalDeltaFacts({
+  beforeFen,
+  afterFen,
+  playedBy,
+  moveFrom,
+  moveTo,
+}: {
+  beforeFen?: string;
+  afterFen?: string;
+  playedBy: GameAnalysisSide;
+  moveFrom?: string;
+  moveTo?: string;
+}): PositionalDeltaFacts {
+  const emptyFacts = {
+    centerControlBefore: 0,
+    centerControlAfter: 0,
+    centerControlDelta: 0,
+  };
+
+  if (!beforeFen || !afterFen) return emptyFacts;
+
+  try {
+    const beforeBoard = new Chess(beforeFen).board();
+    const afterBoard = new Chess(afterFen).board();
+    const movedColor = playedSideColor(playedBy);
+    const beforeCenterControl = countControlledSquares(beforeBoard, movedColor, CENTER_SQUARES);
+    const afterCenterControl = countControlledSquares(afterBoard, movedColor, CENTER_SQUARES);
+    const movedBeforePiece = moveFrom ? boardPieceAt(beforeBoard, moveFrom) : null;
+    const movedAfterPiece = moveTo ? boardPieceAt(afterBoard, moveTo) : null;
+    const homeSquares = movedBeforePiece
+      ? (DEVELOPMENT_HOME_SQUARES[movedColor][movedBeforePiece.type] ?? [])
+      : [];
+    const developedPiece =
+      movedBeforePiece &&
+      movedAfterPiece &&
+      movedBeforePiece.color === movedColor &&
+      movedBeforePiece.type === movedAfterPiece.type &&
+      homeSquares.includes(moveFrom ?? '')
+        ? PIECE_NAMES[movedBeforePiece.type]
+        : undefined;
+    const pieceActivityBefore = moveFrom ? countPieceMobility(beforeBoard, moveFrom) : undefined;
+    const pieceActivityAfter = moveTo ? countPieceMobility(afterBoard, moveTo) : undefined;
+    const pieceActivityDelta =
+      typeof pieceActivityBefore === 'number' && typeof pieceActivityAfter === 'number'
+        ? pieceActivityAfter - pieceActivityBefore
+        : undefined;
+
+    return {
+      developedPiece,
+      developedFrom: developedPiece ? moveFrom : undefined,
+      developedTo: developedPiece ? moveTo : undefined,
+      centerControlBefore: beforeCenterControl,
+      centerControlAfter: afterCenterControl,
+      centerControlDelta: afterCenterControl - beforeCenterControl,
+      pieceActivityBefore,
+      pieceActivityAfter,
+      pieceActivityDelta,
+    };
+  } catch {
+    return emptyFacts;
+  }
 }
 
 function detectMaterialRiskFacts({
@@ -678,6 +803,13 @@ function buildFactsBase(input: GameAnalysisMoveEventInput): GameAnalysisMoveFact
     playedBy: input.playedBy ?? 'white',
   });
   const opponentThreat = detectOpponentThreatFacts(chessFacts.afterFen);
+  const positionalDelta = detectPositionalDeltaFacts({
+    beforeFen: input.beforeFen,
+    afterFen: chessFacts.afterFen,
+    playedBy: input.playedBy ?? 'white',
+    moveFrom: chessFacts.moveFrom,
+    moveTo: chessFacts.moveTo,
+  });
 
   return {
     gameId: input.gameId,
@@ -714,6 +846,15 @@ function buildFactsBase(input: GameAnalysisMoveEventInput): GameAnalysisMoveFact
     opponentThreatIsCapture: opponentThreat?.isCapture,
     opponentThreatGivesCheck: opponentThreat?.givesCheck,
     opponentThreatGivesCheckmate: opponentThreat?.givesCheckmate,
+    developedPiece: positionalDelta.developedPiece,
+    developedFrom: positionalDelta.developedFrom,
+    developedTo: positionalDelta.developedTo,
+    centerControlBefore: positionalDelta.centerControlBefore,
+    centerControlAfter: positionalDelta.centerControlAfter,
+    centerControlDelta: positionalDelta.centerControlDelta,
+    pieceActivityBefore: positionalDelta.pieceActivityBefore,
+    pieceActivityAfter: positionalDelta.pieceActivityAfter,
+    pieceActivityDelta: positionalDelta.pieceActivityDelta,
     beforeEvalCp: input.beforeEvalCp,
     afterPlayedEvalCp: afterPlayerEvalCp,
     afterBestEvalCp:
@@ -746,8 +887,14 @@ function candidateVariables(facts: GameAnalysisMoveFacts): CoachEventVariables {
     bestMoveSan: facts.bestMoveSan ?? null,
     threatMoveSan: facts.opponentThreatMoveSan ?? null,
     evalPawns: formatPawns(facts.afterPlayerEvalCp),
-    targetPiece: facts.materialRiskPiece ?? facts.opponentThreatCapturedPiece ?? null,
-    targetSquare: facts.materialRiskSquare ?? facts.opponentThreatTo ?? null,
+    targetPiece:
+      facts.materialRiskPiece ?? facts.opponentThreatCapturedPiece ?? facts.developedPiece ?? null,
+    targetSquare:
+      facts.materialRiskSquare ??
+      facts.opponentThreatTo ??
+      facts.developedTo ??
+      facts.moveTo ??
+      null,
   });
 }
 
@@ -795,6 +942,15 @@ function candidateAnalysisFacts(
     opponentThreatIsCapture: facts.opponentThreatIsCapture ?? null,
     opponentThreatGivesCheck: facts.opponentThreatGivesCheck ?? null,
     opponentThreatGivesCheckmate: facts.opponentThreatGivesCheckmate ?? null,
+    developedPiece: facts.developedPiece ?? null,
+    developedFrom: facts.developedFrom ?? null,
+    developedTo: facts.developedTo ?? null,
+    centerControlBefore: facts.centerControlBefore ?? null,
+    centerControlAfter: facts.centerControlAfter ?? null,
+    centerControlDelta: facts.centerControlDelta ?? null,
+    pieceActivityBefore: facts.pieceActivityBefore ?? null,
+    pieceActivityAfter: facts.pieceActivityAfter ?? null,
+    pieceActivityDelta: facts.pieceActivityDelta ?? null,
     ...extraFacts,
   });
 }
@@ -1002,6 +1158,75 @@ function opponentThreatCandidate(facts: GameAnalysisMoveFacts): GameAnalysisCoac
   });
 }
 
+function developmentCandidate(facts: GameAnalysisMoveFacts): GameAnalysisCoachCandidate | null {
+  if (!facts.developedPiece || !facts.developedFrom || !facts.developedTo) return null;
+  if (facts.centipawnLoss >= COACH_CLASSIFICATION_THRESHOLDS.mistakeLossCp) return null;
+
+  return makeCandidate({
+    facts,
+    eventType: 'development',
+    classification:
+      facts.centipawnGain >= COACH_CLASSIFICATION_THRESHOLDS.excellentGainCp ? 'excellent' : 'good',
+    priority: 520 + Math.max(0, facts.centipawnGain),
+    teachingWeight: 50,
+    reason: 'minor_piece_developed_from_home_square',
+    themeTags: ['development', 'piece_activity'],
+    evidence: {
+      kind: 'plan',
+      title: 'Show the developed piece',
+      keyMove: facts.moveSan,
+      targetSquares: [facts.developedFrom, facts.developedTo],
+      summary: `${facts.moveSan} develops the ${facts.developedPiece} from ${facts.developedFrom} to ${facts.developedTo}.`,
+    },
+  });
+}
+
+function centerControlCandidate(facts: GameAnalysisMoveFacts): GameAnalysisCoachCandidate | null {
+  if (!facts.centerControlDelta || facts.centerControlDelta < 2) return null;
+  if (facts.centipawnLoss >= COACH_CLASSIFICATION_THRESHOLDS.mistakeLossCp) return null;
+
+  return makeCandidate({
+    facts,
+    eventType: 'center_control',
+    classification:
+      facts.centipawnGain >= COACH_CLASSIFICATION_THRESHOLDS.excellentGainCp ? 'excellent' : 'good',
+    priority: 500 + facts.centerControlDelta * 25 + Math.max(0, facts.centipawnGain),
+    teachingWeight: 45,
+    reason: 'center_control_increased',
+    themeTags: ['center', 'space'],
+    evidence: {
+      kind: 'square',
+      title: 'Show the central squares',
+      squares: [...CENTER_SQUARES],
+      summary: `${facts.moveSan} increases central control from ${facts.centerControlBefore} to ${facts.centerControlAfter}.`,
+    },
+  });
+}
+
+function pieceActivityCandidate(facts: GameAnalysisMoveFacts): GameAnalysisCoachCandidate | null {
+  if (!facts.pieceActivityDelta || facts.pieceActivityDelta < 3) return null;
+  if (facts.centipawnLoss >= COACH_CLASSIFICATION_THRESHOLDS.mistakeLossCp) return null;
+
+  return makeCandidate({
+    facts,
+    eventType: 'piece_activity',
+    classification:
+      facts.centipawnGain >= COACH_CLASSIFICATION_THRESHOLDS.excellentGainCp ? 'excellent' : 'good',
+    priority: 490 + facts.pieceActivityDelta * 20 + Math.max(0, facts.centipawnGain),
+    teachingWeight: 45,
+    reason: 'piece_activity_increased',
+    themeTags: ['piece_activity'],
+    evidence: facts.moveTo
+      ? {
+          kind: 'square',
+          title: 'Show the active piece',
+          squares: [facts.moveTo],
+          summary: `${facts.moveSan} increases the moved piece's activity from ${facts.pieceActivityBefore} to ${facts.pieceActivityAfter}.`,
+        }
+      : facts.evidence,
+  });
+}
+
 export function buildGameAnalysisCoachCandidatesFromFacts(
   facts: GameAnalysisMoveFacts
 ): GameAnalysisCoachCandidate[] {
@@ -1097,6 +1322,21 @@ export function buildGameAnalysisCoachCandidatesFromFacts(
   const threatCandidate = opponentThreatCandidate(facts);
   if (threatCandidate) {
     candidates.push(threatCandidate);
+  }
+
+  const development = developmentCandidate(facts);
+  if (development) {
+    candidates.push(development);
+  }
+
+  const centerControl = centerControlCandidate(facts);
+  if (centerControl) {
+    candidates.push(centerControl);
+  }
+
+  const pieceActivity = pieceActivityCandidate(facts);
+  if (pieceActivity) {
+    candidates.push(pieceActivity);
   }
 
   const missedTacticCandidate = missedTacticalIdea(facts);

@@ -264,4 +264,34 @@ test('board-state detector flags hanging material after the move', () => {
   assert.equal(threatEvent.evidence?.kind, 'single_move');
 });
 
+test('positional detectors flag development and center-control gains', () => {
+  const events = core.buildGameAnalysisMoveEventsFromEngine({
+    gameId: 'game-9',
+    moveSan: 'Nf3',
+    plyIndex: 1,
+    playedBy: 'white',
+    phase: 'opening',
+    beforeFen: 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1',
+    beforeEvalCp: 0,
+    afterPlayedEvalCp: 20,
+    afterBestEvalCp: 20,
+    bestMoveSan: 'Nf3',
+  });
+  const developmentEvent = events.find(
+    event => event.analysisFacts.candidateReason === 'minor_piece_developed_from_home_square'
+  );
+  const centerEvent = events.find(
+    event => event.analysisFacts.candidateReason === 'center_control_increased'
+  );
+
+  assert.ok(developmentEvent);
+  assert.equal(developmentEvent.eventType, 'development');
+  assert.equal(developmentEvent.analysisFacts.developedPiece, 'knight');
+  assert.equal(developmentEvent.analysisFacts.developedFrom, 'g1');
+  assert.equal(developmentEvent.analysisFacts.developedTo, 'f3');
+  assert.ok(centerEvent);
+  assert.equal(centerEvent.eventType, 'center_control');
+  assert.ok(Number(centerEvent.analysisFacts.centerControlDelta) >= 2);
+});
+
 console.log('Coach contract tests passed.');
