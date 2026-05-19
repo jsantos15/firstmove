@@ -477,4 +477,62 @@ test('winning captures emit simplification and endgame-transition events', () =>
   assert.ok(events.some(event => event.eventType === 'advantage_preserved'));
 });
 
+test('motif detector tags played fork and pin tactics', () => {
+  const forkEvents = core.buildGameAnalysisMoveEventsFromEngine({
+    gameId: 'game-18',
+    moveSan: 'Nf7',
+    plyIndex: 20,
+    playedBy: 'white',
+    phase: 'middlegame',
+    beforeFen: '3qk2r/8/7N/8/8/8/8/4K3 w - - 0 1',
+    beforeEvalCp: 0,
+    afterPlayedEvalCp: 220,
+    afterBestEvalCp: 220,
+    bestMoveSan: 'Nf7',
+  });
+  const fork = forkEvents.find(event => event.analysisFacts.playedTacticalMotif === 'fork');
+  assert.ok(fork);
+  assert.equal(fork.eventType, 'tactic_found');
+  assert.ok(fork.themeTags.includes('fork'));
+  assert.deepEqual(fork.analysisFacts.playedTacticalMotifTargets, ['d8', 'h8']);
+
+  const pinEvents = core.buildGameAnalysisMoveEventsFromEngine({
+    gameId: 'game-19',
+    moveSan: 'Bb5',
+    plyIndex: 10,
+    playedBy: 'white',
+    phase: 'opening',
+    beforeFen: '4k3/8/2n5/8/8/8/4B3/4K3 w - - 0 1',
+    beforeEvalCp: 20,
+    afterPlayedEvalCp: 110,
+    afterBestEvalCp: 110,
+    bestMoveSan: 'Bb5',
+  });
+  const pin = pinEvents.find(event => event.analysisFacts.playedTacticalMotif === 'pin');
+  assert.ok(pin);
+  assert.equal(pin.eventType, 'tactic_found');
+  assert.ok(pin.themeTags.includes('pin'));
+  assert.deepEqual(pin.analysisFacts.playedTacticalMotifTargets, ['c6', 'e8']);
+});
+
+test('motif detector tags missed tactical motif on best move', () => {
+  const events = core.buildGameAnalysisMoveEventsFromEngine({
+    gameId: 'game-20',
+    moveSan: 'Kd2',
+    plyIndex: 20,
+    playedBy: 'white',
+    phase: 'middlegame',
+    beforeFen: '3qk2r/8/7N/8/8/8/8/4K3 w - - 0 1',
+    beforeEvalCp: 0,
+    afterPlayedEvalCp: 0,
+    afterBestEvalCp: 220,
+    bestMoveSan: 'Nf7',
+  });
+  const missedFork = events.find(event => event.analysisFacts.bestMoveTacticalMotif === 'fork');
+  assert.ok(missedFork);
+  assert.equal(missedFork.eventType, 'missed_tactic');
+  assert.equal(missedFork.analysisFacts.candidateReason, 'missed_fork');
+  assert.ok(missedFork.themeTags.includes('fork'));
+});
+
 console.log('Coach contract tests passed.');

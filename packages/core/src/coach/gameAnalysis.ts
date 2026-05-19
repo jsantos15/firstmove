@@ -150,6 +150,10 @@ export interface GameAnalysisMoveFacts {
   bestMoveIsCapture: boolean;
   bestMoveGivesCheck: boolean;
   bestMoveGivesCheckmate: boolean;
+  playedTacticalMotif?: string;
+  playedTacticalMotifTargets?: string[];
+  bestMoveTacticalMotif?: string;
+  bestMoveTacticalMotifTargets?: string[];
   materialRiskSquare?: string;
   materialRiskPiece?: string;
   materialRiskValue?: number;
@@ -206,7 +210,25 @@ interface BestMoveTacticalFacts {
   bestMoveIsCapture: boolean;
   bestMoveGivesCheck: boolean;
   bestMoveGivesCheckmate: boolean;
+  bestMoveTacticalMotif?: TacticalMotifName;
+  bestMoveTacticalMotifTargets?: string[];
 }
+
+type TacticalMotifName =
+  | 'fork'
+  | 'pin'
+  | 'skewer'
+  | 'discovered_attack'
+  | 'trapped_piece'
+  | 'back_rank';
+
+interface TacticalMotifFacts {
+  motif?: TacticalMotifName;
+  targetSquares?: string[];
+  targetPieces?: string[];
+}
+
+type RayPiece = { square: string; piece: { type: PieceCode; color: ChessColor } };
 
 interface MaterialRiskFacts {
   square: string;
@@ -353,6 +375,17 @@ function boardPieceAt(
   return board[8 - coords.rank]?.[coords.file] ?? null;
 }
 
+function motifToThemeTag(motif?: TacticalMotifName): CoachThemeTag | undefined {
+  if (!motif) return undefined;
+  if (motif === 'trapped_piece') return 'material';
+  if (motif === 'back_rank') return 'mate_threat';
+  return motif;
+}
+
+function uniqueThemeTags(themeTags: Array<CoachThemeTag | undefined>) {
+  return [...new Set(themeTags.filter((themeTag): themeTag is CoachThemeTag => Boolean(themeTag)))];
+}
+
 function isPathClear(board: ReturnType<Chess['board']>, from: string, to: string) {
   const fromCoords = squareToCoords(from);
   const toCoords = squareToCoords(to);
@@ -463,6 +496,102 @@ function countPieceMobility(board: ReturnType<Chess['board']>, square: string) {
   }
 
   return mobility;
+}
+
+function attackedOpponentPiecesByPiece({
+  board,
+  from,
+  color,
+}: {
+  board: ReturnType<Chess['board']>;
+  from: string;
+  color: ChessColor;
+}) {
+  const piece = boardPieceAt(board, from);
+  if (!piece || piece.color !== color) return [];
+
+  const attackedPieces: Array<{ square: string; piece: PieceCode; value: number }> = [];
+  for (const file of FILES) {
+    for (let rank = 1; rank <= 8; rank += 1) {
+      const square = `${file}${rank}`;
+      const target = boardPieceAt(board, square);
+      if (!target || target.color === color) continue;
+      if (!pieceAttacksSquare({ board, from, to: square, piece })) continue;
+
+      attackedPieces.push({
+        square,
+        piece: target.type,
+        value: target.type === 'k' ? 99 : PIECE_VALUES[target.type],
+      });
+    }
+  }
+
+  return attackedPieces.sort((a, b) => b.value - a.value);
+}
+
+function raySquaresFrom(square: string, fileStep: number, rankStep: number) {
+  const coords = squareToCoords(square);
+  if (!coords) return [];
+
+  const squares: string[] = [];
+  let file = coords.file + fileStep;
+  let rank = coords.rank + rankStep;
+  while (file >= 0 && file < 8 && rank >= 1 && rank <= 8) {
+    squares.push(coordsToSquare(file, rank));
+    file += fileStep;
+    rank += rankStep;
+  }
+
+  return squares;
+}
+
+function slidingDirections(piece: PieceCode | undefined) {
+  if (piece === 'b') {
+    return [
+      [1, 1],
+      [1, -1],
+      [-1, 1],
+      [-1, -1],
+    ] as const;
+  }
+  if (piece === 'r') {
+    return [
+      [1, 0],
+      [-1, 0],
+      [0, 1],
+      [0, -1],
+    ] as const;
+  }
+  if (piece === 'q') {
+    return [
+      [1, 1],
+      [1, -1],
+      [-1, 1],
+      [-1, -1],
+      [1, 0],
+      [-1, 0],
+      [0, 1],
+      [0, -1],
+    ] as const;
+  }
+  return [] as const;
+}
+
+function firstPiecesOnRay(
+  board: ReturnType<Chess['board']>,
+  from: string,
+  fileStep: number,
+  rankStep: number,
+  limit = 2
+): RayPiece[] {
+  const pieces: RayPiece[] = [];
+  for (const square of raySquaresFrom(from, fileStep, rankStep)) {
+    const piece = boardPieceAt(board, square);
+    if (!piece) continue;
+    pieces.push({ square, piece });
+    if (pieces.length >= limit) break;
+  }
+  return pieces;
 }
 
 function collectPawns(board: ReturnType<Chess['board']>, color: ChessColor): PawnInfo[] {
@@ -802,6 +931,258 @@ function detectChessStateFacts({
   }
 }
 
+function detectLineMotif({
+  board,
+  from,
+  movedColor,
+}: {
+  board: ReturnType<Chess['board']>;
+  from: string;
+  movedColor: ChessColor;
+}): TacticalMotifFacts {
+  const movedPiece = boardPieceAt(board, from);
+  const directions = slidingDirections(movedPiece?.type);
+  if (!movedPiece || !directions.length) return {};
+
+  for (const [fileStep, rankStep] of directions) {
+    const rayPieces = firstPiecesOnRay(board, from, fileStep, rankStep, 2);
+    const [first, second] = rayPieces;
+    if (!first || first.piece.color === movedColor) continue;
+
+    if (
+      first.piece.type !== 'k' &&
+      second?.piece.color !== movedColor &&
+      second?.piece.type === 'k'
+    ) {
+      return {
+        motif: 'pin',
+        targetSquares: [first.square, second.square],
+        targetPieces: [PIECE_NAMES[first.piece.type], 'king'],
+      };
+    }
+
+    if (
+      first.piece.type === 'k' &&
+      second?.piece.color !== movedColor &&
+      second.piece.type !== 'k'
+    ) {
+      return {
+        motif: 'skewer',
+        targetSquares: [first.square, second.square],
+        targetPieces: ['king', PIECE_NAMES[second.piece.type]],
+      };
+    }
+  }
+
+  return {};
+}
+
+function detectDiscoveredAttackMotif({
+  beforeFen,
+  afterFen,
+  moveFrom,
+  movedColor,
+}: {
+  beforeFen?: string;
+  afterFen: string;
+  moveFrom?: string;
+  movedColor: ChessColor;
+}): TacticalMotifFacts {
+  if (!beforeFen || !moveFrom) return {};
+
+  try {
+    const beforeBoard = new Chess(beforeFen).board();
+    const afterBoard = new Chess(afterFen).board();
+    const targets = ['k', 'q', 'r'] as const;
+
+    for (let rowIndex = 0; rowIndex < afterBoard.length; rowIndex += 1) {
+      for (let fileIndex = 0; fileIndex < afterBoard[rowIndex].length; fileIndex += 1) {
+        const piece = afterBoard[rowIndex][fileIndex];
+        if (!piece || piece.color !== movedColor || !slidingDirections(piece.type).length) continue;
+
+        const from = coordsToSquare(fileIndex, 8 - rowIndex);
+        if (from === moveFrom) continue;
+
+        for (const [fileStep, rankStep] of slidingDirections(piece.type)) {
+          const ray = raySquaresFrom(from, fileStep, rankStep);
+          if (!ray.includes(moveFrom)) continue;
+
+          const firstAfter: RayPiece | undefined = firstPiecesOnRay(
+            afterBoard,
+            from,
+            fileStep,
+            rankStep,
+            1
+          )[0];
+          if (!firstAfter || firstAfter.piece.color === movedColor) continue;
+          if (!targets.includes(firstAfter.piece.type as (typeof targets)[number])) continue;
+
+          const firstBefore: RayPiece | undefined = firstPiecesOnRay(
+            beforeBoard,
+            from,
+            fileStep,
+            rankStep,
+            1
+          )[0];
+          if (firstBefore?.square === moveFrom) {
+            return {
+              motif: 'discovered_attack',
+              targetSquares: [firstAfter.square],
+              targetPieces: [PIECE_NAMES[firstAfter.piece.type]],
+            };
+          }
+        }
+      }
+    }
+  } catch {
+    return {};
+  }
+
+  return {};
+}
+
+function detectBackRankMotif({
+  board,
+  movedColor,
+  givesCheck,
+  givesCheckmate,
+}: {
+  board: ReturnType<Chess['board']>;
+  movedColor: ChessColor;
+  givesCheck: boolean;
+  givesCheckmate: boolean;
+}): TacticalMotifFacts {
+  if (!givesCheck && !givesCheckmate) return {};
+
+  const opponentColor = oppositeColor(movedColor);
+  for (let rowIndex = 0; rowIndex < board.length; rowIndex += 1) {
+    for (let fileIndex = 0; fileIndex < board[rowIndex].length; fileIndex += 1) {
+      const piece = board[rowIndex][fileIndex];
+      if (!piece || piece.color !== opponentColor || piece.type !== 'k') continue;
+
+      const rank = 8 - rowIndex;
+      const homeRank = opponentColor === 'w' ? 1 : 8;
+      if (rank === homeRank) {
+        return {
+          motif: 'back_rank',
+          targetSquares: [coordsToSquare(fileIndex, rank)],
+          targetPieces: ['king'],
+        };
+      }
+    }
+  }
+
+  return {};
+}
+
+function detectTrappedPieceMotif({
+  afterFen,
+  movedColor,
+}: {
+  afterFen: string;
+  movedColor: ChessColor;
+}): TacticalMotifFacts {
+  try {
+    const chess = new Chess(afterFen);
+    const board = chess.board();
+    const opponentColor = oppositeColor(movedColor);
+    const legalMoves = chess.moves({ verbose: true });
+    const trappedPieces: Array<{ square: string; piece: PieceCode; value: number }> = [];
+
+    for (let rowIndex = 0; rowIndex < board.length; rowIndex += 1) {
+      for (let fileIndex = 0; fileIndex < board[rowIndex].length; fileIndex += 1) {
+        const piece = board[rowIndex][fileIndex];
+        if (!piece || piece.color !== opponentColor || !['q', 'r', 'b', 'n'].includes(piece.type)) {
+          continue;
+        }
+
+        const square = coordsToSquare(fileIndex, 8 - rowIndex);
+        const attacked = countAttackers(board, square, movedColor) > 0;
+        const escapeMoves = legalMoves.filter(move => move.from === square);
+        if (attacked && escapeMoves.length <= 1) {
+          trappedPieces.push({ square, piece: piece.type, value: PIECE_VALUES[piece.type] });
+        }
+      }
+    }
+
+    const trappedPiece = trappedPieces.sort((a, b) => b.value - a.value)[0];
+    if (trappedPiece) {
+      return {
+        motif: 'trapped_piece',
+        targetSquares: [trappedPiece.square],
+        targetPieces: [PIECE_NAMES[trappedPiece.piece]],
+      };
+    }
+  } catch {
+    return {};
+  }
+
+  return {};
+}
+
+function detectTacticalMotif({
+  beforeFen,
+  moveSan,
+}: {
+  beforeFen?: string;
+  moveSan?: string;
+}): TacticalMotifFacts {
+  if (!beforeFen || !moveSan) return {};
+
+  try {
+    const chess = new Chess(beforeFen);
+    const move = chess.move(moveSan);
+    if (!move) return {};
+
+    const movedColor = move.color;
+    const afterFen = chess.fen();
+    const afterBoard = chess.board();
+    const attackedPieces = attackedOpponentPiecesByPiece({
+      board: afterBoard,
+      from: move.to,
+      color: movedColor,
+    }).filter(piece => piece.value >= PIECE_VALUES.n || piece.piece === 'k');
+
+    if (attackedPieces.length >= 2) {
+      return {
+        motif: 'fork',
+        targetSquares: attackedPieces.slice(0, 3).map(piece => piece.square),
+        targetPieces: attackedPieces.slice(0, 3).map(piece => PIECE_NAMES[piece.piece]),
+      };
+    }
+
+    const backRankMotif = detectBackRankMotif({
+      board: afterBoard,
+      movedColor,
+      givesCheck: chess.isCheck(),
+      givesCheckmate: chess.isCheckmate(),
+    });
+    if (backRankMotif.motif) return backRankMotif;
+
+    const lineMotif = detectLineMotif({
+      board: afterBoard,
+      from: move.to,
+      movedColor,
+    });
+    if (lineMotif.motif) return lineMotif;
+
+    const discoveredAttackMotif = detectDiscoveredAttackMotif({
+      beforeFen,
+      afterFen,
+      moveFrom: move.from,
+      movedColor,
+    });
+    if (discoveredAttackMotif.motif) return discoveredAttackMotif;
+
+    const trappedPieceMotif = detectTrappedPieceMotif({ afterFen, movedColor });
+    if (trappedPieceMotif.motif) return trappedPieceMotif;
+  } catch {
+    return {};
+  }
+
+  return {};
+}
+
 function sanLooksLikeCapture(moveSan: string | undefined) {
   return Boolean(moveSan?.includes('x'));
 }
@@ -825,6 +1206,7 @@ function detectBestMoveTacticalFacts({
 }): BestMoveTacticalFacts {
   const firstBestLineMove = bestLine?.[0]?.san;
   const moveSan = bestMoveSan ?? firstBestLineMove;
+  const motif = detectTacticalMotif({ beforeFen, moveSan });
   if (!moveSan) {
     return {
       bestMoveIsCapture: false,
@@ -845,6 +1227,8 @@ function detectBestMoveTacticalFacts({
             Boolean(move.captured) || move.flags.includes('c') || move.flags.includes('e'),
           bestMoveGivesCheck: chess.isCheck(),
           bestMoveGivesCheckmate: chess.isCheckmate(),
+          bestMoveTacticalMotif: motif.motif,
+          bestMoveTacticalMotifTargets: motif.targetSquares,
         };
       }
     } catch {
@@ -856,6 +1240,8 @@ function detectBestMoveTacticalFacts({
     bestMoveIsCapture: sanLooksLikeCapture(moveSan),
     bestMoveGivesCheck: sanLooksLikeCheck(moveSan),
     bestMoveGivesCheckmate: sanLooksLikeCheckmate(moveSan),
+    bestMoveTacticalMotif: motif.motif,
+    bestMoveTacticalMotifTargets: motif.targetSquares,
   };
 }
 
@@ -1102,6 +1488,15 @@ function buildFactsBase(input: GameAnalysisMoveEventInput): GameAnalysisMoveFact
           ? [input.evidence.move]
           : undefined,
   });
+  const playedMotif = detectTacticalMotif({
+    beforeFen: input.beforeFen,
+    moveSan: input.moveSan,
+  });
+  const themeTags = uniqueThemeTags([
+    ...(input.themeTags ?? []),
+    motifToThemeTag(playedMotif.motif),
+    motifToThemeTag(bestMoveFacts.bestMoveTacticalMotif),
+  ]);
   const materialRisk = detectMaterialRiskFacts({
     afterFen: chessFacts.afterFen,
     playedBy: input.playedBy ?? 'white',
@@ -1144,6 +1539,10 @@ function buildFactsBase(input: GameAnalysisMoveEventInput): GameAnalysisMoveFact
     bestMoveIsCapture: bestMoveFacts.bestMoveIsCapture,
     bestMoveGivesCheck: bestMoveFacts.bestMoveGivesCheck,
     bestMoveGivesCheckmate: bestMoveFacts.bestMoveGivesCheckmate,
+    playedTacticalMotif: playedMotif.motif,
+    playedTacticalMotifTargets: playedMotif.targetSquares,
+    bestMoveTacticalMotif: bestMoveFacts.bestMoveTacticalMotif,
+    bestMoveTacticalMotifTargets: bestMoveFacts.bestMoveTacticalMotifTargets,
     materialRiskSquare: materialRisk?.square,
     materialRiskPiece: materialRisk?.piece,
     materialRiskValue: materialRisk?.value,
@@ -1195,7 +1594,7 @@ function buildFactsBase(input: GameAnalysisMoveEventInput): GameAnalysisMoveFact
     isCriticalMove: input.isCriticalMove,
     isSacrifice: input.isSacrifice,
     missedOpportunityCp: input.missedOpportunityCp,
-    themeTags: input.themeTags ?? [],
+    themeTags,
     persona: input.persona,
     evidence: input.evidence,
   };
@@ -1206,6 +1605,7 @@ function candidateVariables(facts: GameAnalysisMoveFacts): CoachEventVariables {
     moveSan: facts.moveSan,
     bestMoveSan: facts.bestMoveSan ?? null,
     threatMoveSan: facts.opponentThreatMoveSan ?? null,
+    tacticMotif: facts.bestMoveTacticalMotif ?? facts.playedTacticalMotif ?? null,
     evalPawns: formatPawns(facts.afterPlayerEvalCp),
     targetPiece:
       facts.materialRiskPiece ?? facts.opponentThreatCapturedPiece ?? facts.developedPiece ?? null,
@@ -1253,6 +1653,10 @@ function candidateAnalysisFacts(
     bestMoveIsCapture: facts.bestMoveIsCapture,
     bestMoveGivesCheck: facts.bestMoveGivesCheck,
     bestMoveGivesCheckmate: facts.bestMoveGivesCheckmate,
+    playedTacticalMotif: facts.playedTacticalMotif ?? null,
+    playedTacticalMotifTargets: facts.playedTacticalMotifTargets ?? null,
+    bestMoveTacticalMotif: facts.bestMoveTacticalMotif ?? null,
+    bestMoveTacticalMotifTargets: facts.bestMoveTacticalMotifTargets ?? null,
     materialRiskSquare: facts.materialRiskSquare ?? null,
     materialRiskPiece: facts.materialRiskPiece ?? null,
     materialRiskValue: facts.materialRiskValue ?? null,
@@ -1295,7 +1699,12 @@ function missedTacticalIdea(facts: GameAnalysisMoveFacts): GameAnalysisCoachCand
     return null;
   }
 
-  if (!facts.bestMoveGivesCheckmate && !facts.bestMoveGivesCheck && !facts.bestMoveIsCapture) {
+  if (
+    !facts.bestMoveGivesCheckmate &&
+    !facts.bestMoveGivesCheck &&
+    !facts.bestMoveIsCapture &&
+    !facts.bestMoveTacticalMotif
+  ) {
     return null;
   }
 
@@ -1304,23 +1713,30 @@ function missedTacticalIdea(facts: GameAnalysisMoveFacts): GameAnalysisCoachCand
     : facts.bestMoveGivesCheck || facts.bestMoveIsCapture
       ? 'missed_tactic'
       : missedOpportunityEventType(facts.missedOpportunityCp);
+  const motifLabel = facts.bestMoveTacticalMotif?.replace(/_/g, ' ');
   const reason = facts.bestMoveGivesCheckmate
     ? 'missed_forced_mate'
-    : facts.bestMoveGivesCheck && facts.bestMoveIsCapture
-      ? 'missed_forcing_capture'
-      : facts.bestMoveGivesCheck
-        ? 'missed_checking_resource'
-        : 'missed_material_tactic';
+    : facts.bestMoveTacticalMotif
+      ? `missed_${facts.bestMoveTacticalMotif}`
+      : facts.bestMoveGivesCheck && facts.bestMoveIsCapture
+        ? 'missed_forcing_capture'
+        : facts.bestMoveGivesCheck
+          ? 'missed_checking_resource'
+          : 'missed_material_tactic';
   const title = facts.bestMoveGivesCheckmate
     ? 'Show the missed mate'
-    : facts.bestMoveGivesCheck
-      ? 'Show the forcing move'
-      : 'Show the material tactic';
+    : facts.bestMoveTacticalMotif
+      ? `Show the missed ${motifLabel}`
+      : facts.bestMoveGivesCheck
+        ? 'Show the forcing move'
+        : 'Show the material tactic';
   const summary = facts.bestMoveGivesCheckmate
     ? `${facts.bestMoveSan} was the forcing mate idea in the position.`
-    : facts.bestMoveGivesCheck
-      ? `${facts.bestMoveSan} starts with check, so the opponent has to answer it.`
-      : `${facts.bestMoveSan} was the material idea hidden in the position.`;
+    : facts.bestMoveTacticalMotif
+      ? `${facts.bestMoveSan} was the ${motifLabel} idea in the position.`
+      : facts.bestMoveGivesCheck
+        ? `${facts.bestMoveSan} starts with check, so the opponent has to answer it.`
+        : `${facts.bestMoveSan} was the material idea hidden in the position.`;
 
   return makeCandidate({
     facts,
@@ -1332,9 +1748,13 @@ function missedTacticalIdea(facts: GameAnalysisMoveFacts): GameAnalysisCoachCand
     teachingWeight: facts.bestMoveGivesCheckmate ? 100 : 95,
     reason,
     themeTags: [
-      ...(facts.bestMoveGivesCheckmate ? (['mate_threat'] as CoachThemeTag[]) : []),
-      ...(facts.bestMoveGivesCheck ? (['king_safety', 'tempo'] as CoachThemeTag[]) : []),
-      ...(facts.bestMoveIsCapture ? (['material'] as CoachThemeTag[]) : []),
+      ...uniqueThemeTags([
+        facts.bestMoveGivesCheckmate ? 'mate_threat' : undefined,
+        facts.bestMoveGivesCheck ? 'king_safety' : undefined,
+        facts.bestMoveGivesCheck ? 'tempo' : undefined,
+        facts.bestMoveIsCapture ? 'material' : undefined,
+        motifToThemeTag(facts.bestMoveTacticalMotif as TacticalMotifName | undefined),
+      ]),
     ],
     evidence:
       facts.evidence ??
@@ -1417,6 +1837,45 @@ function materialRiskCandidate(facts: GameAnalysisMoveFacts): GameAnalysisCoachC
         ? `${facts.materialRiskPiece} on ${facts.materialRiskSquare} is attacked and not defended.`
         : `${facts.materialRiskPiece} on ${facts.materialRiskSquare} is under more pressure than defense.`,
     },
+  });
+}
+
+function playedTacticalMotifCandidate(
+  facts: GameAnalysisMoveFacts
+): GameAnalysisCoachCandidate | null {
+  if (!facts.playedTacticalMotif) return null;
+  if (
+    facts.hasEngineAnalysis &&
+    facts.centipawnLoss >= COACH_CLASSIFICATION_THRESHOLDS.mistakeLossCp
+  ) {
+    return null;
+  }
+
+  const motifLabel = facts.playedTacticalMotif.replace(/_/g, ' ');
+  const targetSquares = facts.playedTacticalMotifTargets ?? (facts.moveTo ? [facts.moveTo] : []);
+
+  return makeCandidate({
+    facts,
+    eventType: 'tactic_found',
+    classification:
+      facts.centipawnGain >= COACH_CLASSIFICATION_THRESHOLDS.greatGainCp ? 'great' : 'excellent',
+    priority: 1180 + Math.max(0, facts.centipawnGain),
+    teachingWeight: 90,
+    reason: `played_${facts.playedTacticalMotif}`,
+    themeTags: uniqueThemeTags([
+      motifToThemeTag(facts.playedTacticalMotif as TacticalMotifName),
+      'initiative',
+      facts.givesCheck ? 'king_safety' : undefined,
+      facts.isCapture ? 'material' : undefined,
+    ]),
+    evidence: targetSquares.length
+      ? {
+          kind: 'square',
+          title: `Show the ${motifLabel}`,
+          squares: targetSquares,
+          summary: `${facts.moveSan} creates a ${motifLabel} motif.`,
+        }
+      : facts.evidence,
   });
 }
 
@@ -1851,6 +2310,11 @@ export function buildGameAnalysisCoachCandidatesFromFacts(
           : facts.evidence,
       })
     );
+  }
+
+  const playedMotif = playedTacticalMotifCandidate(facts);
+  if (playedMotif) {
+    candidates.push(playedMotif);
   }
 
   const riskCandidate = materialRiskCandidate(facts);
