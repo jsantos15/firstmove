@@ -31,6 +31,13 @@ type FenAnalysis = {
   evalCp?: number;
   bestMoveUci?: string;
   pv: string[];
+  lines: Array<{
+    multipv: number;
+    evalCp?: number;
+    bestMoveUci?: string;
+    pv: string[];
+    depth: number | null;
+  }>;
 };
 
 export type EnrichAnalyzedGameInput = {
@@ -50,6 +57,7 @@ export type EnrichAnalyzedGameResult = {
 const require = createRequire(import.meta.url);
 const loadEngine = require('stockfish/examples/loadEngine.js') as (enginePath: string) => StockfishEngine;
 const MATE_SCORE_CP = 100_000;
+const MULTIPV_COUNT = 3;
 
 function resolveStockfishSrcPath() {
   const candidates = [
@@ -121,7 +129,7 @@ function sendCommand(engine: StockfishEngine, command: string) {
 }
 
 async function analyzeFen(engine: StockfishEngine, fen: string, depth: number): Promise<FenAnalysis> {
-  let latestInfo: StockfishInfo | null = null;
+  const latestInfoByMultipv = new Map<number, StockfishInfo>();
 
   await sendCommand(engine, 'ucinewgame');
   await sendCommand(engine, `position fen ${fen}`);
@@ -129,17 +137,28 @@ async function analyzeFen(engine: StockfishEngine, fen: string, depth: number): 
   const bestmoveLine = await new Promise<string>(resolve => {
     engine.send(`go depth ${depth}`, resolve, line => {
       const info = parseInfoLine(line);
-      if (!info || info.multipv !== 1 || !info.score) return;
+      if (!info || !info.score) return;
+
+      const latestInfo = latestInfoByMultipv.get(info.multipv);
       if (!latestInfo || (info.depth ?? 0) >= (latestInfo.depth ?? 0)) {
-        latestInfo = info;
+        latestInfoByMultipv.set(info.multipv, info);
       }
     });
   });
 
-  const finalInfo = latestInfo as StockfishInfo | null;
+  const finalInfo = latestInfoByMultipv.get(1) ?? null;
   const bestMoveMatch = bestmoveLine.match(/^bestmove\s+(\S+)/);
   const bestMoveUci =
     bestMoveMatch?.[1] && bestMoveMatch[1] !== '(none)' ? bestMoveMatch[1] : undefined;
+  const lines = [...latestInfoByMultipv.values()]
+    .sort((a, b) => a.multipv - b.multipv)
+    .map(info => ({
+      multipv: info.multipv,
+      evalCp: scoreToWhiteEvalCp(info.score, fen),
+      bestMoveUci: info.pv[0],
+      pv: info.pv,
+      depth: info.depth,
+    }));
 
   return {
     fen,
@@ -147,6 +166,7 @@ async function analyzeFen(engine: StockfishEngine, fen: string, depth: number): 
     evalCp: scoreToWhiteEvalCp(finalInfo?.score ?? null, fen),
     bestMoveUci,
     pv: finalInfo?.pv ?? [],
+    lines,
   };
 }
 
@@ -161,13 +181,25 @@ async function enrichMove({
 }): Promise<AnalyzedGameMove> {
   if (!move.beforeFen) return move;
 
-  const playedMove = applySanMoveToFen(move.beforeFen, move.san);
-  const before = await analyzeFen(engine, move.beforeFen, depth);
+  const beforeFen = move.beforeFen;
+  const playedMove = applySanMoveToFen(beforeFen, move.san);
+  const before = await analyzeFen(engine, beforeFen, depth);
   const afterPlayed = await analyzeFen(engine, playedMove.afterFen, depth);
-  const bestMove = before.bestMoveUci ? applyUciMoveToFen(move.beforeFen, before.bestMoveUci) : null;
+  const bestMove = before.bestMoveUci ? applyUciMoveToFen(beforeFen, before.bestMoveUci) : null;
   const afterBest = bestMove ? await analyzeFen(engine, bestMove.afterFen, depth) : null;
+  const bestMoveAlternatives = before.lines.flatMap(line => {
+    const bestMoveUci = line.bestMoveUci;
+    if (!bestMoveUci) return [];
+
+    try {
+      const appliedAlternative = applyUciMoveToFen(beforeFen, bestMoveUci);
+      return [{ san: appliedAlternative.san, evalCp: line.evalCp }];
+    } catch {
+      return [];
+    }
+  });
   const bestLine = buildSanLineFromUci({
-    fen: move.beforeFen,
+    fen: beforeFen,
     uciMoves: before.pv.length ? before.pv : before.bestMoveUci ? [before.bestMoveUci] : [],
     startPlyIndex: move.plyIndex,
     maxMoves: 4,
@@ -182,6 +214,7 @@ async function enrichMove({
     afterBestEvalCp: afterBest?.evalCp,
     bestMoveSan: bestMove?.san,
     bestLine: bestLine.length ? bestLine : undefined,
+    bestMoveAlternatives: bestMoveAlternatives.length ? bestMoveAlternatives : undefined,
     isCriticalMove:
       typeof afterBest?.evalCp === 'number' && typeof afterPlayed.evalCp === 'number'
         ? Math.abs(afterBest.evalCp - afterPlayed.evalCp) >= 150
@@ -199,6 +232,7 @@ export async function enrichAnalyzedGameWithStockfish({
 
   try {
     await sendCommand(engine, 'uci');
+    await sendCommand(engine, `setoption name MultiPV value ${MULTIPV_COUNT}`);
     await sendCommand(engine, 'isready');
 
     const enrichedMoves: AnalyzedGameMove[] = [];

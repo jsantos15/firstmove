@@ -28,6 +28,9 @@ export interface GameAnalysisMoveEventInput {
   centipawnLoss?: number;
   centipawnGain?: number;
   bestMoveSan?: string;
+  secondBestMoveSan?: string;
+  secondBestEvalCp?: number;
+  bestMoveGapCp?: number;
   isBestMove?: boolean;
   isOnlyGoodMove?: boolean;
   isCriticalMove?: boolean;
@@ -53,11 +56,17 @@ export interface GameAnalysisEngineMoveInput {
   afterBestEvalCp?: number;
   bestMoveSan?: string;
   bestLine?: CoachEvidenceMove[];
+  bestMoveAlternatives?: GameAnalysisMoveAlternative[];
   isOnlyGoodMove?: boolean;
   isCriticalMove?: boolean;
   isSacrifice?: boolean;
   themeTags?: CoachThemeTag[];
   persona?: CoachPersona;
+}
+
+export interface GameAnalysisMoveAlternative {
+  san: string;
+  evalCp?: number;
 }
 
 export interface AnalyzedGameMove {
@@ -74,6 +83,7 @@ export interface AnalyzedGameMove {
   afterBestEvalCp?: number;
   bestMoveSan?: string;
   bestLine?: CoachEvidenceMove[];
+  bestMoveAlternatives?: GameAnalysisMoveAlternative[];
   isOnlyGoodMove?: boolean;
   isCriticalMove?: boolean;
   isSacrifice?: boolean;
@@ -174,6 +184,9 @@ export interface GameAnalysisMoveFacts {
   beforePlayerEvalCp?: number;
   afterPlayerEvalCp: number;
   bestPlayerEvalCp?: number;
+  secondBestMoveSan?: string;
+  secondBestPlayerEvalCp?: number;
+  bestMoveGapCp?: number;
   centipawnLoss: number;
   centipawnGain: number;
   bestMoveSan?: string;
@@ -1036,6 +1049,15 @@ function moveQualityEventType(
   input: GameAnalysisMoveEventInput
 ): CoachEventType {
   if (classification === 'brilliant') return 'brilliant_move';
+  if (
+    input.isOnlyGoodMove &&
+    (classification === 'great' ||
+      classification === 'best' ||
+      classification === 'excellent' ||
+      classification === 'good')
+  ) {
+    return 'only_move';
+  }
   if (classification === 'great') return 'great_move';
   if (classification === 'best') {
     return input.isOnlyGoodMove || input.isCriticalMove ? 'only_move' : 'best_move';
@@ -1162,6 +1184,9 @@ function buildFactsBase(input: GameAnalysisMoveEventInput): GameAnalysisMoveFact
       typeof input.afterEvalCp === 'number' && typeof input.centipawnLoss === 'number'
         ? input.afterEvalCp + input.centipawnLoss
         : undefined,
+    secondBestMoveSan: input.secondBestMoveSan,
+    secondBestPlayerEvalCp: input.secondBestEvalCp,
+    bestMoveGapCp: input.bestMoveGapCp,
     centipawnLoss,
     centipawnGain,
     bestMoveSan: input.bestMoveSan,
@@ -1205,6 +1230,9 @@ function candidateAnalysisFacts(
     centipawnLoss: facts.centipawnLoss,
     centipawnGain: facts.centipawnGain,
     bestMoveSan: facts.bestMoveSan ?? null,
+    secondBestMoveSan: facts.secondBestMoveSan ?? null,
+    secondBestCp: facts.secondBestPlayerEvalCp ?? null,
+    bestMoveGapCp: facts.bestMoveGapCp ?? null,
     isBestMove: facts.isBestMove ?? null,
     isOnlyGoodMove: facts.isOnlyGoodMove ?? null,
     isCriticalMove: facts.isCriticalMove ?? null,
@@ -1585,6 +1613,159 @@ function passedPawnCandidate(facts: GameAnalysisMoveFacts): GameAnalysisCoachCan
   });
 }
 
+function advantageLostCandidate(facts: GameAnalysisMoveFacts): GameAnalysisCoachCandidate | null {
+  if (!facts.hasEngineAnalysis || typeof facts.beforePlayerEvalCp !== 'number') return null;
+  if (facts.beforePlayerEvalCp < 180 || facts.afterPlayerEvalCp > 80) return null;
+  if (facts.centipawnLoss < COACH_CLASSIFICATION_THRESHOLDS.missOpportunityCp) return null;
+
+  const classification =
+    facts.centipawnLoss >= COACH_CLASSIFICATION_THRESHOLDS.blunderLossCp
+      ? 'blunder'
+      : facts.centipawnLoss >= COACH_CLASSIFICATION_THRESHOLDS.mistakeLossCp
+        ? 'mistake'
+        : 'inaccuracy';
+
+  return makeCandidate({
+    facts,
+    eventType: 'advantage_lost',
+    classification,
+    priority: 1280 + facts.centipawnLoss,
+    teachingWeight: 90,
+    reason: 'advantage_lost_by_eval_swing',
+    themeTags: ['initiative', 'defense'],
+    evidence: facts.evidence ?? buildBestMoveEvidence({ bestMoveSan: facts.bestMoveSan }),
+  });
+}
+
+function gameTurningPointCandidate(
+  facts: GameAnalysisMoveFacts
+): GameAnalysisCoachCandidate | null {
+  if (!facts.hasEngineAnalysis || typeof facts.beforePlayerEvalCp !== 'number') return null;
+
+  const evalDelta = facts.afterPlayerEvalCp - facts.beforePlayerEvalCp;
+  const changedLeader =
+    facts.beforePlayerEvalCp <= -50 && facts.afterPlayerEvalCp >= 50
+      ? true
+      : facts.beforePlayerEvalCp >= 50 && facts.afterPlayerEvalCp <= -50;
+  const largeSwing = Math.abs(evalDelta) >= 250;
+  if (!changedLeader && !largeSwing) return null;
+
+  const positive = evalDelta > 0;
+  return makeCandidate({
+    facts,
+    eventType: 'game_turning_point',
+    classification: positive
+      ? evalDelta >= COACH_CLASSIFICATION_THRESHOLDS.greatGainCp
+        ? 'great'
+        : 'excellent'
+      : facts.centipawnLoss >= COACH_CLASSIFICATION_THRESHOLDS.blunderLossCp
+        ? 'blunder'
+        : 'mistake',
+    priority: 1180 + Math.abs(evalDelta),
+    teachingWeight: 85,
+    reason: changedLeader ? 'eval_leader_changed' : 'large_eval_swing',
+    themeTags: positive ? ['initiative'] : ['defense'],
+    evidence: facts.evidence ?? buildBestMoveEvidence({ bestMoveSan: facts.bestMoveSan }),
+  });
+}
+
+function defensiveResourceCandidate(
+  facts: GameAnalysisMoveFacts
+): GameAnalysisCoachCandidate | null {
+  if (!facts.hasEngineAnalysis || typeof facts.beforePlayerEvalCp !== 'number') return null;
+
+  const underPressure = facts.beforePlayerEvalCp <= -150;
+  const savedPosition =
+    facts.centipawnGain >= 100 || (facts.isOnlyGoodMove && facts.centipawnLoss <= 20);
+  if (!underPressure || !savedPosition) return null;
+
+  return makeCandidate({
+    facts,
+    eventType: 'defensive_resource',
+    classification: facts.isOnlyGoodMove ? 'great' : 'excellent',
+    priority: 1120 + facts.centipawnGain + (facts.isOnlyGoodMove ? 140 : 0),
+    teachingWeight: facts.isOnlyGoodMove ? 95 : 80,
+    reason: facts.isOnlyGoodMove
+      ? 'only_defensive_resource_found'
+      : 'defensive_eval_recovery_found',
+    themeTags: ['defense'],
+    evidence: facts.evidence ?? buildBestMoveEvidence({ bestMoveSan: facts.bestMoveSan }),
+  });
+}
+
+function advantagePreservedCandidate(
+  facts: GameAnalysisMoveFacts
+): GameAnalysisCoachCandidate | null {
+  if (!facts.hasEngineAnalysis || typeof facts.beforePlayerEvalCp !== 'number') return null;
+  if (facts.beforePlayerEvalCp < 180 || facts.afterPlayerEvalCp < 180) return null;
+  if (facts.centipawnLoss > COACH_CLASSIFICATION_THRESHOLDS.goodLossCp) return null;
+
+  return makeCandidate({
+    facts,
+    eventType: 'advantage_preserved',
+    classification: facts.isBestMove ? 'best' : 'good',
+    priority: 610 + Math.max(0, facts.afterPlayerEvalCp - 180),
+    teachingWeight: 60,
+    reason: 'advantage_preserved_without_counterplay',
+    themeTags: ['simplification'],
+    evidence: facts.evidence,
+  });
+}
+
+function simplificationCandidate(facts: GameAnalysisMoveFacts): GameAnalysisCoachCandidate | null {
+  if (!facts.isCapture || facts.phase === 'opening') return null;
+  if (
+    facts.afterPlayerEvalCp < 250 ||
+    facts.centipawnLoss > COACH_CLASSIFICATION_THRESHOLDS.goodLossCp
+  ) {
+    return null;
+  }
+
+  return makeCandidate({
+    facts,
+    eventType: 'time_to_simplify',
+    classification: 'good',
+    priority: 700 + Math.max(0, facts.afterPlayerEvalCp - 250),
+    teachingWeight: 65,
+    reason: 'simplification_while_winning',
+    themeTags: ['simplification', 'endgame_conversion', 'material'],
+    evidence: facts.moveTo
+      ? {
+          kind: 'piece',
+          title: 'Show the simplifying capture',
+          pieces: [{ square: facts.moveTo, role: 'trade_square' }],
+          summary: `${facts.moveSan} trades material while keeping a winning position.`,
+        }
+      : facts.evidence,
+  });
+}
+
+function endgameTransitionCandidate(
+  facts: GameAnalysisMoveFacts
+): GameAnalysisCoachCandidate | null {
+  if (facts.phase !== 'endgame' || !facts.isCapture) return null;
+  if (facts.centipawnLoss >= COACH_CLASSIFICATION_THRESHOLDS.mistakeLossCp) return null;
+
+  return makeCandidate({
+    facts,
+    eventType: 'endgame_transition',
+    classification:
+      facts.centipawnLoss <= COACH_CLASSIFICATION_THRESHOLDS.goodLossCp ? 'good' : 'inaccuracy',
+    priority: 540 + Math.max(0, facts.centipawnGain),
+    teachingWeight: 45,
+    reason: 'capture_changes_endgame_shape',
+    themeTags: ['endgame_conversion', 'pawn_structure'],
+    evidence: facts.moveTo
+      ? {
+          kind: 'piece',
+          title: 'Show the endgame transition',
+          pieces: [{ square: facts.moveTo, role: 'transition_square' }],
+          summary: `${facts.moveSan} changes the material balance as the game moves into an endgame.`,
+        }
+      : facts.evidence,
+  });
+}
+
 export function buildGameAnalysisCoachCandidatesFromFacts(
   facts: GameAnalysisMoveFacts
 ): GameAnalysisCoachCandidate[] {
@@ -1710,6 +1891,36 @@ export function buildGameAnalysisCoachCandidatesFromFacts(
   const missedTacticCandidate = missedTacticalIdea(facts);
   if (missedTacticCandidate) {
     candidates.push(missedTacticCandidate);
+  }
+
+  const advantageLost = advantageLostCandidate(facts);
+  if (advantageLost) {
+    candidates.push(advantageLost);
+  }
+
+  const turningPoint = gameTurningPointCandidate(facts);
+  if (turningPoint) {
+    candidates.push(turningPoint);
+  }
+
+  const defensiveResource = defensiveResourceCandidate(facts);
+  if (defensiveResource) {
+    candidates.push(defensiveResource);
+  }
+
+  const simplification = simplificationCandidate(facts);
+  if (simplification) {
+    candidates.push(simplification);
+  }
+
+  const endgameTransition = endgameTransitionCandidate(facts);
+  if (endgameTransition) {
+    candidates.push(endgameTransition);
+  }
+
+  const advantagePreserved = advantagePreservedCandidate(facts);
+  if (advantagePreserved) {
+    candidates.push(advantagePreserved);
   }
 
   if (
@@ -1907,6 +2118,23 @@ export function buildGameAnalysisMoveEventsFromEngine(
   const beforePlayerEval = toPlayerPerspective(input.beforeEvalCp, input.playedBy);
   const playedPlayerEval = toPlayerPerspective(input.afterPlayedEvalCp, input.playedBy);
   const bestPlayerEval = toPlayerPerspective(input.afterBestEvalCp, input.playedBy);
+  const alternativePlayerEvals = input.bestMoveAlternatives
+    ?.map(alternative => ({
+      ...alternative,
+      playerEvalCp: toPlayerPerspective(alternative.evalCp, input.playedBy),
+    }))
+    .filter(
+      (alternative): alternative is GameAnalysisMoveAlternative & { playerEvalCp: number } =>
+        typeof alternative.playerEvalCp === 'number'
+    )
+    .sort((a, b) => b.playerEvalCp - a.playerEvalCp);
+  const secondBestAlternative = alternativePlayerEvals?.find(
+    alternative => alternative.san !== input.bestMoveSan
+  );
+  const bestMoveGapCp =
+    typeof bestPlayerEval === 'number' && typeof secondBestAlternative?.playerEvalCp === 'number'
+      ? Math.max(0, bestPlayerEval - secondBestAlternative.playerEvalCp)
+      : undefined;
 
   if (typeof playedPlayerEval !== 'number') {
     return [];
@@ -1922,6 +2150,14 @@ export function buildGameAnalysisMoveEventsFromEngine(
       : typeof bestPlayerEval === 'number'
         ? centipawnLoss <= 10
         : undefined;
+  const isOnlyGoodMove =
+    input.isOnlyGoodMove ?? Boolean(isBestMove && bestMoveGapCp && bestMoveGapCp >= 150);
+  const isCriticalMove =
+    input.isCriticalMove ??
+    Boolean(
+      (typeof bestMoveGapCp === 'number' && bestMoveGapCp >= 150) ||
+      centipawnLoss >= COACH_CLASSIFICATION_THRESHOLDS.missOpportunityCp
+    );
   const missedOpportunityCp =
     input.bestMoveSan &&
     input.bestMoveSan !== input.moveSan &&
@@ -1942,9 +2178,12 @@ export function buildGameAnalysisMoveEventsFromEngine(
     centipawnLoss,
     centipawnGain,
     bestMoveSan: input.bestMoveSan,
+    secondBestMoveSan: secondBestAlternative?.san,
+    secondBestEvalCp: secondBestAlternative?.playerEvalCp,
+    bestMoveGapCp,
     isBestMove,
-    isOnlyGoodMove: input.isOnlyGoodMove,
-    isCriticalMove: input.isCriticalMove,
+    isOnlyGoodMove,
+    isCriticalMove,
     isSacrifice: input.isSacrifice,
     missedOpportunityCp,
     themeTags: input.themeTags,
@@ -1975,6 +2214,7 @@ export function buildGameAnalysisMoveEventsFromAnalyzedGameMove({
     afterBestEvalCp: move.afterBestEvalCp,
     bestMoveSan: move.bestMoveSan,
     bestLine: move.bestLine,
+    bestMoveAlternatives: move.bestMoveAlternatives,
     isOnlyGoodMove: move.isOnlyGoodMove,
     isCriticalMove: move.isCriticalMove,
     isSacrifice: move.isSacrifice,

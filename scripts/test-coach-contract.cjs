@@ -95,12 +95,12 @@ test('engine adapter emits missed-win and blunder events from white-perspective 
 
   assert.deepEqual(
     events.map(event => event.eventType),
-    ['missed_tactic', 'missed_win', 'blunder', 'material_trade']
+    ['missed_tactic', 'game_turning_point', 'missed_win', 'blunder', 'material_trade']
   );
   assert.equal(events[0].classification, 'miss');
   assert.equal(events[0].analysisFacts.candidateReason, 'missed_forcing_capture');
-  assert.equal(events[1].classification, 'miss');
-  assert.equal(events[2].classification, 'blunder');
+  assert.equal(events[2].classification, 'miss');
+  assert.equal(events[3].classification, 'blunder');
   assert.equal(events[0].analysisFacts.centipawnLoss, 460);
   assert.equal(events[0].analysisFacts.missedOpportunityCp, 460);
   assert.equal(events[0].evidence?.kind, 'line');
@@ -162,7 +162,7 @@ test('analyzed-game adapter emits timeline coach events from PGN-shaped input', 
 
   assert.deepEqual(
     events.map(event => event.eventType),
-    ['great_move', 'missed_tactic', 'missed_win', 'blunder', 'material_trade']
+    ['great_move', 'missed_tactic', 'game_turning_point', 'missed_win', 'blunder', 'material_trade']
   );
   assert.ok(events.every(event => event.subject.id === 'game-4'));
   assert.ok(events.every(event => event.persona === 'beginner'));
@@ -404,6 +404,77 @@ test('move conversion helpers keep engine UCI output inside core', () => {
   );
   assert.equal(line[0].isKeyMove, true);
   assert.equal(line[1].side, 'black');
+});
+
+test('engine params emit turning-point and advantage-loss events', () => {
+  const positiveSwing = core.buildGameAnalysisMoveEventsFromEngine({
+    gameId: 'game-14',
+    moveSan: 'Qh5',
+    plyIndex: 22,
+    playedBy: 'white',
+    phase: 'middlegame',
+    beforeEvalCp: -120,
+    afterPlayedEvalCp: 220,
+    afterBestEvalCp: 230,
+    bestMoveSan: 'Qh5',
+  });
+  assert.equal(positiveSwing[0].eventType, 'game_turning_point');
+  assert.equal(positiveSwing[0].analysisFacts.candidateReason, 'eval_leader_changed');
+
+  const lostAdvantage = core.buildGameAnalysisMoveEventsFromEngine({
+    gameId: 'game-15',
+    moveSan: 'Qxd5',
+    plyIndex: 24,
+    playedBy: 'white',
+    phase: 'middlegame',
+    beforeEvalCp: 260,
+    afterPlayedEvalCp: -80,
+    afterBestEvalCp: 260,
+    bestMoveSan: 'Bxf7+',
+  });
+  assert.ok(lostAdvantage.some(event => event.eventType === 'advantage_lost'));
+  assert.ok(lostAdvantage.some(event => event.eventType === 'game_turning_point'));
+});
+
+test('multipv gaps emit only-move and defensive-resource events', () => {
+  const events = core.buildGameAnalysisMoveEventsFromEngine({
+    gameId: 'game-16',
+    moveSan: 'Kg1',
+    plyIndex: 30,
+    playedBy: 'white',
+    phase: 'middlegame',
+    beforeEvalCp: -260,
+    afterPlayedEvalCp: -20,
+    afterBestEvalCp: -20,
+    bestMoveSan: 'Kg1',
+    bestMoveAlternatives: [
+      { san: 'Kg1', evalCp: -20 },
+      { san: 'Kh2', evalCp: -260 },
+    ],
+  });
+
+  assert.ok(events.some(event => event.eventType === 'defensive_resource'));
+  assert.ok(events.some(event => event.eventType === 'only_move'));
+  assert.equal(events[0].analysisFacts.bestMoveGapCp, 240);
+});
+
+test('winning captures emit simplification and endgame-transition events', () => {
+  const events = core.buildGameAnalysisMoveEventsFromEngine({
+    gameId: 'game-17',
+    moveSan: 'Qxd5',
+    plyIndex: 66,
+    playedBy: 'white',
+    phase: 'endgame',
+    beforeFen: '4k3/8/8/3p4/8/8/8/3QK3 w - - 0 1',
+    beforeEvalCp: 300,
+    afterPlayedEvalCp: 330,
+    afterBestEvalCp: 335,
+    bestMoveSan: 'Qxd5',
+  });
+
+  assert.ok(events.some(event => event.eventType === 'time_to_simplify'));
+  assert.ok(events.some(event => event.eventType === 'endgame_transition'));
+  assert.ok(events.some(event => event.eventType === 'advantage_preserved'));
 });
 
 console.log('Coach contract tests passed.');
