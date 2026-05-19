@@ -572,6 +572,8 @@ node scripts/run-opening-reference-pipeline.cjs --openings italian-game,caro-kan
 
 **Update:** Do not use the same eval threshold for "worth teaching" and "stop exploring." `trainedOpportunityMinEvalCp` remains the lower practical-opportunity floor for keeping positive branches, while `advantageLockMinEvalCp` is a higher threshold for treating the trained-side advantage as settled enough to narrow trained-side continuations. This prevents positions that are already around +200cp at or near the anchor from suppressing useful branch discovery.
 
+**Update:** Dedup may collapse mate-equivalent practical branches, but only under a narrow same-parent rule. If two practical branches under the same reference variation have the same length, finish with the same checkmate move, and differ by exactly one checking move immediately before the forced mate tail, keep one branch by endpoint quality, branch score, play-rate confidence, then stable SAN order. This cleanup is intentionally limited to checkmate lines; non-mate branches that differ by one move can still teach different decisions and should remain eligible for final eval-first ranking.
+
 ---
 
 ## 2026-05-16 - Keep localized coach templates in source control

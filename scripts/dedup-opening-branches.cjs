@@ -37,6 +37,41 @@ function lineScore(line) {
   return Number(line.branchScore ?? line.generation?.branch?.branchScore ?? -999999);
 }
 
+function linePlayRate(line) {
+  return Number(
+    line.playRate ??
+    line.popularityScore ??
+    line.triggerMovePopularity ??
+    line.generation?.branch?.playRate ??
+    line.generation?.branch?.triggerMovePopularity ??
+    0
+  );
+}
+
+function lineNodeGames(line) {
+  return Number(
+    line.nodeGames ??
+    line.gamesAtNode ??
+    line.generation?.branch?.nodeGames ??
+    line.generation?.branch?.gamesAtNode ??
+    0
+  );
+}
+
+function isPayoffCap(line) {
+  const fallbackKind =
+    line.generation?.branch?.selectionMetadata?.fallbackKind ??
+    line.generation?.branch?.selection?.fallbackKind ??
+    null;
+  const reason =
+    line.stopReason ??
+    line.generation?.branch?.stopReason ??
+    line.generation?.branch?.selection?.stopReason ??
+    line.generation?.branch?.continuationTrace?.slice(-1)?.[0]?.stopReason ??
+    "";
+  return fallbackKind === "payoff_cap" || String(reason).includes("payoff_cap");
+}
+
 function branchKey(line) {
   return (
     line.generation?.branch?.branchKey ??
@@ -84,6 +119,70 @@ function prunePrefixBranches(branches) {
       return isStrictSanPrefix(branch.generatedSans, other.generatedSans);
     });
   });
+}
+
+function mateEquivalentDiffIndex(leftSans, rightSans) {
+  if (!Array.isArray(leftSans) || !Array.isArray(rightSans)) return -1;
+  if (leftSans.length !== rightSans.length || leftSans.length < 3) return -1;
+  if (leftSans[leftSans.length - 1] !== rightSans[rightSans.length - 1]) return -1;
+  if (!String(leftSans[leftSans.length - 1]).endsWith("#")) return -1;
+
+  let diffIndex = -1;
+  for (let index = 0; index < leftSans.length; index += 1) {
+    if (leftSans[index] === rightSans[index]) continue;
+    if (diffIndex !== -1) return -1;
+    diffIndex = index;
+  }
+
+  if (diffIndex === -1) return -1;
+  if (diffIndex < leftSans.length - 3) return -1;
+  if (!String(leftSans[diffIndex]).endsWith("+")) return -1;
+  if (!String(rightSans[diffIndex]).endsWith("+")) return -1;
+  return diffIndex;
+}
+
+function isMateEquivalentBranch(left, right) {
+  if (left.openingId !== right.openingId) return false;
+  if (parentLineId(left) !== parentLineId(right)) return false;
+  return mateEquivalentDiffIndex(left.generatedSans, right.generatedSans) !== -1;
+}
+
+function compareBranchRetention(left, right) {
+  const leftClean = isPayoffCap(left) ? 0 : 1;
+  const rightClean = isPayoffCap(right) ? 0 : 1;
+  if (leftClean !== rightClean) return rightClean - leftClean;
+
+  const scoreDelta = lineScore(right) - lineScore(left);
+  if (scoreDelta !== 0) return scoreDelta;
+
+  const playRateDelta = linePlayRate(right) - linePlayRate(left);
+  if (playRateDelta !== 0) return playRateDelta;
+
+  const gamesDelta = lineNodeGames(right) - lineNodeGames(left);
+  if (gamesDelta !== 0) return gamesDelta;
+
+  const leftKey = left.generatedSans?.join(" ") ?? left.lineId ?? "";
+  const rightKey = right.generatedSans?.join(" ") ?? right.lineId ?? "";
+  return leftKey.localeCompare(rightKey);
+}
+
+function pruneMateEquivalentBranches(branches) {
+  const kept = [];
+
+  for (const branch of branches) {
+    const duplicateIndex = kept.findIndex((other) => isMateEquivalentBranch(branch, other));
+    if (duplicateIndex === -1) {
+      kept.push(branch);
+      continue;
+    }
+
+    const current = kept[duplicateIndex];
+    if (compareBranchRetention(current, branch) > 0) {
+      kept[duplicateIndex] = branch;
+    }
+  }
+
+  return kept;
 }
 
 function withUniqueBranchNames(branches) {
@@ -145,7 +244,8 @@ function dedupeLines(lines) {
   }
 
   const prefixPruned = prunePrefixBranches(Array.from(bySans.values()));
-  const finalBranches = withUniqueBranchNames(prefixPruned);
+  const matePruned = pruneMateEquivalentBranches(prefixPruned);
+  const finalBranches = withUniqueBranchNames(matePruned);
 
   return {
     references,

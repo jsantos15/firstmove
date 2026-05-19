@@ -1238,6 +1238,85 @@ function pruneSupersededBranchVariants(variants, args) {
   });
 }
 
+function mateEquivalentDiffIndex(leftSans, rightSans) {
+  if (!Array.isArray(leftSans) || !Array.isArray(rightSans)) return -1;
+  if (leftSans.length !== rightSans.length || leftSans.length < 3) return -1;
+  if (leftSans[leftSans.length - 1] !== rightSans[rightSans.length - 1]) return -1;
+  if (!String(leftSans[leftSans.length - 1]).endsWith("#")) return -1;
+
+  let diffIndex = -1;
+  for (let index = 0; index < leftSans.length; index += 1) {
+    if (leftSans[index] === rightSans[index]) continue;
+    if (diffIndex !== -1) return -1;
+    diffIndex = index;
+  }
+
+  if (diffIndex === -1) return -1;
+  if (diffIndex < leftSans.length - 3) return -1;
+  if (!String(leftSans[diffIndex]).endsWith("+")) return -1;
+  if (!String(rightSans[diffIndex]).endsWith("+")) return -1;
+  return diffIndex;
+}
+
+function isMateEquivalentBranch(left, right) {
+  if (left.openingId !== right.openingId) return false;
+  if (branchParentLineId(left) !== branchParentLineId(right)) return false;
+  return mateEquivalentDiffIndex(left.generatedSans, right.generatedSans) !== -1;
+}
+
+function isPayoffCapBranch(branch) {
+  const fallbackKind =
+    branch.generation?.branch?.selectionMetadata?.fallbackKind ??
+    branch.generation?.branch?.selection?.fallbackKind ??
+    null;
+  const reason =
+    branch.stopReason ??
+    branch.generation?.branch?.stopReason ??
+    branch.generation?.branch?.continuationTrace?.slice(-1)?.[0]?.stopReason ??
+    "";
+  return fallbackKind === "payoff_cap" || String(reason).includes("payoff_cap");
+}
+
+function compareBranchRetention(left, right) {
+  const leftClean = isPayoffCapBranch(left) ? 0 : 1;
+  const rightClean = isPayoffCapBranch(right) ? 0 : 1;
+  if (leftClean !== rightClean) return rightClean - leftClean;
+
+  const selectionDelta = compareBranchesForSelection(left, right);
+  if (selectionDelta !== 0) return selectionDelta;
+
+  const leftPlayRate = Number(left.popularityScore ?? left.triggerMovePopularity ?? 0);
+  const rightPlayRate = Number(right.popularityScore ?? right.triggerMovePopularity ?? 0);
+  if (leftPlayRate !== rightPlayRate) return rightPlayRate - leftPlayRate;
+
+  const leftGames = Number(left.gamesAtNode ?? 0);
+  const rightGames = Number(right.gamesAtNode ?? 0);
+  if (leftGames !== rightGames) return rightGames - leftGames;
+
+  const leftKey = left.generatedSans?.join(" ") ?? left.lineId ?? "";
+  const rightKey = right.generatedSans?.join(" ") ?? right.lineId ?? "";
+  return leftKey.localeCompare(rightKey);
+}
+
+function pruneMateEquivalentBranches(branches) {
+  const kept = [];
+
+  for (const branch of branches) {
+    const duplicateIndex = kept.findIndex((other) => isMateEquivalentBranch(branch, other));
+    if (duplicateIndex === -1) {
+      kept.push(branch);
+      continue;
+    }
+
+    const current = kept[duplicateIndex];
+    if (compareBranchRetention(current, branch) > 0) {
+      kept[duplicateIndex] = branch;
+    }
+  }
+
+  return kept;
+}
+
 function lineKey(line) {
   return `${line.openingId}::${line.lineId}`;
 }
@@ -2308,7 +2387,7 @@ function dedupeBranches(branches) {
     }
   }
   const exactDeduped = Array.from(byKey.values());
-  return exactDeduped.filter((branch) => {
+  const prefixPruned = exactDeduped.filter((branch) => {
     const parentLineId = branchParentLineId(branch);
     return !exactDeduped.some((other) => {
       if (other === branch) return false;
@@ -2317,6 +2396,7 @@ function dedupeBranches(branches) {
       return isStrictSanPrefix(branch.generatedSans, other.generatedSans);
     });
   });
+  return pruneMateEquivalentBranches(prefixPruned);
 }
 
 function selectMinimumFallbackBranches(branches, limit) {
