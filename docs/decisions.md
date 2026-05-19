@@ -574,6 +574,8 @@ node scripts/run-opening-reference-pipeline.cjs --openings italian-game,caro-kan
 
 **Update:** Dedup may collapse mate-equivalent practical branches, but only under a narrow same-parent rule. If two practical branches under the same reference variation have the same length, finish with the same checkmate move, and differ by exactly one checking move immediately before the forced mate tail, keep one branch by endpoint quality, branch score, play-rate confidence, then stable SAN order. This cleanup is intentionally limited to checkmate lines; non-mate branches that differ by one move can still teach different decisions and should remain eligible for final eval-first ranking.
 
+**Update:** Non-top trained-side candidate moves with a real eval loss must justify themselves against the comparable top trained-side path. When a practical branch first deviates from the engine-best trained move and the trace reports positive `engineEvalLossCp`, the generator and branch dedup look for sibling branches under the same parent variation that share the exact prefix and play the rank-1 trained move at that same ply. The non-top deviation is kept only if its completed final trained-side eval is higher than the best comparable top-move sibling. This preserves speculative trained deviations only when later human continuation creates a better practical outcome, removes branches that simply close immediately on a lower-value second-best move, and avoids pruning equal-eval engine-ordering noise.
+
 ---
 
 ## 2026-05-16 - Keep localized coach templates in source control

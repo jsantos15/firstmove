@@ -1317,6 +1317,74 @@ function pruneMateEquivalentBranches(branches) {
   return kept;
 }
 
+function finalTrainedEvalForBranch(branch) {
+  return Number(
+    branch.finalTrainedEvalCp ??
+    branch.generation?.branch?.finalTrainedEvalCp ??
+    branch.generation?.branch?.selectionMetadata?.finalState?.trainedEvalCp ??
+    -999999
+  );
+}
+
+function firstTrainedDeviation(branch) {
+  const trace = branch.generation?.branch?.continuationTrace ?? branch.generation?.extension ?? [];
+  for (const step of trace) {
+    const rank = Number(step?.engineRank ?? 1);
+    const evalLossCp = Number(step?.engineEvalLossCp ?? 0);
+    if (step?.side !== "trained" || rank <= 1 || evalLossCp <= 0) continue;
+    const index = Number.isInteger(step.ply) ? step.ply - 1 : -1;
+    if (index < 0 || branch.generatedSans?.[index] !== step.san) continue;
+    return { index, step };
+  }
+  return null;
+}
+
+function trainedTraceStepAt(branch, index) {
+  const trace = branch.generation?.branch?.continuationTrace ?? branch.generation?.extension ?? [];
+  return trace.find((step) => {
+    if (step?.side !== "trained") return false;
+    if (step?.san !== branch.generatedSans?.[index]) return false;
+    return Number.isInteger(step.ply) ? step.ply - 1 === index : false;
+  });
+}
+
+function hasSamePrefixBefore(leftSans, rightSans, index) {
+  if (!Array.isArray(leftSans) || !Array.isArray(rightSans)) return false;
+  if (leftSans.length <= index || rightSans.length <= index) return false;
+  for (let cursor = 0; cursor < index; cursor += 1) {
+    if (leftSans[cursor] !== rightSans[cursor]) return false;
+  }
+  return true;
+}
+
+function isComparableTopTrainedBranch(deviationBranch, topBranch, deviation) {
+  if (deviationBranch === topBranch) return false;
+  if (deviationBranch.openingId !== topBranch.openingId) return false;
+  if (branchParentLineId(deviationBranch) !== branchParentLineId(topBranch)) return false;
+  if (!hasSamePrefixBefore(deviationBranch.generatedSans, topBranch.generatedSans, deviation.index)) return false;
+  if (deviationBranch.generatedSans[deviation.index] === topBranch.generatedSans[deviation.index]) return false;
+
+  const topStep = trainedTraceStepAt(topBranch, deviation.index);
+  const topRank = Number(topStep?.engineRank ?? 999999);
+  return topStep?.side === "trained" && topRank === 1;
+}
+
+function pruneInferiorTrainedDeviations(branches) {
+  return branches.filter((branch) => {
+    const deviation = firstTrainedDeviation(branch);
+    if (!deviation) return true;
+
+    const deviationEval = finalTrainedEvalForBranch(branch);
+    const topEval = branches
+      .filter((other) => isComparableTopTrainedBranch(branch, other, deviation))
+      .map(finalTrainedEvalForBranch)
+      .filter(Number.isFinite)
+      .reduce((best, value) => Math.max(best, value), -Infinity);
+
+    return !Number.isFinite(topEval) || deviationEval > topEval;
+  });
+}
+
 function lineKey(line) {
   return `${line.openingId}::${line.lineId}`;
 }
@@ -2396,7 +2464,7 @@ function dedupeBranches(branches) {
       return isStrictSanPrefix(branch.generatedSans, other.generatedSans);
     });
   });
-  return pruneMateEquivalentBranches(prefixPruned);
+  return pruneInferiorTrainedDeviations(pruneMateEquivalentBranches(prefixPruned));
 }
 
 function selectMinimumFallbackBranches(branches, limit) {

@@ -37,6 +37,15 @@ function lineScore(line) {
   return Number(line.branchScore ?? line.generation?.branch?.branchScore ?? -999999);
 }
 
+function finalTrainedEvalCp(line) {
+  return Number(
+    line.finalTrainedEvalCp ??
+    line.generation?.branch?.finalTrainedEvalCp ??
+    line.generation?.branch?.selectionMetadata?.finalState?.trainedEvalCp ??
+    -999999
+  );
+}
+
 function linePlayRate(line) {
   return Number(
     line.playRate ??
@@ -185,6 +194,67 @@ function pruneMateEquivalentBranches(branches) {
   return kept;
 }
 
+function continuationTrace(line) {
+  return line.generation?.branch?.continuationTrace ?? line.generation?.extension ?? [];
+}
+
+function firstTrainedDeviation(line) {
+  for (const step of continuationTrace(line)) {
+    const rank = Number(step?.engineRank ?? 1);
+    const evalLossCp = Number(step?.engineEvalLossCp ?? 0);
+    if (step?.side !== "trained" || rank <= 1 || evalLossCp <= 0) continue;
+    const index = Number.isInteger(step.ply) ? step.ply - 1 : -1;
+    if (index < 0 || line.generatedSans?.[index] !== step.san) continue;
+    return { index, step };
+  }
+  return null;
+}
+
+function trainedTraceStepAt(line, index) {
+  return continuationTrace(line).find((step) => {
+    if (step?.side !== "trained") return false;
+    if (step?.san !== line.generatedSans?.[index]) return false;
+    return Number.isInteger(step.ply) ? step.ply - 1 === index : false;
+  });
+}
+
+function hasSamePrefixBefore(leftSans, rightSans, index) {
+  if (!Array.isArray(leftSans) || !Array.isArray(rightSans)) return false;
+  if (leftSans.length <= index || rightSans.length <= index) return false;
+  for (let cursor = 0; cursor < index; cursor += 1) {
+    if (leftSans[cursor] !== rightSans[cursor]) return false;
+  }
+  return true;
+}
+
+function isComparableTopTrainedBranch(deviationBranch, topBranch, deviation) {
+  if (deviationBranch === topBranch) return false;
+  if (deviationBranch.openingId !== topBranch.openingId) return false;
+  if (parentLineId(deviationBranch) !== parentLineId(topBranch)) return false;
+  if (!hasSamePrefixBefore(deviationBranch.generatedSans, topBranch.generatedSans, deviation.index)) return false;
+  if (deviationBranch.generatedSans[deviation.index] === topBranch.generatedSans[deviation.index]) return false;
+
+  const topStep = trainedTraceStepAt(topBranch, deviation.index);
+  const topRank = Number(topStep?.engineRank ?? 999999);
+  return topStep?.side === "trained" && topRank === 1;
+}
+
+function pruneInferiorTrainedDeviations(branches) {
+  return branches.filter((branch) => {
+    const deviation = firstTrainedDeviation(branch);
+    if (!deviation) return true;
+
+    const deviationEval = finalTrainedEvalCp(branch);
+    const topEval = branches
+      .filter((other) => isComparableTopTrainedBranch(branch, other, deviation))
+      .map(finalTrainedEvalCp)
+      .filter(Number.isFinite)
+      .reduce((best, value) => Math.max(best, value), -Infinity);
+
+    return !Number.isFinite(topEval) || deviationEval > topEval;
+  });
+}
+
 function withUniqueBranchNames(branches) {
   const counts = new Map();
   for (const branch of branches) {
@@ -245,7 +315,8 @@ function dedupeLines(lines) {
 
   const prefixPruned = prunePrefixBranches(Array.from(bySans.values()));
   const matePruned = pruneMateEquivalentBranches(prefixPruned);
-  const finalBranches = withUniqueBranchNames(matePruned);
+  const deviationPruned = pruneInferiorTrainedDeviations(matePruned);
+  const finalBranches = withUniqueBranchNames(deviationPruned);
 
   return {
     references,
