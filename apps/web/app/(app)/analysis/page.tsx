@@ -136,15 +136,18 @@ function moveLabel(move: AnalyzedGameMove, san: string | undefined = move.san) {
 }
 
 function EvidencePanel({ feedback }: { feedback: CoachFeedback | null }) {
-  const evidence = feedback?.event.evidence;
+  const evidence = feedback?.evidence;
   if (!evidence) return null;
 
   return (
     <div className="rounded-xl border border-white/5 bg-(--bg-panel) p-4">
-      <h2 className="mb-2 text-base font-semibold text-white">{evidence.title}</h2>
-      {'summary' in evidence && evidence.summary && (
-        <p className="mb-3 text-sm leading-6 text-gray-400">{evidence.summary}</p>
-      )}
+      <div className="mb-2 flex items-center gap-2">
+        <span className="rounded-full border border-amber-400/20 bg-amber-400/10 px-2 py-0.5 text-[10px] font-semibold uppercase text-amber-300">
+          {evidence.actionLabel}
+        </span>
+        <h2 className="text-base font-semibold text-white">{evidence.title}</h2>
+      </div>
+      <p className="mb-3 text-sm leading-6 text-gray-400">{evidence.summary}</p>
       {evidence.kind === 'line' && (
         <div className="flex flex-col gap-2">
           {evidence.moves.map((move, index) => (

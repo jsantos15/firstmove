@@ -106,6 +106,11 @@ test('engine adapter emits missed-win and blunder events from white-perspective 
   assert.equal(events[0].evidence?.kind, 'line');
   assert.equal(events[0].analysisFacts.isCapture, true);
   assert.ok(events.some(event => event.eventType === 'material_trade'));
+  const renderedMissedTactic = i18n.renderCoachEvent(events[0], 'en');
+  assert.equal(renderedMissedTactic.evidence?.kind, 'line');
+  assert.equal(renderedMissedTactic.evidence?.actionLabel, 'Show');
+  assert.equal(renderedMissedTactic.evidence?.title, 'Show the line');
+  assert.match(renderedMissedTactic.evidence?.summary ?? '', /key sequence is Bxf7\+ Kxf7 Qxd5\+/);
 });
 
 test('engine adapter normalizes black moves into player perspective', () => {
@@ -541,6 +546,9 @@ test('motif detector tags missed tactical motif on best move', () => {
   assert.equal(renderedMissedFork.messageKey, 'coach.event.missed_tactic.motif_message');
   assert.match(renderedMissedFork.message, /There was a fork here/);
   assert.match(renderedMissedFork.spokenText, /fork/);
+  assert.equal(renderedMissedFork.evidence?.kind, 'single_move');
+  assert.equal(renderedMissedFork.evidence?.title, 'Show the move');
+  assert.match(renderedMissedFork.evidence?.summary ?? '', /creates the fork/);
 });
 
 console.log('Coach contract tests passed.');

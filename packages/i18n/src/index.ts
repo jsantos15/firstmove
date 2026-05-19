@@ -3,6 +3,7 @@ import {
   COACH_EVENT_TYPES,
   type CoachClassification,
   type CoachEvent,
+  type CoachEvidence,
   type CoachPersona,
   type CoachTone,
   getCoachEventMessageFallbacks,
@@ -20,6 +21,20 @@ export type CoachMessageVariables = Record<string, string | number | boolean | n
 export const EN_MESSAGES = {
   'coach.event.generic.message': '{moveSan} is the key move in this position.',
   'coach.composition.secondary': 'Also: {secondaryMessage}',
+  'coach.evidence.action_label': 'Show',
+  'coach.evidence.line.title': 'Show the line',
+  'coach.evidence.line.summary': 'The key sequence is {lineSan}.',
+  'coach.evidence.line.motif_summary': 'The {tacticMotifLabel} works through {lineSan}.',
+  'coach.evidence.single_move.title': 'Show the move',
+  'coach.evidence.single_move.summary': '{evidenceMoveSan} is the move that makes the idea work.',
+  'coach.evidence.single_move.motif_summary':
+    '{evidenceMoveSan} is the move that creates the {tacticMotifLabel}.',
+  'coach.evidence.square.title': 'Show the square',
+  'coach.evidence.square.summary': 'Focus on {evidenceSquares}.',
+  'coach.evidence.piece.title': 'Show the piece',
+  'coach.evidence.piece.summary': 'The important piece detail is {evidencePieces}.',
+  'coach.evidence.plan.title': 'Show the plan',
+  'coach.evidence.plan.summary': '{planSummary}',
 
   'coach.label.brilliant': 'Brilliant',
   'coach.label.great': 'Great',
@@ -176,6 +191,7 @@ export interface RenderedCoachEvent {
   spokenText: string;
   tone: CoachTone;
   persona: CoachPersona;
+  evidence?: RenderedCoachEvidence;
   secondary?: {
     id: string;
     event: CoachEvent;
@@ -185,6 +201,53 @@ export interface RenderedCoachEvent {
     message: string;
     tone: CoachTone;
   };
+}
+
+export type RenderedCoachEvidence =
+  | {
+      kind: 'line';
+      actionLabel: string;
+      title: string;
+      summary?: string;
+      moves: CoachEvidenceMoveRender[];
+    }
+  | {
+      kind: 'single_move';
+      actionLabel: string;
+      title: string;
+      summary?: string;
+      move: CoachEvidenceMoveRender;
+    }
+  | {
+      kind: 'square';
+      actionLabel: string;
+      title: string;
+      summary?: string;
+      squares: string[];
+    }
+  | {
+      kind: 'piece';
+      actionLabel: string;
+      title: string;
+      summary?: string;
+      pieces: Array<{ square: string; role: string }>;
+    }
+  | {
+      kind: 'plan';
+      actionLabel: string;
+      title: string;
+      summary: string;
+      keyMove?: string;
+      targetSquares?: string[];
+    };
+
+export interface CoachEvidenceMoveRender {
+  san: string;
+  side?: 'white' | 'black';
+  plyIndex?: number;
+  comment?: string;
+  evalCp?: number;
+  isKeyMove?: boolean;
 }
 
 const COACH_CLASSIFICATION_PRESENTATION = {
@@ -358,6 +421,101 @@ function getCoachEventMotifMessageKey(event: CoachEvent): I18nMessageKey | null 
   return key && isMessageKey(key) ? key : null;
 }
 
+function joinEvidenceMoves(evidence: Extract<CoachEvidence, { kind: 'line' }>) {
+  return evidence.moves.map(move => move.san).join(' ');
+}
+
+function joinEvidenceSquares(squares: readonly string[]) {
+  return squares.join(', ');
+}
+
+function joinEvidencePieces(pieces: ReadonlyArray<{ square: string; role: string }>) {
+  return pieces.map(piece => `${piece.role} on ${piece.square}`).join(', ');
+}
+
+function renderCoachEvidence({
+  evidence,
+  locale,
+  variables,
+}: {
+  evidence: CoachEvidence | undefined;
+  locale: string;
+  variables: CoachMessageVariables;
+}): RenderedCoachEvidence | undefined {
+  if (!evidence) return undefined;
+
+  const actionLabel = formatMessage('coach.evidence.action_label', {}, locale);
+
+  if (evidence.kind === 'line') {
+    const lineSan = joinEvidenceMoves(evidence);
+    const summaryKey = variables.tacticMotifLabel
+      ? 'coach.evidence.line.motif_summary'
+      : 'coach.evidence.line.summary';
+    return {
+      kind: evidence.kind,
+      actionLabel,
+      title: formatMessage('coach.evidence.line.title', variables, locale),
+      summary: formatMessage(summaryKey, { ...variables, lineSan }, locale),
+      moves: evidence.moves,
+    };
+  }
+
+  if (evidence.kind === 'single_move') {
+    const evidenceMoveSan = evidence.move.san;
+    const summaryKey = variables.tacticMotifLabel
+      ? 'coach.evidence.single_move.motif_summary'
+      : 'coach.evidence.single_move.summary';
+    return {
+      kind: evidence.kind,
+      actionLabel,
+      title: formatMessage('coach.evidence.single_move.title', variables, locale),
+      summary: formatMessage(summaryKey, { ...variables, evidenceMoveSan }, locale),
+      move: evidence.move,
+    };
+  }
+
+  if (evidence.kind === 'square') {
+    return {
+      kind: evidence.kind,
+      actionLabel,
+      title: formatMessage('coach.evidence.square.title', variables, locale),
+      summary: formatMessage(
+        'coach.evidence.square.summary',
+        { ...variables, evidenceSquares: joinEvidenceSquares(evidence.squares) },
+        locale
+      ),
+      squares: evidence.squares,
+    };
+  }
+
+  if (evidence.kind === 'piece') {
+    return {
+      kind: evidence.kind,
+      actionLabel,
+      title: formatMessage('coach.evidence.piece.title', variables, locale),
+      summary: formatMessage(
+        'coach.evidence.piece.summary',
+        { ...variables, evidencePieces: joinEvidencePieces(evidence.pieces) },
+        locale
+      ),
+      pieces: evidence.pieces,
+    };
+  }
+
+  return {
+    kind: evidence.kind,
+    actionLabel,
+    title: formatMessage('coach.evidence.plan.title', variables, locale),
+    summary: formatMessage(
+      'coach.evidence.plan.summary',
+      { ...variables, planSummary: evidence.summary },
+      locale
+    ),
+    keyMove: evidence.keyMove,
+    targetSquares: evidence.targetSquares,
+  };
+}
+
 export function getCoachEventMessageKey(event: CoachEvent): I18nMessageKey {
   if (isMessageKey(event.messageKey)) return event.messageKey;
   const motifMessageKey = getCoachEventMotifMessageKey(event);
@@ -406,6 +564,11 @@ export function renderCoachEvent(
   const title = formatMessage(presentation.titleKey, {}, locale);
   const message = formatMessage(messageKey, variables, locale);
   const spokenText = formatMessage(spokenTextKey, { label, title, message }, locale);
+  const evidence = renderCoachEvidence({
+    evidence: event.evidence,
+    locale,
+    variables,
+  });
 
   return {
     id: event.id,
@@ -422,6 +585,7 @@ export function renderCoachEvent(
     spokenText,
     tone: event.tone,
     persona,
+    evidence,
   };
 }
 
@@ -479,6 +643,19 @@ export const REQUIRED_COACH_MESSAGE_KEYS = [
   ]),
   ...COACH_EVENT_TYPES.map(eventType => `coach.event.${eventType}.message`),
   'coach.composition.secondary',
+  'coach.evidence.action_label',
+  'coach.evidence.line.title',
+  'coach.evidence.line.summary',
+  'coach.evidence.line.motif_summary',
+  'coach.evidence.single_move.title',
+  'coach.evidence.single_move.summary',
+  'coach.evidence.single_move.motif_summary',
+  'coach.evidence.square.title',
+  'coach.evidence.square.summary',
+  'coach.evidence.piece.title',
+  'coach.evidence.piece.summary',
+  'coach.evidence.plan.title',
+  'coach.evidence.plan.summary',
   'coach.event.generic.message',
   'coach.spoken.event',
   'coach.spoken.wrong_move',
