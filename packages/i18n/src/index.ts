@@ -82,10 +82,16 @@ export const EN_MESSAGES = {
     '{moveSan} keeps the advantage without giving the opponent counterplay.',
   'coach.event.missed_win.message':
     'There was a winning chance here. {bestMoveSan} was the move to look for.',
+  'coach.event.missed_win.motif_message':
+    'There was a winning {tacticMotifLabel} here. {bestMoveSan} was the move to look for.',
   'coach.event.missed_tactic.message':
     'There was a tactic here. {bestMoveSan} would have created a stronger practical chance.',
+  'coach.event.missed_tactic.motif_message':
+    'There was a {tacticMotifLabel} here. {bestMoveSan} was the move to look for.',
   'coach.event.tactic_found.message':
     '{moveSan} finds the tactic. The position now has a concrete payoff.',
+  'coach.event.tactic_found.motif_message':
+    '{moveSan} finds the {tacticMotifLabel}. That is the concrete point of the position.',
   'coach.event.best_move.message': '{moveSan} is the best move in this position.',
   'coach.event.only_move.message':
     '{moveSan} is important because it keeps the position together when other moves fail.',
@@ -130,6 +136,13 @@ export const EN_MESSAGES = {
     '{moveSan} is a turning point. The evaluation and practical plans change here.',
   'coach.event.phase_summary.message': 'In this phase, the key pattern was {summaryTheme}.',
   'coach.event.game_summary.message': 'The main lesson from this game is {summaryTheme}.',
+
+  'coach.motif.fork': 'fork',
+  'coach.motif.pin': 'pin',
+  'coach.motif.skewer': 'skewer',
+  'coach.motif.discovered_attack': 'discovered attack',
+  'coach.motif.trapped_piece': 'trapped piece',
+  'coach.motif.back_rank': 'back-rank idea',
 
   'coach.spoken.event': '{label}. {title}. {message}',
   'coach.spoken.wrong_move': 'Try again. {message}',
@@ -255,6 +268,33 @@ const COACH_CLASSIFICATION_PRESENTATION = {
   { labelKey: I18nMessageKey; titleKey: I18nMessageKey; tone: CoachTone }
 >;
 
+type CoachTacticalMotif =
+  | 'fork'
+  | 'pin'
+  | 'skewer'
+  | 'discovered_attack'
+  | 'trapped_piece'
+  | 'back_rank';
+
+const COACH_TACTICAL_MOTIF_LABEL_KEYS = {
+  fork: 'coach.motif.fork',
+  pin: 'coach.motif.pin',
+  skewer: 'coach.motif.skewer',
+  discovered_attack: 'coach.motif.discovered_attack',
+  trapped_piece: 'coach.motif.trapped_piece',
+  back_rank: 'coach.motif.back_rank',
+} as const satisfies Record<CoachTacticalMotif, I18nMessageKey>;
+
+const COACH_TACTICAL_MOTIF_MESSAGE_KEYS = {
+  missed_win: 'coach.event.missed_win.motif_message',
+  missed_tactic: 'coach.event.missed_tactic.motif_message',
+  tactic_found: 'coach.event.tactic_found.motif_message',
+} as const satisfies Partial<Record<CoachEvent['eventType'], I18nMessageKey>>;
+
+function isCoachTacticalMotif(value: unknown): value is CoachTacticalMotif {
+  return typeof value === 'string' && value in COACH_TACTICAL_MOTIF_LABEL_KEYS;
+}
+
 export function isSupportedLocale(value: string): value is FirstMoveLocale {
   return (SUPPORTED_LOCALES as readonly string[]).includes(value);
 }
@@ -290,9 +330,41 @@ function isMessageKey(value: string): value is I18nMessageKey {
   return value in EN_MESSAGES;
 }
 
+function getCoachEventTacticalMotif(event: CoachEvent): CoachTacticalMotif | null {
+  const variableMotif = event.variables.tacticMotif;
+  if (isCoachTacticalMotif(variableMotif)) return variableMotif;
+
+  const bestMoveMotif = event.analysisFacts.bestMoveTacticalMotif;
+  if (isCoachTacticalMotif(bestMoveMotif)) return bestMoveMotif;
+
+  const playedMotif = event.analysisFacts.playedTacticalMotif;
+  if (isCoachTacticalMotif(playedMotif)) return playedMotif;
+
+  for (const themeTag of event.themeTags) {
+    if (isCoachTacticalMotif(themeTag)) return themeTag;
+  }
+
+  return null;
+}
+
+function getCoachEventMotifMessageKey(event: CoachEvent): I18nMessageKey | null {
+  if (!getCoachEventTacticalMotif(event)) return null;
+  if (!(event.eventType in COACH_TACTICAL_MOTIF_MESSAGE_KEYS)) return null;
+
+  const key =
+    COACH_TACTICAL_MOTIF_MESSAGE_KEYS[
+      event.eventType as keyof typeof COACH_TACTICAL_MOTIF_MESSAGE_KEYS
+    ];
+  return key && isMessageKey(key) ? key : null;
+}
+
 export function getCoachEventMessageKey(event: CoachEvent): I18nMessageKey {
   if (isMessageKey(event.messageKey)) return event.messageKey;
-  return 'coach.event.generic.message';
+  const motifMessageKey = getCoachEventMotifMessageKey(event);
+  if (motifMessageKey) return motifMessageKey;
+  return firstExistingMessageKey(
+    getCoachEventMessageFallbacks(event.eventType, event.persona ?? 'neutral')
+  );
 }
 
 export function getCoachEventSpokenKey(event: CoachEvent): I18nMessageKey {
@@ -314,15 +386,25 @@ export function renderCoachEvent(
   persona: CoachPersona = event.persona ?? 'neutral'
 ): RenderedCoachEvent {
   const presentation = COACH_CLASSIFICATION_PRESENTATION[event.classification];
+  const tacticMotif = getCoachEventTacticalMotif(event);
+  const tacticMotifLabel = tacticMotif
+    ? formatMessage(COACH_TACTICAL_MOTIF_LABEL_KEYS[tacticMotif], {}, locale)
+    : null;
+  const variables = {
+    ...event.variables,
+    tacticMotif,
+    tacticMotifLabel,
+  };
   const messageKey = isMessageKey(event.messageKey)
     ? event.messageKey
-    : firstExistingMessageKey(getCoachEventMessageFallbacks(event.eventType, persona));
+    : getCoachEventMotifMessageKey(event) ??
+      firstExistingMessageKey(getCoachEventMessageFallbacks(event.eventType, persona));
   const spokenTextKey = isMessageKey(event.spokenKey)
     ? event.spokenKey
     : firstExistingMessageKey(getCoachEventSpokenFallbacks(event.eventType, persona));
   const label = formatMessage(presentation.labelKey, {}, locale);
   const title = formatMessage(presentation.titleKey, {}, locale);
-  const message = formatMessage(messageKey, event.variables, locale);
+  const message = formatMessage(messageKey, variables, locale);
   const spokenText = formatMessage(spokenTextKey, { label, title, message }, locale);
 
   return {
@@ -335,7 +417,7 @@ export function renderCoachEvent(
     title,
     messageKey,
     spokenTextKey,
-    variables: event.variables,
+    variables,
     message,
     spokenText,
     tone: event.tone,

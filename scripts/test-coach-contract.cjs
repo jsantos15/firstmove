@@ -495,6 +495,10 @@ test('motif detector tags played fork and pin tactics', () => {
   assert.equal(fork.eventType, 'tactic_found');
   assert.ok(fork.themeTags.includes('fork'));
   assert.deepEqual(fork.analysisFacts.playedTacticalMotifTargets, ['d8', 'h8']);
+  const renderedFork = i18n.renderCoachEvent(fork, 'en');
+  assert.equal(renderedFork.messageKey, 'coach.event.tactic_found.motif_message');
+  assert.match(renderedFork.message, /finds the fork/);
+  assert.match(renderedFork.spokenText, /fork/);
 
   const pinEvents = core.buildGameAnalysisMoveEventsFromEngine({
     gameId: 'game-19',
@@ -533,6 +537,10 @@ test('motif detector tags missed tactical motif on best move', () => {
   assert.equal(missedFork.eventType, 'missed_tactic');
   assert.equal(missedFork.analysisFacts.candidateReason, 'missed_fork');
   assert.ok(missedFork.themeTags.includes('fork'));
+  const renderedMissedFork = i18n.renderCoachEvent(missedFork, 'en');
+  assert.equal(renderedMissedFork.messageKey, 'coach.event.missed_tactic.motif_message');
+  assert.match(renderedMissedFork.message, /There was a fork here/);
+  assert.match(renderedMissedFork.spokenText, /fork/);
 });
 
 console.log('Coach contract tests passed.');
