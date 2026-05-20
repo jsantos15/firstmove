@@ -97,6 +97,15 @@ function normalizeText(value) {
     .toLowerCase();
 }
 
+function collapseRepeatedTrailingParentheticals(value) {
+  let current = String(value ?? "");
+  while (true) {
+    const match = current.match(/^(.*?)(\s\([^)]+\))\2$/);
+    if (!match) return current;
+    current = `${match[1]}${match[2]}`;
+  }
+}
+
 function isStrictSanPrefix(prefixSans, fullSans) {
   if (!Array.isArray(prefixSans) || !Array.isArray(fullSans)) return false;
   if (prefixSans.length >= fullSans.length) return false;
@@ -107,15 +116,15 @@ function parentLineId(line) {
   return line.parentLineId ?? line.generation?.branch?.parentLineId ?? null;
 }
 
-function branchNameSuffix(line) {
+function branchNameSuffix(line, tailSize = 2) {
   const trace = line.generation?.branch?.continuationTrace ?? line.generation?.extension ?? [];
   const traceTail = trace
     .map((step) => step?.san)
     .filter(Boolean)
-    .slice(-2)
+    .slice(-tailSize)
     .join(" ");
   if (traceTail) return traceTail;
-  return line.generatedSans?.slice(-2).join(" ") || line.lineId?.slice(-8) || "alternate";
+  return line.generatedSans?.slice(-tailSize).join(" ") || line.lineId?.slice(-8) || "alternate";
 }
 
 function prunePrefixBranches(branches) {
@@ -256,21 +265,46 @@ function pruneInferiorTrainedDeviations(branches) {
 }
 
 function withUniqueBranchNames(branches) {
-  const counts = new Map();
+  const groups = new Map();
   for (const branch of branches) {
     const branchParentLineId = parentLineId(branch);
     if (!branchParentLineId || !branch.lineName) continue;
-    const key = `${branchParentLineId}::${normalizeText(branch.lineName)}`;
-    counts.set(key, (counts.get(key) ?? 0) + 1);
+    const baseLineName = collapseRepeatedTrailingParentheticals(branch.lineName);
+    const key = `${branchParentLineId}::${normalizeText(baseLineName)}`;
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(branch);
+  }
+
+  const renamed = new Map();
+  for (const group of groups.values()) {
+    if (group.length <= 1) continue;
+
+    for (let tailSize = 2; tailSize <= 6; tailSize += 1) {
+      const candidates = group.map((branch) => {
+        const baseLineName = collapseRepeatedTrailingParentheticals(branch.lineName);
+        return `${baseLineName} (${branchNameSuffix(branch, tailSize)})`;
+      });
+      if (new Set(candidates.map(normalizeText)).size !== candidates.length) continue;
+      for (let index = 0; index < group.length; index += 1) {
+        renamed.set(group[index], candidates[index]);
+      }
+      break;
+    }
+
+    for (const branch of group) {
+      if (renamed.has(branch)) continue;
+      const baseLineName = collapseRepeatedTrailingParentheticals(branch.lineName);
+      const stableSuffix = branch.lineId?.slice(-8) || branch.generatedSans?.slice(-4).join(" ") || "alternate";
+      renamed.set(branch, `${baseLineName} (${stableSuffix})`);
+    }
   }
 
   return branches.map((branch) => {
     const branchParentLineId = parentLineId(branch);
     if (!branchParentLineId || !branch.lineName) return branch;
-    const key = `${branchParentLineId}::${normalizeText(branch.lineName)}`;
-    if ((counts.get(key) ?? 0) <= 1) return branch;
+    const lineName = renamed.get(branch);
+    if (!lineName) return branch;
 
-    const lineName = `${branch.lineName} (${branchNameSuffix(branch)})`;
     const parentName = branch.fullName.includes(": ")
       ? branch.fullName.split(": ").slice(0, -1).join(": ")
       : branch.fullName;

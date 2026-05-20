@@ -179,6 +179,15 @@ function normalizeText(value) {
     .toLowerCase();
 }
 
+function collapseRepeatedTrailingParentheticals(value) {
+  let current = String(value ?? "");
+  while (true) {
+    const match = current.match(/^(.*?)(\s\([^)]+\))\2$/);
+    if (!match) return current;
+    current = `${match[1]}${match[2]}`;
+  }
+}
+
 function slugify(value) {
   return normalizeText(value)
     .replace(/[^a-z0-9]+/g, "-")
@@ -1476,33 +1485,58 @@ function branchParentLineId(branch) {
   return branch.parentLineId ?? branch.generation?.branch?.parentLineId ?? null;
 }
 
-function branchNameSuffix(branch) {
+function branchNameSuffix(branch, tailSize = 2) {
   const trace = branch.generation?.branch?.continuationTrace ?? branch.generation?.extension ?? [];
   const traceTail = trace
     .map((step) => step?.san)
     .filter(Boolean)
-    .slice(-2)
+    .slice(-tailSize)
     .join(" ");
   if (traceTail) return traceTail;
-  return branch.generatedSans?.slice(-2).join(" ") || branch.lineId?.slice(-8) || "alternate";
+  return branch.generatedSans?.slice(-tailSize).join(" ") || branch.lineId?.slice(-8) || "alternate";
 }
 
 function withUniqueBranchNames(branches) {
-  const counts = new Map();
+  const groups = new Map();
   for (const branch of branches) {
     const parentLineId = branchParentLineId(branch);
     if (!parentLineId || !branch.lineName) continue;
-    const key = `${parentLineId}::${normalizeText(branch.lineName)}`;
-    counts.set(key, (counts.get(key) ?? 0) + 1);
+    const baseLineName = collapseRepeatedTrailingParentheticals(branch.lineName);
+    const key = `${parentLineId}::${normalizeText(baseLineName)}`;
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(branch);
+  }
+
+  const renamed = new Map();
+  for (const group of groups.values()) {
+    if (group.length <= 1) continue;
+
+    for (let tailSize = 2; tailSize <= 6; tailSize += 1) {
+      const candidates = group.map((branch) => {
+        const baseLineName = collapseRepeatedTrailingParentheticals(branch.lineName);
+        return `${baseLineName} (${branchNameSuffix(branch, tailSize)})`;
+      });
+      if (new Set(candidates.map(normalizeText)).size !== candidates.length) continue;
+      for (let index = 0; index < group.length; index += 1) {
+        renamed.set(group[index], candidates[index]);
+      }
+      break;
+    }
+
+    for (const branch of group) {
+      if (renamed.has(branch)) continue;
+      const baseLineName = collapseRepeatedTrailingParentheticals(branch.lineName);
+      const stableSuffix = branch.lineId?.slice(-8) || branch.generatedSans?.slice(-4).join(" ") || "alternate";
+      renamed.set(branch, `${baseLineName} (${stableSuffix})`);
+    }
   }
 
   return branches.map((branch) => {
     const parentLineId = branchParentLineId(branch);
     if (!parentLineId || !branch.lineName) return branch;
-    const key = `${parentLineId}::${normalizeText(branch.lineName)}`;
-    if ((counts.get(key) ?? 0) <= 1) return branch;
+    const lineName = renamed.get(branch);
+    if (!lineName) return branch;
 
-    const lineName = `${branch.lineName} (${branchNameSuffix(branch)})`;
     const parentName = branch.fullName.includes(": ")
       ? branch.fullName.split(": ").slice(0, -1).join(": ")
       : branch.fullName;

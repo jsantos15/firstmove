@@ -576,6 +576,8 @@ node scripts/run-opening-reference-pipeline.cjs --openings italian-game,caro-kan
 
 **Update:** Non-top trained-side candidate moves with a real eval loss must justify themselves against the comparable top trained-side path. When a practical branch first deviates from the engine-best trained move and the trace reports positive `engineEvalLossCp`, the generator and branch dedup look for sibling branches under the same parent variation that share the exact prefix and play the rank-1 trained move at that same ply. The non-top deviation is kept only if its completed final trained-side eval is higher than the best comparable top-move sibling. This preserves speculative trained deviations only when later human continuation creates a better practical outcome, removes branches that simply close immediately on a lower-value second-best move, and avoids pruning equal-eval engine-ordering noise.
 
+**Update:** Practical branch display names must be unique within a parent variation after all pruning. When title motifs collide, the generator and branch dedup expand the continuation suffix until the names are distinct, then fall back to a stable line-id suffix only if the SAN tail still cannot disambiguate them. Repeated trailing parenthetical suffixes are collapsed before adding the final unique suffix so rerunning dedup does not compound duplicate labels.
+
 ---
 
 ## 2026-05-16 - Keep localized coach templates in source control
