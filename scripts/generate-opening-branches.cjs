@@ -1013,6 +1013,7 @@ function checkpointNeedsResolution(state) {
 function payoffFallbackAccepts({ state, chess, trace, openingColor, args, minPliesAfterTrigger = 4 }) {
   if (!Number.isFinite(state?.trainedEvalCp)) return false;
   if (state.trainedEvalCp < args.trainedOpportunityMinEvalCp) return false;
+  if (state.pendingCheckReply) return false;
   const sideToMove = chess.turn() === "w" ? "white" : "black";
   if (chess.inCheck() && sideToMove === openingColor) return false;
   const pliesAfterTrigger = Math.max(0, trace.length - 1);
@@ -1335,17 +1336,18 @@ function finalTrainedEvalForBranch(branch) {
   );
 }
 
-function firstTrainedDeviation(branch) {
+function trainedDeviations(branch) {
   const trace = branch.generation?.branch?.continuationTrace ?? branch.generation?.extension ?? [];
+  const deviations = [];
   for (const step of trace) {
     const rank = Number(step?.engineRank ?? 1);
     const evalLossCp = Number(step?.engineEvalLossCp ?? 0);
-    if (step?.side !== "trained" || rank <= 1 || evalLossCp <= 0) continue;
+    if (step?.side !== "trained" || rank <= 1) continue;
     const index = Number.isInteger(step.ply) ? step.ply - 1 : -1;
     if (index < 0 || branch.generatedSans?.[index] !== step.san) continue;
-    return { index, step };
+    deviations.push({ index, step, evalLossCp });
   }
-  return null;
+  return deviations;
 }
 
 function trainedTraceStepAt(branch, index) {
@@ -1380,17 +1382,20 @@ function isComparableTopTrainedBranch(deviationBranch, topBranch, deviation) {
 
 function pruneInferiorTrainedDeviations(branches) {
   return branches.filter((branch) => {
-    const deviation = firstTrainedDeviation(branch);
-    if (!deviation) return true;
-
     const deviationEval = finalTrainedEvalForBranch(branch);
-    const topEval = branches
-      .filter((other) => isComparableTopTrainedBranch(branch, other, deviation))
-      .map(finalTrainedEvalForBranch)
-      .filter(Number.isFinite)
-      .reduce((best, value) => Math.max(best, value), -Infinity);
+    for (const deviation of trainedDeviations(branch)) {
+      const topEval = branches
+        .filter((other) => isComparableTopTrainedBranch(branch, other, deviation))
+        .map(finalTrainedEvalForBranch)
+        .filter(Number.isFinite)
+        .reduce((best, value) => Math.max(best, value), -Infinity);
 
-    return !Number.isFinite(topEval) || deviationEval > topEval;
+      if (!Number.isFinite(topEval)) continue;
+      if (topEval >= SCORE_MATE_CP) return false;
+      if (deviation.evalLossCp > 0 && deviationEval <= topEval) return false;
+    }
+
+    return true;
   });
 }
 
