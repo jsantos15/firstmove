@@ -8,8 +8,6 @@ const DEFAULT_INPUT = path.resolve(
   "output",
   "generated-opening-branches.json"
 );
-const SCORE_MATE_CP = 100000;
-
 function parseArgs(argv) {
   const args = {
     input: DEFAULT_INPUT,
@@ -208,19 +206,6 @@ function continuationTrace(line) {
   return line.generation?.branch?.continuationTrace ?? line.generation?.extension ?? [];
 }
 
-function trainedDeviations(line) {
-  const deviations = [];
-  for (const step of continuationTrace(line)) {
-    const rank = Number(step?.engineRank ?? 1);
-    const evalLossCp = Number(step?.engineEvalLossCp ?? 0);
-    if (step?.side !== "trained" || rank <= 1) continue;
-    const index = Number.isInteger(step.ply) ? step.ply - 1 : -1;
-    if (index < 0 || line.generatedSans?.[index] !== step.san) continue;
-    deviations.push({ index, step, evalLossCp });
-  }
-  return deviations;
-}
-
 function trainedTraceStepAt(line, index) {
   return continuationTrace(line).find((step) => {
     if (step?.side !== "trained") return false;
@@ -238,31 +223,59 @@ function hasSamePrefixBefore(leftSans, rightSans, index) {
   return true;
 }
 
-function isComparableTopTrainedBranch(deviationBranch, topBranch, deviation) {
-  if (deviationBranch === topBranch) return false;
-  if (deviationBranch.openingId !== topBranch.openingId) return false;
-  if (parentLineId(deviationBranch) !== parentLineId(topBranch)) return false;
-  if (!hasSamePrefixBefore(deviationBranch.generatedSans, topBranch.generatedSans, deviation.index)) return false;
-  if (deviationBranch.generatedSans[deviation.index] === topBranch.generatedSans[deviation.index]) return false;
+function trainedChoices(line) {
+  const choices = [];
+  for (const step of continuationTrace(line)) {
+    if (step?.side !== "trained") continue;
+    const index = Number.isInteger(step.ply) ? step.ply - 1 : -1;
+    if (index < 0 || line.generatedSans?.[index] !== step.san) continue;
+    choices.push({
+      index,
+      step,
+      rank: Number(step.engineRank ?? 999999),
+      evalLossCp: Number(step.engineEvalLossCp ?? 999999),
+    });
+  }
+  return choices;
+}
 
-  const topStep = trainedTraceStepAt(topBranch, deviation.index);
-  const topRank = Number(topStep?.engineRank ?? 999999);
-  return topStep?.side === "trained" && topRank === 1;
+function isComparableTrainedAlternative(branch, other, choice) {
+  if (branch === other) return false;
+  if (branch.openingId !== other.openingId) return false;
+  if (parentLineId(branch) !== parentLineId(other)) return false;
+  if (!hasSamePrefixBefore(branch.generatedSans, other.generatedSans, choice.index)) return false;
+  if (branch.generatedSans[choice.index] === other.generatedSans[choice.index]) return false;
+
+  const otherStep = trainedTraceStepAt(other, choice.index);
+  return otherStep?.side === "trained";
+}
+
+function isDominatedByComparableTrainedAlternative(branch, choice, other) {
+  const branchEval = finalTrainedEvalCp(branch);
+  const otherEval = finalTrainedEvalCp(other);
+  if (!Number.isFinite(branchEval) || !Number.isFinite(otherEval)) return false;
+  if (otherEval > branchEval) return true;
+  if (otherEval < branchEval) return false;
+
+  const otherStep = trainedTraceStepAt(other, choice.index);
+  const otherRank = Number(otherStep?.engineRank ?? 999999);
+  if (otherRank !== choice.rank) return otherRank < choice.rank;
+
+  const otherLoss = Number(otherStep?.engineEvalLossCp ?? 999999);
+  if (otherLoss !== choice.evalLossCp) return otherLoss < choice.evalLossCp;
+
+  return false;
 }
 
 function pruneInferiorTrainedDeviations(branches) {
   return branches.filter((branch) => {
-    const deviationEval = finalTrainedEvalCp(branch);
-    for (const deviation of trainedDeviations(branch)) {
-      const topEval = branches
-        .filter((other) => isComparableTopTrainedBranch(branch, other, deviation))
-        .map(finalTrainedEvalCp)
-        .filter(Number.isFinite)
-        .reduce((best, value) => Math.max(best, value), -Infinity);
-
-      if (!Number.isFinite(topEval)) continue;
-      if (topEval >= SCORE_MATE_CP) return false;
-      if (deviationEval <= topEval) return false;
+    for (const choice of trainedChoices(branch)) {
+      const alternatives = branches.filter((other) =>
+        isComparableTrainedAlternative(branch, other, choice)
+      );
+      if (alternatives.some((other) => isDominatedByComparableTrainedAlternative(branch, choice, other))) {
+        return false;
+      }
     }
 
     return true;

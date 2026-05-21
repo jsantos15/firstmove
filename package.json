@@ -16,6 +16,7 @@
     "delete:opening-branches": "node scripts/delete-opening-branches.cjs",
     "pipeline:opening-branches": "node scripts/run-opening-branch-pipeline.cjs",
     "audit:opening-lines:lichess-cloud": "node scripts/audit-opening-lines-lichess-cloud.cjs",
+    "test:opening-branches": "node scripts/test-opening-branch-dedup.cjs",
     "test:coach": "node scripts/test-coach-contract.cjs",
     "merge:opening-candidates": "node scripts/merge-opening-candidates.cjs",
     "prepare:opening-db-payload": "node scripts/prepare-opening-db-payload.cjs",
