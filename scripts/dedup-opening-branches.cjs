@@ -269,6 +269,90 @@ function pruneInferiorTrainedDeviations(branches) {
   });
 }
 
+function normalizedFinalFen(line) {
+  const fen = line.finalFen ?? line.generation?.branch?.finalFen ?? null;
+  if (!fen) return null;
+  return String(fen).split(/\s+/).slice(0, 4).join(" ");
+}
+
+function firstDifferingIndex(leftSans, rightSans) {
+  if (!Array.isArray(leftSans) || !Array.isArray(rightSans)) return -1;
+  const limit = Math.min(leftSans.length, rightSans.length);
+  for (let index = 0; index < limit; index += 1) {
+    if (leftSans[index] !== rightSans[index]) return index;
+  }
+  return leftSans.length === rightSans.length ? -1 : limit;
+}
+
+function trainedStepQuality(line, index) {
+  const step = trainedTraceStepAt(line, index);
+  if (!step) {
+    return {
+      hasStep: 0,
+      rank: 999999,
+      evalLossCp: 999999,
+    };
+  }
+  return {
+    hasStep: 1,
+    rank: Number(step.engineRank ?? 999999),
+    evalLossCp: Number(step.engineEvalLossCp ?? 999999),
+  };
+}
+
+function compareTransposedBranchRetention(left, right) {
+  const diffIndex = firstDifferingIndex(left.generatedSans, right.generatedSans);
+  if (diffIndex >= 0) {
+    const leftQuality = trainedStepQuality(left, diffIndex);
+    const rightQuality = trainedStepQuality(right, diffIndex);
+    if (leftQuality.hasStep !== rightQuality.hasStep) return rightQuality.hasStep - leftQuality.hasStep;
+    if (leftQuality.rank !== rightQuality.rank) return leftQuality.rank - rightQuality.rank;
+    if (leftQuality.evalLossCp !== rightQuality.evalLossCp) return leftQuality.evalLossCp - rightQuality.evalLossCp;
+  }
+
+  const evalDelta = finalTrainedEvalCp(right) - finalTrainedEvalCp(left);
+  if (evalDelta !== 0) return evalDelta;
+
+  const retentionDelta = compareBranchRetention(left, right);
+  if (retentionDelta !== 0) return retentionDelta;
+
+  const leftKey = left.generatedSans?.join(" ") ?? left.lineId ?? "";
+  const rightKey = right.generatedSans?.join(" ") ?? right.lineId ?? "";
+  return leftKey.localeCompare(rightKey);
+}
+
+function pruneTransposedFinalFenBranches(branches) {
+  const kept = [];
+
+  for (const branch of branches) {
+    const branchFinalFen = normalizedFinalFen(branch);
+    if (!branchFinalFen) {
+      kept.push(branch);
+      continue;
+    }
+
+    const duplicateIndex = kept.findIndex((other) => {
+      return (
+        branch.openingId === other.openingId &&
+        parentLineId(branch) === parentLineId(other) &&
+        normalizedFinalFen(other) === branchFinalFen
+      );
+    });
+
+    if (duplicateIndex === -1) {
+      kept.push(branch);
+      continue;
+    }
+
+    const current = kept[duplicateIndex];
+    if (compareTransposedBranchRetention(current, branch) > 0) {
+      kept[duplicateIndex] = branch;
+    }
+  }
+
+  return kept;
+}
+
 function withUniqueBranchNames(branches) {
   const groups = new Map();
   for (const branch of branches) {
@@ -355,7 +439,8 @@ function dedupeLines(lines) {
   const prefixPruned = prunePrefixBranches(Array.from(bySans.values()));
   const matePruned = pruneMateEquivalentBranches(prefixPruned);
   const deviationPruned = pruneInferiorTrainedDeviations(matePruned);
-  const finalBranches = withUniqueBranchNames(deviationPruned);
+  const transpositionPruned = pruneTransposedFinalFenBranches(deviationPruned);
+  const finalBranches = withUniqueBranchNames(transpositionPruned);
 
   return {
     references,

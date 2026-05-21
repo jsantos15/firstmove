@@ -1399,6 +1399,90 @@ function pruneInferiorTrainedDeviations(branches) {
   });
 }
 
+function normalizedFinalFen(branch) {
+  const fen = branch.finalFen ?? branch.generation?.branch?.finalFen ?? null;
+  if (!fen) return null;
+  return String(fen).split(/\s+/).slice(0, 4).join(" ");
+}
+
+function firstDifferingIndex(leftSans, rightSans) {
+  if (!Array.isArray(leftSans) || !Array.isArray(rightSans)) return -1;
+  const limit = Math.min(leftSans.length, rightSans.length);
+  for (let index = 0; index < limit; index += 1) {
+    if (leftSans[index] !== rightSans[index]) return index;
+  }
+  return leftSans.length === rightSans.length ? -1 : limit;
+}
+
+function trainedStepQuality(branch, index) {
+  const step = trainedTraceStepAt(branch, index);
+  if (!step) {
+    return {
+      hasStep: 0,
+      rank: 999999,
+      evalLossCp: 999999,
+    };
+  }
+  return {
+    hasStep: 1,
+    rank: Number(step.engineRank ?? 999999),
+    evalLossCp: Number(step.engineEvalLossCp ?? 999999),
+  };
+}
+
+function compareTransposedBranchRetention(left, right) {
+  const diffIndex = firstDifferingIndex(left.generatedSans, right.generatedSans);
+  if (diffIndex >= 0) {
+    const leftQuality = trainedStepQuality(left, diffIndex);
+    const rightQuality = trainedStepQuality(right, diffIndex);
+    if (leftQuality.hasStep !== rightQuality.hasStep) return rightQuality.hasStep - leftQuality.hasStep;
+    if (leftQuality.rank !== rightQuality.rank) return leftQuality.rank - rightQuality.rank;
+    if (leftQuality.evalLossCp !== rightQuality.evalLossCp) return leftQuality.evalLossCp - rightQuality.evalLossCp;
+  }
+
+  const selectionDelta = compareBranchesForSelection(left, right);
+  if (selectionDelta !== 0) return selectionDelta;
+
+  const retentionDelta = compareBranchRetention(left, right);
+  if (retentionDelta !== 0) return retentionDelta;
+
+  const leftKey = left.generatedSans?.join(" ") ?? left.lineId ?? "";
+  const rightKey = right.generatedSans?.join(" ") ?? right.lineId ?? "";
+  return leftKey.localeCompare(rightKey);
+}
+
+function pruneTransposedFinalFenBranches(branches) {
+  const kept = [];
+
+  for (const branch of branches) {
+    const branchFinalFen = normalizedFinalFen(branch);
+    if (!branchFinalFen) {
+      kept.push(branch);
+      continue;
+    }
+
+    const duplicateIndex = kept.findIndex((other) => {
+      return (
+        branch.openingId === other.openingId &&
+        branchParentLineId(branch) === branchParentLineId(other) &&
+        normalizedFinalFen(other) === branchFinalFen
+      );
+    });
+
+    if (duplicateIndex === -1) {
+      kept.push(branch);
+      continue;
+    }
+
+    const current = kept[duplicateIndex];
+    if (compareTransposedBranchRetention(current, branch) > 0) {
+      kept[duplicateIndex] = branch;
+    }
+  }
+
+  return kept;
+}
+
 function lineKey(line) {
   return `${line.openingId}::${line.lineId}`;
 }
@@ -2503,7 +2587,9 @@ function dedupeBranches(branches) {
       return isStrictSanPrefix(branch.generatedSans, other.generatedSans);
     });
   });
-  return pruneInferiorTrainedDeviations(pruneMateEquivalentBranches(prefixPruned));
+  return pruneTransposedFinalFenBranches(
+    pruneInferiorTrainedDeviations(pruneMateEquivalentBranches(prefixPruned))
+  );
 }
 
 function selectMinimumFallbackBranches(branches, limit) {

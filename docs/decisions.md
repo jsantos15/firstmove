@@ -582,6 +582,8 @@ node scripts/run-opening-reference-pipeline.cjs --openings italian-game,caro-kan
 
 **Update:** Practical branch display names must be unique within a parent variation after all pruning. When title motifs collide, the generator and branch dedup expand the continuation suffix until the names are distinct, then fall back to a stable line-id suffix only if the SAN tail still cannot disambiguate them. Repeated trailing parenthetical suffixes are collapsed before adding the final unique suffix so rerunning dedup does not compound duplicate labels.
 
+**Update:** Practical branches under the same parent variation should not keep multiple move orders that transpose to the same final board. After exact-line, prefix, mate-equivalent, and trained-deviation pruning, the generator and branch dedup collapse same-parent branches with the same normalized final FEN. The retained branch prefers the better trained-side engine choice at the first differing trained ply, then falls back to final eval, endpoint quality, branch score, play-rate confidence, and stable SAN order.
+
 ---
 
 ## 2026-05-16 - Keep localized coach templates in source control
