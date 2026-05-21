@@ -774,6 +774,10 @@ export default function AnalysisPage() {
           <div className="h-full max-w-full shrink" style={{ aspectRatio: '1 / 1' }}>
             <div className="relative flex h-full w-full select-none flex-col">
 
+              {/* Matches PracticeBoard's status-bar flex space so boardSize and the
+                  board-to-panel gap align with the Openings page. */}
+              <div className="shrink-0" style={{ height: 26 }} />
+
               {/* Board + eval bar */}
               <div ref={wrapperRef} className="flex min-h-0 flex-1 items-center justify-center">
                 <EvalBar evalCp={displayEvalCp} reserveSpace={true} size={boardSize} />
