@@ -1392,7 +1392,7 @@ function pruneInferiorTrainedDeviations(branches) {
 
       if (!Number.isFinite(topEval)) continue;
       if (topEval >= SCORE_MATE_CP) return false;
-      if (deviation.evalLossCp > 0 && deviationEval <= topEval) return false;
+      if (deviationEval <= topEval) return false;
     }
 
     return true;
