@@ -94,11 +94,14 @@ function extractGameTitle(pgn: string): string | null {
 
 // ─── Eval Bar ─────────────────────────────────────────────────────────────────
 
-function EvalBar({ evalCp, reserveSpace = false }: { evalCp?: number; reserveSpace?: boolean }) {
+function EvalBar({ evalCp, reserveSpace = false, size }: { evalCp?: number; reserveSpace?: boolean; size: number }) {
+  const barStyle = { height: size };
+
   if (typeof evalCp !== 'number' || !Number.isFinite(evalCp)) {
     return reserveSpace ? (
       <div
-        className="relative mr-2 hidden h-full w-7 shrink-0 overflow-hidden rounded-md border border-white/15 bg-[#181818] shadow-inner shadow-black/40 sm:block"
+        className="relative mr-2 hidden w-7 shrink-0 overflow-hidden rounded-md border border-white/15 bg-[#181818] shadow-inner shadow-black/40 sm:block"
+        style={barStyle}
         title="Engine evaluation loading"
         aria-label="Engine evaluation loading"
       >
@@ -115,7 +118,8 @@ function EvalBar({ evalCp, reserveSpace = false }: { evalCp?: number; reserveSpa
 
   return (
     <div
-      className="relative mr-2 hidden h-full w-7 shrink-0 overflow-hidden rounded-md border border-white/15 bg-[#181818] shadow-inner shadow-black/40 sm:block"
+      className="relative mr-2 hidden w-7 shrink-0 overflow-hidden rounded-md border border-white/15 bg-[#181818] shadow-inner shadow-black/40 sm:block"
+      style={barStyle}
       title={`Engine evaluation: ${label}`}
       aria-label={`Engine evaluation ${label}`}
     >
@@ -762,7 +766,8 @@ export default function AnalysisPage() {
       </header>
 
       {/* ── Main content ── */}
-      <div className="mx-auto flex min-h-0 w-full max-w-410 flex-1 gap-3 overflow-hidden px-4 pb-3 pt-2 lg:gap-3 lg:px-6 lg:pb-4 lg:pt-3">
+      <div className="flex-1 min-h-0 overflow-hidden px-4 pb-3 pt-2 lg:px-6 lg:pb-4 lg:pt-3">
+      <div className="mx-auto flex h-full w-full max-w-410 gap-3 lg:gap-3">
 
         {/* Left: Board column */}
         <div className="flex h-full min-w-0 flex-1 justify-end">
@@ -771,7 +776,7 @@ export default function AnalysisPage() {
 
               {/* Board + eval bar */}
               <div ref={wrapperRef} className="flex min-h-0 flex-1 items-center justify-center">
-                <EvalBar evalCp={displayEvalCp} reserveSpace={true} />
+                <EvalBar evalCp={displayEvalCp} reserveSpace={true} size={boardSize} />
                 <div className="relative">
                   <div className="overflow-hidden rounded-xl ring-1 ring-white/10">
                     <Chessboard
@@ -869,7 +874,7 @@ export default function AnalysisPage() {
         </div>
 
         {/* Right: Sidebar */}
-        <div className="flex h-full w-[24rem] shrink-0 flex-col gap-3 lg:w-108">
+        <div className="w-[24rem] lg:w-108 shrink-0 h-full flex flex-col gap-3">
 
           {/* Coach */}
           <CoachBubble
@@ -968,6 +973,7 @@ export default function AnalysisPage() {
 
           </div>
         </div>
+      </div>
       </div>
 
       {/* Import modal */}
