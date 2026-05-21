@@ -7,6 +7,7 @@ import { CoachBubble } from '@/components/practice/CoachBubble';
 import { useBoardSettings } from '@/hooks/useBoardSettings';
 import { useCoachSettings } from '@/hooks/useCoachSettings';
 import { getCustomPieces } from '@/lib/piecesets';
+import { BoardSettingsPopover } from '@/components/board/BoardSettingsPopover';
 import {
   buildAnalyzedGameFromPgn,
   buildGameAnalysisCoachFeedbackFromAnalyzedGameMove,
@@ -20,6 +21,7 @@ import type { CoachClassification } from '@firstmove/core';
 
 const INITIAL_FEN = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
 const EVAL_BAR_CP_LIMIT = 600;
+const INITIAL_EVAL_CP = 20;
 const STOCKFISH_DEPTH = 10;
 const STOCKFISH_MOVE_LIMIT = 40;
 
@@ -92,35 +94,43 @@ function extractGameTitle(pgn: string): string | null {
 
 // ─── Eval Bar ─────────────────────────────────────────────────────────────────
 
-function EvalBar({ evalCp }: { evalCp?: number }) {
-  const hasEval = typeof evalCp === 'number' && Number.isFinite(evalCp);
-  const clamped = hasEval
-    ? Math.max(-EVAL_BAR_CP_LIMIT, Math.min(EVAL_BAR_CP_LIMIT, evalCp!))
-    : 0;
-  const whiteHeight = hasEval ? 50 + (clamped / EVAL_BAR_CP_LIMIT) * 45 : 50;
-  const label = hasEval ? formatEval(evalCp!) : '';
-  const labelOnWhite = hasEval && evalCp! < 0;
+function EvalBar({ evalCp, reserveSpace = false }: { evalCp?: number; reserveSpace?: boolean }) {
+  if (typeof evalCp !== 'number' || !Number.isFinite(evalCp)) {
+    return reserveSpace ? (
+      <div
+        className="relative mr-2 hidden h-full w-7 shrink-0 overflow-hidden rounded-md border border-white/15 bg-[#181818] shadow-inner shadow-black/40 sm:block"
+        title="Engine evaluation loading"
+        aria-label="Engine evaluation loading"
+      >
+        <div className="absolute inset-x-0 bottom-0 h-1/2 bg-zinc-100 opacity-70" />
+        <div className="pointer-events-none absolute inset-x-0 top-1/2 h-px bg-amber-400/45" />
+      </div>
+    ) : null;
+  }
+
+  const clamped = Math.max(-EVAL_BAR_CP_LIMIT, Math.min(EVAL_BAR_CP_LIMIT, evalCp));
+  const whiteHeight = 50 + (clamped / EVAL_BAR_CP_LIMIT) * 45;
+  const label = formatEval(evalCp);
+  const labelOnWhite = evalCp < 0;
 
   return (
     <div
-      className="relative mr-2 hidden h-full w-5 shrink-0 overflow-hidden rounded-md border border-white/15 bg-[#181818] shadow-inner shadow-black/40 sm:block"
-      title={hasEval ? `Eval: ${label}` : 'No evaluation'}
-      aria-label="Engine evaluation"
+      className="relative mr-2 hidden h-full w-7 shrink-0 overflow-hidden rounded-md border border-white/15 bg-[#181818] shadow-inner shadow-black/40 sm:block"
+      title={`Engine evaluation: ${label}`}
+      aria-label={`Engine evaluation ${label}`}
     >
       <div
         className="absolute inset-x-0 bottom-0 bg-zinc-100 transition-[height] duration-300"
         style={{ height: `${whiteHeight}%` }}
       />
-      <div className="pointer-events-none absolute inset-x-0 top-1/2 h-px bg-amber-400/40" />
-      {hasEval && (
-        <div
-          className={`pointer-events-none absolute left-1/2 -translate-x-1/2 text-[9px] font-semibold tabular-nums leading-none ${
-            labelOnWhite ? 'bottom-1 text-zinc-900' : 'top-1 text-zinc-100'
-          }`}
-        >
-          {label}
-        </div>
-      )}
+      <div className="pointer-events-none absolute inset-x-0 top-1/2 h-px bg-amber-400/45" />
+      <div
+        className={`pointer-events-none absolute left-1/2 -translate-x-1/2 text-[10px] font-semibold tabular-nums ${
+          labelOnWhite ? 'bottom-1 text-zinc-950' : 'top-1 text-zinc-100'
+        }`}
+      >
+        {label}
+      </div>
     </div>
   );
 }
@@ -144,7 +154,7 @@ function NavBtn({
       onClick={onClick}
       disabled={disabled}
       title={title}
-      className="flex h-10 w-10 items-center justify-center text-gray-400 transition-colors hover:text-white disabled:cursor-not-allowed disabled:opacity-25"
+      className="flex items-center justify-center px-5 py-2.5 text-gray-400 transition-colors hover:bg-white/5 hover:text-white disabled:cursor-default disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-gray-400"
     >
       {children}
     </button>
@@ -526,10 +536,9 @@ export default function AnalysisPage() {
   const [engineStatus, setEngineStatus] = useState<string | null>(null);
   const [engineError, setEngineError] = useState<string | null>(null);
   const [activeBottomPanel, setActiveBottomPanel] = useState<'engine' | 'games'>('engine');
-  const [flipBoard, setFlipBoard] = useState(false);
   const [boardSize, setBoardSize] = useState(480);
 
-  const { theme, animationDuration, settings } = useBoardSettings();
+  const { theme, animationDuration, settings, setSettings } = useBoardSettings();
   const { settings: coachSettings } = useCoachSettings();
   const customPieces = useMemo(() => getCustomPieces(settings.pieceSetId), [settings.pieceSetId]);
   const wrapperRef = useRef<HTMLDivElement>(null);
@@ -612,6 +621,10 @@ export default function AnalysisPage() {
     () => (currentMove?.hasEngineAnalysis ? currentMove.afterPlayedEvalCp : undefined),
     [currentMove],
   );
+
+  // Show "0.0" at the initial position (no game loaded, or before any move) — mirrors
+  // PracticeBoard's INITIAL_POSITION_EVAL_CP fallback so the eval bar always has a label.
+  const displayEvalCp = currentEvalCp ?? (currentPlyIndex <= -1 ? INITIAL_EVAL_CP : undefined);
 
   const coachFeedback: CoachFeedback | null = useMemo(() => {
     if (!analyzedGame || !currentMove) return null;
@@ -699,12 +712,13 @@ export default function AnalysisPage() {
   const totalMoves = analyzedGame?.moves.length ?? 0;
   const canGoBack = analyzedGame !== null && currentPlyIndex >= 0;
   const canGoForward = analyzedGame !== null && currentPlyIndex < totalMoves - 1;
+  const boardAlignedClassName = 'mx-auto w-full sm:translate-x-[18px]';
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
 
       {/* ── Header ── */}
-      <header className="z-10 h-14 shrink-0 border-b border-white/5 bg-(--bg-base)/80 backdrop-blur">
+      <header className="z-10 h-14 shrink-0 bg-(--bg-base)/80 backdrop-blur">
         <div className="flex h-full items-center justify-between gap-4 px-4 lg:px-6">
           <span className="text-sm font-medium text-white">Analysis</span>
 
@@ -748,106 +762,108 @@ export default function AnalysisPage() {
       </header>
 
       {/* ── Main content ── */}
-      <div className="flex min-h-0 flex-1 gap-3 overflow-hidden px-4 pb-3 pt-2 lg:gap-3 lg:px-6 lg:pb-4 lg:pt-3">
+      <div className="mx-auto flex min-h-0 w-full max-w-410 flex-1 gap-3 overflow-hidden px-4 pb-3 pt-2 lg:gap-3 lg:px-6 lg:pb-4 lg:pt-3">
 
         {/* Left: Board column */}
-        <div className="flex min-w-0 flex-1 flex-col gap-2">
+        <div className="flex h-full min-w-0 flex-1 justify-end">
+          <div className="h-full max-w-full shrink" style={{ aspectRatio: '1 / 1' }}>
+            <div className="relative flex h-full w-full select-none flex-col">
 
-          {/* Board area */}
-          <div className="flex min-h-0 flex-1 items-center justify-end gap-2">
-            <EvalBar evalCp={currentEvalCp} />
-            <div
-              ref={wrapperRef}
-              className="h-full max-w-full shrink"
-              style={{ aspectRatio: '1 / 1' }}
-            >
-              <div className="h-full w-full overflow-hidden rounded-xl ring-1 ring-white/10">
-                <Chessboard
-                  position={currentFen}
-                  boardWidth={boardSize}
-                  boardOrientation={flipBoard ? 'black' : 'white'}
-                  arePiecesDraggable={false}
-                  customSquareStyles={customSquareStyles}
-                  showBoardNotation={settings.showCoordinates}
-                  customDarkSquareStyle={{ backgroundColor: theme.dark }}
-                  customLightSquareStyle={{ backgroundColor: theme.light }}
-                  animationDuration={animationDuration}
-                  customPieces={customPieces}
-                />
+              {/* Board + eval bar */}
+              <div ref={wrapperRef} className="flex min-h-0 flex-1 items-center justify-center">
+                <EvalBar evalCp={displayEvalCp} reserveSpace={true} />
+                <div className="relative">
+                  <div className="overflow-hidden rounded-xl ring-1 ring-white/10">
+                    <Chessboard
+                      position={currentFen}
+                      boardWidth={boardSize}
+                      boardOrientation={settings.flipBoard ? 'black' : 'white'}
+                      arePiecesDraggable={false}
+                      customSquareStyles={customSquareStyles}
+                      showBoardNotation={settings.showCoordinates}
+                      customDarkSquareStyle={{ backgroundColor: theme.dark }}
+                      customLightSquareStyle={{ backgroundColor: theme.light }}
+                      animationDuration={animationDuration}
+                      customPieces={customPieces}
+                    />
+                  </div>
+                </div>
               </div>
-            </div>
-          </div>
 
-          {/* Navigation controls */}
-          <div className="flex h-10 shrink-0 items-center justify-between gap-2">
-            {/* Left: flip + hint text */}
-            <div className="flex w-20 items-center gap-1">
-              <button
-                type="button"
-                onClick={() => setFlipBoard((f) => !f)}
-                title="Flip board"
-                className="flex h-9 w-9 items-center justify-center rounded-lg border border-white/10 text-gray-500 transition-colors hover:border-white/20 hover:text-gray-300"
+              {/* Controls */}
+              <div
+                className={`${boardAlignedClassName} grid shrink-0 grid-cols-3 items-center`}
+                style={{ maxWidth: boardSize }}
               >
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth={1.5}
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  className="h-4 w-4"
+              {/* Left: flip button */}
+              <div>
+                <button
+                  type="button"
+                  onClick={() => setSettings({ flipBoard: !settings.flipBoard })}
+                  title="Flip board"
+                  className="flex h-9 w-9 items-center justify-center text-gray-500 transition-colors hover:text-gray-300"
                 >
-                  <path d="M7 16V4m0 0L3 8m4-4 4 4M17 8v12m0 0 4-4m-4 4-4-4" />
-                </svg>
-              </button>
-            </div>
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth={1.5}
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    className="h-4 w-4"
+                  >
+                    <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8" />
+                    <path d="M21 3v5h-5" />
+                    <path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16" />
+                    <path d="M8 21H3v-5" />
+                  </svg>
+                </button>
+              </div>
 
-            {/* Center: nav buttons */}
-            <div className="flex items-center divide-x divide-white/10 overflow-hidden rounded-lg border border-white/10">
-              <NavBtn onClick={() => goTo(-1)} disabled={!canGoBack} title="First position">
-                <svg viewBox="0 0 16 16" fill="currentColor" className="h-4 w-4">
-                  <path d="M3.5 3a.5.5 0 0 1 .5.5v3.793l6.146-4.439A.5.5 0 0 1 11 3.5v9a.5.5 0 0 1-.854.354L4 8.707V12.5a.5.5 0 0 1-1 0v-9a.5.5 0 0 1 .5-.5z" />
-                </svg>
-              </NavBtn>
-              <NavBtn
-                onClick={() => goTo(currentPlyIndex - 1)}
-                disabled={!canGoBack}
-                title="Previous (←)"
-              >
-                <svg viewBox="0 0 16 16" fill="currentColor" className="h-4 w-4">
-                  <path d="M11.354 3.646a.5.5 0 0 1 0 .708L6.707 9l4.647 4.646a.5.5 0 0 1-.708.708l-5-5a.5.5 0 0 1 0-.708l5-5a.5.5 0 0 1 .708 0z" />
-                </svg>
-              </NavBtn>
-              <NavBtn
-                onClick={() => goTo(currentPlyIndex + 1)}
-                disabled={!canGoForward}
-                title="Next (→)"
-              >
-                <svg viewBox="0 0 16 16" fill="currentColor" className="h-4 w-4">
-                  <path d="M4.646 3.646a.5.5 0 0 1 .708 0l5 5a.5.5 0 0 1 0 .708l-5 5a.5.5 0 0 1-.708-.708L9.293 9 4.646 4.354a.5.5 0 0 1 0-.708z" />
-                </svg>
-              </NavBtn>
-              <NavBtn
-                onClick={() => goTo(totalMoves - 1)}
-                disabled={!canGoForward}
-                title="Last position"
-              >
-                <svg viewBox="0 0 16 16" fill="currentColor" className="h-4 w-4">
-                  <path d="M12.5 3a.5.5 0 0 0-.5.5v3.793L5.854 2.854A.5.5 0 0 0 5 3.5v9a.5.5 0 0 0 .854.354L12 8.207V12.5a.5.5 0 0 0 1 0v-9a.5.5 0 0 0-.5-.5z" />
-                </svg>
-              </NavBtn>
-            </div>
+              {/* Center: nav buttons */}
+              <div className="flex justify-center">
+                <div className="flex items-center divide-x divide-white/10 overflow-hidden rounded-lg border border-white/10">
+                  <NavBtn onClick={() => goTo(-1)} disabled={!canGoBack} title="First position">
+                    <svg viewBox="0 0 16 16" fill="currentColor" className="w-5 h-5">
+                      <path d="M3.5 3a.5.5 0 0 1 .5.5v3.793l6.146-4.439A.5.5 0 0 1 11 3.5v9a.5.5 0 0 1-.854.354L4 8.707V12.5a.5.5 0 0 1-1 0v-9a.5.5 0 0 1 .5-.5z" />
+                    </svg>
+                  </NavBtn>
+                  <NavBtn
+                    onClick={() => goTo(currentPlyIndex - 1)}
+                    disabled={!canGoBack}
+                    title="Previous (←)"
+                  >
+                    <svg viewBox="0 0 16 16" fill="currentColor" className="w-5 h-5">
+                      <path d="M11.354 3.646a.5.5 0 0 1 0 .708L6.707 9l4.647 4.646a.5.5 0 0 1-.708.708l-5-5a.5.5 0 0 1 0-.708l5-5a.5.5 0 0 1 .708 0z" />
+                    </svg>
+                  </NavBtn>
+                  <NavBtn
+                    onClick={() => goTo(currentPlyIndex + 1)}
+                    disabled={!canGoForward}
+                    title="Next (→)"
+                  >
+                    <svg viewBox="0 0 16 16" fill="currentColor" className="w-5 h-5">
+                      <path d="M4.646 3.646a.5.5 0 0 1 .708 0l5 5a.5.5 0 0 1 0 .708l-5 5a.5.5 0 0 1-.708-.708L9.293 9 4.646 4.354a.5.5 0 0 1 0-.708z" />
+                    </svg>
+                  </NavBtn>
+                  <NavBtn
+                    onClick={() => goTo(totalMoves - 1)}
+                    disabled={!canGoForward}
+                    title="Last position"
+                  >
+                    <svg viewBox="0 0 16 16" fill="currentColor" className="w-5 h-5">
+                      <path d="M12.5 3a.5.5 0 0 0-.5.5v3.793L5.854 2.854A.5.5 0 0 0 5 3.5v9a.5.5 0 0 0 .854.354L12 8.207V12.5a.5.5 0 0 0 1 0v-9a.5.5 0 0 0-.5-.5z" />
+                    </svg>
+                  </NavBtn>
+                </div>
+              </div>
 
-            {/* Right: position counter */}
-            <div className="w-20 text-right">
-              {analyzedGame ? (
-                <span className="tabular-nums text-xs text-gray-600">
-                  {currentPlyIndex + 1} / {totalMoves}
-                </span>
-              ) : (
-                <span className="text-xs text-gray-700">No game</span>
-              )}
+              {/* Right: settings gear */}
+              <div className="flex justify-end">
+                <BoardSettingsPopover />
+              </div>
+              </div>
             </div>
           </div>
         </div>
