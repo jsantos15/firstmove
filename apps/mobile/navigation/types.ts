@@ -9,6 +9,7 @@ export type RootTabParamList = {
   Learn: undefined;
   Analysis: undefined;
   Profile: undefined;
+  More: undefined;
 };
 
 // ─── Learn Stack ──────────────────────────────────────────────────────────────

@@ -9,12 +9,13 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MiniBoard } from '../components/board/MiniBoard';
 import { COLORS, FONT, RADIUS } from '../lib/constants';
 
-// ─── Mock data (replace with real data once backend is connected) ─────────────
+// ─── Mock data ────────────────────────────────────────────────────────────────
 
 const DAILY_CHALLENGE = {
-  fen: 'r1bq1rk1/ppp2ppp/2np1n2/2b1p3/2B1P3/2NP1N2/PPP2PPP/R1BQ1RK1 w - - 0 8',
-  label: 'Giuoco Piano',
+  // Ruy Lopez — Morphy Defense tactical position, White to move with a winning fork
+  fen: 'r1bq1rk1/2p1bppp/p1n2n2/1p1pp3/3PP3/1BN2N2/PPP2PPP/R1BQR1K1 w - - 0 10',
   turn: 'White to move',
+  description: 'Find the winning combination',
   solvedCount: 312,
   eloBracket: '800+',
 };
@@ -41,10 +42,7 @@ export function HomeScreen() {
   return (
     <ScrollView
       style={styles.root}
-      contentContainerStyle={[
-        styles.content,
-        { paddingTop: insets.top + 16 },
-      ]}
+      contentContainerStyle={[styles.content, { paddingTop: insets.top + 16 }]}
       showsVerticalScrollIndicator={false}
     >
       {/* Header */}
@@ -56,41 +54,49 @@ export function HomeScreen() {
         </View>
       </View>
 
-      {/* Daily Challenge card */}
+      {/* ── Daily Challenge card ───────────────────────────────────────────── */}
       <TouchableOpacity style={styles.challengeCard} activeOpacity={0.88}>
-        <View style={styles.challengeHeader}>
-          <View style={styles.challengeTitleRow}>
-            <View style={styles.liveTag}>
-              <Text style={styles.liveTagText}>TODAY</Text>
-            </View>
-            <Text style={styles.challengeLabel}>{DAILY_CHALLENGE.label}</Text>
+
+        {/* Top row: tag + elo badge */}
+        <View style={styles.challengeTop}>
+          <View style={styles.dailyTag}>
+            <Text style={styles.dailyTagText}>DAILY PUZZLE</Text>
           </View>
           <View style={styles.eloBadge}>
             <Text style={styles.eloBadgeText}>{DAILY_CHALLENGE.eloBracket}</Text>
           </View>
         </View>
 
-        <View style={styles.boardWrapper}>
-          <View style={styles.boardShadow}>
-            <MiniBoard fen={DAILY_CHALLENGE.fen} size={168} />
+        {/* Middle row: board left, info right */}
+        <View style={styles.challengeBody}>
+          <View style={styles.boardWrapper}>
+            <MiniBoard fen={DAILY_CHALLENGE.fen} size={186} />
+          </View>
+
+          <View style={styles.challengeInfo}>
+            <Text style={styles.challengeTurn}>{DAILY_CHALLENGE.turn}</Text>
+            <Text style={styles.challengeDesc}>{DAILY_CHALLENGE.description}</Text>
+            <View style={styles.solvedRow}>
+              <View style={styles.dot} />
+              <Text style={styles.solvedText}>
+                {DAILY_CHALLENGE.solvedCount.toLocaleString()} solved today
+              </Text>
+            </View>
           </View>
         </View>
 
+        {/* Bottom: full-width solve button */}
         <View style={styles.challengeFooter}>
-          <View>
-            <Text style={styles.challengeTurn}>{DAILY_CHALLENGE.turn}</Text>
-            <Text style={styles.challengeSolved}>
-              {DAILY_CHALLENGE.solvedCount.toLocaleString()} solved today
-            </Text>
-          </View>
           <TouchableOpacity style={styles.solveButton} activeOpacity={0.82}>
             <Text style={styles.solveButtonText}>Solve it  →</Text>
           </TouchableOpacity>
         </View>
+
       </TouchableOpacity>
 
-      {/* Two bottom cards */}
+      {/* ── Two bottom cards ──────────────────────────────────────────────── */}
       <View style={styles.cardsRow}>
+
         {/* Trending line */}
         <TouchableOpacity style={[styles.card, styles.cardLeft]} activeOpacity={0.85}>
           <View style={styles.cardTopRow}>
@@ -103,12 +109,10 @@ export function HomeScreen() {
           <Text style={styles.cardSub} numberOfLines={1}>
             {TRENDING_LINE.variationName}
           </Text>
-          <View style={styles.cardBottom}>
-            <Text style={styles.likesText}>♥ {TRENDING_LINE.likes}</Text>
-          </View>
+          <Text style={styles.likesText}>♥ {TRENDING_LINE.likes}</Text>
         </TouchableOpacity>
 
-        {/* Continue where you left off */}
+        {/* Continue */}
         <TouchableOpacity style={[styles.card, styles.cardRight]} activeOpacity={0.85}>
           <Text style={styles.cardTag}>Continue</Text>
           <Text style={styles.cardTitle} numberOfLines={2}>
@@ -117,24 +121,19 @@ export function HomeScreen() {
           <Text style={styles.cardSub} numberOfLines={1}>
             {CONTINUE.variationName}
           </Text>
-          <View style={styles.cardBottom}>
-            <Text style={styles.starsText}>
-              {'★'.repeat(CONTINUE.masteryStars)}
-              {'☆'.repeat(5 - CONTINUE.masteryStars)}
-            </Text>
-          </View>
+          <Text style={styles.starsText}>
+            {'★'.repeat(CONTINUE.masteryStars)}{'☆'.repeat(5 - CONTINUE.masteryStars)}
+          </Text>
         </TouchableOpacity>
+
       </View>
 
-      {/* Community activity — placeholder for future */}
-      <View style={styles.sectionHeader}>
-        <Text style={styles.sectionTitle}>Community</Text>
-      </View>
+      {/* ── Community placeholder ─────────────────────────────────────────── */}
+      <Text style={styles.sectionTitle}>Community</Text>
       <View style={styles.communityPlaceholder}>
-        <Text style={styles.communityPlaceholderText}>
-          Community activity coming soon
-        </Text>
+        <Text style={styles.communityText}>Community activity coming soon</Text>
       </View>
+
     </ScrollView>
   );
 }
@@ -149,7 +148,7 @@ const styles = StyleSheet.create({
   content: {
     paddingHorizontal: 20,
     paddingBottom: 32,
-    gap: 16,
+    gap: 14,
   },
 
   // Header
@@ -157,7 +156,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 4,
   },
   logo: {
     fontSize: 22,
@@ -171,17 +169,13 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.accentDim,
     borderRadius: RADIUS.sm,
     borderWidth: 1,
-    borderColor: 'rgba(245, 158, 11, 0.2)',
+    borderColor: 'rgba(245,158,11,0.2)',
     paddingVertical: 5,
     paddingHorizontal: 10,
     gap: 4,
   },
   streakFire: { fontSize: 14 },
-  streakCount: {
-    fontSize: 14,
-    fontWeight: FONT.bold,
-    color: COLORS.accent,
-  },
+  streakCount: { fontSize: 14, fontWeight: FONT.bold, color: COLORS.accent },
 
   // Challenge card
   challengeCard: {
@@ -191,35 +185,25 @@ const styles = StyleSheet.create({
     borderColor: COLORS.border,
     overflow: 'hidden',
   },
-  challengeHeader: {
+  challengeTop: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 18,
-    paddingTop: 16,
+    paddingHorizontal: 16,
+    paddingTop: 14,
     paddingBottom: 12,
   },
-  challengeTitleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  liveTag: {
+  dailyTag: {
     backgroundColor: COLORS.accent,
     borderRadius: 4,
-    paddingVertical: 2,
-    paddingHorizontal: 6,
+    paddingVertical: 3,
+    paddingHorizontal: 8,
   },
-  liveTagText: {
+  dailyTagText: {
     fontSize: 10,
     fontWeight: FONT.bold,
     color: COLORS.bgBase,
-    letterSpacing: 0.8,
-  },
-  challengeLabel: {
-    fontSize: 13,
-    fontWeight: FONT.medium,
-    color: COLORS.textMuted,
+    letterSpacing: 0.9,
   },
   eloBadge: {
     borderRadius: RADIUS.sm,
@@ -233,52 +217,75 @@ const styles = StyleSheet.create({
     fontWeight: FONT.semibold,
     color: COLORS.textDim,
   },
-  boardWrapper: {
+
+  // Board + info side by side
+  challengeBody: {
+    flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 18,
+    paddingLeft: 16,
+    paddingRight: 16,
     paddingBottom: 16,
+    gap: 16,
   },
-  boardShadow: {
+  boardWrapper: {
     borderRadius: RADIUS.md,
     overflow: 'hidden',
     shadowColor: '#000',
-    shadowOpacity: 0.4,
-    shadowRadius: 12,
+    shadowOpacity: 0.45,
+    shadowRadius: 10,
     shadowOffset: { width: 0, height: 4 },
     elevation: 8,
   },
-  challengeFooter: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    borderTopWidth: 1,
-    borderTopColor: COLORS.borderSubtle,
-    paddingHorizontal: 18,
-    paddingVertical: 14,
+  challengeInfo: {
+    flex: 1,
+    gap: 6,
   },
   challengeTurn: {
-    fontSize: 14,
-    fontWeight: FONT.semibold,
+    fontSize: 15,
+    fontWeight: FONT.bold,
     color: COLORS.text,
-    marginBottom: 2,
   },
-  challengeSolved: {
-    fontSize: 12,
+  challengeDesc: {
+    fontSize: 13,
     color: COLORS.textMuted,
+    lineHeight: 18,
+  },
+  solvedRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 4,
+  },
+  dot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: COLORS.success,
+  },
+  solvedText: {
+    fontSize: 11,
+    color: COLORS.textMuted,
+  },
+
+  // Solve button footer
+  challengeFooter: {
+    borderTopWidth: 1,
+    borderTopColor: COLORS.borderSubtle,
+    padding: 14,
   },
   solveButton: {
     backgroundColor: COLORS.accent,
-    borderRadius: RADIUS.sm,
-    paddingVertical: 9,
-    paddingHorizontal: 18,
+    borderRadius: RADIUS.md,
+    paddingVertical: 13,
+    alignItems: 'center',
   },
   solveButtonText: {
-    fontSize: 13,
+    fontSize: 14,
     fontWeight: FONT.bold,
     color: COLORS.bgBase,
   },
 
-  // Two-card row
+  // Two cards
   cardsRow: {
     flexDirection: 'row',
     gap: 12,
@@ -291,7 +298,7 @@ const styles = StyleSheet.create({
     borderColor: COLORS.border,
     padding: 14,
     gap: 4,
-    minHeight: 130,
+    minHeight: 128,
     justifyContent: 'space-between',
   },
   cardLeft: {},
@@ -300,23 +307,22 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 2,
   },
   cardTag: {
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: FONT.semibold,
     color: COLORS.textMuted,
     textTransform: 'uppercase',
-    letterSpacing: 0.4,
+    letterSpacing: 0.5,
   },
   cardEco: {
-    fontSize: 10,
+    fontSize: 9,
     fontWeight: FONT.semibold,
     color: COLORS.textDim,
     borderWidth: 1,
     borderColor: COLORS.border,
-    borderRadius: 4,
-    paddingHorizontal: 5,
+    borderRadius: 3,
+    paddingHorizontal: 4,
     paddingVertical: 1,
   },
   cardTitle: {
@@ -325,32 +331,16 @@ const styles = StyleSheet.create({
     color: COLORS.text,
     lineHeight: 18,
   },
-  cardSub: {
-    fontSize: 11,
-    color: COLORS.textMuted,
-  },
-  cardBottom: {
-    marginTop: 4,
-  },
-  likesText: {
-    fontSize: 12,
-    color: COLORS.accent,
-    fontWeight: FONT.semibold,
-  },
-  starsText: {
-    fontSize: 14,
-    color: COLORS.accent,
-    letterSpacing: 1,
-  },
+  cardSub: { fontSize: 11, color: COLORS.textMuted },
+  likesText: { fontSize: 12, color: COLORS.accent, fontWeight: FONT.semibold },
+  starsText: { fontSize: 13, color: COLORS.accent, letterSpacing: 1 },
 
-  // Community section
-  sectionHeader: {
-    marginTop: 4,
-  },
+  // Community
   sectionTitle: {
     fontSize: 16,
     fontWeight: FONT.bold,
     color: COLORS.text,
+    marginTop: 4,
   },
   communityPlaceholder: {
     backgroundColor: COLORS.surface,
@@ -361,8 +351,5 @@ const styles = StyleSheet.create({
     paddingVertical: 32,
     alignItems: 'center',
   },
-  communityPlaceholderText: {
-    fontSize: 13,
-    color: COLORS.textDim,
-  },
+  communityText: { fontSize: 13, color: COLORS.textDim },
 });

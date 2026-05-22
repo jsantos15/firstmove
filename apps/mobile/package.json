@@ -15,6 +15,7 @@
     "clean": "rm -rf .expo"
   },
   "dependencies": {
+    "@expo/vector-icons": "^14.0.0",
     "@firstmove/core": "workspace:*",
     "@firstmove/supabase": "workspace:*",
     "@react-navigation/bottom-tabs": "^7.0.0",
