@@ -62,7 +62,7 @@ export function HomeScreen() {
       </View>
 
       {/* ── Daily Challenge card ──────────────────────────────────────────── */}
-      <TouchableOpacity style={styles.challengeCard} activeOpacity={0.88}>
+      <TouchableOpacity style={[styles.challengeCard, { marginBottom: 20 }]} activeOpacity={0.88}>
 
         {/* Top row */}
         <View style={styles.challengeTop}>
@@ -98,7 +98,7 @@ export function HomeScreen() {
       </TouchableOpacity>
 
       {/* ── Two bottom cards ─────────────────────────────────────────────── */}
-      <View style={styles.cardsRow}>
+      <View style={[styles.cardsRow, { marginBottom: 20 }]}>
 
         <TouchableOpacity style={styles.card} activeOpacity={0.85}>
           <View style={styles.cardTopRow}>
@@ -130,7 +130,7 @@ export function HomeScreen() {
       </View>
 
       {/* ── Community placeholder ─────────────────────────────────────────── */}
-      <Text style={styles.sectionTitle}>Community</Text>
+      <Text style={[styles.sectionTitle, { marginBottom: 10 }]}>Community</Text>
       <View style={styles.communityPlaceholder}>
         <Ionicons name="people-outline" size={28} color={COLORS.textDim} />
         <Text style={styles.communityText}>Community activity coming soon</Text>
@@ -147,13 +147,19 @@ export function HomeScreen() {
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: COLORS.bgBase },
-  content: { paddingHorizontal: 20, paddingBottom: 32, gap: 20 },
+  content: { paddingHorizontal: 20, paddingBottom: 32, gap: 0 },
 
   // Header
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    paddingBottom: 16,
+    marginBottom: 24,
+    marginHorizontal: -20,
+    paddingHorizontal: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border,
   },
   logo: {
     fontSize: 22,

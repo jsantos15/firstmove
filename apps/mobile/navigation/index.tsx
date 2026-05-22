@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { StyleSheet, Text, TouchableOpacity } from 'react-native';
+import { TouchableOpacity } from 'react-native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
 import { HomeScreen } from '../screens/HomeScreen';
@@ -14,11 +14,12 @@ const Tab = createBottomTabNavigator<RootTabParamList>();
 
 type IoniconName = React.ComponentProps<typeof Ionicons>['name'];
 
-const TAB_ICONS: Partial<Record<keyof RootTabParamList, { active: IoniconName; inactive: IoniconName }>> = {
-  Home:     { active: 'home',           inactive: 'home-outline' },
-  Openings: { active: 'book',           inactive: 'book-outline' },
-  Puzzles:  { active: 'flash',          inactive: 'flash-outline' },
-  News:     { active: 'newspaper',      inactive: 'newspaper-outline' },
+const TAB_ICONS: Record<keyof RootTabParamList, { active: IoniconName; inactive: IoniconName }> = {
+  Home:     { active: 'home',      inactive: 'home-outline' },
+  Openings: { active: 'book',      inactive: 'book-outline' },
+  Puzzles:  { active: 'flash',     inactive: 'flash-outline' },
+  News:     { active: 'newspaper', inactive: 'newspaper-outline' },
+  More:     { active: 'menu',      inactive: 'menu-outline' },
 };
 
 function NullScreen() { return null; }
@@ -33,7 +34,6 @@ export function RootNavigator() {
           headerShown: false,
           tabBarIcon: ({ focused, color, size }) => {
             const icons = TAB_ICONS[route.name as keyof RootTabParamList];
-            if (!icons) return null;
             return (
               <Ionicons
                 name={focused ? icons.active : icons.inactive}
@@ -44,14 +44,12 @@ export function RootNavigator() {
           },
           tabBarActiveTintColor: COLORS.accent,
           tabBarInactiveTintColor: COLORS.textDim,
-          // No fixed height — React Navigation + SafeAreaProvider automatically
-          // place the bar above the Android system navigation buttons
           tabBarStyle: {
             backgroundColor: '#0a0c11',
             borderTopWidth: 1,
             borderTopColor: COLORS.border,
             paddingTop: 10,
-            paddingBottom: 16,
+            paddingBottom: 20,
           },
           tabBarLabelStyle: {
             fontSize: 10,
@@ -60,26 +58,28 @@ export function RootNavigator() {
           },
         })}
       >
-        <Tab.Screen name="Home"     component={HomeScreen}    options={{ tabBarLabel: 'Home' }} />
-        <Tab.Screen name="Openings" component={OpeningsStack}  options={{ tabBarLabel: 'Openings' }} />
+        <Tab.Screen name="Home"     component={HomeScreen}   options={{ tabBarLabel: 'Home' }} />
+        <Tab.Screen name="Openings" component={OpeningsStack} options={{ tabBarLabel: 'Openings' }} />
         <Tab.Screen name="Puzzles"  component={PuzzlesScreen} options={{ tabBarLabel: 'Puzzles' }} />
         <Tab.Screen name="News"     component={NewsScreen}    options={{ tabBarLabel: 'News' }} />
 
-        {/* Hamburger — intercepts press, opens slide-up menu */}
+        {/* Hamburger — pass children through so RN renders icon+label identically to other tabs */}
         <Tab.Screen
           name="More"
           component={NullScreen}
           options={{
             tabBarLabel: 'More',
-            tabBarButton: () => (
+            tabBarButton: ({ children, style, accessibilityRole, accessibilityState, testID }) => (
               <TouchableOpacity
-                style={styles.moreButton}
+                style={style}
+                accessibilityRole={accessibilityRole}
+                accessibilityState={accessibilityState}
+                testID={testID}
                 activeOpacity={0.7}
                 onPress={() => setMenuOpen(true)}
                 accessibilityLabel="More options"
               >
-                <Ionicons name="menu-outline" size={26} color={COLORS.textDim} />
-                <Text style={styles.moreLabel}>More</Text>
+                {children}
               </TouchableOpacity>
             ),
           }}
@@ -90,18 +90,3 @@ export function RootNavigator() {
     </>
   );
 }
-
-const styles = StyleSheet.create({
-  moreButton: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'flex-start',
-    gap: 3,
-  },
-  moreLabel: {
-    fontSize: 10,
-    fontWeight: FONT.semibold,
-    color: COLORS.textDim,
-    letterSpacing: 0.2,
-  },
-});
