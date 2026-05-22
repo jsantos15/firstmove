@@ -51,7 +51,7 @@ export function RootNavigator() {
             borderTopWidth: 1,
             borderTopColor: COLORS.border,
             paddingTop: 10,
-            paddingBottom: 10,
+            paddingBottom: 16,
           },
           tabBarLabelStyle: {
             fontSize: 10,
@@ -95,9 +95,7 @@ const styles = StyleSheet.create({
   moreButton: {
     flex: 1,
     alignItems: 'center',
-    justifyContent: 'center',
-    paddingTop: 10,
-    paddingBottom: 10,
+    justifyContent: 'flex-start',
     gap: 3,
   },
   moreLabel: {

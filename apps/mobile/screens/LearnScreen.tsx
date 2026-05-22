@@ -22,6 +22,7 @@ type Props = NativeStackScreenProps<OpeningsStackParamList, 'OpeningLibrary'>;
 
 type ColorFilter = 'all' | 'white' | 'black';
 type DifficultyFilter = 'all' | 'beginner' | 'intermediate' | 'advanced';
+type OpenFilter = 'color' | 'level' | null;
 
 // ─── Difficulty styling ───────────────────────────────────────────────────────
 
@@ -70,57 +71,72 @@ function StatusChip({ completed, total }: { completed: number; total: number }) 
   return <Text style={styles.statusInProgress}>In progress</Text>;
 }
 
-// ─── Segmented filter row ─────────────────────────────────────────────────────
+// ─── Dropdown filter button ───────────────────────────────────────────────────
 
-interface SegOption<T extends string> {
-  value: T;
-  label: string;
-}
+interface DropdownOption<T> { value: T; label: string; }
 
-function SegRow<T extends string>({
+function FilterDropdown<T extends string>({
+  filterKey,
   label,
   options,
   value,
+  openFilter,
+  onToggle,
   onChange,
 }: {
+  filterKey: OpenFilter;
   label: string;
-  options: SegOption<T>[];
+  options: DropdownOption<T>[];
   value: T;
+  openFilter: OpenFilter;
+  onToggle: () => void;
   onChange: (v: T) => void;
 }) {
+  const isOpen = openFilter === filterKey;
+  const hasFilter = value !== 'all';
+
   return (
-    <View style={styles.segSection}>
-      <Text style={styles.segLabel}>{label}</Text>
-      <View style={styles.segBar}>
-        {options.map((opt, i) => {
-          const active = value === opt.value;
-          const isFirst = i === 0;
-          const isLast = i === options.length - 1;
-          return (
-            <Pressable
-              key={opt.value}
-              style={[
-                styles.segBtn,
-                active && styles.segBtnActive,
-                isFirst && styles.segBtnFirst,
-                isLast  && styles.segBtnLast,
-              ]}
-              onPress={() => onChange(opt.value)}
-            >
-              <Text style={[styles.segBtnText, active && styles.segBtnTextActive]} numberOfLines={1}>
-                {opt.label}
-              </Text>
-            </Pressable>
-          );
-        })}
-      </View>
+    <View style={styles.dropdownWrap}>
+      <Pressable
+        style={[styles.filterBtn, (hasFilter || isOpen) && styles.filterBtnActive]}
+        onPress={onToggle}
+      >
+        <Text style={[styles.filterBtnText, hasFilter && styles.filterBtnTextActive]} numberOfLines={1}>
+          {label}
+        </Text>
+        <Ionicons
+          name={isOpen ? 'chevron-up' : 'chevron-down'}
+          size={11}
+          color={hasFilter ? COLORS.accent : COLORS.textDim}
+        />
+      </Pressable>
+
+      {isOpen && (
+        <View style={styles.dropdown}>
+          {options.map((opt, i) => {
+            const selected = value === opt.value;
+            return (
+              <Pressable
+                key={String(opt.value)}
+                style={[styles.dropdownItem, i > 0 && styles.dropdownItemBorder]}
+                onPress={() => { onChange(opt.value); onToggle(); }}
+              >
+                <Text style={[styles.dropdownItemText, selected && styles.dropdownItemTextActive]}>
+                  {opt.label}
+                </Text>
+                {selected && <Ionicons name="checkmark" size={14} color={COLORS.accent} />}
+              </Pressable>
+            );
+          })}
+        </View>
+      )}
     </View>
   );
 }
 
 // ─── Opening card ─────────────────────────────────────────────────────────────
 
-const BOARD_SIZE = 100;
+const BOARD_SIZE = 120;
 
 function OpeningCard({ opening, onPress }: { opening: MockOpening; onPress: () => void }) {
   const completed = opening.completedIds.length;
@@ -171,7 +187,7 @@ function OpeningCard({ opening, onPress }: { opening: MockOpening; onPress: () =
         <Text style={styles.openingName} numberOfLines={1}>{opening.name}</Text>
 
         {/* Description */}
-        <Text style={styles.openingDesc} numberOfLines={2}>{opening.description}</Text>
+        <Text style={styles.openingDesc} numberOfLines={3}>{opening.description}</Text>
 
         {/* Progress */}
         <View style={styles.progressRow}>
@@ -185,18 +201,18 @@ function OpeningCard({ opening, onPress }: { opening: MockOpening; onPress: () =
   );
 }
 
-// ─── Color filter options ─────────────────────────────────────────────────────
+// ─── Filter option lists ──────────────────────────────────────────────────────
 
-const COLOR_OPTIONS: SegOption<ColorFilter>[] = [
-  { value: 'all',   label: 'Both' },
+const COLOR_OPTIONS: DropdownOption<ColorFilter>[] = [
+  { value: 'all',   label: 'Both colors' },
   { value: 'white', label: '♙ White' },
   { value: 'black', label: '♟ Black' },
 ];
 
-const DIFF_OPTIONS: SegOption<DifficultyFilter>[] = [
-  { value: 'all',          label: 'All' },
+const DIFF_OPTIONS: DropdownOption<DifficultyFilter>[] = [
+  { value: 'all',          label: 'All levels' },
   { value: 'beginner',     label: 'Beginner' },
-  { value: 'intermediate', label: 'Inter.' },
+  { value: 'intermediate', label: 'Intermediate' },
   { value: 'advanced',     label: 'Advanced' },
 ];
 
@@ -207,6 +223,21 @@ export function OpeningLibraryScreen({ navigation }: Props) {
   const [search, setSearch] = useState('');
   const [colorFilter, setColorFilter] = useState<ColorFilter>('all');
   const [diffFilter, setDiffFilter] = useState<DifficultyFilter>('all');
+  const [openFilter, setOpenFilter] = useState<OpenFilter>(null);
+
+  const toggleFilter = (key: 'color' | 'level') =>
+    setOpenFilter(prev => (prev === key ? null : key));
+
+  const colorLabel =
+    colorFilter === 'all' ? 'Color'
+    : colorFilter === 'white' ? '♙ White'
+    : '♟ Black';
+
+  const levelLabel =
+    diffFilter === 'all' ? 'Level'
+    : diffFilter.charAt(0).toUpperCase() + diffFilter.slice(1);
+
+  const anyFilterActive = colorFilter !== 'all' || diffFilter !== 'all';
 
   const filtered = useMemo(() => {
     return MOCK_OPENINGS.filter(o => {
@@ -227,6 +258,8 @@ export function OpeningLibraryScreen({ navigation }: Props) {
         keyExtractor={item => item.id}
         contentContainerStyle={[styles.list, { paddingTop: insets.top + 16 }]}
         showsVerticalScrollIndicator={false}
+        // Close open dropdowns when list scrolls
+        onScrollBeginDrag={() => setOpenFilter(null)}
         ListHeaderComponent={
           <View>
             <Text style={styles.heading}>Openings</Text>
@@ -241,6 +274,7 @@ export function OpeningLibraryScreen({ navigation }: Props) {
                 placeholderTextColor={COLORS.textDim}
                 value={search}
                 onChangeText={setSearch}
+                onFocus={() => setOpenFilter(null)}
                 returnKeyType="search"
               />
               {search.length > 0 && (
@@ -250,21 +284,36 @@ export function OpeningLibraryScreen({ navigation }: Props) {
               )}
             </View>
 
-            {/* Filters — two labeled segmented rows, no scrolling */}
-            <View style={styles.filterCard}>
-              <SegRow
-                label="COLOR"
-                options={COLOR_OPTIONS}
-                value={colorFilter}
-                onChange={setColorFilter}
-              />
-              <View style={styles.filterDivider} />
-              <SegRow
-                label="LEVEL"
-                options={DIFF_OPTIONS}
-                value={diffFilter}
-                onChange={setDiffFilter}
-              />
+            {/* Filter row with dropdowns */}
+            <View style={styles.filterArea}>
+              <View style={styles.filterRow}>
+                <FilterDropdown
+                  filterKey="color"
+                  label={colorLabel}
+                  options={COLOR_OPTIONS}
+                  value={colorFilter}
+                  openFilter={openFilter}
+                  onToggle={() => toggleFilter('color')}
+                  onChange={v => setColorFilter(v)}
+                />
+                <FilterDropdown
+                  filterKey="level"
+                  label={levelLabel}
+                  options={DIFF_OPTIONS}
+                  value={diffFilter}
+                  openFilter={openFilter}
+                  onToggle={() => toggleFilter('level')}
+                  onChange={v => setDiffFilter(v)}
+                />
+                {anyFilterActive && (
+                  <Pressable
+                    onPress={() => { setColorFilter('all'); setDiffFilter('all'); setOpenFilter(null); }}
+                    hitSlop={8}
+                  >
+                    <Text style={styles.clearText}>Clear</Text>
+                  </Pressable>
+                )}
+              </View>
             </View>
 
             {filtered.length === 0 && (
@@ -281,7 +330,7 @@ export function OpeningLibraryScreen({ navigation }: Props) {
         renderItem={({ item }) => (
           <OpeningCard
             opening={item}
-            onPress={() => navigation.navigate('OpeningDetail', { openingSlug: item.id })}
+            onPress={() => { setOpenFilter(null); navigation.navigate('OpeningDetail', { openingSlug: item.id }); }}
           />
         )}
         ItemSeparatorComponent={() => <View style={{ height: 12 }} />}
@@ -311,7 +360,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 10,
     gap: 8,
-    marginBottom: 12,
+    marginBottom: 10,
   },
   searchInput: {
     flex: 1,
@@ -320,57 +369,84 @@ const styles = StyleSheet.create({
     padding: 0,
   },
 
-  // Filter card with two segmented rows
-  filterCard: {
-    backgroundColor: COLORS.surface,
-    borderRadius: RADIUS.lg,
-    borderWidth: 1,
-    borderColor: COLORS.border,
+  // Filter area — wraps row + dropdowns, needs overflow visible so dropdown shows
+  filterArea: {
     marginBottom: 16,
-    overflow: 'hidden',
+    zIndex: 10,
   },
-  filterDivider: {
-    height: 1,
-    backgroundColor: COLORS.borderSubtle,
-  },
-  segSection: {
-    paddingHorizontal: 14,
-    paddingVertical: 11,
+  filterRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
     gap: 8,
   },
-  segLabel: {
-    fontSize: 10,
-    fontWeight: FONT.bold,
-    color: COLORS.textDim,
-    letterSpacing: 0.7,
+  dropdownWrap: {
+    position: 'relative',
+    zIndex: 10,
   },
-  segBar: {
+  filterBtn: {
     flexDirection: 'row',
-    borderRadius: RADIUS.sm,
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    backgroundColor: COLORS.surface,
+  },
+  filterBtnActive: {
+    backgroundColor: COLORS.accentDim,
+    borderColor: 'rgba(245,158,11,0.4)',
+  },
+  filterBtnText: {
+    fontSize: 13,
+    fontWeight: FONT.medium,
+    color: COLORS.textMuted,
+  },
+  filterBtnTextActive: {
+    color: COLORS.accent,
+    fontWeight: FONT.semibold,
+  },
+  clearText: {
+    fontSize: 12,
+    color: COLORS.textDim,
+    fontWeight: FONT.medium,
+    paddingHorizontal: 4,
+  },
+
+  // Dropdown
+  dropdown: {
+    marginTop: 6,
+    backgroundColor: COLORS.surface,
+    borderRadius: RADIUS.md,
     borderWidth: 1,
     borderColor: COLORS.border,
     overflow: 'hidden',
-    backgroundColor: COLORS.bgBase,
+    // Shadow
+    shadowColor: '#000',
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 8,
   },
-  segBtn: {
-    flex: 1,
-    paddingVertical: 7,
+  dropdownItem: {
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    borderRightWidth: 1,
-    borderRightColor: COLORS.border,
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 13,
   },
-  segBtnFirst: { borderLeftWidth: 0 },
-  segBtnLast: { borderRightWidth: 0 },
-  segBtnActive: { backgroundColor: COLORS.accentDim },
-  segBtnText: {
-    fontSize: 11,
+  dropdownItemBorder: {
+    borderTopWidth: 1,
+    borderTopColor: COLORS.borderSubtle,
+  },
+  dropdownItemText: {
+    fontSize: 14,
     fontWeight: FONT.medium,
-    color: COLORS.textDim,
+    color: COLORS.text,
   },
-  segBtnTextActive: {
+  dropdownItemTextActive: {
     color: COLORS.accent,
-    fontWeight: FONT.semibold,
   },
 
   // Card
@@ -392,7 +468,7 @@ const styles = StyleSheet.create({
 
   cardInfo: {
     flex: 1,
-    paddingVertical: 12,
+    paddingVertical: 14,
     paddingLeft: 12,
     gap: 6,
   },
@@ -429,15 +505,15 @@ const styles = StyleSheet.create({
   ecoText: { fontSize: 9, fontWeight: FONT.semibold, color: COLORS.textDim },
 
   // Name + description
-  openingName: { fontSize: 13, fontWeight: FONT.bold, color: COLORS.text },
+  openingName: { fontSize: 14, fontWeight: FONT.bold, color: COLORS.text },
   openingDesc: {
     fontSize: 11,
     color: COLORS.textMuted,
-    lineHeight: 15,
+    lineHeight: 16,
   },
 
   // Progress
-  progressRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  progressRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 2 },
   dots: { flexDirection: 'row', gap: 4 },
   dot: { width: 7, height: 7, borderRadius: 4 },
   dotFilled: { backgroundColor: COLORS.accent },
