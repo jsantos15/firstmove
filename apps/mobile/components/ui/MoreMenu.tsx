@@ -28,6 +28,12 @@ export function MoreMenu({ visible, onClose }: MoreMenuProps) {
 
   const items: MenuItem[] = [
     {
+      icon: 'person-outline',
+      label: 'My Profile',
+      sub: 'Stats, progress and account',
+      onPress: onClose,
+    },
+    {
       icon: 'shield-checkmark-outline',
       label: 'Sparring',
       sub: 'Test your skills — coming in v2',

@@ -6,16 +6,15 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 
 export type RootTabParamList = {
   Home: undefined;
-  Learn: undefined;
-  Analysis: undefined;
-  Profile: undefined;
+  Openings: undefined;
+  Puzzles: undefined;
+  News: undefined;
   More: undefined;
 };
 
-// ─── Learn Stack ──────────────────────────────────────────────────────────────
+// ─── Openings Stack ───────────────────────────────────────────────────────────
 
-export type LearnStackParamList = {
-  LearnHub: undefined;
+export type OpeningsStackParamList = {
   OpeningLibrary: undefined;
   OpeningDetail: { openingSlug: string };
   Practice: { openingSlug: string; variationId: string; mode: 'learn' | 'practice' };
@@ -24,14 +23,13 @@ export type LearnStackParamList = {
 // ─── Screen prop helpers ──────────────────────────────────────────────────────
 
 export type HomeScreenProps = BottomTabScreenProps<RootTabParamList, 'Home'>;
-export type LearnScreenProps = BottomTabScreenProps<RootTabParamList, 'Learn'>;
-export type AnalysisScreenProps = BottomTabScreenProps<RootTabParamList, 'Analysis'>;
-export type ProfileScreenProps = BottomTabScreenProps<RootTabParamList, 'Profile'>;
+export type OpeningsScreenProps = BottomTabScreenProps<RootTabParamList, 'Openings'>;
+export type PuzzlesScreenProps = BottomTabScreenProps<RootTabParamList, 'Puzzles'>;
+export type NewsScreenProps = BottomTabScreenProps<RootTabParamList, 'News'>;
 
-export type LearnHubScreenProps = CompositeScreenProps<
-  NativeStackScreenProps<LearnStackParamList, 'LearnHub'>,
+export type OpeningDetailScreenProps = CompositeScreenProps<
+  NativeStackScreenProps<OpeningsStackParamList, 'OpeningDetail'>,
   BottomTabScreenProps<RootTabParamList>
 >;
 
-export type OpeningDetailScreenProps = NativeStackScreenProps<LearnStackParamList, 'OpeningDetail'>;
-export type PracticeScreenProps = NativeStackScreenProps<LearnStackParamList, 'Practice'>;
+export type PracticeScreenProps = NativeStackScreenProps<OpeningsStackParamList, 'Practice'>;

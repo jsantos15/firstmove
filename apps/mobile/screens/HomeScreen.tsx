@@ -4,18 +4,18 @@ import {
   Text,
   TouchableOpacity,
   View,
+  useWindowDimensions,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
 import { MiniBoard } from '../components/board/MiniBoard';
 import { COLORS, FONT, RADIUS } from '../lib/constants';
 
 // ─── Mock data ────────────────────────────────────────────────────────────────
 
 const DAILY_CHALLENGE = {
-  // Ruy Lopez — Morphy Defense tactical position, White to move with a winning fork
-  fen: 'r1bq1rk1/2p1bppp/p1n2n2/1p1pp3/3PP3/1BN2N2/PPP2PPP/R1BQR1K1 w - - 0 10',
+  fen: 'r1bq1rk1/2p1bppp/p1n2n2/1p1pp3/3PP3/1BN2N2/PPP2PPP/R1BQ1RK1 w - - 0 10',
   turn: 'White to move',
-  description: 'Find the winning combination',
   solvedCount: 312,
   eloBracket: '800+',
 };
@@ -37,7 +37,10 @@ const CONTINUE = {
 
 export function HomeScreen() {
   const insets = useSafeAreaInsets();
-  const streak = 14;
+  const { width } = useWindowDimensions();
+
+  // Board fills the full card width (card spans screenWidth minus 20px padding on each side)
+  const boardSize = width - 40;
 
   return (
     <ScrollView
@@ -45,48 +48,44 @@ export function HomeScreen() {
       contentContainerStyle={[styles.content, { paddingTop: insets.top + 16 }]}
       showsVerticalScrollIndicator={false}
     >
-      {/* Header */}
+
+      {/* ── Header ───────────────────────────────────────────────────────── */}
       <View style={styles.header}>
         <Text style={styles.logo}>FirstMove</Text>
-        <View style={styles.streakBadge}>
-          <Text style={styles.streakFire}>🔥</Text>
-          <Text style={styles.streakCount}>{streak}</Text>
-        </View>
+        <TouchableOpacity style={styles.profileCircle} activeOpacity={0.8}>
+          <Text style={styles.profileInitial}>J</Text>
+        </TouchableOpacity>
       </View>
 
-      {/* ── Daily Challenge card ───────────────────────────────────────────── */}
+      {/* ── Daily Challenge card ──────────────────────────────────────────── */}
       <TouchableOpacity style={styles.challengeCard} activeOpacity={0.88}>
 
-        {/* Top row: tag + elo badge */}
+        {/* Top row */}
         <View style={styles.challengeTop}>
           <View style={styles.dailyTag}>
             <Text style={styles.dailyTagText}>DAILY PUZZLE</Text>
           </View>
-          <View style={styles.eloBadge}>
-            <Text style={styles.eloBadgeText}>{DAILY_CHALLENGE.eloBracket}</Text>
-          </View>
-        </View>
-
-        {/* Middle row: board left, info right */}
-        <View style={styles.challengeBody}>
-          <View style={styles.boardWrapper}>
-            <MiniBoard fen={DAILY_CHALLENGE.fen} size={186} />
-          </View>
-
-          <View style={styles.challengeInfo}>
-            <Text style={styles.challengeTurn}>{DAILY_CHALLENGE.turn}</Text>
-            <Text style={styles.challengeDesc}>{DAILY_CHALLENGE.description}</Text>
-            <View style={styles.solvedRow}>
-              <View style={styles.dot} />
-              <Text style={styles.solvedText}>
-                {DAILY_CHALLENGE.solvedCount.toLocaleString()} solved today
-              </Text>
+          <View style={styles.topRight}>
+            <View style={styles.eloBadge}>
+              <Text style={styles.eloBadgeText}>{DAILY_CHALLENGE.eloBracket}</Text>
             </View>
+            <Text style={styles.turnLabel}>{DAILY_CHALLENGE.turn}</Text>
           </View>
         </View>
 
-        {/* Bottom: full-width solve button */}
+        {/* Full-width board — no horizontal padding, clips to card border radius */}
+        <View style={styles.boardWrapper}>
+          <MiniBoard fen={DAILY_CHALLENGE.fen} size={boardSize} />
+        </View>
+
+        {/* Footer */}
         <View style={styles.challengeFooter}>
+          <View style={styles.solvedRow}>
+            <View style={styles.dot} />
+            <Text style={styles.solvedText}>
+              {DAILY_CHALLENGE.solvedCount.toLocaleString()} solved today
+            </Text>
+          </View>
           <TouchableOpacity style={styles.solveButton} activeOpacity={0.82}>
             <Text style={styles.solveButtonText}>Solve it  →</Text>
           </TouchableOpacity>
@@ -94,11 +93,10 @@ export function HomeScreen() {
 
       </TouchableOpacity>
 
-      {/* ── Two bottom cards ──────────────────────────────────────────────── */}
+      {/* ── Two bottom cards ─────────────────────────────────────────────── */}
       <View style={styles.cardsRow}>
 
-        {/* Trending line */}
-        <TouchableOpacity style={[styles.card, styles.cardLeft]} activeOpacity={0.85}>
+        <TouchableOpacity style={styles.card} activeOpacity={0.85}>
           <View style={styles.cardTopRow}>
             <Text style={styles.cardTag}>🔥 Trending</Text>
             <Text style={styles.cardEco}>{TRENDING_LINE.ecoCode}</Text>
@@ -112,8 +110,7 @@ export function HomeScreen() {
           <Text style={styles.likesText}>♥ {TRENDING_LINE.likes}</Text>
         </TouchableOpacity>
 
-        {/* Continue */}
-        <TouchableOpacity style={[styles.card, styles.cardRight]} activeOpacity={0.85}>
+        <TouchableOpacity style={styles.card} activeOpacity={0.85}>
           <Text style={styles.cardTag}>Continue</Text>
           <Text style={styles.cardTitle} numberOfLines={2}>
             {CONTINUE.openingName}
@@ -131,6 +128,7 @@ export function HomeScreen() {
       {/* ── Community placeholder ─────────────────────────────────────────── */}
       <Text style={styles.sectionTitle}>Community</Text>
       <View style={styles.communityPlaceholder}>
+        <Ionicons name="people-outline" size={28} color={COLORS.textDim} />
         <Text style={styles.communityText}>Community activity coming soon</Text>
       </View>
 
@@ -141,15 +139,8 @@ export function HomeScreen() {
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
-  root: {
-    flex: 1,
-    backgroundColor: COLORS.bgBase,
-  },
-  content: {
-    paddingHorizontal: 20,
-    paddingBottom: 32,
-    gap: 14,
-  },
+  root: { flex: 1, backgroundColor: COLORS.bgBase },
+  content: { paddingHorizontal: 20, paddingBottom: 32, gap: 14 },
 
   // Header
   header: {
@@ -163,19 +154,21 @@ const styles = StyleSheet.create({
     color: COLORS.text,
     letterSpacing: -0.3,
   },
-  streakBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  profileCircle: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
     backgroundColor: COLORS.accentDim,
-    borderRadius: RADIUS.sm,
-    borderWidth: 1,
-    borderColor: 'rgba(245,158,11,0.2)',
-    paddingVertical: 5,
-    paddingHorizontal: 10,
-    gap: 4,
+    borderWidth: 1.5,
+    borderColor: COLORS.accent,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  streakFire: { fontSize: 14 },
-  streakCount: { fontSize: 14, fontWeight: FONT.bold, color: COLORS.accent },
+  profileInitial: {
+    fontSize: 16,
+    fontWeight: FONT.bold,
+    color: COLORS.accent,
+  },
 
   // Challenge card
   challengeCard: {
@@ -205,6 +198,11 @@ const styles = StyleSheet.create({
     color: COLORS.bgBase,
     letterSpacing: 0.9,
   },
+  topRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
   eloBadge: {
     borderRadius: RADIUS.sm,
     borderWidth: 1,
@@ -217,44 +215,35 @@ const styles = StyleSheet.create({
     fontWeight: FONT.semibold,
     color: COLORS.textDim,
   },
+  turnLabel: {
+    fontSize: 12,
+    color: COLORS.textMuted,
+    fontWeight: FONT.medium,
+  },
 
-  // Board + info side by side
-  challengeBody: {
+  // Board — flush with card edges, clipped by card border radius
+  boardWrapper: {
+    shadowColor: '#000',
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 4,
+  },
+
+  // Footer
+  challengeFooter: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingLeft: 16,
-    paddingRight: 16,
-    paddingBottom: 16,
-    gap: 16,
-  },
-  boardWrapper: {
-    borderRadius: RADIUS.md,
-    overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOpacity: 0.45,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 8,
-  },
-  challengeInfo: {
-    flex: 1,
-    gap: 6,
-  },
-  challengeTurn: {
-    fontSize: 15,
-    fontWeight: FONT.bold,
-    color: COLORS.text,
-  },
-  challengeDesc: {
-    fontSize: 13,
-    color: COLORS.textMuted,
-    lineHeight: 18,
+    justifyContent: 'space-between',
+    borderTopWidth: 1,
+    borderTopColor: COLORS.borderSubtle,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
   },
   solvedRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    marginTop: 4,
   },
   dot: {
     width: 6,
@@ -262,34 +251,21 @@ const styles = StyleSheet.create({
     borderRadius: 3,
     backgroundColor: COLORS.success,
   },
-  solvedText: {
-    fontSize: 11,
-    color: COLORS.textMuted,
-  },
-
-  // Solve button footer
-  challengeFooter: {
-    borderTopWidth: 1,
-    borderTopColor: COLORS.borderSubtle,
-    padding: 14,
-  },
+  solvedText: { fontSize: 12, color: COLORS.textMuted },
   solveButton: {
     backgroundColor: COLORS.accent,
-    borderRadius: RADIUS.md,
-    paddingVertical: 13,
-    alignItems: 'center',
+    borderRadius: RADIUS.sm,
+    paddingVertical: 9,
+    paddingHorizontal: 20,
   },
   solveButtonText: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: FONT.bold,
     color: COLORS.bgBase,
   },
 
   // Two cards
-  cardsRow: {
-    flexDirection: 'row',
-    gap: 12,
-  },
+  cardsRow: { flexDirection: 'row', gap: 12 },
   card: {
     flex: 1,
     backgroundColor: COLORS.surface,
@@ -301,8 +277,6 @@ const styles = StyleSheet.create({
     minHeight: 128,
     justifyContent: 'space-between',
   },
-  cardLeft: {},
-  cardRight: {},
   cardTopRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -350,6 +324,7 @@ const styles = StyleSheet.create({
     borderStyle: 'dashed',
     paddingVertical: 32,
     alignItems: 'center',
+    gap: 8,
   },
   communityText: { fontSize: 13, color: COLORS.textDim },
 });
