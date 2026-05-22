@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import {
   ScrollView,
   StyleSheet,
@@ -9,6 +10,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { MiniBoard } from '../components/board/MiniBoard';
+import { ProfileSheet } from '../components/ui/ProfileSheet';
 import { COLORS, FONT, RADIUS } from '../lib/constants';
 
 // ─── Mock data ────────────────────────────────────────────────────────────────
@@ -38,21 +40,23 @@ const CONTINUE = {
 export function HomeScreen() {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
+  const [profileOpen, setProfileOpen] = useState(false);
 
   // Board fills the full card width (card spans screenWidth minus 20px padding on each side)
   const boardSize = width - 40;
 
   return (
-    <ScrollView
-      style={styles.root}
-      contentContainerStyle={[styles.content, { paddingTop: insets.top + 16 }]}
-      showsVerticalScrollIndicator={false}
-    >
+    <>
+      <ScrollView
+        style={styles.root}
+        contentContainerStyle={[styles.content, { paddingTop: insets.top + 16 }]}
+        showsVerticalScrollIndicator={false}
+      >
 
       {/* ── Header ───────────────────────────────────────────────────────── */}
       <View style={styles.header}>
         <Text style={styles.logo}>FirstMove</Text>
-        <TouchableOpacity style={styles.profileCircle} activeOpacity={0.8}>
+        <TouchableOpacity style={styles.profileCircle} activeOpacity={0.8} onPress={() => setProfileOpen(true)}>
           <Text style={styles.profileInitial}>J</Text>
         </TouchableOpacity>
       </View>
@@ -133,6 +137,9 @@ export function HomeScreen() {
       </View>
 
     </ScrollView>
+
+      <ProfileSheet visible={profileOpen} onClose={() => setProfileOpen(false)} />
+    </>
   );
 }
 
@@ -140,7 +147,7 @@ export function HomeScreen() {
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: COLORS.bgBase },
-  content: { paddingHorizontal: 20, paddingBottom: 32, gap: 14 },
+  content: { paddingHorizontal: 20, paddingBottom: 32, gap: 20 },
 
   // Header
   header: {

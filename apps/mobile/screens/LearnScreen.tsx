@@ -2,7 +2,6 @@ import { useState, useMemo } from 'react';
 import {
   FlatList,
   Pressable,
-  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -66,33 +65,84 @@ function LineDots({ completed, total }: { completed: number; total: number }) {
 // ─── Status chip ──────────────────────────────────────────────────────────────
 
 function StatusChip({ completed, total }: { completed: number; total: number }) {
-  if (completed === 0)       return <Text style={styles.statusNew}>Not started</Text>;
-  if (completed >= total)    return <Text style={styles.statusMastered}>Mastered</Text>;
+  if (completed === 0)    return <Text style={styles.statusNew}>Not started</Text>;
+  if (completed >= total) return <Text style={styles.statusMastered}>Mastered</Text>;
   return <Text style={styles.statusInProgress}>In progress</Text>;
+}
+
+// ─── Segmented filter row ─────────────────────────────────────────────────────
+
+interface SegOption<T extends string> {
+  value: T;
+  label: string;
+}
+
+function SegRow<T extends string>({
+  label,
+  options,
+  value,
+  onChange,
+}: {
+  label: string;
+  options: SegOption<T>[];
+  value: T;
+  onChange: (v: T) => void;
+}) {
+  return (
+    <View style={styles.segSection}>
+      <Text style={styles.segLabel}>{label}</Text>
+      <View style={styles.segBar}>
+        {options.map((opt, i) => {
+          const active = value === opt.value;
+          const isFirst = i === 0;
+          const isLast = i === options.length - 1;
+          return (
+            <Pressable
+              key={opt.value}
+              style={[
+                styles.segBtn,
+                active && styles.segBtnActive,
+                isFirst && styles.segBtnFirst,
+                isLast  && styles.segBtnLast,
+              ]}
+              onPress={() => onChange(opt.value)}
+            >
+              <Text style={[styles.segBtnText, active && styles.segBtnTextActive]} numberOfLines={1}>
+                {opt.label}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </View>
+    </View>
+  );
 }
 
 // ─── Opening card ─────────────────────────────────────────────────────────────
 
+const BOARD_SIZE = 100;
+
 function OpeningCard({ opening, onPress }: { opening: MockOpening; onPress: () => void }) {
   const completed = opening.completedIds.length;
   const total = opening.variations.filter(v => !v.isPunishLine).length;
-  const boardSize = 88;
 
   return (
     <Pressable
       style={({ pressed }) => [styles.card, pressed && styles.cardPressed]}
       onPress={onPress}
     >
+      {/* Left: mini board */}
       <View style={styles.boardThumb}>
         <MiniBoard
           fen={opening.fen}
-          size={boardSize}
+          size={BOARD_SIZE}
           orientation={opening.color === 'black' ? 'black' : 'white'}
         />
       </View>
 
+      {/* Right: info */}
       <View style={styles.cardInfo}>
-        {/* Badges row */}
+        {/* Badges */}
         <View style={styles.badgesRow}>
           <View style={[
             styles.colorBadge,
@@ -120,27 +170,35 @@ function OpeningCard({ opening, onPress }: { opening: MockOpening; onPress: () =
         {/* Name */}
         <Text style={styles.openingName} numberOfLines={1}>{opening.name}</Text>
 
-        {/* Progress row */}
+        {/* Description */}
+        <Text style={styles.openingDesc} numberOfLines={2}>{opening.description}</Text>
+
+        {/* Progress */}
         <View style={styles.progressRow}>
           <LineDots completed={completed} total={total} />
           <StatusChip completed={completed} total={total} />
         </View>
       </View>
 
-      <Ionicons name="chevron-forward" size={14} color={COLORS.textDim} />
+      <Ionicons name="chevron-forward" size={14} color={COLORS.textDim} style={styles.chevron} />
     </Pressable>
   );
 }
 
-// ─── Filter chip ──────────────────────────────────────────────────────────────
+// ─── Color filter options ─────────────────────────────────────────────────────
 
-function FilterChip({ label, active, onPress }: { label: string; active: boolean; onPress: () => void }) {
-  return (
-    <Pressable style={[styles.chip, active && styles.chipActive]} onPress={onPress}>
-      <Text style={[styles.chipText, active && styles.chipTextActive]}>{label}</Text>
-    </Pressable>
-  );
-}
+const COLOR_OPTIONS: SegOption<ColorFilter>[] = [
+  { value: 'all',   label: 'Both' },
+  { value: 'white', label: '♙ White' },
+  { value: 'black', label: '♟ Black' },
+];
+
+const DIFF_OPTIONS: SegOption<DifficultyFilter>[] = [
+  { value: 'all',          label: 'All' },
+  { value: 'beginner',     label: 'Beginner' },
+  { value: 'intermediate', label: 'Inter.' },
+  { value: 'advanced',     label: 'Advanced' },
+];
 
 // ─── Main screen ──────────────────────────────────────────────────────────────
 
@@ -192,22 +250,22 @@ export function OpeningLibraryScreen({ navigation }: Props) {
               )}
             </View>
 
-            {/* Filters */}
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              style={styles.filterScroll}
-              contentContainerStyle={styles.filterContent}
-            >
-              <FilterChip label="All Colors" active={colorFilter === 'all'} onPress={() => setColorFilter('all')} />
-              <FilterChip label="♙ White"    active={colorFilter === 'white'} onPress={() => setColorFilter('white')} />
-              <FilterChip label="♟ Black"    active={colorFilter === 'black'} onPress={() => setColorFilter('black')} />
+            {/* Filters — two labeled segmented rows, no scrolling */}
+            <View style={styles.filterCard}>
+              <SegRow
+                label="COLOR"
+                options={COLOR_OPTIONS}
+                value={colorFilter}
+                onChange={setColorFilter}
+              />
               <View style={styles.filterDivider} />
-              <FilterChip label="All Levels"    active={diffFilter === 'all'}          onPress={() => setDiffFilter('all')} />
-              <FilterChip label="Beginner"      active={diffFilter === 'beginner'}     onPress={() => setDiffFilter('beginner')} />
-              <FilterChip label="Intermediate"  active={diffFilter === 'intermediate'} onPress={() => setDiffFilter('intermediate')} />
-              <FilterChip label="Advanced"      active={diffFilter === 'advanced'}     onPress={() => setDiffFilter('advanced')} />
-            </ScrollView>
+              <SegRow
+                label="LEVEL"
+                options={DIFF_OPTIONS}
+                value={diffFilter}
+                onChange={setDiffFilter}
+              />
+            </View>
 
             {filtered.length === 0 && (
               <View style={styles.empty}>
@@ -226,7 +284,7 @@ export function OpeningLibraryScreen({ navigation }: Props) {
             onPress={() => navigation.navigate('OpeningDetail', { openingSlug: item.id })}
           />
         )}
-        ItemSeparatorComponent={() => <View style={{ height: 10 }} />}
+        ItemSeparatorComponent={() => <View style={{ height: 12 }} />}
         ListFooterComponent={<View style={{ height: 32 }} />}
       />
     </View>
@@ -262,24 +320,58 @@ const styles = StyleSheet.create({
     padding: 0,
   },
 
-  // Filters
-  filterScroll: { marginBottom: 16 },
-  filterContent: { gap: 8, paddingRight: 4 },
-  filterDivider: { width: 1, backgroundColor: COLORS.border, marginHorizontal: 4 },
-  chip: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 20,
+  // Filter card with two segmented rows
+  filterCard: {
+    backgroundColor: COLORS.surface,
+    borderRadius: RADIUS.lg,
     borderWidth: 1,
     borderColor: COLORS.border,
-    backgroundColor: COLORS.surface,
+    marginBottom: 16,
+    overflow: 'hidden',
   },
-  chipActive: {
-    backgroundColor: COLORS.accentDim,
-    borderColor: 'rgba(245,158,11,0.4)',
+  filterDivider: {
+    height: 1,
+    backgroundColor: COLORS.borderSubtle,
   },
-  chipText: { fontSize: 12, fontWeight: FONT.medium, color: COLORS.textDim },
-  chipTextActive: { color: COLORS.accent },
+  segSection: {
+    paddingHorizontal: 14,
+    paddingVertical: 11,
+    gap: 8,
+  },
+  segLabel: {
+    fontSize: 10,
+    fontWeight: FONT.bold,
+    color: COLORS.textDim,
+    letterSpacing: 0.7,
+  },
+  segBar: {
+    flexDirection: 'row',
+    borderRadius: RADIUS.sm,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    overflow: 'hidden',
+    backgroundColor: COLORS.bgBase,
+  },
+  segBtn: {
+    flex: 1,
+    paddingVertical: 7,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRightWidth: 1,
+    borderRightColor: COLORS.border,
+  },
+  segBtnFirst: { borderLeftWidth: 0 },
+  segBtnLast: { borderRightWidth: 0 },
+  segBtnActive: { backgroundColor: COLORS.accentDim },
+  segBtnText: {
+    fontSize: 11,
+    fontWeight: FONT.medium,
+    color: COLORS.textDim,
+  },
+  segBtnTextActive: {
+    color: COLORS.accent,
+    fontWeight: FONT.semibold,
+  },
 
   // Card
   card: {
@@ -290,18 +382,25 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: COLORS.border,
     overflow: 'hidden',
-    gap: 12,
-    paddingRight: 14,
   },
   cardPressed: { opacity: 0.75 },
+
   boardThumb: {
     borderRightWidth: 1,
     borderRightColor: COLORS.border,
   },
-  cardInfo: { flex: 1, paddingVertical: 12, gap: 6 },
+
+  cardInfo: {
+    flex: 1,
+    paddingVertical: 12,
+    paddingLeft: 12,
+    gap: 6,
+  },
+
+  chevron: { paddingRight: 12 },
 
   // Badges
-  badgesRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  badgesRow: { flexDirection: 'row', alignItems: 'center', gap: 5, flexWrap: 'wrap' },
   colorBadge: {
     borderRadius: 4,
     borderWidth: 1,
@@ -329,8 +428,13 @@ const styles = StyleSheet.create({
   },
   ecoText: { fontSize: 9, fontWeight: FONT.semibold, color: COLORS.textDim },
 
-  // Name
+  // Name + description
   openingName: { fontSize: 13, fontWeight: FONT.bold, color: COLORS.text },
+  openingDesc: {
+    fontSize: 11,
+    color: COLORS.textMuted,
+    lineHeight: 15,
+  },
 
   // Progress
   progressRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
