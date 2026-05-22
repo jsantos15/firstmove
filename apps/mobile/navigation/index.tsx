@@ -3,7 +3,7 @@ import { StyleSheet, Text, TouchableOpacity } from 'react-native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
 import { HomeScreen } from '../screens/HomeScreen';
-import { LearnScreen } from '../screens/LearnScreen';
+import { OpeningsStack } from './OpeningsStack';
 import { PuzzlesScreen } from '../screens/PuzzlesScreen';
 import { NewsScreen } from '../screens/NewsScreen';
 import { MoreMenu } from '../components/ui/MoreMenu';
@@ -61,7 +61,7 @@ export function RootNavigator() {
         })}
       >
         <Tab.Screen name="Home"     component={HomeScreen}    options={{ tabBarLabel: 'Home' }} />
-        <Tab.Screen name="Openings" component={LearnScreen}   options={{ tabBarLabel: 'Openings' }} />
+        <Tab.Screen name="Openings" component={OpeningsStack}  options={{ tabBarLabel: 'Openings' }} />
         <Tab.Screen name="Puzzles"  component={PuzzlesScreen} options={{ tabBarLabel: 'Puzzles' }} />
         <Tab.Screen name="News"     component={NewsScreen}    options={{ tabBarLabel: 'News' }} />
 
