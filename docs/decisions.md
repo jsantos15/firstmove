@@ -584,8 +584,6 @@ node scripts/run-opening-reference-pipeline.cjs --openings italian-game,caro-kan
 
 **Update:** Practical branches under the same parent variation should not keep multiple move orders that transpose to the same final board. After exact-line, prefix, mate-equivalent, and trained-deviation pruning, the generator and branch dedup collapse same-parent branches with the same normalized final FEN. The retained branch prefers the better trained-side engine choice at the first differing trained ply, then falls back to final eval, endpoint quality, branch score, play-rate confidence, and stable SAN order.
 
-**Update:** Comparable trained-side alternatives are pruned symmetrically at the exact trained decision point. If two practical branches under the same parent variation share the same prefix and then choose different trained-side moves, keep the branch with the better completed final trained-side eval, even if that move was not the immediate rank-1 engine move. Use immediate engine rank and eval loss only as tie-breakers. This prevents lower-value rank-1 continuations from surviving beside a better non-top continuation when the completed branch proves more useful.
-
 ---
 
 ## 2026-05-16 - Keep localized coach templates in source control
