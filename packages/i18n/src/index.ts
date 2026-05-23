@@ -161,6 +161,11 @@ export const EN_MESSAGES = {
 
   'coach.spoken.event': '{label}. {title}. {message}',
   'coach.spoken.wrong_move': 'Try again. {message}',
+  'coach.spoken.event.best_move': 'Best move. {moveSpeech}.',
+  'coach.spoken.event.only_move': 'Only move. {moveSpeech} keeps the position together.',
+  'coach.spoken.event.great_move': 'Great move. {moveSpeech}.',
+  'coach.spoken.event.good_move': 'Good move. {moveSpeech}.',
+  'coach.spoken.event.tactic_found': 'Tactic found. {moveSpeech}. {message}',
   'coach.spoken.event.missed_tactic': 'Missed tactic. Look for {bestMoveSpeech}. {message}',
   'coach.spoken.event.missed_win': 'Missed winning chance. Look for {bestMoveSpeech}. {message}',
   'coach.spoken.event.blunder': 'Major problem after {moveSpeech}. {message}',
@@ -410,31 +415,50 @@ function sanToSpeech(moveSan: string | null | undefined) {
     B: 'bishop',
     N: 'knight',
   };
-  const fileNames: Record<string, string> = {
-    a: 'a',
-    b: 'b',
-    c: 'c',
-    d: 'd',
-    e: 'e',
-    f: 'f',
-    g: 'g',
-    h: 'h',
+  const rankNames: Record<string, string> = {
+    '1': 'one',
+    '2': 'two',
+    '3': 'three',
+    '4': 'four',
+    '5': 'five',
+    '6': 'six',
+    '7': 'seven',
+    '8': 'eight',
+  };
+  const promotionNames: Record<string, string> = {
+    Q: 'queen',
+    R: 'rook',
+    B: 'bishop',
+    N: 'knight',
   };
 
   const trimmed = moveSan.replace(/^\.\.\./, '').trim();
   if (trimmed === 'O-O') return 'castle king side';
   if (trimmed === 'O-O-O') return 'castle queen side';
 
-  const cleaned = trimmed
-    .replace(/[+#?!]+/g, '')
-    .replace(/x/g, ' takes ')
-    .replace(/=/g, ' promotes to ');
+  const cleaned = trimmed.replace(/[+#?!]+/g, '');
+  const promotion = cleaned.match(/=([QRBN])/);
+  const withoutPromotion = cleaned.replace(/=[QRBN]/, '');
+  const targetSquare = withoutPromotion.match(/[a-h][1-8]$/)?.[0];
+  if (!targetSquare) return cleaned.replace(/\s+/g, ' ').trim();
 
-  return cleaned
-    .replace(/[KQRBN]/g, piece => pieceNames[piece] ?? piece)
-    .replace(/[a-h][1-8]/g, square => `${fileNames[square[0]]} ${square[1]}`)
-    .replace(/\s+/g, ' ')
-    .trim();
+  const pieceCode = withoutPromotion[0];
+  const pieceName = pieceNames[pieceCode] ?? 'pawn';
+  const capture = withoutPromotion.includes('x');
+  const sourceFile =
+    pieceName === 'pawn' && capture && /^[a-h]x/.test(withoutPromotion)
+      ? withoutPromotion[0]
+      : null;
+  const targetSpeech = `${targetSquare[0]} ${rankNames[targetSquare[1]]}`;
+  const promotionSpeech = promotion ? ` promotes to ${promotionNames[promotion[1]]}` : '';
+
+  if (capture) {
+    return sourceFile
+      ? `pawn from ${sourceFile} captures on ${targetSpeech}${promotionSpeech}`
+      : `${pieceName} captures on ${targetSpeech}${promotionSpeech}`;
+  }
+
+  return `${pieceName} to ${targetSpeech}${promotionSpeech}`;
 }
 
 function getCoachEventTacticalMotif(event: CoachEvent): CoachTacticalMotif | null {

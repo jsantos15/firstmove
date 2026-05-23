@@ -51,7 +51,7 @@ test('opening practice keeps display and spoken text separate', () => {
   assert.notEqual(rendered.message, rendered.spokenText);
 });
 
-test('persona-specific spoken fallback works without persona-specific display copy', () => {
+test('event-specific spoken fallback works without event-specific display copy', () => {
   const event = core.buildGameAnalysisMoveEventsFromEngine({
     gameId: 'game-1',
     moveSan: 'Qh5',
@@ -68,9 +68,10 @@ test('persona-specific spoken fallback works without persona-specific display co
 
   assert.equal(rendered.event.eventType, 'great_move');
   assert.equal(rendered.messageKey, 'coach.event.great_move.message');
-  assert.equal(rendered.spokenTextKey, 'coach.persona.strict.spoken.event');
+  assert.equal(rendered.spokenTextKey, 'coach.spoken.event.great_move');
   assert.equal(rendered.persona, 'strict');
-  assert.match(rendered.spokenText, /^Great\./);
+  assert.match(rendered.spokenText, /^Great move\./);
+  assert.match(rendered.spokenText, /queen to h five/);
 });
 
 test('engine adapter emits missed-win and blunder events from white-perspective evals', () => {
@@ -549,6 +550,156 @@ test('motif detector tags missed tactical motif on best move', () => {
   assert.equal(renderedMissedFork.evidence?.kind, 'single_move');
   assert.equal(renderedMissedFork.evidence?.title, 'Show the move');
   assert.match(renderedMissedFork.evidence?.summary ?? '', /creates the fork/);
+});
+
+test('mixed missed tactic and blunder keeps tactic primary and severity secondary', () => {
+  const events = core.buildGameAnalysisMoveEventsFromEngine({
+    gameId: 'game-21',
+    moveSan: 'Qxd5',
+    plyIndex: 18,
+    playedBy: 'white',
+    phase: 'middlegame',
+    beforeFen: '4k3/8/8/3p4/8/8/8/3QK3 w - - 0 1',
+    beforeEvalCp: 30,
+    afterPlayedEvalCp: -320,
+    afterBestEvalCp: 140,
+    bestMoveSan: 'Bxf7+',
+    bestLine: [
+      { san: 'Bxf7+', side: 'white', isKeyMove: true },
+      { san: 'Kxf7', side: 'black' },
+      { san: 'Qxd5+', side: 'white' },
+    ],
+  });
+  const secondary = core.selectComplementaryGameAnalysisEvent(events);
+
+  assert.equal(events[0].eventType, 'missed_tactic');
+  assert.equal(events[0].classification, 'miss');
+  assert.equal(events[0].evidence?.kind, 'line');
+  assert.equal(secondary?.eventType, 'blunder');
+  assert.equal(secondary?.classification, 'blunder');
+});
+
+test('missed mate is always the primary lesson', () => {
+  const events = core.buildGameAnalysisMoveEventsFromEngine({
+    gameId: 'game-22',
+    moveSan: 'Qf6',
+    plyIndex: 42,
+    playedBy: 'white',
+    phase: 'endgame',
+    beforeFen: '7k/6Q1/6K1/8/8/8/8/8 w - - 0 1',
+    beforeEvalCp: 700,
+    afterPlayedEvalCp: 100,
+    afterBestEvalCp: 3000,
+    bestMoveSan: 'Qf8#',
+  });
+  const rendered = i18n.renderCoachEvent(events[0], 'en');
+
+  assert.equal(events[0].eventType, 'missed_win');
+  assert.equal(events[0].analysisFacts.bestMoveGivesCheckmate, true);
+  assert.equal(events[0].analysisFacts.candidateReason, 'missed_forced_mate');
+  assert.equal(events[0].evidence?.kind, 'single_move');
+  assert.equal(rendered.spokenTextKey, 'coach.spoken.event.missed_win');
+  assert.match(rendered.spokenText, /queen to f eight/);
+});
+
+test('move allowing mate is primary danger with opponent-reply evidence', () => {
+  const events = core.buildGameAnalysisMoveEventsFromEngine({
+    gameId: 'game-23',
+    moveSan: 'g4',
+    plyIndex: 4,
+    playedBy: 'white',
+    phase: 'opening',
+    beforeFen: 'rnbqkbnr/pppp1ppp/8/4p3/8/5P2/PPPPP1PP/RNBQKBNR w KQkq - 0 2',
+    beforeEvalCp: -50,
+    afterPlayedEvalCp: -900,
+    afterBestEvalCp: 0,
+    bestMoveSan: 'e4',
+  });
+  const rendered = i18n.renderCoachEvent(events[0], 'en');
+
+  assert.equal(events[0].eventType, 'opponent_threat');
+  assert.equal(events[0].analysisFacts.opponentThreatGivesCheckmate, true);
+  assert.equal(events[0].analysisFacts.opponentThreatMoveSan, 'Qh4#');
+  assert.equal(events[0].evidence?.kind, 'single_move');
+  assert.equal(rendered.spokenTextKey, 'coach.spoken.event.opponent_threat');
+  assert.match(rendered.spokenText, /queen to h four/);
+});
+
+test('spoken SAN conversion produces chess-readable move phrases', () => {
+  const knightEvent = core.buildGameAnalysisMoveEventsFromEngine({
+    gameId: 'game-24',
+    moveSan: 'Nf3',
+    plyIndex: 1,
+    playedBy: 'white',
+    phase: 'opening',
+    beforeEvalCp: 0,
+    afterPlayedEvalCp: 20,
+    afterBestEvalCp: 20,
+    bestMoveSan: 'Nf3',
+  })[0];
+  const missedCapture = core.buildGameAnalysisMoveEventsFromEngine({
+    gameId: 'game-24',
+    moveSan: 'h3',
+    plyIndex: 20,
+    playedBy: 'white',
+    phase: 'middlegame',
+    beforeEvalCp: 40,
+    afterPlayedEvalCp: -120,
+    afterBestEvalCp: 260,
+    bestMoveSan: 'Qxf7+',
+  })[0];
+  const renderedKnight = i18n.renderCoachEvent(knightEvent, 'en');
+  const renderedMissedCapture = i18n.renderCoachEvent(missedCapture, 'en');
+
+  assert.match(renderedKnight.spokenText, /knight to f three/);
+  assert.match(renderedMissedCapture.spokenText, /queen captures on f seven/);
+});
+
+test('analyzed-game summaries emit phase and game recap events', () => {
+  const game = {
+    id: 'game-25',
+    moves: [
+      {
+        san: 'Nf3',
+        plyIndex: 1,
+        playedBy: 'white',
+        phase: 'opening',
+        beforeFen: 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1',
+        beforeEvalCp: 0,
+        afterPlayedEvalCp: 20,
+        afterBestEvalCp: 20,
+        bestMoveSan: 'Nf3',
+      },
+      {
+        san: 'Qxd5',
+        plyIndex: 24,
+        playedBy: 'white',
+        phase: 'middlegame',
+        beforeFen: '4k3/8/8/3p4/8/8/8/3QK3 w - - 0 1',
+        beforeEvalCp: 260,
+        afterPlayedEvalCp: -80,
+        afterBestEvalCp: 260,
+        bestMoveSan: 'Bxf7+',
+      },
+    ],
+  };
+  const summaryEvents = core.buildGameAnalysisSummaryEvents({ game, persona: 'beginner' });
+  const allEvents = core.buildGameAnalysisEventsFromAnalyzedGame({
+    game,
+    persona: 'beginner',
+    includeSummaries: true,
+  });
+  const gameSummary = summaryEvents.find(event => event.eventType === 'game_summary');
+  const renderedGameSummary = i18n.renderCoachEvent(gameSummary, 'en');
+
+  assert.equal(summaryEvents.filter(event => event.eventType === 'phase_summary').length, 2);
+  assert.ok(gameSummary);
+  assert.equal(gameSummary.persona, 'beginner');
+  assert.equal(gameSummary.classification, 'complete');
+  assert.equal(gameSummary.analysisFacts.worstMoveSan, 'Qxd5');
+  assert.ok(allEvents.some(event => event.eventType === 'game_summary'));
+  assert.equal(renderedGameSummary.spokenTextKey, 'coach.spoken.event.game_summary');
+  assert.match(renderedGameSummary.message, /main lesson from this game/);
 });
 
 console.log('Coach contract tests passed.');
