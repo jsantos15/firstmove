@@ -224,6 +224,7 @@ export function getCoachEventSpokenFallbacks(
 ) {
   return [
     `coach.persona.${persona}.spoken.${eventType}`,
+    `coach.spoken.event.${eventType}`,
     `coach.persona.${persona}.spoken.event`,
     eventType === 'wrong_move' ? 'coach.spoken.wrong_move' : 'coach.spoken.event',
   ] as const;

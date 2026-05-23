@@ -1,5 +1,6 @@
 import { Chess } from 'chess.js';
 import { COACH_CLASSIFICATION_THRESHOLDS, classifyAnalyzedMoveByCentipawnLoss } from './analysis';
+import { COACH_GAME_PHASES } from './index';
 import type {
   CoachAnalysisFacts,
   CoachClassification,
@@ -100,6 +101,7 @@ export interface AnalyzedGame {
 export interface GameAnalysisEventsFromGameInput {
   game: AnalyzedGame;
   persona?: CoachPersona;
+  includeSummaries?: boolean;
 }
 
 export interface AnalyzedGameFromPgnInput {
@@ -324,6 +326,8 @@ export interface GameAnalysisCoachCandidate {
 }
 
 const COMPLEMENTARY_EVENT_TYPES = [
+  'blunder',
+  'mistake',
   'hanging_material',
   'loose_piece',
   'opponent_threat',
@@ -336,6 +340,8 @@ const COMPLEMENTARY_EVENT_TYPES = [
   'conversion',
   'material_trade',
 ] as const satisfies readonly CoachEventType[];
+
+const SUMMARY_EVENT_VERSION = 1;
 
 function formatPawns(cp: number) {
   if (Math.abs(cp) < 10) return 'level';
@@ -1280,6 +1286,103 @@ function buildBestMoveEvidence({
   return undefined;
 }
 
+function firstBestMoveFromEvidence(evidence?: CoachEvidence) {
+  if (evidence?.kind === 'line') return evidence.moves[0]?.san;
+  if (evidence?.kind === 'single_move') return evidence.move.san;
+  return undefined;
+}
+
+function buildTargetEvidenceForFacts(facts: GameAnalysisMoveFacts): CoachEvidence | undefined {
+  if (facts.materialRiskSquare && facts.materialRiskPiece) {
+    return {
+      kind: 'piece',
+      title: facts.materialRiskIsHanging ? 'Show the hanging piece' : 'Show the loose piece',
+      pieces: [{ square: facts.materialRiskSquare, role: facts.materialRiskPiece }],
+      summary: `${facts.materialRiskPiece} on ${facts.materialRiskSquare} needs attention.`,
+    };
+  }
+
+  if (facts.opponentThreatMoveSan) {
+    return {
+      kind: 'single_move',
+      title: facts.opponentThreatGivesCheckmate
+        ? 'Show the mate threat'
+        : 'Show the opponent reply',
+      move: {
+        san: facts.opponentThreatMoveSan,
+        side: facts.playedBy === 'white' ? 'black' : 'white',
+        plyIndex: facts.plyIndex + 1,
+        isKeyMove: true,
+      },
+      summary: `${facts.moveSan} gives the opponent ${facts.opponentThreatMoveSan}.`,
+    };
+  }
+
+  const targetSquares = facts.bestMoveTacticalMotifTargets?.length
+    ? facts.bestMoveTacticalMotifTargets
+    : facts.playedTacticalMotifTargets?.length
+      ? facts.playedTacticalMotifTargets
+      : facts.bestMoveTo
+        ? [facts.bestMoveTo]
+        : facts.moveTo
+          ? [facts.moveTo]
+          : [];
+
+  if (targetSquares.length) {
+    return {
+      kind: 'square',
+      title: 'Show the key square',
+      squares: targetSquares,
+      summary: `The important square is ${targetSquares.join(', ')}.`,
+    };
+  }
+
+  return undefined;
+}
+
+function normalizeCoachEvidenceForCandidate({
+  facts,
+  candidate,
+}: {
+  facts: GameAnalysisMoveFacts;
+  candidate: GameAnalysisCoachCandidate;
+}): CoachEvidence | undefined {
+  if (candidate.evidence?.kind === 'line') return candidate.evidence;
+
+  const firstBestMove = firstBestMoveFromEvidence(candidate.evidence) ?? facts.bestMoveSan;
+  const bestLineEvidence = buildBestMoveEvidence({
+    bestMoveSan: firstBestMove,
+    bestLine: facts.evidence?.kind === 'line' ? facts.evidence.moves : undefined,
+    title: candidate.evidence?.title ?? 'Show the better line',
+    summary: candidate.evidence?.summary,
+  });
+
+  if (
+    bestLineEvidence?.kind === 'line' &&
+    (candidate.eventType === 'missed_tactic' ||
+      candidate.eventType === 'missed_win' ||
+      candidate.eventType === 'advantage_lost' ||
+      candidate.eventType === 'game_turning_point' ||
+      candidate.eventType === 'blunder' ||
+      candidate.eventType === 'mistake')
+  ) {
+    return bestLineEvidence;
+  }
+
+  if (candidate.evidence) return candidate.evidence;
+
+  if (
+    candidate.eventType === 'missed_tactic' ||
+    candidate.eventType === 'missed_win' ||
+    candidate.eventType === 'advantage_lost' ||
+    candidate.eventType === 'game_turning_point'
+  ) {
+    return bestLineEvidence ?? buildTargetEvidenceForFacts(facts);
+  }
+
+  return buildTargetEvidenceForFacts(facts) ?? bestLineEvidence;
+}
+
 function cleanVariables(variables: CoachEventVariables): CoachEventVariables {
   return Object.fromEntries(
     Object.entries(variables).filter(([, value]) => value !== null && typeof value !== 'undefined')
@@ -1310,6 +1413,40 @@ function hasTacticalTheme(themeTags: CoachThemeTag[] = []) {
   return themeTags.some(themeTag =>
     ['fork', 'pin', 'skewer', 'discovered_attack', 'mate_threat'].includes(themeTag)
   );
+}
+
+function primaryPolicyWeight(candidate: GameAnalysisCoachCandidate) {
+  if (
+    candidate.eventType === 'opponent_threat' &&
+    candidate.analysisFacts.opponentThreatGivesCheckmate === true
+  ) {
+    return 9000;
+  }
+
+  if (
+    candidate.eventType === 'missed_win' &&
+    candidate.analysisFacts.bestMoveGivesCheckmate === true
+  ) {
+    return 8500;
+  }
+
+  if (candidate.eventType === 'missed_tactic') return 7000;
+  if (candidate.eventType === 'blunder') return 6200;
+  return 0;
+}
+
+function rankCoachCandidates(candidates: GameAnalysisCoachCandidate[]) {
+  const ranked = [...candidates].sort(
+    (a, b) => b.priority - a.priority || b.teachingWeight - a.teachingWeight
+  );
+  const policyPrimary = ranked
+    .map((candidate, index) => ({ candidate, index, weight: primaryPolicyWeight(candidate) }))
+    .filter(entry => entry.weight > 0)
+    .sort((a, b) => b.weight - a.weight || a.index - b.index)[0];
+
+  if (!policyPrimary || policyPrimary.index === 0) return ranked;
+
+  return [policyPrimary.candidate, ...ranked.filter((_, index) => index !== policyPrimary.index)];
 }
 
 function missedOpportunityEventType(missedOpportunityCp?: number): CoachEventType {
@@ -2494,7 +2631,7 @@ export function buildGameAnalysisCoachCandidatesFromFacts(
     );
   }
 
-  return candidates.sort((a, b) => b.priority - a.priority || b.teachingWeight - a.teachingWeight);
+  return rankCoachCandidates(candidates);
 }
 
 function buildGameAnalysisEventFromCandidate({
@@ -2523,7 +2660,7 @@ function buildGameAnalysisEventFromCandidate({
     spokenKey: '',
     variables: candidate.variables,
     analysisFacts: candidate.analysisFacts,
-    evidence: candidate.evidence,
+    evidence: normalizeCoachEvidenceForCandidate({ facts, candidate }),
     source: candidate.themeTags.length ? 'tactical_detector' : 'engine_analysis',
     contentVersion: 1,
   };
@@ -2540,7 +2677,7 @@ function hasOverlappingTeachingPoint(primary: CoachEvent, candidate: CoachEvent)
     primary.eventType === 'missed_tactic' &&
     (candidate.eventType === 'missed_win' || candidate.eventType === 'blunder')
   ) {
-    return true;
+    return candidate.eventType !== 'blunder';
   }
 
   if (
@@ -2567,6 +2704,139 @@ export function selectComplementaryGameAnalysisEvent(events: CoachEvent[]): Coac
       return true;
     }) ?? null
   );
+}
+
+function summaryThemeFromEvents(events: CoachEvent[]) {
+  const themeCounts = new Map<CoachThemeTag, number>();
+  for (const event of events) {
+    for (const themeTag of event.themeTags) {
+      themeCounts.set(themeTag, (themeCounts.get(themeTag) ?? 0) + 1);
+    }
+  }
+
+  const [topTheme] =
+    [...themeCounts.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))[0] ?? [];
+  if (topTheme) return topTheme.replace(/_/g, ' ');
+
+  const firstMajorEvent = events.find(
+    event => event.severity === 'critical' || event.severity === 'major'
+  );
+  if (firstMajorEvent) return firstMajorEvent.eventType.replace(/_/g, ' ');
+
+  return 'move quality';
+}
+
+function bestAndWorstMoveFacts(events: CoachEvent[]) {
+  const sortedByPriority = [...events].sort((a, b) => {
+    const bPriority = Number(b.analysisFacts.candidatePriority ?? 0);
+    const aPriority = Number(a.analysisFacts.candidatePriority ?? 0);
+    return bPriority - aPriority;
+  });
+  const worst = sortedByPriority.find(event =>
+    ['blunder', 'mistake', 'missed_tactic', 'missed_win', 'opponent_threat'].includes(
+      event.eventType
+    )
+  );
+  const best = sortedByPriority.find(event =>
+    ['brilliant_move', 'great_move', 'best_move', 'only_move', 'tactic_found'].includes(
+      event.eventType
+    )
+  );
+  const turningPoint = sortedByPriority.find(event => event.eventType === 'game_turning_point');
+
+  return {
+    bestMoveSan: best?.variables.moveSan ?? null,
+    worstMoveSan: worst?.variables.moveSan ?? null,
+    turningPointPly: turningPoint?.plyIndex ?? null,
+  };
+}
+
+function buildSummaryEvent({
+  gameId,
+  eventType,
+  phase,
+  events,
+  persona,
+}: {
+  gameId: string;
+  eventType: 'phase_summary' | 'game_summary';
+  phase?: CoachGamePhase;
+  events: CoachEvent[];
+  persona?: CoachPersona;
+}): CoachEvent {
+  const moveFacts = bestAndWorstMoveFacts(events);
+  const summaryTheme = summaryThemeFromEvents(events);
+
+  return {
+    id: `game:${gameId}:${eventType}${phase ? `:${phase}` : ''}`,
+    domain: 'game_analysis',
+    subject: {
+      kind: 'game',
+      id: gameId,
+    },
+    plyIndex: events[0]?.plyIndex ?? 0,
+    eventType,
+    classification: 'complete',
+    tone: 'complete',
+    severity: 'info',
+    persona: persona ?? 'neutral',
+    phase,
+    themeTags: [...new Set(events.flatMap(event => event.themeTags))],
+    messageKey: '',
+    spokenKey: '',
+    variables: cleanVariables({
+      summaryTheme,
+      bestMoveSan: moveFacts.bestMoveSan,
+      worstMoveSan: moveFacts.worstMoveSan,
+      turningPointPly: moveFacts.turningPointPly,
+    }),
+    analysisFacts: cleanAnalysisFacts({
+      summaryTheme,
+      eventCount: events.length,
+      bestMoveSan: moveFacts.bestMoveSan,
+      worstMoveSan: moveFacts.worstMoveSan,
+      turningPointPly: moveFacts.turningPointPly,
+    }),
+    source: 'engine_analysis',
+    contentVersion: SUMMARY_EVENT_VERSION,
+  };
+}
+
+export function buildGameAnalysisSummaryEvents({
+  game,
+  persona,
+}: GameAnalysisEventsFromGameInput): CoachEvent[] {
+  const moveEvents = game.moves.flatMap(move =>
+    buildGameAnalysisMoveEventsFromAnalyzedGameMove({ game, move, persona })
+  );
+  if (!moveEvents.length) return [];
+
+  const summaries: CoachEvent[] = [];
+  for (const phase of COACH_GAME_PHASES) {
+    const phaseEvents = moveEvents.filter(event => event.phase === phase);
+    if (phaseEvents.length) {
+      summaries.push(
+        buildSummaryEvent({
+          gameId: game.id,
+          eventType: 'phase_summary',
+          phase,
+          events: phaseEvents,
+          persona,
+        })
+      );
+    }
+  }
+
+  summaries.push(
+    buildSummaryEvent({
+      gameId: game.id,
+      eventType: 'game_summary',
+      events: moveEvents,
+      persona,
+    })
+  );
+
+  return summaries;
 }
 
 export function buildGameAnalysisMoveEvents(input: GameAnalysisMoveEventInput): CoachEvent[] {
@@ -2690,10 +2960,13 @@ export function buildGameAnalysisMoveEventsFromAnalyzedGameMove({
 export function buildGameAnalysisEventsFromAnalyzedGame({
   game,
   persona,
+  includeSummaries = false,
 }: GameAnalysisEventsFromGameInput): CoachEvent[] {
-  return game.moves.flatMap(move =>
+  const moveEvents = game.moves.flatMap(move =>
     buildGameAnalysisMoveEventsFromAnalyzedGameMove({ game, move, persona })
   );
+  if (!includeSummaries) return moveEvents;
+  return [...moveEvents, ...buildGameAnalysisSummaryEvents({ game, persona })];
 }
 
 export function buildPrimaryGameAnalysisMoveEvent(

@@ -10,9 +10,8 @@ import { MoveList } from '@/components/board/MoveList';
 import { CoachBubble } from '@/components/practice/CoachBubble';
 import { useAuth } from '@/app/providers';
 import { useAllProgress, MASTERY_COLORS } from '@/hooks/useProgress';
-import { BOARD_THEMES, useBoardSettings } from '@/hooks/useBoardSettings';
-import { COACH_PERSONA_OPTIONS, useCoachSettings } from '@/hooks/useCoachSettings';
-import { PIECE_SETS } from '@/lib/piecesets';
+import { useCoachSettings } from '@/hooks/useCoachSettings';
+import { BoardSettingsPopover } from '@/components/board/BoardSettingsPopover';
 import type { CoachFeedback } from '@/lib/coachFeedback';
 
 interface PageProps {
@@ -37,7 +36,10 @@ function extractGroupName(fullName: string | undefined, openingName: string): st
 }
 
 function slugifyGroup(value: string) {
-  return value.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+  return value
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
 }
 
 function normalizeOpeningLabel(value: string) {
@@ -48,10 +50,7 @@ function normalizeOpeningLabel(value: string) {
     .trim();
 }
 
-function groupVariations(
-  variations: AppVariation[],
-  openingName: string,
-): VariationGroup[] {
+function groupVariations(variations: AppVariation[], openingName: string): VariationGroup[] {
   const map = new Map<string, VariationGroup>();
   for (const v of variations) {
     const displayName = extractGroupName(v.fullName ?? undefined, openingName);
@@ -70,7 +69,6 @@ function groupVariations(
     return a.displayName.localeCompare(b.displayName);
   });
 }
-
 
 // ─── Accordion group row ──────────────────────────────────────────────────────
 
@@ -95,9 +93,11 @@ function GroupHeader({
         hasActiveChild ? 'bg-amber-400/10' : 'hover:bg-white/3'
       }`}
     >
-      <span className={`h-9 w-8 flex shrink-0 items-center justify-center ${
-        hasActiveChild ? 'text-amber-400' : 'text-gray-600'
-      }`}>
+      <span
+        className={`h-9 w-8 flex shrink-0 items-center justify-center ${
+          hasActiveChild ? 'text-amber-400' : 'text-gray-600'
+        }`}
+      >
         <svg
           xmlns="http://www.w3.org/2000/svg"
           viewBox="0 0 24 24"
@@ -111,9 +111,11 @@ function GroupHeader({
           <path d="m9 18 6-6-6-6" />
         </svg>
       </span>
-      <span className={`flex-1 flex items-center justify-between gap-2 py-2.5 pr-4 min-w-0 text-left text-sm font-medium transition-colors ${
-        hasActiveChild ? 'text-amber-300' : 'text-gray-400'
-      }`}>
+      <span
+        className={`flex-1 flex items-center justify-between gap-2 py-2.5 pr-4 min-w-0 text-left text-sm font-medium transition-colors ${
+          hasActiveChild ? 'text-amber-300' : 'text-gray-400'
+        }`}
+      >
         <span className="truncate">{group.displayName}</span>
         {childCount > 0 && (
           <span className="shrink-0 rounded-full bg-white/5 px-2 py-0.5 text-[11px] text-gray-500">
@@ -146,7 +148,6 @@ function BranchRow({
 }) {
   const locked = globalIndex > 0 && !user;
 
-
   return (
     <button
       ref={buttonRef}
@@ -156,14 +157,16 @@ function BranchRow({
         isActive
           ? 'bg-amber-400/8 text-amber-300'
           : locked
-          ? 'text-gray-600'
-          : 'text-gray-400 hover:bg-white/4 hover:text-white'
+            ? 'text-gray-600'
+            : 'text-gray-400 hover:bg-white/4 hover:text-white'
       }`}
     >
       {/* Left accent bar */}
-      <span className={`absolute inset-y-1.5 left-0 w-0.5 rounded-full transition-colors ${
-        isActive ? 'bg-amber-400' : 'bg-transparent group-hover:bg-white/15'
-      }`} />
+      <span
+        className={`absolute inset-y-1.5 left-0 w-0.5 rounded-full transition-colors ${
+          isActive ? 'bg-amber-400' : 'bg-transparent group-hover:bg-white/15'
+        }`}
+      />
       <span className="min-w-0 flex-1 truncate font-medium leading-tight">{line.name}</span>
       <div className="flex shrink-0 items-center gap-1.5">
         {completions != null && completions > 0 && (
@@ -172,7 +175,9 @@ function BranchRow({
         {locked ? (
           <span className="text-[11px]">🔒</span>
         ) : mastery && mastery !== 'new' ? (
-          <span className={`h-1.5 w-1.5 rounded-full ${MASTERY_COLORS[mastery as keyof typeof MASTERY_COLORS]}`} />
+          <span
+            className={`h-1.5 w-1.5 rounded-full ${MASTERY_COLORS[mastery as keyof typeof MASTERY_COLORS]}`}
+          />
         ) : null}
       </div>
     </button>
@@ -192,7 +197,9 @@ function formatBranchEval(value?: number | null) {
 }
 
 function branchEvalValue(branch: AppVariation) {
-  return branch.branchMetadata?.final_trained_eval_cp ?? branch.finalEvalCp ?? Number.NEGATIVE_INFINITY;
+  return (
+    branch.branchMetadata?.final_trained_eval_cp ?? branch.finalEvalCp ?? Number.NEGATIVE_INFINITY
+  );
 }
 
 function sortAndLimitDisplayedBranches(branches: AppVariation[]) {
@@ -234,7 +241,9 @@ function PracticalBranchRow({
 }) {
   const metadata = branch.branchMetadata;
   const title = metadata?.lesson_title ?? branch.name;
-  const trigger = metadata?.trigger_move_san ? `vs ${metadata.trigger_move_san}` : 'Practice branch';
+  const trigger = metadata?.trigger_move_san
+    ? `vs ${metadata.trigger_move_san}`
+    : 'Practice branch';
   const playRate = formatBranchPercent(metadata?.trigger_move_play_rate);
   const games = metadata?.trigger_move_games;
   const evalLabel = formatBranchEval(metadata?.final_trained_eval_cp ?? branch.finalEvalCp);
@@ -247,13 +256,15 @@ function PracticalBranchRow({
         isActive
           ? 'border-amber-400/30 bg-amber-400/10'
           : locked
-          ? 'border-white/5 bg-white/[0.02] opacity-60'
-          : 'border-white/5 bg-white/[0.02] hover:border-white/10 hover:bg-white/[0.04]'
+            ? 'border-white/5 bg-white/[0.02] opacity-60'
+            : 'border-white/5 bg-white/[0.02] hover:border-white/10 hover:bg-white/[0.04]'
       }`}
     >
       <div className="flex min-w-0 items-start justify-between gap-2">
         <div className="min-w-0">
-          <span className={`block truncate text-xs font-medium leading-tight ${isActive ? 'text-amber-300' : 'text-gray-300'}`}>
+          <span
+            className={`block truncate text-xs font-medium leading-tight ${isActive ? 'text-amber-300' : 'text-gray-300'}`}
+          >
             {title}
           </span>
           <span className="mt-1 block truncate text-[10px] text-gray-600">
@@ -274,204 +285,12 @@ function PracticalBranchRow({
           {locked ? (
             <span className="text-[11px]">Lock</span>
           ) : mastery && mastery !== 'new' ? (
-            <span className={`h-1.5 w-1.5 rounded-full ${MASTERY_COLORS[mastery as keyof typeof MASTERY_COLORS]}`} />
+            <span
+              className={`h-1.5 w-1.5 rounded-full ${MASTERY_COLORS[mastery as keyof typeof MASTERY_COLORS]}`}
+            />
           ) : null}
         </div>
       </div>
-    </button>
-  );
-}
-
-
-function BoardSettingsPopover() {
-  const { settings, setSettings } = useBoardSettings();
-  const { settings: coachSettings, setSettings: setCoachSettings } = useCoachSettings();
-  const [open, setOpen] = useState(false);
-  const popoverRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!open) return;
-
-    function handlePointerDown(event: MouseEvent) {
-      if (popoverRef.current && !popoverRef.current.contains(event.target as Node)) {
-        setOpen(false);
-      }
-    }
-
-    document.addEventListener('mousedown', handlePointerDown);
-    return () => document.removeEventListener('mousedown', handlePointerDown);
-  }, [open]);
-
-  return (
-    <div ref={popoverRef} className="relative shrink-0">
-      <button
-        type="button"
-        onClick={() => setOpen(current => !current)}
-        className={`inline-flex h-12 w-12 items-center justify-center text-gray-300 transition-colors ${
-          open
-            ? 'text-amber-300'
-            : 'hover:text-white'
-        }`}
-        aria-label="Board settings"
-        title="Board settings"
-      >
-        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="h-6 w-6">
-          <path strokeLinecap="round" strokeLinejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.325.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.431l-1.003.827c-.293.241-.438.613-.43.992a7.723 7.723 0 010 .255c-.008.378.137.75.43.991l1.004.827c.424.35.534.955.26 1.43l-1.298 2.247a1.125 1.125 0 01-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.47 6.47 0 01-.22.128c-.331.183-.581.495-.644.869l-.213 1.281c-.09.543-.56.94-1.11.94h-2.594c-.55 0-1.019-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 01-1.369-.49l-1.297-2.247a1.125 1.125 0 01.26-1.431l1.004-.827c.292-.24.437-.613.43-.991a6.932 6.932 0 010-.255c.007-.38-.138-.751-.43-.992l-1.004-.827a1.125 1.125 0 01-.26-1.43l1.297-2.247a1.125 1.125 0 011.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.086.22-.128.332-.183.582-.495.644-.869l.214-1.28z" />
-          <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-        </svg>
-      </button>
-
-      {open && (
-        <div className="absolute bottom-full right-0 z-30 mb-3 w-80 rounded-2xl border border-white/10 bg-(--bg-panel) p-4 shadow-2xl shadow-black/50 backdrop-blur">
-          <div className="mb-4">
-            <h3 className="text-sm font-semibold text-white">Board settings</h3>
-            <p className="mt-1 text-xs text-gray-500">Quick adjustments for this practice session.</p>
-          </div>
-
-          <div className="space-y-4">
-            <div>
-              <label className="mb-2 block text-[11px] font-medium uppercase tracking-wider text-gray-500">Theme</label>
-              <div className="grid grid-cols-3 gap-2">
-                {BOARD_THEMES.map(theme => (
-                  <button
-                    key={theme.id}
-                    type="button"
-                    onClick={() => setSettings({ themeId: theme.id })}
-                    className={`rounded-xl border p-2 transition-colors ${
-                      settings.themeId === theme.id
-                        ? 'border-amber-400/40 bg-amber-400/10'
-                        : 'border-white/10 bg-white/5 hover:border-white/20'
-                    }`}
-                  >
-                    <div className="mb-2 grid h-8 grid-cols-2 overflow-hidden rounded-md">
-                      <div style={{ backgroundColor: theme.light }} />
-                      <div style={{ backgroundColor: theme.dark }} />
-                      <div style={{ backgroundColor: theme.dark }} />
-                      <div style={{ backgroundColor: theme.light }} />
-                    </div>
-                    <span className={`text-xs font-medium ${
-                      settings.themeId === theme.id ? 'text-amber-300' : 'text-gray-300'
-                    }`}>
-                      {theme.label}
-                    </span>
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div>
-              <label className="mb-2 block text-[11px] font-medium uppercase tracking-wider text-gray-500">Piece set</label>
-              <div className="grid grid-cols-3 gap-2">
-                {PIECE_SETS.map(set => (
-                  <button
-                    key={set.id}
-                    type="button"
-                    onClick={() => setSettings({ pieceSetId: set.id })}
-                    className={`rounded-xl border px-3 py-2 text-xs font-medium transition-colors ${
-                      settings.pieceSetId === set.id
-                        ? 'border-amber-400/40 bg-amber-400/10 text-amber-300'
-                        : 'border-white/10 bg-white/5 text-gray-300 hover:border-white/20 hover:text-white'
-                    }`}
-                  >
-                    {set.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div>
-              <label className="mb-2 block text-[11px] font-medium uppercase tracking-wider text-gray-500">Animation</label>
-              <div className="flex overflow-hidden rounded-xl border border-white/10">
-                {(['off', 'slow', 'normal', 'fast'] as const).map(speed => (
-                  <button
-                    key={speed}
-                    type="button"
-                    onClick={() => setSettings({ animationSpeed: speed })}
-                    className={`flex-1 px-3 py-2 text-xs font-medium capitalize transition-colors ${
-                      settings.animationSpeed === speed
-                        ? 'bg-amber-400/15 text-amber-300'
-                        : 'bg-white/5 text-gray-300 hover:bg-white/10 hover:text-white'
-                    }`}
-                  >
-                    {speed}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div>
-              <label className="mb-2 block text-[11px] font-medium uppercase tracking-wider text-gray-500">Coach</label>
-              <div className="grid grid-cols-2 gap-2">
-                {COACH_PERSONA_OPTIONS.map(option => (
-                  <button
-                    key={option.id}
-                    type="button"
-                    onClick={() => setCoachSettings({ persona: option.id })}
-                    className={`rounded-xl border p-2 text-left transition-colors ${
-                      coachSettings.persona === option.id
-                        ? 'border-amber-400/40 bg-amber-400/10'
-                        : 'border-white/10 bg-white/5 hover:border-white/20'
-                    }`}
-                  >
-                    <span
-                      className={`block text-xs font-medium ${
-                        coachSettings.persona === option.id ? 'text-amber-300' : 'text-gray-300'
-                      }`}
-                    >
-                      {option.label}
-                    </span>
-                    <span className="mt-1 block text-[10px] leading-4 text-gray-500">
-                      {option.description}
-                    </span>
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div className="grid grid-cols-3 gap-2">
-              <ToggleChip
-                label="Coords"
-                active={settings.showCoordinates}
-                onClick={() => setSettings({ showCoordinates: !settings.showCoordinates })}
-              />
-              <ToggleChip
-                label="Flip"
-                active={settings.flipBoard}
-                onClick={() => setSettings({ flipBoard: !settings.flipBoard })}
-              />
-              <ToggleChip
-                label="Sound"
-                active={settings.moveSound}
-                onClick={() => setSettings({ moveSound: !settings.moveSound })}
-              />
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-function ToggleChip({
-  label,
-  active,
-  onClick,
-}: {
-  label: string;
-  active: boolean;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`rounded-xl border px-3 py-2 text-xs font-medium transition-colors ${
-        active
-          ? 'border-amber-400/40 bg-amber-400/10 text-amber-300'
-          : 'border-white/10 bg-white/5 text-gray-300 hover:border-white/20 hover:text-white'
-      }`}
-    >
-      {label}
     </button>
   );
 }
@@ -510,11 +329,7 @@ export default function PracticePage({ params, searchParams }: PageProps) {
       const family = normalizeOpeningLabel(milestone.family);
       const name = normalizeOpeningLabel(milestone.name);
 
-      return (
-        family === lessonName ||
-        name === lessonName ||
-        name.startsWith(`${lessonName}:`)
-      );
+      return family === lessonName || name === lessonName || name.startsWith(`${lessonName}:`);
     });
   }, [opening, openingLabelMilestones]);
 
@@ -588,8 +403,11 @@ export default function PracticePage({ params, searchParams }: PageProps) {
   const groups = groupVariations(opening.variations, opening.name);
   const activeReferenceLineId = selectedReferenceLineId ?? selectedLineId;
   const activeGroup = groups.find(g => g.lines.some(l => l.id === activeReferenceLineId));
-  const selectedVariation = allPracticeLines.find(v => v.id === selectedLineId) ?? opening.variations[0];
-  const activeReferenceGlobalIndex = opening.variations.findIndex(v => v.id === activeReferenceLineId);
+  const selectedVariation =
+    allPracticeLines.find(v => v.id === selectedLineId) ?? opening.variations[0];
+  const activeReferenceGlobalIndex = opening.variations.findIndex(
+    v => v.id === activeReferenceLineId
+  );
   const selectedReferenceBranches = sortAndLimitDisplayedBranches(
     opening.practicalBranches.filter(
       branch => branch.branchMetadata?.parent_line_slug === activeReferenceLineId
@@ -638,12 +456,14 @@ export default function PracticePage({ params, searchParams }: PageProps) {
 
   return (
     <div className="h-full flex flex-col overflow-hidden">
-
       {/* Header */}
       <header className="h-14 shrink-0 bg-(--bg-base)/80 backdrop-blur z-10">
         <div className="flex h-full items-center px-4 lg:px-6">
           <div className="flex min-w-0 items-center gap-3">
-            <Link href="/openings" className="text-gray-400 hover:text-white transition-colors text-sm">
+            <Link
+              href="/openings"
+              className="text-gray-400 hover:text-white transition-colors text-sm"
+            >
               ← Openings
             </Link>
             <span className="text-white/20">/</span>
@@ -654,8 +474,12 @@ export default function PracticePage({ params, searchParams }: PageProps) {
             <div className="grid w-full max-w-410 grid-cols-[minmax(0,1fr)_24rem] gap-3 lg:grid-cols-[minmax(0,1fr)_27rem] lg:gap-3">
               <div className="flex justify-center sm:translate-x-4.5">
                 <div className="pointer-events-auto flex overflow-hidden rounded-xl border border-white/10">
-                  <ModeButton active={mode === 'learn'} onClick={() => setMode('learn')}>Learn</ModeButton>
-                  <ModeButton active={mode === 'practice'} onClick={() => setMode('practice')}>Practice</ModeButton>
+                  <ModeButton active={mode === 'learn'} onClick={() => setMode('learn')}>
+                    Learn
+                  </ModeButton>
+                  <ModeButton active={mode === 'practice'} onClick={() => setMode('practice')}>
+                    Practice
+                  </ModeButton>
                 </div>
               </div>
               <div />
@@ -666,27 +490,25 @@ export default function PracticePage({ params, searchParams }: PageProps) {
 
       <div className="flex-1 min-h-0 overflow-hidden px-4 pb-3 pt-2 lg:px-6 lg:pb-4 lg:pt-3">
         <div className="mx-auto flex h-full w-full max-w-410 gap-3 lg:gap-3">
-
           {/* Board column */}
           <div className="flex h-full min-w-0 flex-1 justify-end">
             <div className="h-full max-w-full shrink" style={{ aspectRatio: '1 / 1' }}>
-            {selectedVariation && (
-              <PracticeBoard
-                opening={opening}
-                variation={selectedVariation}
-                mode={mode}
-                coachPersona={coachSettings.persona}
-                onMoveIndexChange={setCurrentMoveIndex}
-                onCoachFeedbackChange={setCoachFeedback}
-                controlsRight={<BoardSettingsPopover />}
-              />
-            )}
+              {selectedVariation && (
+                <PracticeBoard
+                  opening={opening}
+                  variation={selectedVariation}
+                  mode={mode}
+                  coachPersona={coachSettings.persona}
+                  onMoveIndexChange={setCurrentMoveIndex}
+                  onCoachFeedbackChange={setCoachFeedback}
+                  controlsRight={<BoardSettingsPopover />}
+                />
+              )}
             </div>
           </div>
 
           {/* Sidebar */}
           <div className="w-[24rem] lg:w-108 shrink-0 h-full flex flex-col gap-3">
-
             {/* Coach — fixed */}
             <CoachBubble feedback={coachFeedback} fallbackText={opening.description} />
 
@@ -701,15 +523,20 @@ export default function PracticePage({ params, searchParams }: PageProps) {
 
             {/* Variations + Branches panels */}
             <div className="flex-1 min-h-0 flex flex-col gap-3">
-
               {/* Variations panel */}
-              <div className="min-h-0 flex flex-col rounded-xl border border-white/5 bg-(--bg-panel)" style={{ flex: 59 }}>
-
+              <div
+                className="min-h-0 flex flex-col rounded-xl border border-white/5 bg-(--bg-panel)"
+                style={{ flex: 59 }}
+              >
                 {/* Panel header */}
                 <div className="shrink-0 flex items-start justify-between px-4 pt-4 pb-3 border-b border-white/5">
                   <div>
-                    <h3 className="text-xs font-medium text-gray-500 uppercase tracking-wider">Variations</h3>
-                    <p className="mt-0.5 text-[10px] text-gray-600">Reference continuations generated from the named position</p>
+                    <h3 className="text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Variations
+                    </h3>
+                    <p className="mt-0.5 text-[10px] text-gray-600">
+                      Reference continuations generated from the named position
+                    </p>
                   </div>
                   <span className="text-[11px] text-gray-600 mt-0.5">
                     {groups.length} var · {opening.variations.length} lines
@@ -734,7 +561,9 @@ export default function PracticePage({ params, searchParams }: PageProps) {
                         {isExpanded && group.lines.length > 0 && (
                           <div className="mx-3 mb-2.5 mt-0.5 overflow-hidden rounded-lg border border-white/5 divide-y divide-white/5">
                             {group.lines.map(line => {
-                              const globalIndex = opening.variations.findIndex(v => v.id === line.id);
+                              const globalIndex = opening.variations.findIndex(
+                                v => v.id === line.id
+                              );
                               const vProgress = progress?.get(`${opening.id}/${line.id}`);
                               return (
                                 <BranchRow
@@ -746,7 +575,9 @@ export default function PracticePage({ params, searchParams }: PageProps) {
                                   mastery={vProgress?.mastery}
                                   completions={vProgress?.timesCompleted}
                                   onClick={() => handleLineClick(line.id, globalIndex)}
-                                  buttonRef={line.id === activeReferenceLineId ? activeLineRef : undefined}
+                                  buttonRef={
+                                    line.id === activeReferenceLineId ? activeLineRef : undefined
+                                  }
                                 />
                               );
                             })}
@@ -771,11 +602,16 @@ export default function PracticePage({ params, searchParams }: PageProps) {
               </div>
 
               {/* Branches panel */}
-              <div className="min-h-0 flex flex-col rounded-xl border border-white/5 bg-(--bg-panel)" style={{ flex: 41 }}>
+              <div
+                className="min-h-0 flex flex-col rounded-xl border border-white/5 bg-(--bg-panel)"
+                style={{ flex: 41 }}
+              >
                 <div className="shrink-0 px-4 pt-3 pb-2 border-b border-white/5">
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
-                      <h4 className="text-[10px] font-medium uppercase tracking-wider text-gray-600">Branches</h4>
+                      <h4 className="text-[10px] font-medium uppercase tracking-wider text-gray-600">
+                        Branches
+                      </h4>
                       <p className="mt-0.5 truncate text-[10px] text-gray-600">
                         {activeGroup?.displayName ?? 'Select a variation'}
                       </p>
@@ -810,25 +646,33 @@ export default function PracticePage({ params, searchParams }: PageProps) {
                   </div>
                 )}
               </div>
-
-            </div>{/* end variations+branches */}
-
-          </div>{/* end sidebar */}
-
+            </div>
+            {/* end variations+branches */}
+          </div>
+          {/* end sidebar */}
         </div>
       </div>
-
     </div>
   );
 }
 
-function ModeButton({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
+function ModeButton({
+  active,
+  onClick,
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
   return (
     <button
       type="button"
       onClick={onClick}
       className={`min-w-28 px-7 py-3 text-base font-semibold transition-colors ${
-        active ? 'bg-amber-400/15 text-amber-300' : 'text-gray-400 hover:bg-white/5 hover:text-white'
+        active
+          ? 'bg-amber-400/15 text-amber-300'
+          : 'text-gray-400 hover:bg-white/5 hover:text-white'
       }`}
     >
       {children}

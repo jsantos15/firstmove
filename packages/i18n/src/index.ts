@@ -161,6 +161,13 @@ export const EN_MESSAGES = {
 
   'coach.spoken.event': '{label}. {title}. {message}',
   'coach.spoken.wrong_move': 'Try again. {message}',
+  'coach.spoken.event.missed_tactic': 'Missed tactic. Look for {bestMoveSpeech}. {message}',
+  'coach.spoken.event.missed_win': 'Missed winning chance. Look for {bestMoveSpeech}. {message}',
+  'coach.spoken.event.blunder': 'Major problem after {moveSpeech}. {message}',
+  'coach.spoken.event.mistake': 'Problem after {moveSpeech}. {message}',
+  'coach.spoken.event.opponent_threat': 'Watch the reply {threatMoveSpeech}. {message}',
+  'coach.spoken.event.phase_summary': 'Phase summary. {message}',
+  'coach.spoken.event.game_summary': 'Game summary. {message}',
 
   'coach.persona.friendly.spoken.event': '{label}. {title}. {message}',
   'coach.persona.strict.spoken.event': '{label}. {message}',
@@ -393,6 +400,43 @@ function isMessageKey(value: string): value is I18nMessageKey {
   return value in EN_MESSAGES;
 }
 
+function sanToSpeech(moveSan: string | null | undefined) {
+  if (!moveSan) return '';
+
+  const pieceNames: Record<string, string> = {
+    K: 'king',
+    Q: 'queen',
+    R: 'rook',
+    B: 'bishop',
+    N: 'knight',
+  };
+  const fileNames: Record<string, string> = {
+    a: 'a',
+    b: 'b',
+    c: 'c',
+    d: 'd',
+    e: 'e',
+    f: 'f',
+    g: 'g',
+    h: 'h',
+  };
+
+  const trimmed = moveSan.replace(/^\.\.\./, '').trim();
+  if (trimmed === 'O-O') return 'castle king side';
+  if (trimmed === 'O-O-O') return 'castle queen side';
+
+  const cleaned = trimmed
+    .replace(/[+#?!]+/g, '')
+    .replace(/x/g, ' takes ')
+    .replace(/=/g, ' promotes to ');
+
+  return cleaned
+    .replace(/[KQRBN]/g, piece => pieceNames[piece] ?? piece)
+    .replace(/[a-h][1-8]/g, square => `${fileNames[square[0]]} ${square[1]}`)
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
 function getCoachEventTacticalMotif(event: CoachEvent): CoachTacticalMotif | null {
   const variableMotif = event.variables.tacticMotif;
   if (isCoachTacticalMotif(variableMotif)) return variableMotif;
@@ -548,22 +592,32 @@ export function renderCoachEvent(
   const tacticMotifLabel = tacticMotif
     ? formatMessage(COACH_TACTICAL_MOTIF_LABEL_KEYS[tacticMotif], {}, locale)
     : null;
-  const variables = {
+  const variables: CoachMessageVariables = {
     ...event.variables,
     tacticMotif,
     tacticMotifLabel,
   };
+  const spokenVariables = {
+    ...variables,
+    moveSpeech: sanToSpeech(variables.moveSan as string | undefined),
+    bestMoveSpeech: sanToSpeech(variables.bestMoveSan as string | undefined),
+    threatMoveSpeech: sanToSpeech(variables.threatMoveSan as string | undefined),
+  };
   const messageKey = isMessageKey(event.messageKey)
     ? event.messageKey
-    : getCoachEventMotifMessageKey(event) ??
-      firstExistingMessageKey(getCoachEventMessageFallbacks(event.eventType, persona));
+    : (getCoachEventMotifMessageKey(event) ??
+      firstExistingMessageKey(getCoachEventMessageFallbacks(event.eventType, persona)));
   const spokenTextKey = isMessageKey(event.spokenKey)
     ? event.spokenKey
     : firstExistingMessageKey(getCoachEventSpokenFallbacks(event.eventType, persona));
   const label = formatMessage(presentation.labelKey, {}, locale);
   const title = formatMessage(presentation.titleKey, {}, locale);
   const message = formatMessage(messageKey, variables, locale);
-  const spokenText = formatMessage(spokenTextKey, { label, title, message }, locale);
+  const spokenText = formatMessage(
+    spokenTextKey,
+    { ...spokenVariables, label, title, message },
+    locale
+  );
   const evidence = renderCoachEvidence({
     evidence: event.evidence,
     locale,
@@ -613,6 +667,10 @@ export function renderCoachEventComposition({
   const spokenText = formatMessage(
     renderedPrimary.spokenTextKey,
     {
+      ...renderedPrimary.variables,
+      moveSpeech: sanToSpeech(renderedPrimary.variables.moveSan as string | undefined),
+      bestMoveSpeech: sanToSpeech(renderedPrimary.variables.bestMoveSan as string | undefined),
+      threatMoveSpeech: sanToSpeech(renderedPrimary.variables.threatMoveSan as string | undefined),
       label: renderedPrimary.label,
       title: renderedPrimary.title,
       message,
