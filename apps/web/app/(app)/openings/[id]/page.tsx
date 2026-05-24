@@ -27,6 +27,10 @@ interface VariationGroup {
   lines: AppVariation[];
 }
 
+const MAX_DISPLAYED_BRANCHES_PER_VARIATION = 5;
+const MAX_LOW_EVAL_DISPLAYED_BRANCHES = 1;
+const LOW_EVAL_BRANCH_THRESHOLD_CP = 100;
+
 function extractGroupName(fullName: string | undefined, openingName: string): string {
   if (!fullName) return openingName;
   const prefix = `${openingName}: `;
@@ -243,12 +247,13 @@ function sortAndLimitDisplayedBranches(branches: AppVariation[], openingColor: '
     })
     .filter(branch => {
       const evalCp = branchEvalValue(branch, openingColor);
-      if (Number.isFinite(evalCp) && evalCp < 100) {
+      if (Number.isFinite(evalCp) && evalCp < LOW_EVAL_BRANCH_THRESHOLD_CP) {
         lowEvalCount += 1;
-        return lowEvalCount <= 3;
+        return lowEvalCount <= MAX_LOW_EVAL_DISPLAYED_BRANCHES;
       }
       return true;
-    });
+    })
+    .slice(0, MAX_DISPLAYED_BRANCHES_PER_VARIATION);
 }
 
 function PracticalBranchRow({
