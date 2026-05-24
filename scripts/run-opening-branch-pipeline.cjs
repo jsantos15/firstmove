@@ -45,6 +45,44 @@ const OPENINGS = {
       "opening-db-payload-caro-kann-branches.json"
     ),
   },
+  "sicilian-defense": {
+    slug: "sicilian-defense",
+    label: "Sicilian Defense",
+    referenceInput: path.resolve(
+      __dirname,
+      "output",
+      "generated-opening-candidates-sicilian-defense-cloud-reference.json"
+    ),
+    branchOutput: path.resolve(
+      __dirname,
+      "output",
+      "generated-opening-branches-sicilian-defense.json"
+    ),
+    payloadOutput: path.resolve(
+      __dirname,
+      "output",
+      "opening-db-payload-sicilian-defense-branches.json"
+    ),
+  },
+  "french-defense": {
+    slug: "french-defense",
+    label: "French Defense",
+    referenceInput: path.resolve(
+      __dirname,
+      "output",
+      "generated-opening-candidates-french-defense-cloud-reference.json"
+    ),
+    branchOutput: path.resolve(
+      __dirname,
+      "output",
+      "generated-opening-branches-french-defense.json"
+    ),
+    payloadOutput: path.resolve(
+      __dirname,
+      "output",
+      "opening-db-payload-french-defense-branches.json"
+    ),
+  },
 };
 
 function parseArgs(argv) {
