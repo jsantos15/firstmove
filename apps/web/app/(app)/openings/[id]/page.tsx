@@ -196,18 +196,30 @@ function formatBranchEval(value?: number | null) {
   return `${value > 0 ? '+' : '-'}${(Math.abs(value) / 100).toFixed(1)}`;
 }
 
-function branchEvalValue(branch: AppVariation) {
+function lineEvalFromTrainedPerspective(
+  value: number | null | undefined,
+  perspective: 'white' | 'black' | null | undefined,
+  openingColor: 'white' | 'black'
+) {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return Number.NEGATIVE_INFINITY;
+  const evalPerspective = perspective ?? openingColor;
+  const whiteEvalCp = evalPerspective === 'white' ? value : -value;
+  return openingColor === 'white' ? whiteEvalCp : -whiteEvalCp;
+}
+
+function branchEvalValue(branch: AppVariation, openingColor: 'white' | 'black') {
   return (
-    branch.branchMetadata?.final_trained_eval_cp ?? branch.finalEvalCp ?? Number.NEGATIVE_INFINITY
+    branch.branchMetadata?.final_trained_eval_cp ??
+    lineEvalFromTrainedPerspective(branch.finalEvalCp, branch.finalEvalPerspective, openingColor)
   );
 }
 
-function sortAndLimitDisplayedBranches(branches: AppVariation[]) {
+function sortAndLimitDisplayedBranches(branches: AppVariation[], openingColor: 'white' | 'black') {
   let lowEvalCount = 0;
   return [...branches]
     .sort((left, right) => {
-      const leftEval = branchEvalValue(left);
-      const rightEval = branchEvalValue(right);
+      const leftEval = branchEvalValue(left, openingColor);
+      const rightEval = branchEvalValue(right, openingColor);
       if (leftEval !== rightEval) return rightEval - leftEval;
       const leftScore = left.branchMetadata?.branch_score ?? Number.NEGATIVE_INFINITY;
       const rightScore = right.branchMetadata?.branch_score ?? Number.NEGATIVE_INFINITY;
@@ -215,7 +227,7 @@ function sortAndLimitDisplayedBranches(branches: AppVariation[]) {
       return left.name.localeCompare(right.name);
     })
     .filter(branch => {
-      const evalCp = branchEvalValue(branch);
+      const evalCp = branchEvalValue(branch, openingColor);
       if (Number.isFinite(evalCp) && evalCp < 100) {
         lowEvalCount += 1;
         return lowEvalCount <= 3;
@@ -230,6 +242,7 @@ function PracticalBranchRow({
   locked,
   mastery,
   completions,
+  openingColor,
   onClick,
 }: {
   branch: AppVariation;
@@ -237,6 +250,7 @@ function PracticalBranchRow({
   locked: boolean;
   mastery?: string;
   completions?: number;
+  openingColor: 'white' | 'black';
   onClick: () => void;
 }) {
   const metadata = branch.branchMetadata;
@@ -246,7 +260,7 @@ function PracticalBranchRow({
     : 'Practice branch';
   const playRate = formatBranchPercent(metadata?.trigger_move_play_rate);
   const games = metadata?.trigger_move_games;
-  const evalLabel = formatBranchEval(metadata?.final_trained_eval_cp ?? branch.finalEvalCp);
+  const evalLabel = formatBranchEval(branchEvalValue(branch, openingColor));
 
   return (
     <button
@@ -411,7 +425,8 @@ export default function PracticePage({ params, searchParams }: PageProps) {
   const selectedReferenceBranches = sortAndLimitDisplayedBranches(
     opening.practicalBranches.filter(
       branch => branch.branchMetadata?.parent_line_slug === activeReferenceLineId
-    )
+    ),
+    opening.color
   );
 
   // Group header click: toggle expand/collapse and auto-select first child if needed
@@ -635,6 +650,7 @@ export default function PracticePage({ params, searchParams }: PageProps) {
                           locked={activeReferenceGlobalIndex > 0 && !user}
                           mastery={branchProgress?.mastery}
                           completions={branchProgress?.timesCompleted}
+                          openingColor={opening.color}
                           onClick={() => handleBranchClick(branch.id)}
                         />
                       );

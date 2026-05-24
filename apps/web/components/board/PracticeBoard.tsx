@@ -73,11 +73,11 @@ function getBoardOrientation(openingColor: 'white' | 'black', flipBoard: boolean
   return baseOrientation === 'white' ? 'black' : 'white';
 }
 
-function formatEvalLabel(whiteEvalCp: number) {
-  if (Math.abs(whiteEvalCp) >= 9000) return '#';
-  if (Math.abs(whiteEvalCp) < 10) return '0.0';
-  const pawns = Math.abs(whiteEvalCp) / 100;
-  return `${whiteEvalCp > 0 ? '+' : '-'}${pawns.toFixed(1)}`;
+function formatEvalLabel(evalCp: number) {
+  if (Math.abs(evalCp) >= 9000) return '#';
+  if (Math.abs(evalCp) < 10) return '0.0';
+  const pawns = Math.abs(evalCp) / 100;
+  return `${evalCp > 0 ? '+' : '-'}${pawns.toFixed(1)}`;
 }
 
 function toWhiteEvalCp(
@@ -90,7 +90,17 @@ function toWhiteEvalCp(
   return evalPerspective === 'white' ? finalEvalCp : -finalEvalCp;
 }
 
-function EvalBar({ evalCp, reserveSpace = false }: { evalCp?: number; reserveSpace?: boolean }) {
+function EvalBar({
+  evalCp,
+  displayEvalCp,
+  displayPerspective,
+  reserveSpace = false,
+}: {
+  evalCp?: number;
+  displayEvalCp?: number;
+  displayPerspective: 'white' | 'black';
+  reserveSpace?: boolean;
+}) {
   if (typeof evalCp !== 'number' || !Number.isFinite(evalCp)) {
     return reserveSpace ? (
       <div
@@ -106,14 +116,17 @@ function EvalBar({ evalCp, reserveSpace = false }: { evalCp?: number; reserveSpa
 
   const clamped = Math.max(-EVAL_BAR_CP_LIMIT, Math.min(EVAL_BAR_CP_LIMIT, evalCp));
   const whiteHeight = 50 + (clamped / EVAL_BAR_CP_LIMIT) * 45;
-  const label = formatEvalLabel(evalCp);
+  const labelValue =
+    typeof displayEvalCp === 'number' && Number.isFinite(displayEvalCp) ? displayEvalCp : evalCp;
+  const label = formatEvalLabel(labelValue);
   const labelOnWhite = evalCp < 0;
+  const perspectiveLabel = displayPerspective === 'white' ? 'White' : 'Black';
 
   return (
     <div
       className="relative mr-2 hidden h-full w-7 shrink-0 overflow-hidden rounded-md border border-white/15 bg-[#181818] shadow-inner shadow-black/40 sm:block"
-      title={`Engine evaluation: ${label}`}
-      aria-label={`Engine evaluation ${label}`}
+      title={`Engine evaluation for ${perspectiveLabel}: ${label}`}
+      aria-label={`Engine evaluation for ${perspectiveLabel} ${label}`}
     >
       <div
         className="absolute inset-x-0 bottom-0 bg-zinc-100 transition-[height] duration-300"
@@ -587,6 +600,12 @@ export function PracticeBoard({
   const currentStaticEvalCp = getEvalAtPly(displayIndex);
   const dbEvalCp = useOpeningPositionEval(displayPosition);
   const displayedEvalCp = currentStaticEvalCp ?? dbEvalCp;
+  const trainedSideDisplayedEvalCp =
+    typeof displayedEvalCp === 'number' && Number.isFinite(displayedEvalCp)
+      ? opening.color === 'white'
+        ? displayedEvalCp
+        : -displayedEvalCp
+      : undefined;
 
   // Keep board offset stable from the start whenever this line can show eval data.
   const hasVisibleEvalBar =
@@ -905,7 +924,12 @@ export function PracticeBoard({
 
       {/* Board */}
       <div ref={wrapperRef} className="flex min-h-0 flex-1 items-center justify-center">
-        <EvalBar evalCp={displayedEvalCp} reserveSpace={hasVisibleEvalBar} />
+        <EvalBar
+          evalCp={displayedEvalCp}
+          displayEvalCp={trainedSideDisplayedEvalCp}
+          displayPerspective={opening.color}
+          reserveSpace={hasVisibleEvalBar}
+        />
         <div className="relative">
           <div
             className={`overflow-hidden rounded-xl transition-all duration-150 ${
