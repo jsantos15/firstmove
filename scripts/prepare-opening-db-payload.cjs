@@ -314,7 +314,10 @@ function buildBranchMetadataRow(line) {
     eval_after_trigger_cp:
       line.evalAfterTrigger ?? branch.evalAfterTrigger ?? null,
     final_trained_eval_cp:
-      line.finalEvalCp ?? branch.finalTrainedEvalCp ?? null,
+      branch.finalTrainedEvalCp ??
+      branch.selectionMetadata?.finalState?.trainedEvalCp ??
+      line.finalTrainedEvalCp ??
+      null,
     eval_gain_cp: line.evalGain ?? branch.evalGain ?? null,
     continuation_trace: branch.continuationTrace ?? line.generation?.extension ?? [],
     selection_metadata: branch.selectionMetadata ?? {},

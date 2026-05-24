@@ -207,9 +207,24 @@ function lineEvalFromTrainedPerspective(
   return openingColor === 'white' ? whiteEvalCp : -whiteEvalCp;
 }
 
+function metadataTrainedEvalCp(branch: AppVariation) {
+  const finalState =
+    branch.branchMetadata?.selection_metadata &&
+    typeof branch.branchMetadata.selection_metadata === 'object' &&
+    !Array.isArray(branch.branchMetadata.selection_metadata)
+      ? branch.branchMetadata.selection_metadata.finalState
+      : null;
+  if (!finalState || typeof finalState !== 'object' || Array.isArray(finalState)) return null;
+
+  const trainedEvalCp = finalState.trainedEvalCp;
+  return typeof trainedEvalCp === 'number' && Number.isFinite(trainedEvalCp)
+    ? trainedEvalCp
+    : null;
+}
+
 function branchEvalValue(branch: AppVariation, openingColor: 'white' | 'black') {
   return (
-    branch.branchMetadata?.final_trained_eval_cp ??
+    metadataTrainedEvalCp(branch) ??
     lineEvalFromTrainedPerspective(branch.finalEvalCp, branch.finalEvalPerspective, openingColor)
   );
 }

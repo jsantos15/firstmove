@@ -168,8 +168,36 @@ function compareLineRows(left: OpeningLineRow, right: OpeningLineRow) {
   return left.name.localeCompare(right.name);
 }
 
-function branchEvalForSort(line: OpeningLineRow, metadata?: OpeningLineBranchMetadataRow) {
-  return metadata?.final_trained_eval_cp ?? line.final_eval_cp ?? Number.NEGATIVE_INFINITY;
+function metadataTrainedEvalCp(metadata?: OpeningLineBranchMetadataRow) {
+  const finalState =
+    metadata?.selection_metadata &&
+    typeof metadata.selection_metadata === 'object' &&
+    !Array.isArray(metadata.selection_metadata)
+      ? metadata.selection_metadata.finalState
+      : null;
+  if (!finalState || typeof finalState !== 'object' || Array.isArray(finalState)) return null;
+
+  const trainedEvalCp = finalState.trainedEvalCp;
+  return typeof trainedEvalCp === 'number' && Number.isFinite(trainedEvalCp)
+    ? trainedEvalCp
+    : null;
+}
+
+function lineEvalFromTrainedPerspective(line: OpeningLineRow, openingColor: 'white' | 'black') {
+  if (typeof line.final_eval_cp !== 'number' || !Number.isFinite(line.final_eval_cp)) {
+    return Number.NEGATIVE_INFINITY;
+  }
+  const evalPerspective = line.final_eval_perspective ?? openingColor;
+  const whiteEvalCp = evalPerspective === 'white' ? line.final_eval_cp : -line.final_eval_cp;
+  return openingColor === 'white' ? whiteEvalCp : -whiteEvalCp;
+}
+
+function branchEvalForSort(
+  line: OpeningLineRow,
+  metadata: OpeningLineBranchMetadataRow | undefined,
+  openingColor: 'white' | 'black'
+) {
+  return metadataTrainedEvalCp(metadata) ?? lineEvalFromTrainedPerspective(line, openingColor);
 }
 
 function buildOpening(
@@ -190,8 +218,8 @@ function buildOpening(
   const sortedBranches = [...branchLines].sort((left, right) => {
     const leftMeta = branchMetadataByLineSlug.get(left.slug);
     const rightMeta = branchMetadataByLineSlug.get(right.slug);
-    const leftEval = branchEvalForSort(left, leftMeta);
-    const rightEval = branchEvalForSort(right, rightMeta);
+    const leftEval = branchEvalForSort(left, leftMeta, catalog.color);
+    const rightEval = branchEvalForSort(right, rightMeta, catalog.color);
     if (leftEval !== rightEval) return rightEval - leftEval;
     const leftScore = leftMeta?.branch_score ?? Number.NEGATIVE_INFINITY;
     const rightScore = rightMeta?.branch_score ?? Number.NEGATIVE_INFINITY;
