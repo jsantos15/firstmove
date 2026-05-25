@@ -131,14 +131,6 @@ function GroupHeader({
   );
 }
 
-function buildAnchorNotation(sans: string[]): string {
-  const parts: string[] = [];
-  for (let i = 0; i < sans.length; i++) {
-    if (i % 2 === 0) parts.push(`${Math.floor(i / 2) + 1}. ${sans[i]}`);
-    else parts[parts.length - 1] += ` ${sans[i]}`;
-  }
-  return parts.join('  ');
-}
 
 function BranchRow({
   line,
@@ -160,8 +152,6 @@ function BranchRow({
   buttonRef?: React.RefObject<HTMLButtonElement | null>;
 }) {
   const locked = globalIndex > 0 && !user;
-  const anchorSans = line.variationAnchorSans;
-  const anchorName = line.variationAnchorName;
 
   return (
     <button
@@ -198,16 +188,6 @@ function BranchRow({
             ) : null}
           </div>
         </div>
-        {isActive && anchorSans && anchorSans.length > 0 && (
-          <div className="mt-1.5">
-            {anchorName && (
-              <p className="mb-0.5 truncate text-[9px] text-amber-400/50">{anchorName}</p>
-            )}
-            <p className="font-mono text-[9px] leading-relaxed text-amber-300/40 break-words whitespace-normal">
-              {buildAnchorNotation(anchorSans)}
-            </p>
-          </div>
-        )}
       </div>
     </button>
   );
@@ -301,11 +281,6 @@ function PracticalBranchRow({
 }) {
   const metadata = branch.branchMetadata;
   const title = metadata?.lesson_title ?? branch.name;
-  const trigger = metadata?.trigger_move_san
-    ? `vs ${metadata.trigger_move_san}`
-    : 'Practice branch';
-  const playRate = formatBranchPercent(metadata?.trigger_move_play_rate);
-  const games = metadata?.trigger_move_games;
   const evalLabel = formatBranchEval(branchEvalValue(branch, openingColor));
 
   return (
@@ -326,11 +301,6 @@ function PracticalBranchRow({
             className={`block truncate text-xs font-medium leading-tight ${isActive ? 'text-amber-300' : 'text-gray-300'}`}
           >
             {title}
-          </span>
-          <span className="mt-1 block truncate text-[10px] text-gray-600">
-            {trigger}
-            {playRate ? ` · ${playRate}` : ''}
-            {games ? ` · ${games.toLocaleString()} games` : ''}
           </span>
         </div>
         <div className="flex shrink-0 items-center gap-1.5">
@@ -470,6 +440,8 @@ export default function PracticePage({ params, searchParams }: PageProps) {
   const activeReferenceGlobalIndex = opening.variations.findIndex(
     v => v.id === activeReferenceLineId
   );
+  const selectedVariationAnchorPly =
+    allPracticeLines.find(v => v.id === selectedLineId)?.variationAnchorPly ?? null;
   const selectedReferenceBranches = sortAndLimitDisplayedBranches(
     opening.practicalBranches.filter(
       branch => branch.branchMetadata?.parent_line_slug === activeReferenceLineId
@@ -575,10 +547,16 @@ export default function PracticePage({ params, searchParams }: PageProps) {
             {/* Coach — fixed */}
             <CoachBubble feedback={coachFeedback} fallbackText={opening.description} />
 
-            {/* Move list — only in Learn mode */}
+            {/* Move list — only in Learn mode, up to anchor ply */}
             {mode === 'learn' && selectedVariation && (
               <MoveList
-                variation={selectedVariation}
+                variation={{
+                  ...selectedVariation,
+                  moves:
+                    selectedVariationAnchorPly != null
+                      ? selectedVariation.moves.slice(0, selectedVariationAnchorPly)
+                      : selectedVariation.moves,
+                }}
                 currentMoveIndex={currentMoveIndex}
                 milestones={lessonOpeningMilestones}
               />

@@ -29,7 +29,8 @@ function buildMoves(sans: string[]): OpeningMove[] {
 
 // ─── DB row types ─────────────────────────────────────────────────────────────
 
-export type AppOpening = Opening & {
+export type AppOpening = Omit<Opening, 'variations'> & {
+  variations: AppVariation[];
   displayTier?: OpeningCatalogRow['display_tier'];
   isFeatured?: OpeningCatalogRow['is_featured'];
   popularityRank?: OpeningCatalogRow['popularity_rank'];
@@ -40,25 +41,25 @@ export type AppOpening = Opening & {
 };
 
 export type AppVariation = OpeningVariation & {
-  engineChecked?: OpeningLineRow['engine_checked'];
-  evalCpByPly?: OpeningLineRow['eval_cp_by_ply'];
-  finalEvalCp?: OpeningLineRow['final_eval_cp'];
-  finalEvalPerspective?: OpeningLineRow['final_eval_perspective'];
-  fullName?: OpeningLineRow['full_name'];
-  primaryCategory?: OpeningLineRow['primary_category'];
-  inclusionOutcome?: OpeningLineRow['inclusion_outcome'];
-  lineDifficulty?: OpeningLineRow['line_difficulty'];
-  isMainLine?: OpeningLineRow['is_main_line'];
-  popularityRank?: OpeningLineRow['popularity_rank'];
-  popularityScore?: OpeningLineRow['popularity_score'];
-  popularityGames?: OpeningLineRow['popularity_games'];
-  sourceName?: OpeningLineRow['source_name'];
-  sourceConfidence?: OpeningLineRow['source_confidence'];
-  variationAnchorSans?: OpeningLineRow['variation_anchor_sans'];
-  variationAnchorPly?: OpeningLineRow['variation_anchor_ply'];
-  variationAnchorName?: OpeningLineRow['variation_anchor_name'];
-  variationAnchorFen?: OpeningLineRow['variation_anchor_fen'];
-  lineKind?: OpeningLineRow['line_kind'];
+  engineChecked?: NonNullable<OpeningLineRow['engine_checked']>;
+  evalCpByPly?: NonNullable<OpeningLineRow['eval_cp_by_ply']>;
+  finalEvalCp?: NonNullable<OpeningLineRow['final_eval_cp']>;
+  finalEvalPerspective?: NonNullable<OpeningLineRow['final_eval_perspective']>;
+  fullName?: NonNullable<OpeningLineRow['full_name']>;
+  primaryCategory?: NonNullable<OpeningLineRow['primary_category']>;
+  inclusionOutcome?: NonNullable<OpeningLineRow['inclusion_outcome']>;
+  lineDifficulty?: NonNullable<OpeningLineRow['line_difficulty']>;
+  isMainLine?: NonNullable<OpeningLineRow['is_main_line']>;
+  popularityRank?: NonNullable<OpeningLineRow['popularity_rank']>;
+  popularityScore?: NonNullable<OpeningLineRow['popularity_score']>;
+  popularityGames?: NonNullable<OpeningLineRow['popularity_games']>;
+  sourceName?: NonNullable<OpeningLineRow['source_name']>;
+  sourceConfidence?: NonNullable<OpeningLineRow['source_confidence']>;
+  variationAnchorSans?: NonNullable<OpeningLineRow['variation_anchor_sans']>;
+  variationAnchorPly?: NonNullable<OpeningLineRow['variation_anchor_ply']>;
+  variationAnchorName?: NonNullable<OpeningLineRow['variation_anchor_name']>;
+  variationAnchorFen?: NonNullable<OpeningLineRow['variation_anchor_fen']>;
+  lineKind?: NonNullable<OpeningLineRow['line_kind']>;
   branchMetadata?: OpeningLineBranchMetadataRow;
 };
 
