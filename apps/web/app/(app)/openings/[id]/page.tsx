@@ -441,8 +441,12 @@ export default function PracticePage({ params, searchParams }: PageProps) {
   const activeReferenceGlobalIndex = opening.variations.findIndex(
     v => v.id === activeReferenceLineId
   );
+  const selectedLine = allPracticeLines.find(v => v.id === selectedLineId);
+  // Branches show all moves; anchor truncation only applies to reference variations.
   const selectedVariationAnchorPly =
-    allPracticeLines.find(v => v.id === selectedLineId)?.variationAnchorPly ?? null;
+    selectedLine?.lineKind !== 'practical_branch'
+      ? (selectedLine?.variationAnchorPly ?? null)
+      : null;
   const selectedReferenceBranches = sortAndLimitDisplayedBranches(
     opening.practicalBranches.filter(
       branch => branch.branchMetadata?.parent_line_slug === activeReferenceLineId
@@ -700,10 +704,10 @@ export default function PracticePage({ params, searchParams }: PageProps) {
                   {/* Divider */}
                   <div className="mx-4 border-t border-white/5" />
 
-                  {/* Branches section */}
+                  {/* Punish lines section */}
                   <div className="px-4 pt-3 pb-1">
                     <p className="text-[10px] font-medium uppercase tracking-wider text-gray-600">
-                      Branches
+                      Punish lines
                     </p>
                     <p className="mt-0.5 text-[10px] text-gray-700">Punish opponent mistakes</p>
                   </div>
