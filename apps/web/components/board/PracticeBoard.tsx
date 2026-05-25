@@ -101,14 +101,18 @@ function EvalBar({
   displayPerspective: 'white' | 'black';
   reserveSpace?: boolean;
 }) {
+  const bottomColor = displayPerspective;
+  const bottomClassName = bottomColor === 'white' ? 'bg-zinc-100' : 'bg-[#181818]';
+  const topClassName = bottomColor === 'white' ? 'bg-[#181818]' : 'bg-zinc-100';
+
   if (typeof evalCp !== 'number' || !Number.isFinite(evalCp)) {
     return reserveSpace ? (
       <div
-        className="relative mr-2 hidden h-full w-7 shrink-0 overflow-hidden rounded-md border border-white/15 bg-[#181818] shadow-inner shadow-black/40 sm:block"
+        className={`relative mr-2 hidden h-full w-7 shrink-0 overflow-hidden rounded-md border border-white/15 ${topClassName} shadow-inner shadow-black/40 sm:block`}
         title="Engine evaluation loading"
         aria-label="Engine evaluation loading"
       >
-        <div className="absolute inset-x-0 bottom-0 h-1/2 bg-zinc-100 opacity-70" />
+        <div className={`absolute inset-x-0 bottom-0 h-1/2 opacity-70 ${bottomClassName}`} />
         <div className="pointer-events-none absolute inset-x-0 top-1/2 h-px bg-amber-400/45" />
       </div>
     ) : null;
@@ -116,26 +120,33 @@ function EvalBar({
 
   const clamped = Math.max(-EVAL_BAR_CP_LIMIT, Math.min(EVAL_BAR_CP_LIMIT, evalCp));
   const whiteHeight = 50 + (clamped / EVAL_BAR_CP_LIMIT) * 45;
+  const bottomHeight = bottomColor === 'white' ? whiteHeight : 100 - whiteHeight;
   const labelValue =
     typeof displayEvalCp === 'number' && Number.isFinite(displayEvalCp) ? displayEvalCp : evalCp;
   const label = formatEvalLabel(labelValue);
-  const labelOnWhite = evalCp < 0;
+  const labelOnBottom = labelValue >= 0;
   const perspectiveLabel = displayPerspective === 'white' ? 'White' : 'Black';
 
   return (
     <div
-      className="relative mr-2 hidden h-full w-7 shrink-0 overflow-hidden rounded-md border border-white/15 bg-[#181818] shadow-inner shadow-black/40 sm:block"
+      className={`relative mr-2 hidden h-full w-7 shrink-0 overflow-hidden rounded-md border border-white/15 ${topClassName} shadow-inner shadow-black/40 sm:block`}
       title={`Engine evaluation for ${perspectiveLabel}: ${label}`}
       aria-label={`Engine evaluation for ${perspectiveLabel} ${label}`}
     >
       <div
-        className="absolute inset-x-0 bottom-0 bg-zinc-100 transition-[height] duration-300"
-        style={{ height: `${whiteHeight}%` }}
+        className={`absolute inset-x-0 bottom-0 transition-[height] duration-300 ${bottomClassName}`}
+        style={{ height: `${bottomHeight}%` }}
       />
       <div className="pointer-events-none absolute inset-x-0 top-1/2 h-px bg-amber-400/45" />
       <div
         className={`pointer-events-none absolute left-1/2 -translate-x-1/2 text-[10px] font-semibold tabular-nums ${
-          labelOnWhite ? 'bottom-1 text-zinc-950' : 'top-1 text-zinc-100'
+          labelOnBottom
+            ? bottomColor === 'white'
+              ? 'bottom-1 text-zinc-950'
+              : 'bottom-1 text-zinc-100'
+            : bottomColor === 'white'
+              ? 'top-1 text-zinc-100'
+              : 'top-1 text-zinc-950'
         }`}
       >
         {label}
