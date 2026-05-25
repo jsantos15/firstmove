@@ -335,6 +335,7 @@ export default function PracticePage({ params, searchParams }: PageProps) {
   const [selectedLineId, setSelectedLineId] = useState<string | null>(null);
   const [selectedReferenceLineId, setSelectedReferenceLineId] = useState<string | null>(null);
   const [showAuthPrompt, setShowAuthPrompt] = useState(false);
+  const [viewingFullLine, setViewingFullLine] = useState(false);
   const activeLineRef = useRef<HTMLButtonElement>(null);
   const [currentMoveIndex, setCurrentMoveIndex] = useState(-1);
   const [mode, setMode] = useState<PracticeMode>('learn');
@@ -476,6 +477,7 @@ export default function PracticePage({ params, searchParams }: PageProps) {
     setShowAuthPrompt(false);
     setSelectedLineId(lineId);
     setSelectedReferenceLineId(lineId);
+    setViewingFullLine(false);
     setCoachFeedback(null);
   }
 
@@ -486,6 +488,20 @@ export default function PracticePage({ params, searchParams }: PageProps) {
     }
     setShowAuthPrompt(false);
     setSelectedLineId(branchId);
+    setViewingFullLine(false);
+    setCoachFeedback(null);
+  }
+
+  function handleReferenceLineClick() {
+    if (!selectedReferenceVariation || !opening) return;
+    const idx = opening.variations.findIndex(v => v.id === selectedReferenceVariation.id);
+    if (idx > 0 && !user) {
+      setShowAuthPrompt(true);
+      return;
+    }
+    setShowAuthPrompt(false);
+    setSelectedLineId(selectedReferenceVariation.id);
+    setViewingFullLine(true);
     setCoachFeedback(null);
   }
 
@@ -547,13 +563,13 @@ export default function PracticePage({ params, searchParams }: PageProps) {
             {/* Coach — fixed */}
             <CoachBubble feedback={coachFeedback} fallbackText={opening.description} />
 
-            {/* Move list — only in Learn mode, up to anchor ply */}
+            {/* Move list — anchor moves only until user explicitly views full line */}
             {mode === 'learn' && selectedVariation && (
               <MoveList
                 variation={{
                   ...selectedVariation,
                   moves:
-                    selectedVariationAnchorPly != null
+                    !viewingFullLine && selectedVariationAnchorPly != null
                       ? selectedVariation.moves.slice(0, selectedVariationAnchorPly)
                       : selectedVariation.moves,
                 }}
@@ -576,7 +592,7 @@ export default function PracticePage({ params, searchParams }: PageProps) {
                       Variations
                     </h3>
                     <p className="mt-0.5 text-[10px] text-gray-600">
-                      Reference continuations generated from the named position
+                      Named lines — select to study the moves
                     </p>
                   </div>
                   <span className="text-[11px] text-gray-600 mt-0.5">
@@ -658,23 +674,16 @@ export default function PracticePage({ params, searchParams }: PageProps) {
                     {selectedReferenceVariation ? (
                       <button
                         type="button"
-                        onClick={() => {
-                          const idx = opening.variations.findIndex(
-                            v => v.id === selectedReferenceVariation.id
-                          );
-                          handleLineClick(selectedReferenceVariation.id, idx);
-                        }}
+                        onClick={handleReferenceLineClick}
                         className={`group relative w-full rounded-lg border px-3 py-2 text-left transition-colors ${
-                          selectedLineId === selectedReferenceVariation.id
+                          viewingFullLine
                             ? 'border-amber-400/30 bg-amber-400/10'
                             : 'border-white/5 bg-white/[0.02] hover:border-white/10 hover:bg-white/[0.04]'
                         }`}
                       >
                         <span
                           className={`block truncate text-xs font-medium leading-tight ${
-                            selectedLineId === selectedReferenceVariation.id
-                              ? 'text-amber-300'
-                              : 'text-gray-300'
+                            viewingFullLine ? 'text-amber-300' : 'text-gray-300'
                           }`}
                         >
                           {selectedReferenceVariation.name}
@@ -691,11 +700,12 @@ export default function PracticePage({ params, searchParams }: PageProps) {
                   {/* Divider */}
                   <div className="mx-4 border-t border-white/5" />
 
-                  {/* Punish lines section */}
-                  <div className="px-4 pt-3 pb-2">
+                  {/* Branches section */}
+                  <div className="px-4 pt-3 pb-1">
                     <p className="text-[10px] font-medium uppercase tracking-wider text-gray-600">
-                      Punish lines
+                      Branches
                     </p>
+                    <p className="mt-0.5 text-[10px] text-gray-700">Punish opponent mistakes</p>
                   </div>
                   {selectedReferenceBranches.length > 0 ? (
                     <div className="px-3 pb-3 flex flex-col gap-1.5">
