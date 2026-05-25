@@ -213,35 +213,6 @@ function BranchRow({
   );
 }
 
-function ReferenceLineMoves({ variation }: { variation: AppVariation | undefined }) {
-  if (!variation || variation.moves.length === 0) {
-    return (
-      <div className="flex-1 px-4 py-3 text-xs text-gray-600">
-        {variation ? 'No moves available.' : 'Select a variation to see its moves.'}
-      </div>
-    );
-  }
-
-  const moves = variation.moves;
-  const pairs: Array<{ moveNum: number; white: string; black?: string }> = [];
-  for (let i = 0; i < moves.length; i += 2) {
-    pairs.push({ moveNum: Math.floor(i / 2) + 1, white: moves[i].san, black: moves[i + 1]?.san });
-  }
-
-  return (
-    <div className="min-h-0 flex-1 overflow-y-auto px-2 py-1.5">
-      {pairs.map(pair => (
-        <div key={pair.moveNum} className="flex items-center gap-1 py-0.5">
-          <span className="w-6 shrink-0 select-none pr-1 text-right font-mono text-[11px] text-gray-600">
-            {pair.moveNum}.
-          </span>
-          <span className="flex-1 font-mono text-xs text-gray-300">{pair.white}</span>
-          <span className="flex-1 font-mono text-xs text-gray-400">{pair.black ?? ''}</span>
-        </div>
-      ))}
-    </div>
-  );
-}
 
 function formatBranchPercent(value?: number | null) {
   if (typeof value !== 'number' || !Number.isFinite(value)) return null;
@@ -394,7 +365,6 @@ export default function PracticePage({ params, searchParams }: PageProps) {
   const [selectedLineId, setSelectedLineId] = useState<string | null>(null);
   const [selectedReferenceLineId, setSelectedReferenceLineId] = useState<string | null>(null);
   const [showAuthPrompt, setShowAuthPrompt] = useState(false);
-  const [bottomTab, setBottomTab] = useState<'line' | 'branches'>('line');
   const activeLineRef = useRef<HTMLButtonElement>(null);
   const [currentMoveIndex, setCurrentMoveIndex] = useState(-1);
   const [mode, setMode] = useState<PracticeMode>('learn');
@@ -699,64 +669,80 @@ export default function PracticePage({ params, searchParams }: PageProps) {
                 className="min-h-0 flex flex-col rounded-xl border border-white/5 bg-(--bg-panel)"
                 style={{ flex: 56 }}
               >
-                {/* Tabs */}
-                <div className="shrink-0 flex border-b border-white/5">
-                  <button
-                    type="button"
-                    onClick={() => setBottomTab('line')}
-                    className={`relative flex-1 py-2.5 text-xs font-medium transition-colors ${
-                      bottomTab === 'line' ? 'text-white' : 'text-gray-500 hover:text-gray-300'
-                    }`}
-                  >
-                    Reference Line
-                    {bottomTab === 'line' && (
-                      <span className="absolute inset-x-0 bottom-0 h-px bg-amber-400" />
+                <div className="flex-1 min-h-0 overflow-y-auto">
+                  {/* Reference line section */}
+                  <div className="px-4 pt-3 pb-2">
+                    <p className="text-[10px] font-medium uppercase tracking-wider text-gray-600">
+                      Reference line
+                    </p>
+                  </div>
+                  <div className="px-3 pb-3">
+                    {selectedReferenceVariation ? (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const idx = opening.variations.findIndex(
+                            v => v.id === selectedReferenceVariation.id
+                          );
+                          handleLineClick(selectedReferenceVariation.id, idx);
+                        }}
+                        className={`group relative w-full rounded-lg border px-3 py-2 text-left transition-colors ${
+                          selectedLineId === selectedReferenceVariation.id
+                            ? 'border-amber-400/30 bg-amber-400/10'
+                            : 'border-white/5 bg-white/[0.02] hover:border-white/10 hover:bg-white/[0.04]'
+                        }`}
+                      >
+                        <span
+                          className={`block truncate text-xs font-medium leading-tight ${
+                            selectedLineId === selectedReferenceVariation.id
+                              ? 'text-amber-300'
+                              : 'text-gray-300'
+                          }`}
+                        >
+                          {selectedReferenceVariation.name}
+                        </span>
+                        <span className="mt-0.5 block text-[10px] text-gray-600">
+                          Engine continuation
+                        </span>
+                      </button>
+                    ) : (
+                      <p className="text-xs text-gray-600">Select a variation above.</p>
                     )}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setBottomTab('branches')}
-                    className={`relative flex-1 py-2.5 text-xs font-medium transition-colors ${
-                      bottomTab === 'branches' ? 'text-white' : 'text-gray-500 hover:text-gray-300'
-                    }`}
-                  >
-                    Branches
-                    {selectedReferenceBranches.length > 0 && (
-                      <span className="ml-1 text-gray-600">
-                        ({selectedReferenceBranches.length})
-                      </span>
-                    )}
-                    {bottomTab === 'branches' && (
-                      <span className="absolute inset-x-0 bottom-0 h-px bg-amber-400" />
-                    )}
-                  </button>
-                </div>
+                  </div>
 
-                {bottomTab === 'line' ? (
-                  <ReferenceLineMoves variation={selectedReferenceVariation} />
-                ) : selectedReferenceBranches.length > 0 ? (
-                  <div className="flex-1 min-h-0 overflow-y-auto px-3 py-2 flex flex-col gap-1.5">
-                    {selectedReferenceBranches.map(branch => {
-                      const branchProgress = progress?.get(`${opening.id}/${branch.id}`);
-                      return (
-                        <PracticalBranchRow
-                          key={branch.id}
-                          branch={branch}
-                          isActive={branch.id === selectedLineId}
-                          locked={activeReferenceGlobalIndex > 0 && !user}
-                          mastery={branchProgress?.mastery}
-                          completions={branchProgress?.timesCompleted}
-                          openingColor={opening.color}
-                          onClick={() => handleBranchClick(branch.id)}
-                        />
-                      );
-                    })}
+                  {/* Divider */}
+                  <div className="mx-4 border-t border-white/5" />
+
+                  {/* Punish lines section */}
+                  <div className="px-4 pt-3 pb-2">
+                    <p className="text-[10px] font-medium uppercase tracking-wider text-gray-600">
+                      Punish lines
+                    </p>
                   </div>
-                ) : (
-                  <div className="flex-1 px-4 py-3 text-xs text-gray-600">
-                    No practical branches stored for this variation yet.
-                  </div>
-                )}
+                  {selectedReferenceBranches.length > 0 ? (
+                    <div className="px-3 pb-3 flex flex-col gap-1.5">
+                      {selectedReferenceBranches.map(branch => {
+                        const branchProgress = progress?.get(`${opening.id}/${branch.id}`);
+                        return (
+                          <PracticalBranchRow
+                            key={branch.id}
+                            branch={branch}
+                            isActive={branch.id === selectedLineId}
+                            locked={activeReferenceGlobalIndex > 0 && !user}
+                            mastery={branchProgress?.mastery}
+                            completions={branchProgress?.timesCompleted}
+                            openingColor={opening.color}
+                            onClick={() => handleBranchClick(branch.id)}
+                          />
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <p className="px-4 pb-3 text-xs text-gray-600">
+                      No punish lines stored for this variation yet.
+                    </p>
+                  )}
+                </div>
               </div>
             </div>
             {/* end variations+branches */}
