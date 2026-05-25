@@ -131,6 +131,15 @@ function GroupHeader({
   );
 }
 
+function buildAnchorNotation(sans: string[]): string {
+  const parts: string[] = [];
+  for (let i = 0; i < sans.length; i++) {
+    if (i % 2 === 0) parts.push(`${Math.floor(i / 2) + 1}. ${sans[i]}`);
+    else parts[parts.length - 1] += ` ${sans[i]}`;
+  }
+  return parts.join('  ');
+}
+
 function BranchRow({
   line,
   globalIndex,
@@ -151,13 +160,15 @@ function BranchRow({
   buttonRef?: React.RefObject<HTMLButtonElement | null>;
 }) {
   const locked = globalIndex > 0 && !user;
+  const anchorSans = line.variationAnchorSans;
+  const anchorName = line.variationAnchorName;
 
   return (
     <button
       ref={buttonRef}
       type="button"
       onClick={onClick}
-      className={`group relative w-full flex items-center gap-2.5 px-3 py-2 text-left text-xs transition-all ${
+      className={`group relative w-full flex items-start gap-2.5 px-3 py-2 text-left text-xs transition-all ${
         isActive
           ? 'bg-amber-400/8 text-amber-300'
           : locked
@@ -171,20 +182,64 @@ function BranchRow({
           isActive ? 'bg-amber-400' : 'bg-transparent group-hover:bg-white/15'
         }`}
       />
-      <span className="min-w-0 flex-1 truncate font-medium leading-tight">{line.name}</span>
-      <div className="flex shrink-0 items-center gap-1.5">
-        {completions != null && completions > 0 && (
-          <span className="text-[10px] text-gray-600">{completions}×</span>
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-2">
+          <span className="min-w-0 flex-1 truncate font-medium leading-tight">{line.name}</span>
+          <div className="flex shrink-0 items-center gap-1.5">
+            {completions != null && completions > 0 && (
+              <span className="text-[10px] text-gray-600">{completions}×</span>
+            )}
+            {locked ? (
+              <span className="text-[11px]">🔒</span>
+            ) : mastery && mastery !== 'new' ? (
+              <span
+                className={`h-1.5 w-1.5 rounded-full ${MASTERY_COLORS[mastery as keyof typeof MASTERY_COLORS]}`}
+              />
+            ) : null}
+          </div>
+        </div>
+        {isActive && anchorSans && anchorSans.length > 0 && (
+          <div className="mt-1.5">
+            {anchorName && (
+              <p className="mb-0.5 truncate text-[9px] text-amber-400/50">{anchorName}</p>
+            )}
+            <p className="font-mono text-[9px] leading-relaxed text-amber-300/40 break-words whitespace-normal">
+              {buildAnchorNotation(anchorSans)}
+            </p>
+          </div>
         )}
-        {locked ? (
-          <span className="text-[11px]">🔒</span>
-        ) : mastery && mastery !== 'new' ? (
-          <span
-            className={`h-1.5 w-1.5 rounded-full ${MASTERY_COLORS[mastery as keyof typeof MASTERY_COLORS]}`}
-          />
-        ) : null}
       </div>
     </button>
+  );
+}
+
+function ReferenceLineMoves({ variation }: { variation: AppVariation | undefined }) {
+  if (!variation || variation.moves.length === 0) {
+    return (
+      <div className="flex-1 px-4 py-3 text-xs text-gray-600">
+        {variation ? 'No moves available.' : 'Select a variation to see its moves.'}
+      </div>
+    );
+  }
+
+  const moves = variation.moves;
+  const pairs: Array<{ moveNum: number; white: string; black?: string }> = [];
+  for (let i = 0; i < moves.length; i += 2) {
+    pairs.push({ moveNum: Math.floor(i / 2) + 1, white: moves[i].san, black: moves[i + 1]?.san });
+  }
+
+  return (
+    <div className="min-h-0 flex-1 overflow-y-auto px-2 py-1.5">
+      {pairs.map(pair => (
+        <div key={pair.moveNum} className="flex items-center gap-1 py-0.5">
+          <span className="w-6 shrink-0 select-none pr-1 text-right font-mono text-[11px] text-gray-600">
+            {pair.moveNum}.
+          </span>
+          <span className="flex-1 font-mono text-xs text-gray-300">{pair.white}</span>
+          <span className="flex-1 font-mono text-xs text-gray-400">{pair.black ?? ''}</span>
+        </div>
+      ))}
+    </div>
   );
 }
 
@@ -339,6 +394,7 @@ export default function PracticePage({ params, searchParams }: PageProps) {
   const [selectedLineId, setSelectedLineId] = useState<string | null>(null);
   const [selectedReferenceLineId, setSelectedReferenceLineId] = useState<string | null>(null);
   const [showAuthPrompt, setShowAuthPrompt] = useState(false);
+  const [bottomTab, setBottomTab] = useState<'line' | 'branches'>('line');
   const activeLineRef = useRef<HTMLButtonElement>(null);
   const [currentMoveIndex, setCurrentMoveIndex] = useState(-1);
   const [mode, setMode] = useState<PracticeMode>('learn');
@@ -437,6 +493,8 @@ export default function PracticePage({ params, searchParams }: PageProps) {
   const groups = groupVariations(opening.variations, opening.name);
   const activeReferenceLineId = selectedReferenceLineId ?? selectedLineId;
   const activeGroup = groups.find(g => g.lines.some(l => l.id === activeReferenceLineId));
+  const selectedReferenceVariation =
+    opening.variations.find(v => v.id === activeReferenceLineId) ?? opening.variations[0];
   const selectedVariation =
     allPracticeLines.find(v => v.id === selectedLineId) ?? opening.variations[0];
   const activeReferenceGlobalIndex = opening.variations.findIndex(
@@ -561,7 +619,7 @@ export default function PracticePage({ params, searchParams }: PageProps) {
               {/* Variations panel */}
               <div
                 className="min-h-0 flex flex-col rounded-xl border border-white/5 bg-(--bg-panel)"
-                style={{ flex: 59 }}
+                style={{ flex: 44 }}
               >
                 {/* Panel header */}
                 <div className="shrink-0 flex items-start justify-between px-4 pt-4 pb-3 border-b border-white/5">
@@ -636,29 +694,47 @@ export default function PracticePage({ params, searchParams }: PageProps) {
                 )}
               </div>
 
-              {/* Branches panel */}
+              {/* Reference line + Branches panel */}
               <div
                 className="min-h-0 flex flex-col rounded-xl border border-white/5 bg-(--bg-panel)"
-                style={{ flex: 41 }}
+                style={{ flex: 56 }}
               >
-                <div className="shrink-0 px-4 pt-3 pb-2 border-b border-white/5">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <h4 className="text-[10px] font-medium uppercase tracking-wider text-gray-600">
-                        Branches
-                      </h4>
-                      <p className="mt-0.5 truncate text-[10px] text-gray-600">
-                        {activeGroup?.displayName ?? 'Select a variation'}
-                      </p>
-                    </div>
+                {/* Tabs */}
+                <div className="shrink-0 flex border-b border-white/5">
+                  <button
+                    type="button"
+                    onClick={() => setBottomTab('line')}
+                    className={`relative flex-1 py-2.5 text-xs font-medium transition-colors ${
+                      bottomTab === 'line' ? 'text-white' : 'text-gray-500 hover:text-gray-300'
+                    }`}
+                  >
+                    Reference Line
+                    {bottomTab === 'line' && (
+                      <span className="absolute inset-x-0 bottom-0 h-px bg-amber-400" />
+                    )}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setBottomTab('branches')}
+                    className={`relative flex-1 py-2.5 text-xs font-medium transition-colors ${
+                      bottomTab === 'branches' ? 'text-white' : 'text-gray-500 hover:text-gray-300'
+                    }`}
+                  >
+                    Branches
                     {selectedReferenceBranches.length > 0 && (
-                      <span className="shrink-0 text-[11px] text-gray-600">
-                        {selectedReferenceBranches.length}
+                      <span className="ml-1 text-gray-600">
+                        ({selectedReferenceBranches.length})
                       </span>
                     )}
-                  </div>
+                    {bottomTab === 'branches' && (
+                      <span className="absolute inset-x-0 bottom-0 h-px bg-amber-400" />
+                    )}
+                  </button>
                 </div>
-                {selectedReferenceBranches.length > 0 ? (
+
+                {bottomTab === 'line' ? (
+                  <ReferenceLineMoves variation={selectedReferenceVariation} />
+                ) : selectedReferenceBranches.length > 0 ? (
                   <div className="flex-1 min-h-0 overflow-y-auto px-3 py-2 flex flex-col gap-1.5">
                     {selectedReferenceBranches.map(branch => {
                       const branchProgress = progress?.get(`${opening.id}/${branch.id}`);
