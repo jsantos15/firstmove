@@ -1,4 +1,4 @@
-const DEFAULT_BASE_URL = "https://explorer.lichess.ovh/lichess";
+const DEFAULT_BASE_URL = "https://explorer.lichess.org/lichess";
 const { loadScriptEnv } = require("./local-env.cjs");
 
 function buildExplorerHeaders(options = {}) {
