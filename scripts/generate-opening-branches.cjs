@@ -79,6 +79,7 @@ function parseArgs(argv) {
     cloudEvalMaxRetries: 0,
     cloudEvalMinDepth: 0,
     progressIntervalMs: 30000,
+    explorerRetries: 8,
     cloudEvalCache: path.resolve(__dirname, "output", "lichess-cloud-eval-cache.json"),
     chessApiCache: path.resolve(__dirname, "output", "chess-api-eval-cache.json"),
     stockfishEvalCache: path.resolve(__dirname, "output", "stockfish-eval-cache.json"),
@@ -153,6 +154,7 @@ function parseArgs(argv) {
     else if (token === "--cloud-eval-max-retries") args.cloudEvalMaxRetries = Number(next());
     else if (token === "--cloud-eval-min-depth") args.cloudEvalMinDepth = Number(next());
     else if (token === "--progress-interval-ms") args.progressIntervalMs = Number(next());
+    else if (token === "--explorer-retries") args.explorerRetries = Number(next());
     else if (token === "--cloud-eval-cache") args.cloudEvalCache = path.resolve(next());
     else if (token === "--chess-api-cache") args.chessApiCache = path.resolve(next());
     else if (token === "--stockfish-eval-cache") args.stockfishEvalCache = path.resolve(next());
@@ -644,7 +646,11 @@ async function analyzePosition(fen, args, cache) {
 
 async function fetchExplorerNode(fen, args, cache) {
   if (cache.has(fen)) return cache.get(fen);
-  const explorer = await fetchLichessExplorer(fen, { moves: 12, delayMs: args.delayMs });
+  const explorer = await fetchLichessExplorer(fen, {
+    moves: 12,
+    delayMs: args.delayMs,
+    retries: args.explorerRetries,
+  });
   const topMoves = (explorer.moves ?? [])
     .map((move) => ({ ...move, totalGames: totalGames(move) }))
     .sort((left, right) => right.totalGames - left.totalGames);
@@ -2869,6 +2875,7 @@ async function main() {
         maxContinuationBranchesPerTrigger: args.maxContinuationBranchesPerTrigger,
         maxContinuationSearchNodes: args.maxContinuationSearchNodes,
         progressIntervalMs: args.progressIntervalMs,
+        explorerRetries: args.explorerRetries,
         prefixPruneMinEvalGainCp: args.prefixPruneMinEvalGainCp,
         prefixPruneMinEvalGainPerPlyCp: args.prefixPruneMinEvalGainPerPlyCp,
         maxBranchesPerVariation: args.maxBranchesPerVariation,
