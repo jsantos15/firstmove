@@ -241,11 +241,21 @@ function NavBtn({
 
 // ─── Move List ────────────────────────────────────────────────────────────────
 
+function formatClockMs(ms: number): string {
+  const totalSeconds = Math.floor(ms / 1000);
+  const h = Math.floor(totalSeconds / 3600);
+  const m = Math.floor((totalSeconds % 3600) / 60);
+  const s = totalSeconds % 60;
+  if (h > 0) return `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+  return `${m}:${String(s).padStart(2, '0')}`;
+}
+
 interface MoveItem {
   san: string;
   plyIndex: number;
   classification: CoachClassification | null;
   evalCp?: number;
+  clockRemainingMs?: number;
 }
 
 interface MovePair {
@@ -266,6 +276,7 @@ function buildMovePairs(moves: AnalyzedGameMove[]): MovePair[] {
       plyIndex: move.plyIndex,
       classification: getMoveClassification(move),
       evalCp: move.hasEngineAnalysis ? move.afterPlayedEvalCp : undefined,
+      clockRemainingMs: move.clockRemainingMs,
     };
     if (move.playedBy === 'white') {
       pairs[pairNum].white = item;
@@ -292,14 +303,21 @@ function MoveChip({
     <button
       type="button"
       onClick={() => onNavigate(item.plyIndex)}
-      className={`flex min-w-0 flex-1 items-center gap-1 rounded px-2 py-1 font-mono text-sm transition-colors ${
+      className={`flex min-w-0 flex-1 flex-col rounded px-2 py-1 font-mono text-sm transition-colors ${
         isActive
           ? 'bg-amber-400/15 text-amber-300'
           : 'text-gray-300 hover:bg-white/5 hover:text-white'
       }`}
     >
-      <span className="truncate">{item.san}</span>
-      {dotColor && <span className={`ml-0.5 h-1.5 w-1.5 shrink-0 rounded-full ${dotColor}`} />}
+      <div className="flex min-w-0 items-center gap-1">
+        <span className="truncate">{item.san}</span>
+        {dotColor && <span className={`ml-0.5 h-1.5 w-1.5 shrink-0 rounded-full ${dotColor}`} />}
+      </div>
+      {item.clockRemainingMs != null && (
+        <span className={`text-[9px] tabular-nums leading-tight ${isActive ? 'text-amber-300/50' : 'text-gray-600'}`}>
+          {formatClockMs(item.clockRemainingMs)}
+        </span>
+      )}
     </button>
   );
 }

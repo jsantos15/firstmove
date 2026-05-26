@@ -89,6 +89,7 @@ export interface AnalyzedGameMove {
   isCriticalMove?: boolean;
   isSacrifice?: boolean;
   themeTags?: CoachThemeTag[];
+  clockRemainingMs?: number; // Remaining clock time after this move, from [%clk] PGN annotation
 }
 
 export interface AnalyzedGame {
@@ -1465,6 +1466,19 @@ function gamePhaseFromPly(plyIndex: number): CoachGamePhase {
   return 'middlegame';
 }
 
+function parsePgnClockTimesMs(pgn: string): (number | undefined)[] {
+  const times: (number | undefined)[] = [];
+  const pattern = /\[%clk\s+(\d+):(\d{2}):(\d{2}(?:\.\d+)?)\]/g;
+  let match: RegExpExecArray | null;
+  while ((match = pattern.exec(pgn)) !== null) {
+    const h = Number(match[1]);
+    const m = Number(match[2]);
+    const s = Number(match[3]);
+    times.push(Math.round((h * 3600 + m * 60 + s) * 1000));
+  }
+  return times;
+}
+
 export function buildAnalyzedGameFromPgn({
   id,
   pgn,
@@ -1472,6 +1486,7 @@ export function buildAnalyzedGameFromPgn({
 }: AnalyzedGameFromPgnInput): AnalyzedGame {
   const chess = initialFen ? new Chess(initialFen) : new Chess();
   chess.loadPgn(pgn);
+  const clockTimes = parsePgnClockTimesMs(pgn);
 
   const moves = chess.history({ verbose: true }).map(
     (move, index): AnalyzedGameMove => ({
@@ -1484,6 +1499,7 @@ export function buildAnalyzedGameFromPgn({
       beforeFen: move.before,
       afterFen: move.after,
       afterPlayedEvalCp: 0,
+      clockRemainingMs: clockTimes[index],
     })
   );
 
