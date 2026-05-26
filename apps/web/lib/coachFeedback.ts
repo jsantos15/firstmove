@@ -1,5 +1,6 @@
 import {
   buildGameAnalysisEventsFromAnalyzedGame,
+  buildGameAnalysisSummaryEvents,
   buildGameAnalysisCoachCandidatesFromFacts,
   buildGameAnalysisMoveEvents,
   buildGameAnalysisMoveEventsFromAnalyzedGameMove,
@@ -103,6 +104,10 @@ export function buildGameAnalysisCoachFeedbackFromAnalyzedGame(
     buildGameAnalysisEventsFromAnalyzedGame(input),
     input.locale
   );
+}
+
+export function buildGameAnalysisSummaryFeedback(input: AnalyzedGameCoachInput): CoachFeedback[] {
+  return buildGameAnalysisSummaryEvents(input).map(event => renderCoachEvent(event, input.locale));
 }
 
 export function buildGameAnalysisCoachFeedbackFromAnalyzedGameMove(

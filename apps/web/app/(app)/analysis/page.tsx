@@ -11,6 +11,7 @@ import { BoardSettingsPopover } from '@/components/board/BoardSettingsPopover';
 import {
   buildAnalyzedGameFromPgn,
   buildGameAnalysisCoachFeedbackFromAnalyzedGameMove,
+  buildGameAnalysisSummaryFeedback,
   classifyAnalyzedMoveByCentipawnLoss,
   type CoachFeedback,
 } from '@/lib/coachFeedback';
@@ -42,6 +43,8 @@ type StockfishResponse = {
   maxMoves: number;
   depth: number;
 };
+
+type BottomPanelTab = 'engine' | 'recap' | 'games';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -621,6 +624,85 @@ function CoachAnalysisPanel({
   );
 }
 
+function GameRecapPanel({
+  summaries,
+  hasEngineAnalysis,
+}: {
+  summaries: CoachFeedback[];
+  hasEngineAnalysis: boolean;
+}) {
+  if (summaries.length === 0) {
+    return (
+      <div className="flex flex-1 items-center justify-center px-4 py-3 text-center">
+        <p className="text-xs leading-5 text-gray-600">
+          Import and analyze a game to generate phase and game recap notes.
+        </p>
+      </div>
+    );
+  }
+
+  const gameSummary = summaries.find(summary => summary.event.eventType === 'game_summary');
+  const phaseSummaries = summaries.filter(summary => summary.event.eventType === 'phase_summary');
+
+  return (
+    <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto px-3 py-2">
+      {gameSummary && (
+        <div className="rounded-lg border border-amber-400/15 bg-amber-400/5 px-3 py-2.5">
+          <div className="mb-1.5 flex items-center justify-between gap-2">
+            <span className="text-[10px] font-medium uppercase tracking-wider text-amber-400/70">
+              Game recap
+            </span>
+            {!hasEngineAnalysis && (
+              <span className="text-[10px] font-medium text-gray-500">structure only</span>
+            )}
+          </div>
+          <p className="text-sm font-semibold leading-5 text-white">{gameSummary.title}</p>
+          <p className="mt-1 text-xs leading-5 text-gray-400">{gameSummary.message}</p>
+          <div className="mt-2 grid grid-cols-2 gap-1.5">
+            {typeof gameSummary.variables.bestMoveSan === 'string' && (
+              <div className="rounded border border-white/5 bg-white/[0.03] px-2 py-1.5">
+                <span className="block text-[10px] uppercase tracking-wider text-gray-600">
+                  Best move
+                </span>
+                <span className="font-mono text-xs font-semibold text-emerald-300">
+                  {gameSummary.variables.bestMoveSan}
+                </span>
+              </div>
+            )}
+            {typeof gameSummary.variables.worstMoveSan === 'string' && (
+              <div className="rounded border border-white/5 bg-white/[0.03] px-2 py-1.5">
+                <span className="block text-[10px] uppercase tracking-wider text-gray-600">
+                  Key mistake
+                </span>
+                <span className="font-mono text-xs font-semibold text-rose-300">
+                  {gameSummary.variables.worstMoveSan}
+                </span>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {phaseSummaries.map(summary => (
+        <div
+          key={summary.id}
+          className="rounded-lg border border-white/5 bg-white/[0.02] px-3 py-2"
+        >
+          <div className="mb-1 flex items-center justify-between gap-2">
+            <span className="text-[10px] font-medium uppercase tracking-wider text-gray-500">
+              {summary.event.phase ?? 'phase'}
+            </span>
+            <span className="rounded-full border border-white/10 px-2 py-0.5 text-[10px] font-semibold uppercase leading-4 text-gray-500">
+              {summary.label}
+            </span>
+          </div>
+          <p className="text-xs leading-5 text-gray-400">{summary.message}</p>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function SessionGamesList({
   games,
   currentGameId,
@@ -781,7 +863,7 @@ export default function AnalysisPage() {
   const [isEngineRunning, setIsEngineRunning] = useState(false);
   const [engineStatus, setEngineStatus] = useState<string | null>(null);
   const [engineError, setEngineError] = useState<string | null>(null);
-  const [activeBottomPanel, setActiveBottomPanel] = useState<'engine' | 'games'>('engine');
+  const [activeBottomPanel, setActiveBottomPanel] = useState<BottomPanelTab>('engine');
   const [boardSize, setBoardSize] = useState(480);
   const [playerInfo, setPlayerInfo] = useState<{
     white: { name: string; rating?: number };
@@ -891,6 +973,23 @@ export default function AnalysisPage() {
       return null;
     }
   }, [analyzedGame, currentMove, coachSettings.persona]);
+
+  const summaryFeedbacks = useMemo(() => {
+    if (!analyzedGame) return [];
+    try {
+      return buildGameAnalysisSummaryFeedback({
+        game: analyzedGame,
+        persona: coachSettings.persona,
+      });
+    } catch {
+      return [];
+    }
+  }, [analyzedGame, coachSettings.persona]);
+
+  const hasEngineAnalysis = useMemo(
+    () => Boolean(analyzedGame?.moves.some(move => move.hasEngineAnalysis)),
+    [analyzedGame]
+  );
 
   const customSquareStyles = useMemo(() => {
     const styles: Record<string, React.CSSProperties> = {};
@@ -1224,7 +1323,7 @@ export default function AnalysisPage() {
               >
                 {/* Tabs */}
                 <div className="flex shrink-0 border-b border-white/5">
-                  {(['engine', 'games'] as const).map(tab => (
+                  {(['engine', 'recap', 'games'] as const).map(tab => (
                     <button
                       key={tab}
                       type="button"
@@ -1237,7 +1336,9 @@ export default function AnalysisPage() {
                     >
                       {tab === 'engine'
                         ? 'Engine'
-                        : `Games${sessionGames.length > 0 ? ` (${sessionGames.length})` : ''}`}
+                        : tab === 'recap'
+                          ? 'Recap'
+                          : `Games${sessionGames.length > 0 ? ` (${sessionGames.length})` : ''}`}
                       {activeBottomPanel === tab && (
                         <span className="absolute inset-x-0 bottom-0 h-px bg-amber-400" />
                       )}
@@ -1248,6 +1349,11 @@ export default function AnalysisPage() {
                 {/* Tab content */}
                 {activeBottomPanel === 'engine' ? (
                   <EngineLines move={currentMove} />
+                ) : activeBottomPanel === 'recap' ? (
+                  <GameRecapPanel
+                    summaries={summaryFeedbacks}
+                    hasEngineAnalysis={hasEngineAnalysis}
+                  />
                 ) : (
                   <SessionGamesList
                     games={sessionGames}
