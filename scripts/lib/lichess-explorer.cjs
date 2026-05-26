@@ -67,6 +67,7 @@ async function fetchLichessExplorer(fen, options = {}) {
 async function fetchWithRetry(fen, options = {}) {
   const retries = options.retries ?? 3;
   const delayMs = options.delayMs ?? 500;
+  let lastError = null;
 
   for (let attempt = 1; attempt <= retries; attempt += 1) {
     try {
@@ -76,13 +77,24 @@ async function fetchWithRetry(fen, options = {}) {
 
       return await fetchLichessExplorer(fen, options);
     } catch (error) {
+      lastError = error;
       if (attempt === retries) {
-        throw error;
+        const message = error instanceof Error ? error.message : String(error);
+        if (message.includes(fen)) {
+          throw error;
+        }
+        throw new Error(
+          `Lichess Explorer fetch failed after ${retries} attempt(s) for FEN: ${fen}: ${message}`
+        );
       }
     }
   }
 
-  throw new Error("Unreachable Lichess retry state.");
+  throw new Error(
+    `Unreachable Lichess retry state for FEN: ${fen}: ${
+      lastError instanceof Error ? lastError.message : String(lastError)
+    }`
+  );
 }
 
 module.exports = {

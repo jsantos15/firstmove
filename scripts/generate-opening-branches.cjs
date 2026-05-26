@@ -79,7 +79,7 @@ function parseArgs(argv) {
     cloudEvalMaxRetries: 0,
     cloudEvalMinDepth: 0,
     progressIntervalMs: 30000,
-    explorerRetries: 8,
+    explorerRetries: 3,
     cloudEvalCache: path.resolve(__dirname, "output", "lichess-cloud-eval-cache.json"),
     chessApiCache: path.resolve(__dirname, "output", "chess-api-eval-cache.json"),
     stockfishEvalCache: path.resolve(__dirname, "output", "stockfish-eval-cache.json"),
