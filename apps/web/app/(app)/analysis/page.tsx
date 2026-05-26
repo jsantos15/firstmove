@@ -16,6 +16,7 @@ import {
 } from '@/lib/coachFeedback';
 import type { AnalyzedGame, AnalyzedGameMove } from '@firstmove/core';
 import type { CoachClassification } from '@firstmove/core';
+import { computeMaterial, type PieceType } from '@/lib/capturedPieces';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -92,9 +93,79 @@ function extractGameTitle(pgn: string): string | null {
   return null;
 }
 
+function extractPlayerInfo(pgn: string): {
+  white: { name: string; rating?: number };
+  black: { name: string; rating?: number };
+} {
+  const parseName = (tag: string) => pgn.match(new RegExp(`\\[${tag} "([^"]+)"\\]`))?.[1];
+  const parseElo = (tag: string) => {
+    const raw = parseName(tag);
+    if (!raw || raw === '?' || raw === '-') return undefined;
+    const n = Number(raw);
+    return Number.isFinite(n) && n > 0 ? n : undefined;
+  };
+  return {
+    white: { name: parseName('White') ?? 'White', rating: parseElo('WhiteElo') },
+    black: { name: parseName('Black') ?? 'Black', rating: parseElo('BlackElo') },
+  };
+}
+
+// ─── Player Panel ─────────────────────────────────────────────────────────────
+
+const BLACK_SYMBOLS: Record<string, string> = { p: '♟', n: '♞', b: '♝', r: '♜', q: '♛' };
+const WHITE_SYMBOLS: Record<string, string> = { p: '♙', n: '♘', b: '♗', r: '♖', q: '♕' };
+
+function PlayerPanel({
+  name,
+  rating,
+  color,
+  captured,
+  advantage,
+}: {
+  name: string;
+  rating?: number;
+  color: 'white' | 'black';
+  captured: PieceType[];
+  advantage: number;
+}) {
+  // Show the opponent's piece symbols next to each player (what they've taken)
+  const symbols = color === 'white' ? BLACK_SYMBOLS : WHITE_SYMBOLS;
+  return (
+    <div className="flex h-7 shrink-0 items-center gap-2 px-1">
+      <div
+        className={`h-3.5 w-3.5 shrink-0 rounded-sm border ${
+          color === 'white' ? 'bg-zinc-100 border-white/20' : 'bg-zinc-700 border-white/10'
+        }`}
+      />
+      <span className="max-w-40 truncate text-xs font-medium text-gray-300">{name}</span>
+      {rating != null && <span className="shrink-0 text-[10px] text-gray-600">{rating}</span>}
+      {captured.length > 0 && (
+        <div className="flex min-w-0 items-center gap-px">
+          {captured.map((piece, i) => (
+            <span key={i} className="select-none text-sm leading-none text-gray-400">
+              {symbols[piece]}
+            </span>
+          ))}
+          {advantage > 0 && (
+            <span className="ml-1.5 text-[10px] font-medium text-gray-500">+{advantage}</span>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Eval Bar ─────────────────────────────────────────────────────────────────
 
-function EvalBar({ evalCp, reserveSpace = false, size }: { evalCp?: number; reserveSpace?: boolean; size: number }) {
+function EvalBar({
+  evalCp,
+  reserveSpace = false,
+  size,
+}: {
+  evalCp?: number;
+  reserveSpace?: boolean;
+  size: number;
+}) {
   const barStyle = { height: size };
 
   if (typeof evalCp !== 'number' || !Number.isFinite(evalCp)) {
@@ -225,9 +296,7 @@ function MoveChip({
       }`}
     >
       <span className="truncate">{item.san}</span>
-      {dotColor && (
-        <span className={`ml-0.5 h-1.5 w-1.5 shrink-0 rounded-full ${dotColor}`} />
-      )}
+      {dotColor && <span className={`ml-0.5 h-1.5 w-1.5 shrink-0 rounded-full ${dotColor}`} />}
     </button>
   );
 }
@@ -243,7 +312,7 @@ function AnalysisMoveList({
 }) {
   const pairs = useMemo(() => buildMovePairs(game.moves), [game.moves]);
   const activeRowRef = useRef<HTMLDivElement>(null);
-  const hasEngine = game.moves.some((m) => m.hasEngineAnalysis);
+  const hasEngine = game.moves.some(m => m.hasEngineAnalysis);
 
   useEffect(() => {
     activeRowRef.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
@@ -264,10 +333,9 @@ function AnalysisMoveList({
         </div>
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto px-2 py-1">
-        {pairs.map((pair) => {
+        {pairs.map(pair => {
           const isActiveRow =
-            pair.white?.plyIndex === currentPlyIndex ||
-            pair.black?.plyIndex === currentPlyIndex;
+            pair.white?.plyIndex === currentPlyIndex || pair.black?.plyIndex === currentPlyIndex;
           return (
             <div
               key={pair.moveNumber}
@@ -318,7 +386,7 @@ function EngineLines({ move }: { move: AnalyzedGameMove | null }) {
 
   const bestLine = move.bestLine;
   const alternatives = move.bestMoveAlternatives
-    ?.filter((alt) => alt.san !== move.bestMoveSan)
+    ?.filter(alt => alt.san !== move.bestMoveSan)
     .slice(0, 2);
 
   return (
@@ -379,6 +447,180 @@ function EngineLines({ move }: { move: AnalyzedGameMove | null }) {
 
 // ─── Session Games List ────────────────────────────────────────────────────────
 
+type CoachEvidence = NonNullable<CoachFeedback['evidence']>;
+
+function CoachEvidenceMoves({
+  moves,
+}: {
+  moves: Array<{ san: string; isKeyMove?: boolean; evalCp?: number }>;
+}) {
+  return (
+    <div className="flex flex-wrap gap-x-1.5 gap-y-1">
+      {moves.map((move, index) => (
+        <span
+          key={`${move.san}-${index}`}
+          className={`rounded px-1.5 py-0.5 font-mono text-xs ${
+            move.isKeyMove
+              ? 'bg-amber-400/15 font-semibold text-amber-300'
+              : 'bg-white/[0.03] text-gray-300'
+          }`}
+          title={typeof move.evalCp === 'number' ? `Eval ${formatEval(move.evalCp)}` : undefined}
+        >
+          {move.san}
+        </span>
+      ))}
+    </div>
+  );
+}
+
+function CoachEvidenceDetails({ evidence }: { evidence: CoachEvidence }) {
+  if (evidence.kind === 'line') {
+    return (
+      <div className="space-y-2">
+        <CoachEvidenceMoves moves={evidence.moves} />
+        {evidence.summary && <p className="text-xs leading-5 text-gray-500">{evidence.summary}</p>}
+      </div>
+    );
+  }
+
+  if (evidence.kind === 'single_move') {
+    return (
+      <div className="space-y-2">
+        <CoachEvidenceMoves moves={[evidence.move]} />
+        {evidence.summary && <p className="text-xs leading-5 text-gray-500">{evidence.summary}</p>}
+      </div>
+    );
+  }
+
+  if (evidence.kind === 'square') {
+    return (
+      <div className="space-y-2">
+        <div className="flex flex-wrap gap-1.5">
+          {evidence.squares.map(square => (
+            <span
+              key={square}
+              className="rounded border border-amber-400/20 bg-amber-400/10 px-2 py-1 font-mono text-xs font-semibold text-amber-300"
+            >
+              {square}
+            </span>
+          ))}
+        </div>
+        {evidence.summary && <p className="text-xs leading-5 text-gray-500">{evidence.summary}</p>}
+      </div>
+    );
+  }
+
+  if (evidence.kind === 'piece') {
+    return (
+      <div className="space-y-2">
+        <div className="grid gap-1.5">
+          {evidence.pieces.map(piece => (
+            <div
+              key={`${piece.role}-${piece.square}`}
+              className="flex items-center justify-between gap-2 rounded border border-white/5 bg-white/[0.03] px-2.5 py-1.5"
+            >
+              <span className="truncate text-xs capitalize text-gray-300">
+                {piece.role.replace(/_/g, ' ')}
+              </span>
+              <span className="font-mono text-xs font-semibold text-amber-300">{piece.square}</span>
+            </div>
+          ))}
+        </div>
+        {evidence.summary && <p className="text-xs leading-5 text-gray-500">{evidence.summary}</p>}
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-2">
+      {evidence.keyMove && (
+        <CoachEvidenceMoves moves={[{ san: evidence.keyMove, isKeyMove: true }]} />
+      )}
+      {evidence.targetSquares && evidence.targetSquares.length > 0 && (
+        <div className="flex flex-wrap gap-1.5">
+          {evidence.targetSquares.map(square => (
+            <span
+              key={square}
+              className="rounded border border-white/10 bg-white/[0.03] px-2 py-1 font-mono text-xs text-gray-300"
+            >
+              {square}
+            </span>
+          ))}
+        </div>
+      )}
+      <p className="text-xs leading-5 text-gray-500">{evidence.summary}</p>
+    </div>
+  );
+}
+
+function CoachAnalysisPanel({
+  feedback,
+  move,
+}: {
+  feedback: CoachFeedback | null;
+  move: AnalyzedGameMove | null;
+}) {
+  const evidence = feedback?.evidence;
+  const moveLabel =
+    move && move.plyIndex >= 0
+      ? `${Math.floor(move.plyIndex / 2) + 1}${move.playedBy === 'black' ? '...' : '.'} ${move.san}`
+      : null;
+
+  return (
+    <div className="shrink-0 rounded-xl border border-white/5 bg-(--bg-panel)">
+      <div className="flex items-center justify-between gap-3 border-b border-white/5 px-4 py-2.5">
+        <div className="min-w-0">
+          <h3 className="text-xs font-medium uppercase tracking-wider text-gray-500">
+            Coach analysis
+          </h3>
+          {moveLabel && (
+            <p className="mt-0.5 truncate font-mono text-xs text-gray-400">{moveLabel}</p>
+          )}
+        </div>
+        {feedback && (
+          <span className="shrink-0 rounded-full border border-white/10 px-2 py-0.5 text-[10px] font-semibold uppercase leading-4 text-gray-400">
+            {feedback.label}
+          </span>
+        )}
+      </div>
+
+      <div className="space-y-3 px-4 py-3">
+        {evidence ? (
+          <div>
+            <div className="mb-2 flex items-center justify-between gap-2">
+              <p className="truncate text-sm font-semibold text-white">{evidence.title}</p>
+              <span className="shrink-0 text-[10px] font-medium uppercase tracking-wider text-amber-400/70">
+                {evidence.actionLabel}
+              </span>
+            </div>
+            <CoachEvidenceDetails evidence={evidence} />
+          </div>
+        ) : (
+          <p className="text-xs leading-5 text-gray-600">
+            {feedback
+              ? 'This move has a coach note, but no concrete line or target is attached yet.'
+              : 'Select a move after importing a game to see the concrete coach evidence.'}
+          </p>
+        )}
+
+        {feedback?.secondary && (
+          <div className="border-t border-white/5 pt-3">
+            <div className="mb-1.5 flex items-center gap-2">
+              <span className="rounded-full border border-white/10 px-2 py-0.5 text-[10px] font-semibold uppercase leading-4 text-gray-400">
+                {feedback.secondary.label}
+              </span>
+              <span className="truncate text-xs font-semibold text-gray-300">
+                {feedback.secondary.title}
+              </span>
+            </div>
+            <p className="text-xs leading-5 text-gray-500">{feedback.secondary.message}</p>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function SessionGamesList({
   games,
   currentGameId,
@@ -400,7 +642,7 @@ function SessionGamesList({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-1.5 overflow-y-auto px-3 py-2">
-      {games.map((sg) => (
+      {games.map(sg => (
         <button
           key={sg.id}
           type="button"
@@ -420,9 +662,7 @@ function SessionGamesList({
           </span>
           <div className="mt-1 flex items-center gap-2">
             <span className="text-[10px] text-gray-600">{sg.game.moves.length} moves</span>
-            {sg.hasEngine && (
-              <span className="text-[10px] text-emerald-500/80">● Engine</span>
-            )}
+            {sg.hasEngine && <span className="text-[10px] text-emerald-500/80">● Engine</span>}
           </div>
         </button>
       ))}
@@ -453,7 +693,9 @@ function ImportModal({
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/65 backdrop-blur-sm"
-      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+      onClick={e => {
+        if (e.target === e.currentTarget) onClose();
+      }}
     >
       <div className="mx-4 w-full max-w-lg rounded-2xl border border-white/10 bg-[#0f1117] p-6 shadow-2xl shadow-black/60">
         <div className="mb-5 flex items-start justify-between gap-3">
@@ -487,7 +729,7 @@ function ImportModal({
         <div className="flex flex-col gap-3">
           <textarea
             value={pgn}
-            onChange={(e) => setPgn(e.target.value)}
+            onChange={e => setPgn(e.target.value)}
             placeholder={'Paste PGN here...\n\n1. e4 e5 2. Nf3 Nc6 3. Bb5 a6 ...'}
             rows={8}
             className="w-full resize-none rounded-xl border border-white/10 bg-black/30 px-4 py-3 font-mono text-xs leading-5 text-gray-200 placeholder-gray-600 outline-none transition-colors focus:border-amber-400/40"
@@ -495,7 +737,7 @@ function ImportModal({
           />
           <input
             value={fen}
-            onChange={(e) => setFen(e.target.value)}
+            onChange={e => setFen(e.target.value)}
             placeholder="Optional starting FEN (for non-standard positions)"
             className="w-full rounded-xl border border-white/10 bg-black/30 px-4 py-2.5 font-mono text-xs text-gray-200 placeholder-gray-600 outline-none transition-colors focus:border-amber-400/40"
           />
@@ -514,7 +756,7 @@ function ImportModal({
                 type="file"
                 accept=".pgn,.txt"
                 className="sr-only"
-                onChange={(e) => {
+                onChange={e => {
                   void handleFileUpload(e.target.files?.[0] ?? null);
                   e.currentTarget.value = '';
                 }}
@@ -541,6 +783,10 @@ export default function AnalysisPage() {
   const [engineError, setEngineError] = useState<string | null>(null);
   const [activeBottomPanel, setActiveBottomPanel] = useState<'engine' | 'games'>('engine');
   const [boardSize, setBoardSize] = useState(480);
+  const [playerInfo, setPlayerInfo] = useState<{
+    white: { name: string; rating?: number };
+    black: { name: string; rating?: number };
+  } | null>(null);
 
   const { theme, animationDuration, settings, setSettings } = useBoardSettings();
   const { settings: coachSettings } = useCoachSettings();
@@ -623,12 +869,14 @@ export default function AnalysisPage() {
 
   const currentEvalCp = useMemo(
     () => (currentMove?.hasEngineAnalysis ? currentMove.afterPlayedEvalCp : undefined),
-    [currentMove],
+    [currentMove]
   );
 
   // Show "0.0" at the initial position (no game loaded, or before any move) — mirrors
   // PracticeBoard's INITIAL_POSITION_EVAL_CP fallback so the eval bar always has a label.
   const displayEvalCp = currentEvalCp ?? (currentPlyIndex <= -1 ? INITIAL_EVAL_CP : undefined);
+
+  const material = useMemo(() => computeMaterial(currentFen), [currentFen]);
 
   const coachFeedback: CoachFeedback | null = useMemo(() => {
     if (!analyzedGame || !currentMove) return null;
@@ -669,7 +917,8 @@ export default function AnalysisPage() {
       setShowImportModal(false);
 
       const label = extractGameTitle(pgn) ?? `Game ${sessionGames.length + 1}`;
-      setSessionGames((prev) => [{ id: game.id, label, game, hasEngine: false }, ...prev]);
+      setPlayerInfo(extractPlayerInfo(pgn));
+      setSessionGames(prev => [{ id: game.id, label, game, hasEngine: false }, ...prev]);
     } catch (error) {
       setParseError(error instanceof Error ? error.message : 'Could not parse that PGN/FEN.');
     }
@@ -686,15 +935,21 @@ export default function AnalysisPage() {
       const response = await fetch('/api/analysis/stockfish', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ game: analyzedGame, depth: STOCKFISH_DEPTH, maxMoves: STOCKFISH_MOVE_LIMIT }),
+        body: JSON.stringify({
+          game: analyzedGame,
+          depth: STOCKFISH_DEPTH,
+          maxMoves: STOCKFISH_MOVE_LIMIT,
+        }),
       });
       const payload = (await response.json()) as Partial<StockfishResponse> & { error?: string };
       if (!response.ok || !payload.game) throw new Error(payload.error ?? 'Stockfish failed.');
 
       setAnalyzedGame(payload.game);
-      setEngineStatus(`${payload.analyzedMoves ?? 0} moves at depth ${payload.depth ?? STOCKFISH_DEPTH}.`);
-      setSessionGames((prev) =>
-        prev.map((sg) => (sg.id === gameId ? { ...sg, game: payload.game!, hasEngine: true } : sg)),
+      setEngineStatus(
+        `${payload.analyzedMoves ?? 0} moves at depth ${payload.depth ?? STOCKFISH_DEPTH}.`
+      );
+      setSessionGames(prev =>
+        prev.map(sg => (sg.id === gameId ? { ...sg, game: payload.game!, hasEngine: true } : sg))
       );
       goTo(currentPlyRef.current, payload.game);
     } catch (error) {
@@ -718,9 +973,22 @@ export default function AnalysisPage() {
   const canGoForward = analyzedGame !== null && currentPlyIndex < totalMoves - 1;
   const boardAlignedClassName = 'mx-auto w-full sm:translate-x-[18px]';
 
+  const isFlipped = settings.flipBoard;
+  const topColor = isFlipped ? 'white' : 'black';
+  const bottomColor = isFlipped ? 'black' : 'white';
+  const topPlayer = playerInfo?.[topColor] ?? { name: topColor === 'white' ? 'White' : 'Black' };
+  const bottomPlayer = playerInfo?.[bottomColor] ?? {
+    name: bottomColor === 'white' ? 'White' : 'Black',
+  };
+  const topCaptured = topColor === 'white' ? material.whiteCaptured : material.blackCaptured;
+  const bottomCaptured = bottomColor === 'white' ? material.whiteCaptured : material.blackCaptured;
+  const topAdvantage =
+    topColor === 'white' ? Math.max(0, material.advantage) : Math.max(0, -material.advantage);
+  const bottomAdvantage =
+    bottomColor === 'white' ? Math.max(0, material.advantage) : Math.max(0, -material.advantage);
+
   return (
     <div className="flex h-full flex-col overflow-hidden">
-
       {/* ── Header ── */}
       <header className="z-10 h-14 shrink-0 bg-(--bg-base)/80 backdrop-blur">
         <div className="flex h-full items-center justify-between gap-4 px-4 lg:px-6">
@@ -767,217 +1035,230 @@ export default function AnalysisPage() {
 
       {/* ── Main content ── */}
       <div className="flex-1 min-h-0 overflow-hidden px-4 pb-3 pt-2 lg:px-6 lg:pb-4 lg:pt-3">
-      <div className="mx-auto flex h-full w-full max-w-410 gap-3 lg:gap-3">
+        <div className="mx-auto flex h-full w-full max-w-410 gap-3 lg:gap-3">
+          {/* Left: Board column */}
+          <div className="flex h-full min-w-0 flex-1 justify-end">
+            <div className="h-full max-w-full shrink" style={{ aspectRatio: '1 / 1' }}>
+              <div className="relative flex h-full w-full select-none flex-col">
+                {/* Top player (opponent) */}
+                <PlayerPanel
+                  name={topPlayer.name}
+                  rating={topPlayer.rating}
+                  color={topColor}
+                  captured={topCaptured}
+                  advantage={topAdvantage}
+                />
 
-        {/* Left: Board column */}
-        <div className="flex h-full min-w-0 flex-1 justify-end">
-          <div className="h-full max-w-full shrink" style={{ aspectRatio: '1 / 1' }}>
-            <div className="relative flex h-full w-full select-none flex-col">
-
-              {/* Matches PracticeBoard's status-bar flex space so boardSize and the
-                  board-to-panel gap align with the Openings page. */}
-              <div className="shrink-0" style={{ height: 26 }} />
-
-              {/* Board + eval bar */}
-              <div ref={wrapperRef} className="flex min-h-0 flex-1 items-center justify-center">
-                <EvalBar evalCp={displayEvalCp} reserveSpace={true} size={boardSize} />
-                <div className="relative">
-                  <div className="overflow-hidden rounded-xl ring-1 ring-white/10">
-                    <Chessboard
-                      position={currentFen}
-                      boardWidth={boardSize}
-                      boardOrientation={settings.flipBoard ? 'black' : 'white'}
-                      arePiecesDraggable={false}
-                      customSquareStyles={customSquareStyles}
-                      showBoardNotation={settings.showCoordinates}
-                      customDarkSquareStyle={{ backgroundColor: theme.dark }}
-                      customLightSquareStyle={{ backgroundColor: theme.light }}
-                      animationDuration={animationDuration}
-                      customPieces={customPieces}
-                    />
+                {/* Board + eval bar */}
+                <div ref={wrapperRef} className="flex min-h-0 flex-1 items-center justify-center">
+                  <EvalBar evalCp={displayEvalCp} reserveSpace={true} size={boardSize} />
+                  <div className="relative">
+                    <div className="overflow-hidden rounded-xl ring-1 ring-white/10">
+                      <Chessboard
+                        position={currentFen}
+                        boardWidth={boardSize}
+                        boardOrientation={settings.flipBoard ? 'black' : 'white'}
+                        arePiecesDraggable={false}
+                        customSquareStyles={customSquareStyles}
+                        showBoardNotation={settings.showCoordinates}
+                        customDarkSquareStyle={{ backgroundColor: theme.dark }}
+                        customLightSquareStyle={{ backgroundColor: theme.light }}
+                        animationDuration={animationDuration}
+                        customPieces={customPieces}
+                      />
+                    </div>
                   </div>
                 </div>
-              </div>
 
-              {/* Controls */}
-              <div
-                className={`${boardAlignedClassName} grid shrink-0 grid-cols-3 items-center`}
-                style={{ maxWidth: boardSize }}
-              >
-              {/* Left: flip button */}
-              <div>
-                <button
-                  type="button"
-                  onClick={() => setSettings({ flipBoard: !settings.flipBoard })}
-                  title="Flip board"
-                  className="flex h-9 w-9 items-center justify-center text-gray-500 transition-colors hover:text-gray-300"
+                {/* Bottom player (self) */}
+                <PlayerPanel
+                  name={bottomPlayer.name}
+                  rating={bottomPlayer.rating}
+                  color={bottomColor}
+                  captured={bottomCaptured}
+                  advantage={bottomAdvantage}
+                />
+
+                {/* Controls */}
+                <div
+                  className={`${boardAlignedClassName} grid shrink-0 grid-cols-3 items-center`}
+                  style={{ maxWidth: boardSize }}
                 >
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth={1.5}
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    className="h-4 w-4"
-                  >
-                    <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8" />
-                    <path d="M21 3v5h-5" />
-                    <path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16" />
-                    <path d="M8 21H3v-5" />
-                  </svg>
-                </button>
-              </div>
-
-              {/* Center: nav buttons */}
-              <div className="flex justify-center">
-                <div className="flex items-center divide-x divide-white/10 overflow-hidden rounded-lg border border-white/10">
-                  <NavBtn onClick={() => goTo(-1)} disabled={!canGoBack} title="First position">
-                    <svg viewBox="0 0 16 16" fill="currentColor" className="w-5 h-5">
-                      <path d="M3.5 3a.5.5 0 0 1 .5.5v3.793l6.146-4.439A.5.5 0 0 1 11 3.5v9a.5.5 0 0 1-.854.354L4 8.707V12.5a.5.5 0 0 1-1 0v-9a.5.5 0 0 1 .5-.5z" />
-                    </svg>
-                  </NavBtn>
-                  <NavBtn
-                    onClick={() => goTo(currentPlyIndex - 1)}
-                    disabled={!canGoBack}
-                    title="Previous (←)"
-                  >
-                    <svg viewBox="0 0 16 16" fill="currentColor" className="w-5 h-5">
-                      <path d="M11.354 3.646a.5.5 0 0 1 0 .708L6.707 9l4.647 4.646a.5.5 0 0 1-.708.708l-5-5a.5.5 0 0 1 0-.708l5-5a.5.5 0 0 1 .708 0z" />
-                    </svg>
-                  </NavBtn>
-                  <NavBtn
-                    onClick={() => goTo(currentPlyIndex + 1)}
-                    disabled={!canGoForward}
-                    title="Next (→)"
-                  >
-                    <svg viewBox="0 0 16 16" fill="currentColor" className="w-5 h-5">
-                      <path d="M4.646 3.646a.5.5 0 0 1 .708 0l5 5a.5.5 0 0 1 0 .708l-5 5a.5.5 0 0 1-.708-.708L9.293 9 4.646 4.354a.5.5 0 0 1 0-.708z" />
-                    </svg>
-                  </NavBtn>
-                  <NavBtn
-                    onClick={() => goTo(totalMoves - 1)}
-                    disabled={!canGoForward}
-                    title="Last position"
-                  >
-                    <svg viewBox="0 0 16 16" fill="currentColor" className="w-5 h-5">
-                      <path d="M12.5 3a.5.5 0 0 0-.5.5v3.793L5.854 2.854A.5.5 0 0 0 5 3.5v9a.5.5 0 0 0 .854.354L12 8.207V12.5a.5.5 0 0 0 1 0v-9a.5.5 0 0 0-.5-.5z" />
-                    </svg>
-                  </NavBtn>
-                </div>
-              </div>
-
-              {/* Right: settings gear */}
-              <div className="flex justify-end">
-                <BoardSettingsPopover />
-              </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Right: Sidebar */}
-        <div className="w-[24rem] lg:w-108 shrink-0 h-full flex flex-col gap-3">
-
-          {/* Coach */}
-          <CoachBubble
-            feedback={coachFeedback}
-            fallbackText={
-              analyzedGame
-                ? 'Navigate to any move to see the coach analysis.'
-                : 'Import a game to start your analysis session.'
-            }
-          />
-
-          {/* Move list + bottom panel */}
-          <div className="flex min-h-0 flex-1 flex-col gap-3">
-
-            {/* Move list */}
-            <div className="min-h-0" style={{ flex: 60 }}>
-              {analyzedGame ? (
-                <AnalysisMoveList
-                  game={analyzedGame}
-                  currentPlyIndex={currentPlyIndex}
-                  onNavigate={goTo}
-                />
-              ) : (
-                <div className="flex h-full flex-col items-center justify-center gap-3 rounded-xl border border-white/5 bg-(--bg-panel) px-6 py-8">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/10">
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth={1.5}
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      className="h-5 w-5 text-gray-600"
+                  {/* Left: flip button */}
+                  <div>
+                    <button
+                      type="button"
+                      onClick={() => setSettings({ flipBoard: !settings.flipBoard })}
+                      title="Flip board"
+                      className="flex h-9 w-9 items-center justify-center text-gray-500 transition-colors hover:text-gray-300"
                     >
-                      <path d="M9 12h6m-3-3v6m-7 4h14a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2Z" />
-                    </svg>
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth={1.5}
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        className="h-4 w-4"
+                      >
+                        <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8" />
+                        <path d="M21 3v5h-5" />
+                        <path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16" />
+                        <path d="M8 21H3v-5" />
+                      </svg>
+                    </button>
                   </div>
-                  <div className="text-center">
-                    <p className="text-sm font-medium text-gray-400">No game loaded</p>
-                    <p className="mt-1 text-xs leading-5 text-gray-600">
-                      Import a PGN to review moves and get coach feedback on each position.
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setParseError(null);
-                      setShowImportModal(true);
-                    }}
-                    className="mt-1 rounded-lg border border-amber-400/20 bg-amber-400/10 px-4 py-2 text-xs font-semibold text-amber-300 transition-colors hover:bg-amber-400/15"
-                  >
-                    Import a game
-                  </button>
-                </div>
-              )}
-            </div>
 
-            {/* Bottom panel: Engine / Games */}
-            <div
-              className="flex min-h-0 flex-col rounded-xl border border-white/5 bg-(--bg-panel)"
-              style={{ flex: 40 }}
-            >
-              {/* Tabs */}
-              <div className="flex shrink-0 border-b border-white/5">
-                {(['engine', 'games'] as const).map((tab) => (
-                  <button
-                    key={tab}
-                    type="button"
-                    onClick={() => setActiveBottomPanel(tab)}
-                    className={`relative flex-1 py-2.5 text-xs font-medium capitalize transition-colors ${
-                      activeBottomPanel === tab ? 'text-white' : 'text-gray-500 hover:text-gray-300'
-                    }`}
-                  >
-                    {tab === 'engine'
-                      ? 'Engine'
-                      : `Games${sessionGames.length > 0 ? ` (${sessionGames.length})` : ''}`}
-                    {activeBottomPanel === tab && (
-                      <span className="absolute inset-x-0 bottom-0 h-px bg-amber-400" />
-                    )}
-                  </button>
-                ))}
+                  {/* Center: nav buttons */}
+                  <div className="flex justify-center">
+                    <div className="flex items-center divide-x divide-white/10 overflow-hidden rounded-lg border border-white/10">
+                      <NavBtn onClick={() => goTo(-1)} disabled={!canGoBack} title="First position">
+                        <svg viewBox="0 0 16 16" fill="currentColor" className="w-5 h-5">
+                          <path d="M3.5 3a.5.5 0 0 1 .5.5v3.793l6.146-4.439A.5.5 0 0 1 11 3.5v9a.5.5 0 0 1-.854.354L4 8.707V12.5a.5.5 0 0 1-1 0v-9a.5.5 0 0 1 .5-.5z" />
+                        </svg>
+                      </NavBtn>
+                      <NavBtn
+                        onClick={() => goTo(currentPlyIndex - 1)}
+                        disabled={!canGoBack}
+                        title="Previous (←)"
+                      >
+                        <svg viewBox="0 0 16 16" fill="currentColor" className="w-5 h-5">
+                          <path d="M11.354 3.646a.5.5 0 0 1 0 .708L6.707 9l4.647 4.646a.5.5 0 0 1-.708.708l-5-5a.5.5 0 0 1 0-.708l5-5a.5.5 0 0 1 .708 0z" />
+                        </svg>
+                      </NavBtn>
+                      <NavBtn
+                        onClick={() => goTo(currentPlyIndex + 1)}
+                        disabled={!canGoForward}
+                        title="Next (→)"
+                      >
+                        <svg viewBox="0 0 16 16" fill="currentColor" className="w-5 h-5">
+                          <path d="M4.646 3.646a.5.5 0 0 1 .708 0l5 5a.5.5 0 0 1 0 .708l-5 5a.5.5 0 0 1-.708-.708L9.293 9 4.646 4.354a.5.5 0 0 1 0-.708z" />
+                        </svg>
+                      </NavBtn>
+                      <NavBtn
+                        onClick={() => goTo(totalMoves - 1)}
+                        disabled={!canGoForward}
+                        title="Last position"
+                      >
+                        <svg viewBox="0 0 16 16" fill="currentColor" className="w-5 h-5">
+                          <path d="M12.5 3a.5.5 0 0 0-.5.5v3.793L5.854 2.854A.5.5 0 0 0 5 3.5v9a.5.5 0 0 0 .854.354L12 8.207V12.5a.5.5 0 0 0 1 0v-9a.5.5 0 0 0-.5-.5z" />
+                        </svg>
+                      </NavBtn>
+                    </div>
+                  </div>
+
+                  {/* Right: settings gear */}
+                  <div className="flex justify-end">
+                    <BoardSettingsPopover />
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Right: Sidebar */}
+          <div className="w-[24rem] lg:w-108 shrink-0 h-full flex flex-col gap-3">
+            {/* Coach */}
+            <CoachBubble
+              feedback={coachFeedback}
+              fallbackText={
+                analyzedGame
+                  ? 'Navigate to any move to see the coach analysis.'
+                  : 'Import a game to start your analysis session.'
+              }
+            />
+
+            <CoachAnalysisPanel feedback={coachFeedback} move={currentMove} />
+
+            {/* Move list + bottom panel */}
+            <div className="flex min-h-0 flex-1 flex-col gap-3">
+              {/* Move list */}
+              <div className="min-h-0" style={{ flex: 60 }}>
+                {analyzedGame ? (
+                  <AnalysisMoveList
+                    game={analyzedGame}
+                    currentPlyIndex={currentPlyIndex}
+                    onNavigate={goTo}
+                  />
+                ) : (
+                  <div className="flex h-full flex-col items-center justify-center gap-3 rounded-xl border border-white/5 bg-(--bg-panel) px-6 py-8">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/10">
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth={1.5}
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        className="h-5 w-5 text-gray-600"
+                      >
+                        <path d="M9 12h6m-3-3v6m-7 4h14a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2Z" />
+                      </svg>
+                    </div>
+                    <div className="text-center">
+                      <p className="text-sm font-medium text-gray-400">No game loaded</p>
+                      <p className="mt-1 text-xs leading-5 text-gray-600">
+                        Import a PGN to review moves and get coach feedback on each position.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setParseError(null);
+                        setShowImportModal(true);
+                      }}
+                      className="mt-1 rounded-lg border border-amber-400/20 bg-amber-400/10 px-4 py-2 text-xs font-semibold text-amber-300 transition-colors hover:bg-amber-400/15"
+                    >
+                      Import a game
+                    </button>
+                  </div>
+                )}
               </div>
 
-              {/* Tab content */}
-              {activeBottomPanel === 'engine' ? (
-                <EngineLines move={currentMove} />
-              ) : (
-                <SessionGamesList
-                  games={sessionGames}
-                  currentGameId={analyzedGame?.id}
-                  onSelect={switchToGame}
-                />
-              )}
-            </div>
+              {/* Bottom panel: Engine / Games */}
+              <div
+                className="flex min-h-0 flex-col rounded-xl border border-white/5 bg-(--bg-panel)"
+                style={{ flex: 40 }}
+              >
+                {/* Tabs */}
+                <div className="flex shrink-0 border-b border-white/5">
+                  {(['engine', 'games'] as const).map(tab => (
+                    <button
+                      key={tab}
+                      type="button"
+                      onClick={() => setActiveBottomPanel(tab)}
+                      className={`relative flex-1 py-2.5 text-xs font-medium capitalize transition-colors ${
+                        activeBottomPanel === tab
+                          ? 'text-white'
+                          : 'text-gray-500 hover:text-gray-300'
+                      }`}
+                    >
+                      {tab === 'engine'
+                        ? 'Engine'
+                        : `Games${sessionGames.length > 0 ? ` (${sessionGames.length})` : ''}`}
+                      {activeBottomPanel === tab && (
+                        <span className="absolute inset-x-0 bottom-0 h-px bg-amber-400" />
+                      )}
+                    </button>
+                  ))}
+                </div>
 
+                {/* Tab content */}
+                {activeBottomPanel === 'engine' ? (
+                  <EngineLines move={currentMove} />
+                ) : (
+                  <SessionGamesList
+                    games={sessionGames}
+                    currentGameId={analyzedGame?.id}
+                    onSelect={switchToGame}
+                  />
+                )}
+              </div>
+            </div>
           </div>
         </div>
-      </div>
       </div>
 
       {/* Import modal */}
