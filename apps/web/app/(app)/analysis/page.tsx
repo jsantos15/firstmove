@@ -118,20 +118,33 @@ function extractPlayerInfo(pgn: string): {
 const BLACK_SYMBOLS: Record<string, string> = { p: '♟', n: '♞', b: '♝', r: '♜', q: '♛' };
 const WHITE_SYMBOLS: Record<string, string> = { p: '♙', n: '♘', b: '♗', r: '♖', q: '♕' };
 
+function getPlayerClockMs(
+  moves: AnalyzedGameMove[],
+  color: 'white' | 'black',
+  currentPlyIndex: number
+): number | undefined {
+  for (let i = Math.min(currentPlyIndex, moves.length - 1); i >= 0; i--) {
+    const move = moves[i];
+    if (move.playedBy === color && move.clockRemainingMs != null) return move.clockRemainingMs;
+  }
+  return undefined;
+}
+
 function PlayerPanel({
   name,
   rating,
   color,
   captured,
   advantage,
+  clockMs,
 }: {
   name: string;
   rating?: number;
   color: 'white' | 'black';
   captured: PieceType[];
   advantage: number;
+  clockMs?: number;
 }) {
-  // Show the opponent's piece symbols next to each player (what they've taken)
   const symbols = color === 'white' ? BLACK_SYMBOLS : WHITE_SYMBOLS;
   return (
     <div className="flex h-7 shrink-0 items-center gap-2 px-1">
@@ -153,6 +166,11 @@ function PlayerPanel({
             <span className="ml-1.5 text-[10px] font-medium text-gray-500">+{advantage}</span>
           )}
         </div>
+      )}
+      {clockMs != null && (
+        <span className="ml-auto shrink-0 rounded bg-white/5 px-2 py-0.5 font-mono text-xs tabular-nums text-gray-400">
+          {formatClockMs(clockMs)}
+        </span>
       )}
     </div>
   );
@@ -255,7 +273,6 @@ interface MoveItem {
   plyIndex: number;
   classification: CoachClassification | null;
   evalCp?: number;
-  clockRemainingMs?: number;
 }
 
 interface MovePair {
@@ -276,7 +293,6 @@ function buildMovePairs(moves: AnalyzedGameMove[]): MovePair[] {
       plyIndex: move.plyIndex,
       classification: getMoveClassification(move),
       evalCp: move.hasEngineAnalysis ? move.afterPlayedEvalCp : undefined,
-      clockRemainingMs: move.clockRemainingMs,
     };
     if (move.playedBy === 'white') {
       pairs[pairNum].white = item;
@@ -303,21 +319,14 @@ function MoveChip({
     <button
       type="button"
       onClick={() => onNavigate(item.plyIndex)}
-      className={`flex min-w-0 flex-1 flex-col rounded px-2 py-1 font-mono text-sm transition-colors ${
+      className={`flex min-w-0 flex-1 items-center gap-1 rounded px-2 py-1 font-mono text-sm transition-colors ${
         isActive
           ? 'bg-amber-400/15 text-amber-300'
           : 'text-gray-300 hover:bg-white/5 hover:text-white'
       }`}
     >
-      <div className="flex min-w-0 items-center gap-1">
-        <span className="truncate">{item.san}</span>
-        {dotColor && <span className={`ml-0.5 h-1.5 w-1.5 shrink-0 rounded-full ${dotColor}`} />}
-      </div>
-      {item.clockRemainingMs != null && (
-        <span className={`text-[9px] tabular-nums leading-tight ${isActive ? 'text-amber-300/50' : 'text-gray-600'}`}>
-          {formatClockMs(item.clockRemainingMs)}
-        </span>
-      )}
+      <span className="truncate">{item.san}</span>
+      {dotColor && <span className={`ml-0.5 h-1.5 w-1.5 shrink-0 rounded-full ${dotColor}`} />}
     </button>
   );
 }
@@ -1103,6 +1112,12 @@ export default function AnalysisPage() {
     topColor === 'white' ? Math.max(0, material.advantage) : Math.max(0, -material.advantage);
   const bottomAdvantage =
     bottomColor === 'white' ? Math.max(0, material.advantage) : Math.max(0, -material.advantage);
+  const topClockMs = analyzedGame
+    ? getPlayerClockMs(analyzedGame.moves, topColor, currentPlyIndex)
+    : undefined;
+  const bottomClockMs = analyzedGame
+    ? getPlayerClockMs(analyzedGame.moves, bottomColor, currentPlyIndex)
+    : undefined;
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
@@ -1164,6 +1179,7 @@ export default function AnalysisPage() {
                   color={topColor}
                   captured={topCaptured}
                   advantage={topAdvantage}
+                  clockMs={topClockMs}
                 />
 
                 {/* Board + eval bar */}
@@ -1194,6 +1210,7 @@ export default function AnalysisPage() {
                   color={bottomColor}
                   captured={bottomCaptured}
                   advantage={bottomAdvantage}
+                  clockMs={bottomClockMs}
                 />
 
                 {/* Controls */}
