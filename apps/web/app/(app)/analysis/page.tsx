@@ -97,8 +97,8 @@ function extractGameTitle(pgn: string): string | null {
 }
 
 function extractPlayerInfo(pgn: string): {
-  white: { name: string; rating?: number };
-  black: { name: string; rating?: number };
+  white: { name: string; rating?: number; country?: string };
+  black: { name: string; rating?: number; country?: string };
 } {
   const parseName = (tag: string) => pgn.match(new RegExp(`\\[${tag} "([^"]+)"\\]`))?.[1];
   const parseElo = (tag: string) => {
@@ -107,9 +107,21 @@ function extractPlayerInfo(pgn: string): {
     const n = Number(raw);
     return Number.isFinite(n) && n > 0 ? n : undefined;
   };
+  const parseCountry = (tag: string) => {
+    const raw = parseName(tag);
+    return raw && raw !== '?' ? raw.toLowerCase() : undefined;
+  };
   return {
-    white: { name: parseName('White') ?? 'White', rating: parseElo('WhiteElo') },
-    black: { name: parseName('Black') ?? 'Black', rating: parseElo('BlackElo') },
+    white: {
+      name: parseName('White') ?? 'White',
+      rating: parseElo('WhiteElo'),
+      country: parseCountry('WhiteCountry'),
+    },
+    black: {
+      name: parseName('Black') ?? 'Black',
+      rating: parseElo('BlackElo'),
+      country: parseCountry('BlackCountry'),
+    },
   };
 }
 
@@ -117,6 +129,29 @@ function extractPlayerInfo(pgn: string): {
 
 const BLACK_SYMBOLS: Record<string, string> = { p: '♟', n: '♞', b: '♝', r: '♜', q: '♛' };
 const WHITE_SYMBOLS: Record<string, string> = { p: '♙', n: '♘', b: '♗', r: '♖', q: '♕' };
+const PIECE_ORDER: PieceType[] = ['q', 'r', 'b', 'n', 'p'];
+
+function groupCaptured(pieces: PieceType[]): Array<{ type: PieceType; count: number }> {
+  const counts = new Map<PieceType, number>();
+  for (const p of pieces) counts.set(p, (counts.get(p) ?? 0) + 1);
+  return PIECE_ORDER.flatMap(t => {
+    const c = counts.get(t) ?? 0;
+    return c > 0 ? [{ type: t, count: c }] : [];
+  });
+}
+
+function countryToFlag(code: string): string | null {
+  if (!code || code.length !== 2) return null;
+  const u = code.toUpperCase();
+  try {
+    return (
+      String.fromCodePoint(0x1f1e6 + u.charCodeAt(0) - 65) +
+      String.fromCodePoint(0x1f1e6 + u.charCodeAt(1) - 65)
+    );
+  } catch {
+    return null;
+  }
+}
 
 function getPlayerClockMs(
   moves: AnalyzedGameMove[],
@@ -133,6 +168,7 @@ function getPlayerClockMs(
 function PlayerPanel({
   name,
   rating,
+  country,
   color,
   captured,
   advantage,
@@ -140,35 +176,62 @@ function PlayerPanel({
 }: {
   name: string;
   rating?: number;
+  country?: string;
   color: 'white' | 'black';
   captured: PieceType[];
   advantage: number;
   clockMs?: number;
 }) {
   const symbols = color === 'white' ? BLACK_SYMBOLS : WHITE_SYMBOLS;
+  const pieceColor = color === 'white' ? 'text-gray-500' : 'text-gray-200';
+  const grouped = groupCaptured(captured);
+  const flag = country ? countryToFlag(country) : null;
+  const initial = name[0]?.toUpperCase() ?? '?';
+
   return (
-    <div className="flex h-7 shrink-0 items-center gap-2 px-1">
+    <div className="flex shrink-0 items-center gap-2 py-1">
+      {/* Avatar */}
       <div
-        className={`h-3.5 w-3.5 shrink-0 rounded-sm border ${
-          color === 'white' ? 'bg-zinc-100 border-white/20' : 'bg-zinc-700 border-white/10'
+        className={`h-8 w-8 shrink-0 rounded flex items-center justify-center text-sm font-bold select-none ${
+          color === 'white' ? 'bg-zinc-200 text-zinc-800' : 'bg-zinc-700 text-zinc-200'
         }`}
-      />
-      <span className="max-w-40 truncate text-xs font-medium text-gray-300">{name}</span>
-      {rating != null && <span className="shrink-0 text-[10px] text-gray-600">{rating}</span>}
-      {captured.length > 0 && (
-        <div className="flex min-w-0 items-center gap-px">
-          {captured.map((piece, i) => (
-            <span key={i} className="select-none text-sm leading-none text-gray-400">
-              {symbols[piece]}
-            </span>
-          ))}
-          {advantage > 0 && (
-            <span className="ml-1.5 text-[10px] font-medium text-gray-500">+{advantage}</span>
+      >
+        {initial}
+      </div>
+
+      {/* Info + pieces */}
+      <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+        {/* Name row */}
+        <div className="flex items-center gap-1.5 min-w-0">
+          <span className="truncate text-sm font-medium text-gray-200 leading-none">{name}</span>
+          {flag && <span className="shrink-0 text-xs leading-none">{flag}</span>}
+          {rating != null && (
+            <span className="shrink-0 text-[11px] text-gray-500 leading-none">({rating})</span>
           )}
         </div>
-      )}
+        {/* Pieces row */}
+        {grouped.length > 0 && (
+          <div className="flex items-center gap-0.5">
+            {grouped.map(({ type, count }) =>
+              Array.from({ length: count }).map((_, i) => (
+                <span
+                  key={`${type}-${i}`}
+                  className={`text-base leading-none select-none ${pieceColor}`}
+                >
+                  {symbols[type]}
+                </span>
+              ))
+            )}
+            {advantage > 0 && (
+              <span className="ml-1 text-[10px] font-medium text-gray-500">+{advantage}</span>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Clock */}
       {clockMs != null && (
-        <span className="ml-auto shrink-0 rounded bg-white/5 px-2 py-0.5 font-mono text-xs tabular-nums text-gray-400">
+        <span className="ml-auto shrink-0 rounded bg-white/5 px-2 py-0.5 font-mono text-xs tabular-nums text-gray-300">
           {formatClockMs(clockMs)}
         </span>
       )}
@@ -893,8 +956,8 @@ export default function AnalysisPage() {
   const [activeBottomPanel, setActiveBottomPanel] = useState<BottomPanelTab>('engine');
   const [boardSize, setBoardSize] = useState(480);
   const [playerInfo, setPlayerInfo] = useState<{
-    white: { name: string; rating?: number };
-    black: { name: string; rating?: number };
+    white: { name: string; rating?: number; country?: string };
+    black: { name: string; rating?: number; country?: string };
   } | null>(null);
 
   const { theme, animationDuration, settings, setSettings } = useBoardSettings();
@@ -1097,8 +1160,6 @@ export default function AnalysisPage() {
   const totalMoves = analyzedGame?.moves.length ?? 0;
   const canGoBack = analyzedGame !== null && currentPlyIndex >= 0;
   const canGoForward = analyzedGame !== null && currentPlyIndex < totalMoves - 1;
-  const boardAlignedClassName = 'mx-auto w-full sm:translate-x-[18px]';
-
   const isFlipped = settings.flipBoard;
   const topColor = isFlipped ? 'white' : 'black';
   const bottomColor = isFlipped ? 'black' : 'white';
@@ -1176,6 +1237,7 @@ export default function AnalysisPage() {
                 <PlayerPanel
                   name={topPlayer.name}
                   rating={topPlayer.rating}
+                  country={topPlayer.country}
                   color={topColor}
                   captured={topCaptured}
                   advantage={topAdvantage}
@@ -1207,86 +1269,12 @@ export default function AnalysisPage() {
                 <PlayerPanel
                   name={bottomPlayer.name}
                   rating={bottomPlayer.rating}
+                  country={bottomPlayer.country}
                   color={bottomColor}
                   captured={bottomCaptured}
                   advantage={bottomAdvantage}
                   clockMs={bottomClockMs}
                 />
-
-                {/* Controls */}
-                <div
-                  className={`${boardAlignedClassName} grid shrink-0 grid-cols-3 items-center`}
-                  style={{ maxWidth: boardSize }}
-                >
-                  {/* Left: flip button */}
-                  <div>
-                    <button
-                      type="button"
-                      onClick={() => setSettings({ flipBoard: !settings.flipBoard })}
-                      title="Flip board"
-                      className="flex h-9 w-9 items-center justify-center text-gray-500 transition-colors hover:text-gray-300"
-                    >
-                      <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth={1.5}
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        className="h-4 w-4"
-                      >
-                        <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8" />
-                        <path d="M21 3v5h-5" />
-                        <path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16" />
-                        <path d="M8 21H3v-5" />
-                      </svg>
-                    </button>
-                  </div>
-
-                  {/* Center: nav buttons */}
-                  <div className="flex justify-center">
-                    <div className="flex items-center divide-x divide-white/10 overflow-hidden rounded-lg border border-white/10">
-                      <NavBtn onClick={() => goTo(-1)} disabled={!canGoBack} title="First position">
-                        <svg viewBox="0 0 16 16" fill="currentColor" className="w-5 h-5">
-                          <path d="M3.5 3a.5.5 0 0 1 .5.5v3.793l6.146-4.439A.5.5 0 0 1 11 3.5v9a.5.5 0 0 1-.854.354L4 8.707V12.5a.5.5 0 0 1-1 0v-9a.5.5 0 0 1 .5-.5z" />
-                        </svg>
-                      </NavBtn>
-                      <NavBtn
-                        onClick={() => goTo(currentPlyIndex - 1)}
-                        disabled={!canGoBack}
-                        title="Previous (←)"
-                      >
-                        <svg viewBox="0 0 16 16" fill="currentColor" className="w-5 h-5">
-                          <path d="M11.354 3.646a.5.5 0 0 1 0 .708L6.707 9l4.647 4.646a.5.5 0 0 1-.708.708l-5-5a.5.5 0 0 1 0-.708l5-5a.5.5 0 0 1 .708 0z" />
-                        </svg>
-                      </NavBtn>
-                      <NavBtn
-                        onClick={() => goTo(currentPlyIndex + 1)}
-                        disabled={!canGoForward}
-                        title="Next (→)"
-                      >
-                        <svg viewBox="0 0 16 16" fill="currentColor" className="w-5 h-5">
-                          <path d="M4.646 3.646a.5.5 0 0 1 .708 0l5 5a.5.5 0 0 1 0 .708l-5 5a.5.5 0 0 1-.708-.708L9.293 9 4.646 4.354a.5.5 0 0 1 0-.708z" />
-                        </svg>
-                      </NavBtn>
-                      <NavBtn
-                        onClick={() => goTo(totalMoves - 1)}
-                        disabled={!canGoForward}
-                        title="Last position"
-                      >
-                        <svg viewBox="0 0 16 16" fill="currentColor" className="w-5 h-5">
-                          <path d="M12.5 3a.5.5 0 0 0-.5.5v3.793L5.854 2.854A.5.5 0 0 0 5 3.5v9a.5.5 0 0 0 .854.354L12 8.207V12.5a.5.5 0 0 0 1 0v-9a.5.5 0 0 0-.5-.5z" />
-                        </svg>
-                      </NavBtn>
-                    </div>
-                  </div>
-
-                  {/* Right: settings gear */}
-                  <div className="flex justify-end">
-                    <BoardSettingsPopover />
-                  </div>
-                </div>
               </div>
             </div>
           </div>
@@ -1397,6 +1385,69 @@ export default function AnalysisPage() {
                   />
                 )}
               </div>
+            </div>
+
+            {/* Controls */}
+            <div className="shrink-0 flex items-center justify-between border-t border-white/5 pt-2">
+              <button
+                type="button"
+                onClick={() => setSettings({ flipBoard: !settings.flipBoard })}
+                title="Flip board"
+                className="flex h-9 w-9 items-center justify-center rounded text-gray-500 transition-colors hover:bg-white/5 hover:text-gray-300"
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth={1.5}
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  className="h-4 w-4"
+                >
+                  <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8" />
+                  <path d="M21 3v5h-5" />
+                  <path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16" />
+                  <path d="M8 21H3v-5" />
+                </svg>
+              </button>
+
+              <div className="flex items-center divide-x divide-white/10 overflow-hidden rounded-lg border border-white/10">
+                <NavBtn onClick={() => goTo(-1)} disabled={!canGoBack} title="First position">
+                  <svg viewBox="0 0 16 16" fill="currentColor" className="w-5 h-5">
+                    <path d="M3.5 3a.5.5 0 0 1 .5.5v3.793l6.146-4.439A.5.5 0 0 1 11 3.5v9a.5.5 0 0 1-.854.354L4 8.707V12.5a.5.5 0 0 1-1 0v-9a.5.5 0 0 1 .5-.5z" />
+                  </svg>
+                </NavBtn>
+                <NavBtn
+                  onClick={() => goTo(currentPlyIndex - 1)}
+                  disabled={!canGoBack}
+                  title="Previous (←)"
+                >
+                  <svg viewBox="0 0 16 16" fill="currentColor" className="w-5 h-5">
+                    <path d="M11.354 3.646a.5.5 0 0 1 0 .708L6.707 9l4.647 4.646a.5.5 0 0 1-.708.708l-5-5a.5.5 0 0 1 0-.708l5-5a.5.5 0 0 1 .708 0z" />
+                  </svg>
+                </NavBtn>
+                <NavBtn
+                  onClick={() => goTo(currentPlyIndex + 1)}
+                  disabled={!canGoForward}
+                  title="Next (→)"
+                >
+                  <svg viewBox="0 0 16 16" fill="currentColor" className="w-5 h-5">
+                    <path d="M4.646 3.646a.5.5 0 0 1 .708 0l5 5a.5.5 0 0 1 0 .708l-5 5a.5.5 0 0 1-.708-.708L9.293 9 4.646 4.354a.5.5 0 0 1 0-.708z" />
+                  </svg>
+                </NavBtn>
+                <NavBtn
+                  onClick={() => goTo(totalMoves - 1)}
+                  disabled={!canGoForward}
+                  title="Last position"
+                >
+                  <svg viewBox="0 0 16 16" fill="currentColor" className="w-5 h-5">
+                    <path d="M12.5 3a.5.5 0 0 0-.5.5v3.793L5.854 2.854A.5.5 0 0 0 5 3.5v9a.5.5 0 0 0 .854.354L12 8.207V12.5a.5.5 0 0 0 1 0v-9a.5.5 0 0 0-.5-.5z" />
+                  </svg>
+                </NavBtn>
+              </div>
+
+              <BoardSettingsPopover />
             </div>
           </div>
         </div>
