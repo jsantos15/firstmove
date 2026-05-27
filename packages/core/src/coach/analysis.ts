@@ -1,5 +1,33 @@
 import type { CoachClassification } from './index';
 
+export const GAME_REVIEW_CATEGORIES = [
+  'brilliant',
+  'great',
+  'book',
+  'best',
+  'excellent',
+  'good',
+  'inaccuracy',
+  'mistake',
+  'miss',
+  'blunder',
+] as const;
+
+export type GameReviewCategory = (typeof GAME_REVIEW_CATEGORIES)[number];
+
+export const GAME_REVIEW_CATEGORY_LABELS = {
+  brilliant: 'Brilliant',
+  great: 'Great',
+  book: 'Book',
+  best: 'Best',
+  excellent: 'Excellent',
+  good: 'Good',
+  inaccuracy: 'Inaccuracy',
+  mistake: 'Mistake',
+  miss: 'Miss',
+  blunder: 'Blunder',
+} as const satisfies Record<GameReviewCategory, string>;
+
 export const COACH_CLASSIFICATION_THRESHOLDS = {
   greatGainCp: 120,
   excellentGainCp: 80,
@@ -31,6 +59,37 @@ export function classifyAnalyzedMoveByCentipawnLoss({
   isCriticalMove?: boolean;
   missedOpportunityCp?: number;
 }): CoachClassification {
+  return buildGameReviewCategory({
+    centipawnLoss,
+    centipawnGain,
+    isBestMove,
+    isBookMove,
+    isSacrifice,
+    isOnlyGoodMove,
+    isCriticalMove,
+    missedOpportunityCp,
+  });
+}
+
+export function buildGameReviewCategory({
+  centipawnLoss,
+  centipawnGain,
+  isBestMove,
+  isBookMove,
+  isSacrifice,
+  isOnlyGoodMove,
+  isCriticalMove,
+  missedOpportunityCp,
+}: {
+  centipawnLoss: number;
+  centipawnGain?: number;
+  isBestMove?: boolean;
+  isBookMove?: boolean;
+  isSacrifice?: boolean;
+  isOnlyGoodMove?: boolean;
+  isCriticalMove?: boolean;
+  missedOpportunityCp?: number;
+}): GameReviewCategory {
   if (isBookMove) return 'book';
   if (
     isBestMove &&

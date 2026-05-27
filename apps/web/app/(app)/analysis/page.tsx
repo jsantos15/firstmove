@@ -11,12 +11,16 @@ import { BoardSettingsPopover } from '@/components/board/BoardSettingsPopover';
 import {
   buildAnalyzedGameFromPgn,
   buildGameAnalysisCoachFeedbackFromAnalyzedGameMove,
+  buildGameReviewReport,
   buildGameAnalysisSummaryFeedback,
-  classifyAnalyzedMoveByCentipawnLoss,
+  GAME_REVIEW_CATEGORIES,
+  GAME_REVIEW_CATEGORY_LABELS,
+  getAnalyzedGameMoveReviewCategory,
   type CoachFeedback,
+  type GameReviewCategory,
+  type GameReviewReport,
 } from '@/lib/coachFeedback';
 import type { AnalyzedGame, AnalyzedGameMove } from '@firstmove/core';
-import type { CoachClassification } from '@firstmove/core';
 import { computeMaterial, type PieceType } from '@/lib/capturedPieces';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -44,7 +48,7 @@ type StockfishResponse = {
   depth: number;
 };
 
-type BottomPanelTab = 'engine' | 'recap' | 'games';
+type BottomPanelTab = 'review' | 'engine' | 'recap' | 'games';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -55,33 +59,13 @@ function formatEval(cp: number | undefined): string {
   return `${cp > 0 ? '+' : ''}${(cp / 100).toFixed(1)}`;
 }
 
-function getMoveClassification(move: AnalyzedGameMove): CoachClassification | null {
-  if (!move.hasEngineAnalysis) return null;
-  const afterPlayedEvalCp = move.afterPlayedEvalCp;
-  if (typeof afterPlayedEvalCp !== 'number') return null;
-
-  const playedPlayerEval = move.playedBy === 'white' ? afterPlayedEvalCp : -afterPlayedEvalCp;
-  const bestPlayerEval =
-    typeof move.afterBestEvalCp === 'number'
-      ? move.playedBy === 'white'
-        ? move.afterBestEvalCp
-        : -move.afterBestEvalCp
-      : undefined;
-  const centipawnLoss =
-    typeof bestPlayerEval === 'number' ? Math.max(0, bestPlayerEval - playedPlayerEval) : 0;
-
-  return classifyAnalyzedMoveByCentipawnLoss({
-    centipawnLoss,
-    isBestMove: move.bestMoveSan === move.san || centipawnLoss <= 10,
-    isSacrifice: move.isSacrifice,
-    isOnlyGoodMove: move.isOnlyGoodMove,
-    isCriticalMove: move.isCriticalMove,
-  });
-}
-
-const CLASSIFICATION_DOT: Partial<Record<CoachClassification, string>> = {
+const CLASSIFICATION_DOT: Record<GameReviewCategory, string> = {
   brilliant: 'bg-cyan-400',
   great: 'bg-blue-400',
+  book: 'bg-orange-300',
+  best: 'bg-lime-400',
+  excellent: 'bg-green-400',
+  good: 'bg-emerald-300',
   miss: 'bg-rose-400',
   inaccuracy: 'bg-yellow-400',
   mistake: 'bg-orange-400',
@@ -334,7 +318,7 @@ function formatClockMs(ms: number): string {
 interface MoveItem {
   san: string;
   plyIndex: number;
-  classification: CoachClassification | null;
+  classification: GameReviewCategory | null;
   evalCp?: number;
 }
 
@@ -354,7 +338,7 @@ function buildMovePairs(moves: AnalyzedGameMove[]): MovePair[] {
     const item: MoveItem = {
       san: move.san,
       plyIndex: move.plyIndex,
-      classification: getMoveClassification(move),
+      classification: getAnalyzedGameMoveReviewCategory(move),
       evalCp: move.hasEngineAnalysis ? move.afterPlayedEvalCp : undefined,
     };
     if (move.playedBy === 'white') {
@@ -696,19 +680,6 @@ function CoachAnalysisPanel({
           </p>
         )}
 
-        {feedback?.secondary && (
-          <div className="border-t border-white/5 pt-3">
-            <div className="mb-1.5 flex items-center gap-2">
-              <span className="rounded-full border border-white/10 px-2 py-0.5 text-[10px] font-semibold uppercase leading-4 text-gray-400">
-                {feedback.secondary.label}
-              </span>
-              <span className="truncate text-xs font-semibold text-gray-300">
-                {feedback.secondary.title}
-              </span>
-            </div>
-            <p className="text-xs leading-5 text-gray-500">{feedback.secondary.message}</p>
-          </div>
-        )}
       </div>
     </div>
   );
@@ -789,6 +760,80 @@ function GameRecapPanel({
           <p className="text-xs leading-5 text-gray-400">{summary.message}</p>
         </div>
       ))}
+    </div>
+  );
+}
+
+function GameReviewReportPanel({
+  report,
+  hasEngineAnalysis,
+}: {
+  report: GameReviewReport | null;
+  hasEngineAnalysis: boolean;
+}) {
+  if (!report) {
+    return (
+      <div className="flex flex-1 items-center justify-center px-4 py-3 text-center">
+        <p className="text-xs leading-5 text-gray-600">
+          Import and analyze a game to see review categories.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex min-h-0 flex-1 flex-col overflow-y-auto px-3 py-2">
+      <div className="mb-2 flex items-center justify-between gap-3 border-b border-white/5 pb-2">
+        <div>
+          <p className="text-xs font-semibold text-white">Game Review</p>
+          <p className="mt-0.5 text-[10px] text-gray-600">
+            FirstMove categories, not Chess.com exact scoring
+          </p>
+        </div>
+        {!hasEngineAnalysis && (
+          <span className="rounded-full border border-white/10 px-2 py-0.5 text-[10px] font-medium text-gray-500">
+            needs engine
+          </span>
+        )}
+      </div>
+
+      <div className="grid grid-cols-[1fr_2.5rem_2.5rem] items-center gap-x-2 gap-y-1.5">
+        <span className="text-[10px] uppercase tracking-wider text-gray-600">Category</span>
+        <span className="text-center text-[10px] uppercase tracking-wider text-gray-600">White</span>
+        <span className="text-center text-[10px] uppercase tracking-wider text-gray-600">Black</span>
+
+        {GAME_REVIEW_CATEGORIES.map(category => (
+          <div key={category} className="contents">
+            <div className="flex min-w-0 items-center gap-2 py-1">
+              <span className={`h-2 w-2 shrink-0 rounded-full ${CLASSIFICATION_DOT[category]}`} />
+              <span className="truncate text-xs font-medium text-gray-300">
+                {GAME_REVIEW_CATEGORY_LABELS[category]}
+              </span>
+            </div>
+            <span className="text-center text-xs font-semibold tabular-nums text-gray-200">
+              {report.white.categories[category]}
+            </span>
+            <span className="text-center text-xs font-semibold tabular-nums text-gray-200">
+              {report.black.categories[category]}
+            </span>
+          </div>
+        ))}
+      </div>
+
+      <div className="mt-2 border-t border-white/5 pt-2">
+        <div className="grid grid-cols-[1fr_2.5rem_2.5rem] items-center gap-x-2 text-xs">
+          <span className="font-medium text-gray-400">Reviewed moves</span>
+          <span className="text-center font-semibold tabular-nums text-gray-200">
+            {report.white.total}
+          </span>
+          <span className="text-center font-semibold tabular-nums text-gray-200">
+            {report.black.total}
+          </span>
+        </div>
+        <p className="mt-2 text-[10px] leading-4 text-gray-600">
+          Accuracy and Game Rating are held for the benchmarking pass.
+        </p>
+      </div>
     </div>
   );
 }
@@ -953,7 +998,7 @@ export default function AnalysisPage() {
   const [isEngineRunning, setIsEngineRunning] = useState(false);
   const [engineStatus, setEngineStatus] = useState<string | null>(null);
   const [engineError, setEngineError] = useState<string | null>(null);
-  const [activeBottomPanel, setActiveBottomPanel] = useState<BottomPanelTab>('engine');
+  const [activeBottomPanel, setActiveBottomPanel] = useState<BottomPanelTab>('review');
   const [boardSize, setBoardSize] = useState(480);
   const [playerInfo, setPlayerInfo] = useState<{
     white: { name: string; rating?: number; country?: string };
@@ -1075,6 +1120,11 @@ export default function AnalysisPage() {
       return [];
     }
   }, [analyzedGame, coachSettings.persona]);
+
+  const gameReviewReport = useMemo(() => {
+    if (!analyzedGame) return null;
+    return buildGameReviewReport(analyzedGame);
+  }, [analyzedGame]);
 
   const hasEngineAnalysis = useMemo(
     () => Boolean(analyzedGame?.moves.some(move => move.hasEngineAnalysis)),
@@ -1339,14 +1389,14 @@ export default function AnalysisPage() {
                 )}
               </div>
 
-              {/* Bottom panel: Engine / Games */}
+              {/* Bottom panel: Review / Engine / Recap / Games */}
               <div
                 className="flex min-h-0 flex-col rounded-xl border border-white/5 bg-(--bg-panel)"
                 style={{ flex: 40 }}
               >
                 {/* Tabs */}
                 <div className="flex shrink-0 border-b border-white/5">
-                  {(['engine', 'recap', 'games'] as const).map(tab => (
+                  {(['review', 'engine', 'recap', 'games'] as const).map(tab => (
                     <button
                       key={tab}
                       type="button"
@@ -1361,7 +1411,9 @@ export default function AnalysisPage() {
                         ? 'Engine'
                         : tab === 'recap'
                           ? 'Recap'
-                          : `Games${sessionGames.length > 0 ? ` (${sessionGames.length})` : ''}`}
+                          : tab === 'review'
+                            ? 'Review'
+                            : `Games${sessionGames.length > 0 ? ` (${sessionGames.length})` : ''}`}
                       {activeBottomPanel === tab && (
                         <span className="absolute inset-x-0 bottom-0 h-px bg-amber-400" />
                       )}
@@ -1370,7 +1422,12 @@ export default function AnalysisPage() {
                 </div>
 
                 {/* Tab content */}
-                {activeBottomPanel === 'engine' ? (
+                {activeBottomPanel === 'review' ? (
+                  <GameReviewReportPanel
+                    report={gameReviewReport}
+                    hasEngineAnalysis={hasEngineAnalysis}
+                  />
+                ) : activeBottomPanel === 'engine' ? (
                   <EngineLines move={currentMove} />
                 ) : activeBottomPanel === 'recap' ? (
                   <GameRecapPanel

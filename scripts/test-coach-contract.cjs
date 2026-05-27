@@ -51,6 +51,114 @@ test('opening practice keeps display and spoken text separate', () => {
   assert.notEqual(rendered.message, rendered.spokenText);
 });
 
+test('game review categories keep Chess.com-style order', () => {
+  assert.deepEqual(core.GAME_REVIEW_CATEGORIES, [
+    'brilliant',
+    'great',
+    'book',
+    'best',
+    'excellent',
+    'good',
+    'inaccuracy',
+    'mistake',
+    'miss',
+    'blunder',
+  ]);
+  assert.equal(core.GAME_REVIEW_CATEGORY_LABELS.brilliant, 'Brilliant');
+  assert.equal(core.GAME_REVIEW_CATEGORY_LABELS.blunder, 'Blunder');
+});
+
+test('game review category classifier covers the visible category set', () => {
+  assert.equal(core.buildGameReviewCategory({ centipawnLoss: 0, isBestMove: true, isSacrifice: true }), 'brilliant');
+  assert.equal(
+    core.buildGameReviewCategory({
+      centipawnLoss: 0,
+      centipawnGain: 140,
+      isBestMove: true,
+      isCriticalMove: true,
+    }),
+    'great'
+  );
+  assert.equal(core.buildGameReviewCategory({ centipawnLoss: 0, isBookMove: true }), 'book');
+  assert.equal(core.buildGameReviewCategory({ centipawnLoss: 0, isBestMove: true }), 'best');
+  assert.equal(core.buildGameReviewCategory({ centipawnLoss: 35 }), 'excellent');
+  assert.equal(core.buildGameReviewCategory({ centipawnLoss: 60 }), 'good');
+  assert.equal(core.buildGameReviewCategory({ centipawnLoss: 100 }), 'inaccuracy');
+  assert.equal(core.buildGameReviewCategory({ centipawnLoss: 200 }), 'mistake');
+  assert.equal(
+    core.buildGameReviewCategory({ centipawnLoss: 460, missedOpportunityCp: 460 }),
+    'miss'
+  );
+  assert.equal(core.buildGameReviewCategory({ centipawnLoss: 460 }), 'blunder');
+});
+
+test('miss takes visible category precedence over blunder-size loss', () => {
+  const events = core.buildGameAnalysisMoveEventsFromEngine({
+    gameId: 'game-review-miss',
+    moveSan: 'Qxd5',
+    plyIndex: 18,
+    playedBy: 'white',
+    phase: 'middlegame',
+    beforeEvalCp: 30,
+    afterPlayedEvalCp: -320,
+    afterBestEvalCp: 140,
+    bestMoveSan: 'Bxf7+',
+    themeTags: ['fork'],
+  });
+
+  assert.ok(events.some(event => event.eventType === 'blunder'));
+  assert.ok(events.every(event => event.classification === 'miss'));
+  assert.equal(events[0].classification, 'miss');
+  assert.equal(events[0].analysisFacts.reviewCategory, 'miss');
+});
+
+test('game review report counts one category per move by side', () => {
+  const game = {
+    id: 'review-counts',
+    moves: [
+      {
+        san: 'e4',
+        plyIndex: 0,
+        playedBy: 'white',
+        phase: 'opening',
+        hasEngineAnalysis: true,
+        afterPlayedEvalCp: 20,
+        afterBestEvalCp: 20,
+        bestMoveSan: 'e4',
+        isBookMove: true,
+      },
+      {
+        san: 'e5',
+        plyIndex: 1,
+        playedBy: 'black',
+        phase: 'opening',
+        hasEngineAnalysis: true,
+        afterPlayedEvalCp: 10,
+        afterBestEvalCp: 10,
+        bestMoveSan: 'e5',
+      },
+      {
+        san: 'Qh5',
+        plyIndex: 2,
+        playedBy: 'white',
+        phase: 'opening',
+        hasEngineAnalysis: true,
+        beforeEvalCp: 20,
+        afterPlayedEvalCp: -320,
+        afterBestEvalCp: 140,
+        bestMoveSan: 'Nf3',
+      },
+    ],
+  };
+  const report = core.buildGameReviewReport(game);
+
+  assert.equal(report.white.categories.book, 1);
+  assert.equal(report.black.categories.best, 1);
+  assert.equal(report.white.categories.miss, 1);
+  assert.equal(report.white.total, 2);
+  assert.equal(report.black.total, 1);
+});
+
 test('event-specific spoken fallback works without event-specific display copy', () => {
   const event = core.buildGameAnalysisMoveEventsFromEngine({
     gameId: 'game-1',
@@ -101,7 +209,7 @@ test('engine adapter emits missed-win and blunder events from white-perspective 
   assert.equal(events[0].classification, 'miss');
   assert.equal(events[0].analysisFacts.candidateReason, 'missed_forcing_capture');
   assert.equal(events[2].classification, 'miss');
-  assert.equal(events[3].classification, 'blunder');
+  assert.equal(events[3].classification, 'miss');
   assert.equal(events[0].analysisFacts.centipawnLoss, 460);
   assert.equal(events[0].analysisFacts.missedOpportunityCp, 460);
   assert.equal(events[0].evidence?.kind, 'line');
@@ -576,7 +684,7 @@ test('mixed missed tactic and blunder keeps tactic primary and severity secondar
   assert.equal(events[0].classification, 'miss');
   assert.equal(events[0].evidence?.kind, 'line');
   assert.equal(secondary?.eventType, 'blunder');
-  assert.equal(secondary?.classification, 'blunder');
+  assert.equal(secondary?.classification, 'miss');
 });
 
 test('missed mate is always the primary lesson', () => {

@@ -2,20 +2,24 @@ import {
   buildGameAnalysisEventsFromAnalyzedGame,
   buildGameAnalysisSummaryEvents,
   buildGameAnalysisCoachCandidatesFromFacts,
+  buildGameReviewReport,
   buildGameAnalysisMoveEvents,
   buildGameAnalysisMoveEventsFromAnalyzedGameMove,
   buildGameAnalysisMoveEventsFromEngine,
   buildAnalyzedGameFromPgn,
   buildOpeningPracticeMoveEvent,
   buildOpeningPracticeWrongMoveEvent,
-  classifyAnalyzedMoveByCentipawnLoss,
+  GAME_REVIEW_CATEGORIES,
+  GAME_REVIEW_CATEGORY_LABELS,
+  getAnalyzedGameMoveReviewCategory,
   COACH_CLASSIFICATION_THRESHOLDS,
-  selectComplementaryGameAnalysisEvent,
   type CoachClassification,
   type CoachEvent,
   type CoachTone,
   type AnalyzedGame,
   type AnalyzedGameMove,
+  type GameReviewCategory,
+  type GameReviewReport,
   type GameAnalysisCoachCandidate,
   type GameAnalysisMoveEventInput,
   type GameAnalysisEngineMoveInput,
@@ -24,7 +28,6 @@ import {
 } from '@firstmove/core';
 import {
   renderCoachEvent,
-  renderCoachEventComposition,
   type RenderedCoachEvent,
 } from '@firstmove/i18n';
 
@@ -35,19 +38,17 @@ export type CoachCandidateFeedback = GameAnalysisCoachCandidate;
 
 export {
   COACH_CLASSIFICATION_THRESHOLDS,
+  GAME_REVIEW_CATEGORIES,
+  GAME_REVIEW_CATEGORY_LABELS,
   buildGameAnalysisCoachCandidatesFromFacts,
+  buildGameReviewReport,
   buildAnalyzedGameFromPgn,
-  classifyAnalyzedMoveByCentipawnLoss,
+  getAnalyzedGameMoveReviewCategory,
 };
+export type { GameReviewCategory, GameReviewReport };
 
 function renderGameAnalysisCoachEvents(events: CoachEvent[], locale?: string): CoachFeedback[] {
-  const secondary = selectComplementaryGameAnalysisEvent(events);
-
-  return events.map((event, index) =>
-    index === 0
-      ? renderCoachEventComposition({ primary: event, secondary, locale })
-      : renderCoachEvent(event, locale)
-  );
+  return events.map(event => renderCoachEvent(event, locale));
 }
 
 type MoveCoachInput = OpeningPracticeMoveEventInput & {

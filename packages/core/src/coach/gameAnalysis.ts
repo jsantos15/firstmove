@@ -1,5 +1,11 @@
 import { Chess } from 'chess.js';
-import { COACH_CLASSIFICATION_THRESHOLDS, classifyAnalyzedMoveByCentipawnLoss } from './analysis';
+import {
+  COACH_CLASSIFICATION_THRESHOLDS,
+  GAME_REVIEW_CATEGORIES,
+  buildGameReviewCategory,
+  classifyAnalyzedMoveByCentipawnLoss,
+} from './analysis';
+import type { GameReviewCategory } from './analysis';
 import { COACH_GAME_PHASES } from './index';
 import type {
   CoachAnalysisFacts,
@@ -36,6 +42,7 @@ export interface GameAnalysisMoveEventInput {
   isOnlyGoodMove?: boolean;
   isCriticalMove?: boolean;
   isSacrifice?: boolean;
+  isBookMove?: boolean;
   missedOpportunityCp?: number;
   themeTags?: CoachThemeTag[];
   persona?: CoachPersona;
@@ -61,6 +68,7 @@ export interface GameAnalysisEngineMoveInput {
   isOnlyGoodMove?: boolean;
   isCriticalMove?: boolean;
   isSacrifice?: boolean;
+  isBookMove?: boolean;
   themeTags?: CoachThemeTag[];
   persona?: CoachPersona;
 }
@@ -88,6 +96,7 @@ export interface AnalyzedGameMove {
   isOnlyGoodMove?: boolean;
   isCriticalMove?: boolean;
   isSacrifice?: boolean;
+  isBookMove?: boolean;
   themeTags?: CoachThemeTag[];
   clockRemainingMs?: number; // Remaining clock time after this move, from [%clk] PGN annotation
 }
@@ -201,6 +210,8 @@ export interface GameAnalysisMoveFacts {
   isOnlyGoodMove?: boolean;
   isCriticalMove?: boolean;
   isSacrifice?: boolean;
+  isBookMove?: boolean;
+  reviewCategory: GameReviewCategory;
   missedOpportunityCp?: number;
   themeTags: CoachThemeTag[];
   persona?: CoachPersona;
@@ -324,6 +335,20 @@ export interface GameAnalysisCoachCandidate {
   variables: CoachEventVariables;
   analysisFacts: CoachAnalysisFacts;
   evidence?: CoachEvidence;
+}
+
+export type GameReviewCategoryCounts = Record<GameReviewCategory, number>;
+
+export interface GameReviewPlayerReport {
+  side: GameAnalysisSide;
+  categories: GameReviewCategoryCounts;
+  total: number;
+}
+
+export interface GameReviewReport {
+  categories: readonly GameReviewCategory[];
+  white: GameReviewPlayerReport;
+  black: GameReviewPlayerReport;
 }
 
 const COMPLEMENTARY_EVENT_TYPES = [
@@ -1623,6 +1648,20 @@ function moveQualityEventType(
 function buildFactsBase(input: GameAnalysisMoveEventInput): GameAnalysisMoveFacts {
   const centipawnLoss = input.centipawnLoss ?? 0;
   const centipawnGain = input.centipawnGain ?? 0;
+  const hasEngineAnalysis = input.hasEngineAnalysis ?? true;
+  const reviewCategory =
+    !hasEngineAnalysis && !input.isBookMove
+      ? 'good'
+      : buildGameReviewCategory({
+          centipawnLoss,
+          centipawnGain,
+          isBestMove: input.isBestMove,
+          isBookMove: input.isBookMove,
+          isSacrifice: input.isSacrifice,
+          isOnlyGoodMove: input.isOnlyGoodMove,
+          isCriticalMove: input.isCriticalMove,
+          missedOpportunityCp: input.missedOpportunityCp,
+        });
   const afterPlayerEvalCp =
     typeof input.afterEvalCp === 'number' && Number.isFinite(input.afterEvalCp)
       ? input.afterEvalCp
@@ -1677,7 +1716,7 @@ function buildFactsBase(input: GameAnalysisMoveEventInput): GameAnalysisMoveFact
     plyIndex: input.plyIndex,
     playedBy: input.playedBy ?? 'white',
     phase: input.phase,
-    hasEngineAnalysis: input.hasEngineAnalysis ?? true,
+    hasEngineAnalysis,
     beforeFen: input.beforeFen,
     afterFen: chessFacts.afterFen,
     moveFrom: chessFacts.moveFrom,
@@ -1746,6 +1785,8 @@ function buildFactsBase(input: GameAnalysisMoveEventInput): GameAnalysisMoveFact
     isOnlyGoodMove: input.isOnlyGoodMove,
     isCriticalMove: input.isCriticalMove,
     isSacrifice: input.isSacrifice,
+    isBookMove: input.isBookMove,
+    reviewCategory,
     missedOpportunityCp: input.missedOpportunityCp,
     themeTags,
     persona: input.persona,
@@ -1790,6 +1831,8 @@ function candidateAnalysisFacts(
     isOnlyGoodMove: facts.isOnlyGoodMove ?? null,
     isCriticalMove: facts.isCriticalMove ?? null,
     isSacrifice: facts.isSacrifice ?? null,
+    isBookMove: facts.isBookMove ?? null,
+    reviewCategory: facts.reviewCategory,
     hasEngineAnalysis: facts.hasEngineAnalysis,
     missedOpportunityCp: facts.missedOpportunityCp ?? null,
     isCapture: facts.isCapture,
@@ -1941,17 +1984,18 @@ function makeCandidate({
   return {
     id: `candidate:${facts.gameId}:${facts.plyIndex}:${eventType}:${reason}`,
     eventType,
-    classification,
+    classification: facts.reviewCategory,
     priority,
     teachingWeight,
     reason,
-    tone: eventTone(classification),
-    severity: eventSeverity(classification),
+    tone: eventTone(facts.reviewCategory),
+    severity: eventSeverity(facts.reviewCategory),
     themeTags,
     variables: candidateVariables(facts),
     analysisFacts: candidateAnalysisFacts(facts, {
       candidatePriority: priority,
       candidateReason: reason,
+      candidateClassification: classification,
     }),
     evidence,
   };
@@ -2862,6 +2906,80 @@ export function buildGameAnalysisMoveEvents(input: GameAnalysisMoveEventInput): 
   );
 }
 
+export function getAnalyzedGameMoveReviewCategory(
+  move: AnalyzedGameMove
+): GameReviewCategory | null {
+  if (move.isBookMove) return 'book';
+  if (!move.hasEngineAnalysis) return null;
+
+  const playedPlayerEval = toPlayerPerspective(move.afterPlayedEvalCp, move.playedBy);
+  if (typeof playedPlayerEval !== 'number') return null;
+
+  const bestPlayerEval = toPlayerPerspective(move.afterBestEvalCp, move.playedBy);
+  const beforePlayerEval = toPlayerPerspective(move.beforeEvalCp, move.playedBy);
+  const centipawnLoss =
+    typeof bestPlayerEval === 'number' ? Math.max(0, bestPlayerEval - playedPlayerEval) : 0;
+  const centipawnGain =
+    typeof beforePlayerEval === 'number' ? Math.max(0, playedPlayerEval - beforePlayerEval) : 0;
+  const isBestMove =
+    move.bestMoveSan && move.bestMoveSan === move.san
+      ? true
+      : typeof bestPlayerEval === 'number'
+        ? centipawnLoss <= 10
+        : undefined;
+  const missedOpportunityCp =
+    move.bestMoveSan &&
+    move.bestMoveSan !== move.san &&
+    centipawnLoss >= COACH_CLASSIFICATION_THRESHOLDS.missOpportunityCp
+      ? centipawnLoss
+      : undefined;
+
+  return buildGameReviewCategory({
+    centipawnLoss,
+    centipawnGain,
+    isBestMove,
+    isBookMove: move.isBookMove,
+    isSacrifice: move.isSacrifice,
+    isOnlyGoodMove: move.isOnlyGoodMove,
+    isCriticalMove:
+      move.isCriticalMove ??
+      Boolean(centipawnLoss >= COACH_CLASSIFICATION_THRESHOLDS.missOpportunityCp),
+    missedOpportunityCp,
+  });
+}
+
+function emptyGameReviewCategoryCounts(): GameReviewCategoryCounts {
+  return Object.fromEntries(GAME_REVIEW_CATEGORIES.map(category => [category, 0])) as
+    GameReviewCategoryCounts;
+}
+
+export function buildGameReviewReport(game: AnalyzedGame): GameReviewReport {
+  const white: GameReviewPlayerReport = {
+    side: 'white',
+    categories: emptyGameReviewCategoryCounts(),
+    total: 0,
+  };
+  const black: GameReviewPlayerReport = {
+    side: 'black',
+    categories: emptyGameReviewCategoryCounts(),
+    total: 0,
+  };
+
+  for (const move of game.moves) {
+    const category = getAnalyzedGameMoveReviewCategory(move);
+    if (!category) continue;
+    const player = move.playedBy === 'white' ? white : black;
+    player.categories[category] += 1;
+    player.total += 1;
+  }
+
+  return {
+    categories: GAME_REVIEW_CATEGORIES,
+    white,
+    black,
+  };
+}
+
 export function buildGameAnalysisMoveEventsFromEngine(
   input: GameAnalysisEngineMoveInput
 ): CoachEvent[] {
@@ -2935,6 +3053,7 @@ export function buildGameAnalysisMoveEventsFromEngine(
     isOnlyGoodMove,
     isCriticalMove,
     isSacrifice: input.isSacrifice,
+    isBookMove: input.isBookMove,
     missedOpportunityCp,
     themeTags: input.themeTags,
     persona: input.persona,
@@ -2968,6 +3087,7 @@ export function buildGameAnalysisMoveEventsFromAnalyzedGameMove({
     isOnlyGoodMove: move.isOnlyGoodMove,
     isCriticalMove: move.isCriticalMove,
     isSacrifice: move.isSacrifice,
+    isBookMove: move.isBookMove,
     themeTags: move.themeTags,
     persona,
   });
