@@ -517,20 +517,27 @@ export default function PracticePage({ params, searchParams }: PageProps) {
         <div className="flex h-full w-full max-w-447 gap-3">
           {/* Board card */}
           <div className="flex h-full min-w-0 flex-1">
-            <div className="relative h-full w-full overflow-hidden rounded-xl border border-white/5 bg-(--bg-panel)">
-              {selectedVariation && (
-                <PracticeBoard
-                  ref={practiceBoardRef}
-                  opening={opening}
-                  variation={selectedVariation}
-                  mode={mode}
-                  coachPersona={coachSettings.persona}
-                  onMoveIndexChange={setCurrentMoveIndex}
-                  onCoachFeedbackChange={setCoachFeedback}
-                  onNavStateChange={setNavState}
-                  hideControls
-                />
-              )}
+            <div className="relative h-full w-full overflow-hidden rounded-xl border border-white/5 bg-(--bg-panel) flex flex-col">
+              {/* Top row — same height as the nav controls bar in the sidebar */}
+              <div className="shrink-0 h-14" />
+              {/* Board area */}
+              <div className="relative min-h-0 flex-1">
+                {selectedVariation && (
+                  <PracticeBoard
+                    ref={practiceBoardRef}
+                    opening={opening}
+                    variation={selectedVariation}
+                    mode={mode}
+                    coachPersona={coachSettings.persona}
+                    onMoveIndexChange={setCurrentMoveIndex}
+                    onCoachFeedbackChange={setCoachFeedback}
+                    onNavStateChange={setNavState}
+                    hideControls
+                  />
+                )}
+              </div>
+              {/* Bottom row — same height as the nav controls bar in the sidebar */}
+              <div className="shrink-0 h-14" />
             </div>
           </div>
 
