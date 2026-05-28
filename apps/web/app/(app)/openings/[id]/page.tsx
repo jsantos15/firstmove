@@ -292,7 +292,7 @@ function PracticalBranchRow({
           ? 'border-amber-400/30 bg-amber-400/10'
           : locked
             ? 'border-white/5 bg-white/[0.02] opacity-60'
-            : 'border-white/5 bg-white/[0.02] hover:border-white/10 hover:bg-white/[0.04]'
+            : 'border-white/5 bg-white/2 hover:border-white/10 hover:bg-white/4'
       }`}
     >
       <div className="flex min-w-0 items-start justify-between gap-2">
@@ -515,9 +515,9 @@ export default function PracticePage({ params, searchParams }: PageProps) {
     <div className="h-full flex flex-col overflow-hidden">
       <div className="flex-1 min-h-0 overflow-hidden px-4 pb-3 pt-3 lg:px-6 lg:pb-4 lg:pt-4">
         <div className="mx-auto flex h-full w-full max-w-410 gap-3 lg:gap-3">
-          {/* Board column */}
-          <div className="flex h-full min-w-0 flex-1 justify-end">
-            <div className="h-full max-w-full shrink" style={{ aspectRatio: '1 / 1' }}>
+          {/* Board card */}
+          <div className="flex h-full min-w-0 flex-1">
+            <div className="relative h-full w-full overflow-hidden rounded-xl border border-white/5 bg-(--bg-panel)">
               {selectedVariation && (
                 <PracticeBoard
                   ref={practiceBoardRef}
@@ -534,10 +534,10 @@ export default function PracticePage({ params, searchParams }: PageProps) {
             </div>
           </div>
 
-          {/* Sidebar */}
-          <div className="w-[24rem] lg:w-108 shrink-0 h-full flex flex-col gap-3">
+          {/* Sidebar card */}
+          <div className="w-[24rem] lg:w-108 shrink-0 h-full rounded-xl border border-white/5 bg-(--bg-panel) overflow-hidden flex flex-col">
             {/* Mode toggle */}
-            <div className="shrink-0 flex overflow-hidden rounded-xl border border-white/10">
+            <div className="shrink-0 flex border-b border-white/5">
               <ModeButton active={mode === 'learn'} onClick={() => setMode('learn')}>
                 Learn
               </ModeButton>
@@ -546,31 +546,32 @@ export default function PracticePage({ params, searchParams }: PageProps) {
               </ModeButton>
             </div>
 
-            {/* Coach — fixed */}
-            <CoachBubble feedback={coachFeedback} fallbackText={opening.description} />
+            {/* Coach */}
+            <div className="shrink-0 border-b border-white/5">
+              <CoachBubble feedback={coachFeedback} fallbackText={opening.description} dark />
+            </div>
 
             {/* Move list — anchor moves only until user explicitly views full line */}
             {mode === 'learn' && selectedVariation && (
-              <MoveList
-                variation={{
-                  ...selectedVariation,
-                  moves:
-                    !viewingFullLine && selectedVariationAnchorPly != null
-                      ? selectedVariation.moves.slice(0, selectedVariationAnchorPly)
-                      : selectedVariation.moves,
-                }}
-                currentMoveIndex={currentMoveIndex}
-                milestones={lessonOpeningMilestones}
-              />
+              <div className="shrink-0 border-b border-white/5">
+                <MoveList
+                  variation={{
+                    ...selectedVariation,
+                    moves:
+                      !viewingFullLine && selectedVariationAnchorPly != null
+                        ? selectedVariation.moves.slice(0, selectedVariationAnchorPly)
+                        : selectedVariation.moves,
+                  }}
+                  currentMoveIndex={currentMoveIndex}
+                  milestones={lessonOpeningMilestones}
+                />
+              </div>
             )}
 
             {/* Variations + Branches panels */}
-            <div className="flex-1 min-h-0 flex flex-col gap-3">
+            <div className="flex-1 min-h-0 flex flex-col">
               {/* Variations panel */}
-              <div
-                className="min-h-0 flex flex-col rounded-xl border border-white/5 bg-(--bg-panel)"
-                style={{ flex: 44 }}
-              >
+              <div className="min-h-0 flex flex-col border-b border-white/5" style={{ flex: 44 }}>
                 {/* Panel header */}
                 <div className="shrink-0 flex items-start justify-between px-4 pt-4 pb-3 border-b border-white/5">
                   <div>
@@ -645,10 +646,7 @@ export default function PracticePage({ params, searchParams }: PageProps) {
               </div>
 
               {/* Reference line + Branches panel */}
-              <div
-                className="min-h-0 flex flex-col rounded-xl border border-white/5 bg-(--bg-panel)"
-                style={{ flex: 56 }}
-              >
+              <div className="min-h-0 flex flex-col" style={{ flex: 56 }}>
                 <div className="flex-1 min-h-0 overflow-y-auto">
                   {/* Reference line section */}
                   <div className="px-4 pt-3 pb-2">
@@ -664,7 +662,7 @@ export default function PracticePage({ params, searchParams }: PageProps) {
                         className={`group relative w-full rounded-lg border px-3 py-2 text-left transition-colors ${
                           viewingFullLine
                             ? 'border-amber-400/30 bg-amber-400/10'
-                            : 'border-white/5 bg-white/[0.02] hover:border-white/10 hover:bg-white/[0.04]'
+                            : 'border-white/5 bg-white/2 hover:border-white/10 hover:bg-white/4'
                         }`}
                       >
                         <span
@@ -722,7 +720,7 @@ export default function PracticePage({ params, searchParams }: PageProps) {
             {/* end variations+branches */}
 
             {/* Nav controls */}
-            <div className="shrink-0 flex items-center justify-between border-t border-white/5 pt-2">
+            <div className="shrink-0 flex items-center justify-between border-t border-white/5 px-4 py-2.5">
               <button
                 type="button"
                 onClick={() => practiceBoardRef.current?.reset()}
@@ -747,7 +745,7 @@ export default function PracticePage({ params, searchParams }: PageProps) {
               <BoardSettingsPopover />
             </div>
           </div>
-          {/* end sidebar */}
+          {/* end sidebar card */}
         </div>
       </div>
     </div>

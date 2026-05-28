@@ -112,7 +112,7 @@ export function MoveList({ variation, currentMoveIndex, milestones = [] }: MoveL
   }, [variation, currentMoveIndex]);
 
   return (
-    <div className="flex h-70 shrink-0 flex-col rounded-xl border border-white/5 bg-(--bg-panel) p-4">
+    <div className="flex h-70 shrink-0 flex-col p-4">
       {/* Header + dynamic variation name label */}
       <div className="shrink-0 mb-3">
         <div className="flex items-center justify-between">

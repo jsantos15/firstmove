@@ -239,7 +239,7 @@ function EvalBar({
   if (typeof evalCp !== 'number' || !Number.isFinite(evalCp)) {
     return reserveSpace ? (
       <div
-        className="relative mr-2 hidden w-7 shrink-0 overflow-hidden rounded-md border border-white/15 bg-[#181818] shadow-inner shadow-black/40 sm:block"
+        className="relative hidden w-10 shrink-0 overflow-hidden rounded-md border border-white/15 bg-[#181818] shadow-inner shadow-black/40 sm:block"
         style={barStyle}
         title="Engine evaluation loading"
         aria-label="Engine evaluation loading"
@@ -257,7 +257,7 @@ function EvalBar({
 
   return (
     <div
-      className="relative mr-2 hidden w-7 shrink-0 overflow-hidden rounded-md border border-white/15 bg-[#181818] shadow-inner shadow-black/40 sm:block"
+      className="relative hidden w-10 shrink-0 overflow-hidden rounded-md border border-white/15 bg-[#181818] shadow-inner shadow-black/40 sm:block"
       style={barStyle}
       title={`Engine evaluation: ${label}`}
       aria-label={`Engine evaluation ${label}`}
@@ -396,7 +396,7 @@ function AnalysisMoveList({
   }, [currentPlyIndex]);
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col rounded-xl border border-white/5 bg-(--bg-panel)">
+    <div className="flex min-h-0 flex-1 flex-col">
       <div className="shrink-0 flex items-center justify-between border-b border-white/5 px-4 pb-2 pt-3">
         <h3 className="text-xs font-medium uppercase tracking-wider text-gray-500">Moves</h3>
         <div className="flex items-center gap-2">
@@ -644,7 +644,7 @@ function CoachAnalysisPanel({
       : null;
 
   return (
-    <div className="shrink-0 rounded-xl border border-white/5 bg-(--bg-panel)">
+    <div className="shrink-0">
       <div className="flex items-center justify-between gap-3 border-b border-white/5 px-4 py-2.5">
         <div className="min-w-0">
           <h3 className="text-xs font-medium uppercase tracking-wider text-gray-500">
@@ -1235,60 +1235,64 @@ export default function AnalysisPage() {
       {/* ── Main content ── */}
       <div className="flex-1 min-h-0 overflow-hidden px-4 pb-3 pt-3 lg:px-6 lg:pb-4 lg:pt-4">
         <div className="mx-auto flex h-full w-full max-w-410 gap-3 lg:gap-3">
-          {/* Left: Board column */}
-          <div className="flex h-full min-w-0 flex-1 justify-end">
-            <div className="h-full max-w-full shrink" style={{ aspectRatio: '1 / 1' }}>
-              <div className="relative flex h-full w-full select-none flex-col">
-                {/* Top player (opponent) */}
-                <PlayerPanel
-                  name={topPlayer.name}
-                  rating={topPlayer.rating}
-                  country={topPlayer.country}
-                  color={topColor}
-                  captured={topCaptured}
-                  advantage={topAdvantage}
-                  clockMs={topClockMs}
-                />
+          {/* Left: Board card */}
+          <div className="min-w-0 flex-1 overflow-hidden rounded-xl border border-white/5 bg-(--bg-panel) flex flex-col select-none">
+            {/* Top player (opponent) */}
+            <div className="shrink-0 px-4 pt-3">
+              <PlayerPanel
+                name={topPlayer.name}
+                rating={topPlayer.rating}
+                country={topPlayer.country}
+                color={topColor}
+                captured={topCaptured}
+                advantage={topAdvantage}
+                clockMs={topClockMs}
+              />
+            </div>
 
-                {/* Board + eval bar */}
-                <div ref={wrapperRef} className="flex min-h-0 flex-1 items-center justify-center">
-                  <EvalBar evalCp={displayEvalCp} reserveSpace={true} size={boardSize} />
-                  <div className="relative">
-                    <div className="overflow-hidden rounded-xl ring-1 ring-white/10">
-                      <Chessboard
-                        position={currentFen}
-                        boardWidth={boardSize}
-                        boardOrientation={settings.flipBoard ? 'black' : 'white'}
-                        arePiecesDraggable={false}
-                        customSquareStyles={customSquareStyles}
-                        showBoardNotation={settings.showCoordinates}
-                        customDarkSquareStyle={{ backgroundColor: theme.dark }}
-                        customLightSquareStyle={{ backgroundColor: theme.light }}
-                        animationDuration={animationDuration}
-                        customPieces={customPieces}
-                      />
-                    </div>
-                  </div>
+            {/* Board */}
+            <div ref={wrapperRef} className="flex min-h-0 flex-1 items-center justify-center">
+              <div className="relative">
+                <div className="overflow-hidden rounded-xl ring-1 ring-white/10">
+                  <Chessboard
+                    position={currentFen}
+                    boardWidth={boardSize}
+                    boardOrientation={settings.flipBoard ? 'black' : 'white'}
+                    arePiecesDraggable={false}
+                    customSquareStyles={customSquareStyles}
+                    showBoardNotation={settings.showCoordinates}
+                    customDarkSquareStyle={{ backgroundColor: theme.dark }}
+                    customLightSquareStyle={{ backgroundColor: theme.light }}
+                    animationDuration={animationDuration}
+                    customPieces={customPieces}
+                  />
                 </div>
-
-                {/* Bottom player (self) */}
-                <PlayerPanel
-                  name={bottomPlayer.name}
-                  rating={bottomPlayer.rating}
-                  country={bottomPlayer.country}
-                  color={bottomColor}
-                  captured={bottomCaptured}
-                  advantage={bottomAdvantage}
-                  clockMs={bottomClockMs}
-                />
               </div>
+            </div>
+
+            {/* Bottom player (self) */}
+            <div className="shrink-0 px-4 pb-3">
+              <PlayerPanel
+                name={bottomPlayer.name}
+                rating={bottomPlayer.rating}
+                country={bottomPlayer.country}
+                color={bottomColor}
+                captured={bottomCaptured}
+                advantage={bottomAdvantage}
+                clockMs={bottomClockMs}
+              />
             </div>
           </div>
 
-          {/* Right: Sidebar */}
-          <div className="w-[24rem] lg:w-108 shrink-0 h-full flex flex-col gap-3">
+          {/* Eval bar — between the two panels, aligned to board center */}
+          <div className="flex shrink-0 self-center">
+            <EvalBar evalCp={displayEvalCp} reserveSpace={true} size={boardSize} />
+          </div>
+
+          {/* Right: Sidebar card */}
+          <div className="w-[24rem] lg:w-108 shrink-0 h-full rounded-xl border border-white/5 bg-(--bg-panel) overflow-hidden flex flex-col">
             {/* Actions */}
-            <div className="shrink-0 flex items-center gap-2">
+            <div className="shrink-0 flex items-center gap-2 border-b border-white/5 px-4 py-3">
               <button
                 type="button"
                 onClick={() => {
@@ -1326,21 +1330,27 @@ export default function AnalysisPage() {
             </div>
 
             {/* Coach */}
-            <CoachBubble
-              feedback={coachFeedback}
-              fallbackText={
-                analyzedGame
-                  ? 'Navigate to any move to see the coach analysis.'
-                  : 'Import a game to start your analysis session.'
-              }
-            />
+            <div className="shrink-0 border-b border-white/5">
+              <CoachBubble
+                feedback={coachFeedback}
+                fallbackText={
+                  analyzedGame
+                    ? 'Navigate to any move to see the coach analysis.'
+                    : 'Import a game to start your analysis session.'
+                }
+                dark
+              />
+            </div>
 
-            <CoachAnalysisPanel feedback={coachFeedback} move={currentMove} />
+            {/* Coach analysis */}
+            <div className="shrink-0 border-b border-white/5">
+              <CoachAnalysisPanel feedback={coachFeedback} move={currentMove} />
+            </div>
 
             {/* Move list + bottom panel */}
-            <div className="flex min-h-0 flex-1 flex-col gap-3">
+            <div className="flex min-h-0 flex-1 flex-col">
               {/* Move list */}
-              <div className="min-h-0" style={{ flex: 60 }}>
+              <div className="min-h-0 border-b border-white/5" style={{ flex: 60 }}>
                 {analyzedGame ? (
                   <AnalysisMoveList
                     game={analyzedGame}
@@ -1348,7 +1358,7 @@ export default function AnalysisPage() {
                     onNavigate={goTo}
                   />
                 ) : (
-                  <div className="flex h-full flex-col items-center justify-center gap-3 rounded-xl border border-white/5 bg-(--bg-panel) px-6 py-8">
+                  <div className="flex h-full flex-col items-center justify-center gap-3 px-6 py-8">
                     <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/10">
                       <svg
                         xmlns="http://www.w3.org/2000/svg"
@@ -1384,10 +1394,7 @@ export default function AnalysisPage() {
               </div>
 
               {/* Bottom panel: Review / Engine / Recap / Games */}
-              <div
-                className="flex min-h-0 flex-col rounded-xl border border-white/5 bg-(--bg-panel)"
-                style={{ flex: 40 }}
-              >
+              <div className="flex min-h-0 flex-col" style={{ flex: 40 }}>
                 {/* Tabs */}
                 <div className="flex shrink-0 border-b border-white/5">
                   {(['review', 'engine', 'recap', 'games'] as const).map(tab => (
@@ -1439,7 +1446,7 @@ export default function AnalysisPage() {
             </div>
 
             {/* Controls */}
-            <div className="shrink-0 flex items-center justify-between border-t border-white/5 pt-2">
+            <div className="shrink-0 flex items-center justify-between border-t border-white/5 px-4 py-2">
               <button
                 type="button"
                 onClick={() => setSettings({ flipBoard: !settings.flipBoard })}

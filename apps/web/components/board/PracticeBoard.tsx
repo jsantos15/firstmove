@@ -105,20 +105,25 @@ function EvalBar({
   displayEvalCp,
   displayPerspective,
   reserveSpace = false,
+  size,
 }: {
   evalCp?: number;
   displayEvalCp?: number;
   displayPerspective: 'white' | 'black';
   reserveSpace?: boolean;
+  size?: number;
 }) {
   const bottomColor = displayPerspective;
   const bottomClassName = bottomColor === 'white' ? 'bg-zinc-100' : 'bg-[#181818]';
   const topClassName = bottomColor === 'white' ? 'bg-[#181818]' : 'bg-zinc-100';
+  const heightStyle = size != null ? { height: size } : undefined;
+  const heightClass = size != null ? '' : 'h-full';
 
   if (typeof evalCp !== 'number' || !Number.isFinite(evalCp)) {
     return reserveSpace ? (
       <div
-        className={`relative mr-2 hidden h-full w-7 shrink-0 overflow-hidden rounded-md border border-white/15 ${topClassName} shadow-inner shadow-black/40 sm:block`}
+        className={`relative mr-2 hidden ${heightClass} w-10 shrink-0 overflow-hidden rounded-md border border-white/15 ${topClassName} shadow-inner shadow-black/40 sm:block`}
+        style={heightStyle}
         title="Engine evaluation loading"
         aria-label="Engine evaluation loading"
       >
@@ -139,7 +144,8 @@ function EvalBar({
 
   return (
     <div
-      className={`relative mr-2 hidden h-full w-7 shrink-0 overflow-hidden rounded-md border border-white/15 ${topClassName} shadow-inner shadow-black/40 sm:block`}
+      className={`relative mr-2 hidden ${heightClass} w-10 shrink-0 overflow-hidden rounded-md border border-white/15 ${topClassName} shadow-inner shadow-black/40 sm:block`}
+      style={heightStyle}
       title={`Engine evaluation for ${perspectiveLabel}: ${label}`}
       aria-label={`Engine evaluation for ${perspectiveLabel} ${label}`}
     >
@@ -586,16 +592,6 @@ export const PracticeBoard = forwardRef<PracticeBoardHandle, PracticeBoardProps>
 
   // ─── Derived display values ───────────────────────────────────────────────────
 
-  const statusLabel = useMemo(() => {
-    if (!isLive) return `Reviewing move ${displayIndex} / ${currentMoveIndex}`;
-    if (status === 'complete') {
-      if (mode === 'learn') return 'Line learned!';
-      return hintUsedRef.current ? 'Done — try without hints to complete it' : 'Line completed!';
-    }
-    if (status === 'wrong') return 'Wrong move — try again';
-    return isMyTurn ? `Your turn (${opening.color})` : 'Computer is thinking…';
-  }, [isLive, displayIndex, currentMoveIndex, isMyTurn, mode, opening.color, status]);
-
   const lastMove = useMemo(() => {
     if (displayIndex === 0) return null;
     if (isLive) {
@@ -616,7 +612,6 @@ export const PracticeBoard = forwardRef<PracticeBoardHandle, PracticeBoardProps>
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isLive, displayIndex, moves, position]);
 
-  const progressPct = moves.length > 0 ? (displayIndex / moves.length) * 100 : 0;
   const isViewingLineEnd = displayIndex >= moves.length && moves.length > 0;
 
   const getEvalAtPly = (ply: number) => {
@@ -662,7 +657,7 @@ export const PracticeBoard = forwardRef<PracticeBoardHandle, PracticeBoardProps>
     (typeof dbEvalCp === 'number' && Number.isFinite(dbEvalCp)) ||
     (typeof currentStaticEvalCp === 'number' && Number.isFinite(currentStaticEvalCp)) ||
     (typeof variation.finalEvalCp === 'number' && Number.isFinite(variation.finalEvalCp));
-  const boardAlignedClassName = `mx-auto w-full ${hasVisibleEvalBar ? 'sm:translate-x-[18px]' : ''}`;
+  const boardAlignedClassName = `mx-auto w-full ${hasVisibleEvalBar ? 'sm:translate-x-[24px]' : ''}`;
 
   const legalTargets = useMemo(() => {
     if (!isLive || status !== 'playing' || !selectedSquare) return [];
@@ -964,26 +959,6 @@ export const PracticeBoard = forwardRef<PracticeBoardHandle, PracticeBoardProps>
 
   return (
     <div className="relative flex h-full w-full select-none flex-col">
-      {/* Status + progress */}
-      <div className={`${boardAlignedClassName} -mt-1 shrink-0`} style={{ maxWidth: boardSize }}>
-        <div className="mb-1.5 flex items-center justify-between gap-3 text-sm">
-          <span className={`min-w-0 truncate ${!isLive ? 'text-blue-400' : 'text-gray-400'}`}>
-            {statusLabel}
-          </span>
-          <span className="min-w-0 truncate text-right text-gray-500">
-            {currentMoveIndex}/{moves.length} moves
-          </span>
-        </div>
-        <div className="h-1 overflow-hidden rounded-full bg-white/10">
-          <div
-            className={`h-full rounded-full transition-all duration-300 ${
-              status === 'complete' ? 'bg-green-400' : 'bg-amber-400'
-            }`}
-            style={{ width: `${progressPct}%` }}
-          />
-        </div>
-      </div>
-
       {/* Board */}
       <div ref={wrapperRef} className="flex min-h-0 flex-1 items-center justify-center">
         <EvalBar
@@ -991,6 +966,7 @@ export const PracticeBoard = forwardRef<PracticeBoardHandle, PracticeBoardProps>
           displayEvalCp={trainedSideDisplayedEvalCp}
           displayPerspective={opening.color}
           reserveSpace={hasVisibleEvalBar}
+          size={boardSize}
         />
         <div className="relative">
           <div
