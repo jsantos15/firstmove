@@ -39,6 +39,7 @@ interface PracticeBoardProps {
   onMoveIndexChange?: (index: number) => void;
   onCoachFeedbackChange?: (feedback: CoachFeedback | null) => void;
   onNavStateChange?: (state: { canGoBack: boolean; canGoForward: boolean; isLive: boolean }) => void;
+  onBoardSizeChange?: (size: number) => void;
   controlsRight?: React.ReactNode;
   hideControls?: boolean;
 }
@@ -344,6 +345,7 @@ export const PracticeBoard = forwardRef<PracticeBoardHandle, PracticeBoardProps>
   onMoveIndexChange,
   onCoachFeedbackChange,
   onNavStateChange,
+  onBoardSizeChange,
   controlsRight,
   hideControls = false,
 }, ref) {
@@ -508,7 +510,10 @@ export const PracticeBoard = forwardRef<PracticeBoardHandle, PracticeBoardProps>
     const updateSize = () => {
       // Reserve space for the eval bar (w-8 = 32px) + mr-2 gap (8px)
       const size = Math.min(el.clientWidth - 40, el.clientHeight);
-      if (size > 0) setBoardSize(size);
+      if (size > 0) {
+        setBoardSize(size);
+        onBoardSizeChange?.(size);
+      }
     };
     const observer = new ResizeObserver(updateSize);
     observer.observe(el);
