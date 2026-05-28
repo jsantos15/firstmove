@@ -340,6 +340,8 @@ export default function PracticePage({ params, searchParams }: PageProps) {
   const [currentMoveIndex, setCurrentMoveIndex] = useState(-1);
   const [mode, setMode] = useState<PracticeMode>('learn');
   const [coachFeedback, setCoachFeedback] = useState<CoachFeedback | null>(null);
+  const [navState, setNavState] = useState({ canGoBack: false, canGoForward: false, isLive: true });
+  const practiceBoardRef = useRef<import('@/components/board/PracticeBoard').PracticeBoardHandle | null>(null);
   const { settings: coachSettings } = useCoachSettings();
   const allPracticeLines = useMemo(
     () => [...(opening?.variations ?? []), ...(opening?.practicalBranches ?? [])],
@@ -511,52 +513,22 @@ export default function PracticePage({ params, searchParams }: PageProps) {
 
   return (
     <div className="h-full flex flex-col overflow-hidden">
-      {/* Header */}
-      <header className="h-14 shrink-0 bg-(--bg-base)/80 backdrop-blur z-10">
-        <div className="flex h-full items-center px-4 lg:px-6">
-          <div className="flex min-w-0 items-center gap-3">
-            <Link
-              href="/openings"
-              className="text-gray-400 hover:text-white transition-colors text-sm"
-            >
-              ← Openings
-            </Link>
-            <span className="text-white/20">/</span>
-            <span className="truncate text-white font-medium text-sm">{opening.name}</span>
-          </div>
-
-          <div className="pointer-events-none absolute inset-x-4 flex justify-center lg:inset-x-6">
-            <div className="grid w-full max-w-410 grid-cols-[minmax(0,1fr)_24rem] gap-3 lg:grid-cols-[minmax(0,1fr)_27rem] lg:gap-3">
-              <div className="flex justify-center sm:translate-x-4.5">
-                <div className="pointer-events-auto flex overflow-hidden rounded-xl border border-white/10">
-                  <ModeButton active={mode === 'learn'} onClick={() => setMode('learn')}>
-                    Learn
-                  </ModeButton>
-                  <ModeButton active={mode === 'practice'} onClick={() => setMode('practice')}>
-                    Practice
-                  </ModeButton>
-                </div>
-              </div>
-              <div />
-            </div>
-          </div>
-        </div>
-      </header>
-
-      <div className="flex-1 min-h-0 overflow-hidden px-4 pb-3 pt-2 lg:px-6 lg:pb-4 lg:pt-3">
+      <div className="flex-1 min-h-0 overflow-hidden px-4 pb-3 pt-3 lg:px-6 lg:pb-4 lg:pt-4">
         <div className="mx-auto flex h-full w-full max-w-410 gap-3 lg:gap-3">
           {/* Board column */}
           <div className="flex h-full min-w-0 flex-1 justify-end">
             <div className="h-full max-w-full shrink" style={{ aspectRatio: '1 / 1' }}>
               {selectedVariation && (
                 <PracticeBoard
+                  ref={practiceBoardRef}
                   opening={opening}
                   variation={selectedVariation}
                   mode={mode}
                   coachPersona={coachSettings.persona}
                   onMoveIndexChange={setCurrentMoveIndex}
                   onCoachFeedbackChange={setCoachFeedback}
-                  controlsRight={<BoardSettingsPopover />}
+                  onNavStateChange={setNavState}
+                  hideControls
                 />
               )}
             </div>
@@ -564,6 +536,16 @@ export default function PracticePage({ params, searchParams }: PageProps) {
 
           {/* Sidebar */}
           <div className="w-[24rem] lg:w-108 shrink-0 h-full flex flex-col gap-3">
+            {/* Mode toggle */}
+            <div className="shrink-0 flex overflow-hidden rounded-xl border border-white/10">
+              <ModeButton active={mode === 'learn'} onClick={() => setMode('learn')}>
+                Learn
+              </ModeButton>
+              <ModeButton active={mode === 'practice'} onClick={() => setMode('practice')}>
+                Practice
+              </ModeButton>
+            </div>
+
             {/* Coach — fixed */}
             <CoachBubble feedback={coachFeedback} fallbackText={opening.description} />
 
@@ -738,6 +720,32 @@ export default function PracticePage({ params, searchParams }: PageProps) {
               </div>
             </div>
             {/* end variations+branches */}
+
+            {/* Nav controls */}
+            <div className="shrink-0 flex items-center justify-between border-t border-white/5 pt-2">
+              <button
+                type="button"
+                onClick={() => practiceBoardRef.current?.reset()}
+                className="flex h-9 items-center gap-1.5 rounded border border-white/10 px-3 text-sm text-gray-400 transition-colors hover:border-white/20 hover:text-white"
+              >
+                ↺ Restart
+              </button>
+              <div className="flex items-center divide-x divide-white/10 overflow-hidden rounded-lg border border-white/10">
+                <SidebarNavBtn onClick={() => practiceBoardRef.current?.navigateFirst()} disabled={!navState.canGoBack} title="First move">
+                  <svg viewBox="0 0 16 16" fill="currentColor" className="w-5 h-5"><path d="M3.5 3a.5.5 0 0 1 .5.5v3.793l6.146-4.439A.5.5 0 0 1 11 3.5v9a.5.5 0 0 1-.854.354L4 8.707V12.5a.5.5 0 0 1-1 0v-9a.5.5 0 0 1 .5-.5z" /></svg>
+                </SidebarNavBtn>
+                <SidebarNavBtn onClick={() => practiceBoardRef.current?.navigateBack()} disabled={!navState.canGoBack} title="Previous move">
+                  <svg viewBox="0 0 16 16" fill="currentColor" className="w-5 h-5"><path d="M11.354 3.646a.5.5 0 0 1 0 .708L6.707 9l4.647 4.646a.5.5 0 0 1-.708.708l-5-5a.5.5 0 0 1 0-.708l5-5a.5.5 0 0 1 .708 0z" /></svg>
+                </SidebarNavBtn>
+                <SidebarNavBtn onClick={() => practiceBoardRef.current?.navigateForward()} disabled={!navState.canGoForward} title="Next move">
+                  <svg viewBox="0 0 16 16" fill="currentColor" className="w-5 h-5"><path d="M4.646 3.646a.5.5 0 0 1 .708 0l5 5a.5.5 0 0 1 0 .708l-5 5a.5.5 0 0 1-.708-.708L9.293 9 4.646 4.354a.5.5 0 0 1 0-.708z" /></svg>
+                </SidebarNavBtn>
+                <SidebarNavBtn onClick={() => practiceBoardRef.current?.navigateLast()} disabled={navState.isLive} title="Latest move">
+                  <svg viewBox="0 0 16 16" fill="currentColor" className="w-5 h-5"><path d="M12.5 3a.5.5 0 0 0-.5.5v3.793L5.854 2.854A.5.5 0 0 0 5 3.5v9a.5.5 0 0 0 .854.354L12 8.207V12.5a.5.5 0 0 0 1 0v-9a.5.5 0 0 0-.5-.5z" /></svg>
+                </SidebarNavBtn>
+              </div>
+              <BoardSettingsPopover />
+            </div>
           </div>
           {/* end sidebar */}
         </div>
@@ -759,11 +767,35 @@ function ModeButton({
     <button
       type="button"
       onClick={onClick}
-      className={`min-w-28 px-7 py-3 text-base font-semibold transition-colors ${
+      className={`flex-1 py-2.5 text-sm font-semibold transition-colors ${
         active
           ? 'bg-amber-400/15 text-amber-300'
           : 'text-gray-400 hover:bg-white/5 hover:text-white'
       }`}
+    >
+      {children}
+    </button>
+  );
+}
+
+function SidebarNavBtn({
+  onClick,
+  disabled,
+  title,
+  children,
+}: {
+  onClick: () => void;
+  disabled: boolean;
+  title: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      title={title}
+      className="flex items-center justify-center px-5 py-2.5 text-gray-400 transition-colors hover:bg-white/5 hover:text-white disabled:cursor-default disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-gray-400"
     >
       {children}
     </button>

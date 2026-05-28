@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useImperativeHandle, useMemo, useRef, useState, forwardRef } from 'react';
 import { Chessboard } from 'react-chessboard';
 import { Chess, type CoachPersona, type Opening, type OpeningVariation } from '@firstmove/core';
 import { useRecordCompletion, useRecordLearned } from '@/hooks/useProgress';
@@ -17,6 +17,14 @@ import { useOpeningPositionEval } from '@/hooks/useOpeningPositionEval';
 
 export type PracticeMode = 'learn' | 'practice';
 
+export interface PracticeBoardHandle {
+  navigateFirst: () => void;
+  navigateBack: () => void;
+  navigateForward: () => void;
+  navigateLast: () => void;
+  reset: () => void;
+}
+
 interface PracticeBoardProps {
   opening: Opening;
   variation: OpeningVariation & {
@@ -30,7 +38,9 @@ interface PracticeBoardProps {
   coachPersona?: CoachPersona;
   onMoveIndexChange?: (index: number) => void;
   onCoachFeedbackChange?: (feedback: CoachFeedback | null) => void;
+  onNavStateChange?: (state: { canGoBack: boolean; canGoForward: boolean; isLive: boolean }) => void;
   controlsRight?: React.ReactNode;
+  hideControls?: boolean;
 }
 
 type PracticeStatus = 'loading' | 'playing' | 'wrong' | 'complete';
@@ -293,15 +303,44 @@ function playMoveSound(enabled: boolean) {
   } catch {}
 }
 
-export function PracticeBoard({
+// ─── Nav button ───────────────────────────────────────────────────────────────
+
+function NavBtn({
+  onClick,
+  disabled,
+  title,
+  children,
+}: {
+  onClick: () => void;
+  disabled: boolean;
+  title: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      title={title}
+      className="flex items-center justify-center px-5 py-2.5 text-gray-400 transition-colors hover:bg-white/5 hover:text-white disabled:cursor-default disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-gray-400"
+    >
+      {children}
+    </button>
+  );
+}
+
+// ─── Board ────────────────────────────────────────────────────────────────────
+
+export const PracticeBoard = forwardRef<PracticeBoardHandle, PracticeBoardProps>(function PracticeBoard({
   opening,
   variation,
   mode,
   coachPersona = 'neutral',
   onMoveIndexChange,
   onCoachFeedbackChange,
+  onNavStateChange,
   controlsRight,
-}: PracticeBoardProps) {
+  hideControls = false,
+}, ref) {
   const { theme, animationDuration, settings } = useBoardSettings();
   const customPieces = useMemo(() => getCustomPieces(settings.pieceSetId), [settings.pieceSetId]);
   const { user } = useAuth();
@@ -911,6 +950,18 @@ export function PracticeBoard({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [displayIndex, currentMoveIndex]);
 
+  useImperativeHandle(ref, () => ({
+    navigateFirst: () => navigateTo(0),
+    navigateBack: () => navigateTo(displayIndex - 1),
+    navigateForward: () => navigateTo(displayIndex + 1),
+    navigateLast: () => navigateTo(currentMoveIndex),
+    reset: resetPractice,
+  }));
+
+  useEffect(() => {
+    onNavStateChange?.({ canGoBack, canGoForward, isLive });
+  }, [canGoBack, canGoForward, isLive, onNavStateChange]);
+
   return (
     <div className="relative flex h-full w-full select-none flex-col">
       {/* Status + progress */}
@@ -980,74 +1031,58 @@ export function PracticeBoard({
         </div>
       </div>
 
-      {/* Controls — 3 columns: restart left · nav center · spacer right */}
-      <div
-        className={`${boardAlignedClassName} grid shrink-0 grid-cols-3 items-center`}
-        style={{ maxWidth: boardSize }}
-      >
-        {/* Restart + Hint — far left */}
-        <div className="flex items-center gap-2">
-          <button
-            onClick={resetPractice}
-            className="rounded-lg border border-white/10 px-4 py-2 text-sm text-gray-400 transition-colors hover:border-white/20 hover:text-white"
-          >
-            ↺ Restart
-          </button>
-          {mode === 'practice' && isMyTurn && (
+      {!hideControls && (
+        <div
+          className={`${boardAlignedClassName} grid shrink-0 grid-cols-3 items-center`}
+          style={{ maxWidth: boardSize }}
+        >
+          <div className="flex items-center gap-2">
             <button
-              onClick={() => {
-                hintUsedRef.current = true;
-                setHintActive(true);
-              }}
-              disabled={hintActive}
-              className="rounded-lg border border-white/10 px-4 py-2 text-sm text-gray-400 transition-colors hover:border-white/20 hover:text-white disabled:opacity-40"
+              onClick={resetPractice}
+              className="rounded-lg border border-white/10 px-4 py-2 text-sm text-gray-400 transition-colors hover:border-white/20 hover:text-white"
             >
-              Hint
+              ↺ Restart
             </button>
-          )}
-        </div>
-
-        {/* Navigation group — centered */}
-        <div className="flex justify-center">
-          <div className="flex items-center divide-x divide-white/10 overflow-hidden rounded-lg border border-white/10">
-            <NavBtn onClick={() => navigateTo(0)} disabled={!canGoBack} title="First move">
-              <svg viewBox="0 0 16 16" fill="currentColor" className="w-5 h-5">
-                <path d="M3.5 3a.5.5 0 0 1 .5.5v3.793l6.146-4.439A.5.5 0 0 1 11 3.5v9a.5.5 0 0 1-.854.354L4 8.707V12.5a.5.5 0 0 1-1 0v-9a.5.5 0 0 1 .5-.5z" />
-              </svg>
-            </NavBtn>
-            <NavBtn
-              onClick={() => navigateTo(displayIndex - 1)}
-              disabled={!canGoBack}
-              title="Previous move"
-            >
-              <svg viewBox="0 0 16 16" fill="currentColor" className="w-5 h-5">
-                <path d="M11.354 3.646a.5.5 0 0 1 0 .708L6.707 9l4.647 4.646a.5.5 0 0 1-.708.708l-5-5a.5.5 0 0 1 0-.708l5-5a.5.5 0 0 1 .708 0z" />
-              </svg>
-            </NavBtn>
-            <NavBtn
-              onClick={() => navigateTo(displayIndex + 1)}
-              disabled={!canGoForward}
-              title="Next move"
-            >
-              <svg viewBox="0 0 16 16" fill="currentColor" className="w-5 h-5">
-                <path d="M4.646 3.646a.5.5 0 0 1 .708 0l5 5a.5.5 0 0 1 0 .708l-5 5a.5.5 0 0 1-.708-.708L9.293 9 4.646 4.354a.5.5 0 0 1 0-.708z" />
-              </svg>
-            </NavBtn>
-            <NavBtn
-              onClick={() => navigateTo(currentMoveIndex)}
-              disabled={isLive}
-              title="Latest move"
-            >
-              <svg viewBox="0 0 16 16" fill="currentColor" className="w-5 h-5">
-                <path d="M12.5 3a.5.5 0 0 0-.5.5v3.793L5.854 2.854A.5.5 0 0 0 5 3.5v9a.5.5 0 0 0 .854.354L12 8.207V12.5a.5.5 0 0 0 1 0v-9a.5.5 0 0 0-.5-.5z" />
-              </svg>
-            </NavBtn>
+            {mode === 'practice' && isMyTurn && (
+              <button
+                onClick={() => {
+                  hintUsedRef.current = true;
+                  setHintActive(true);
+                }}
+                disabled={hintActive}
+                className="rounded-lg border border-white/10 px-4 py-2 text-sm text-gray-400 transition-colors hover:border-white/20 hover:text-white disabled:opacity-40"
+              >
+                Hint
+              </button>
+            )}
           </div>
+          <div className="flex justify-center">
+            <div className="flex items-center divide-x divide-white/10 overflow-hidden rounded-lg border border-white/10">
+              <NavBtn onClick={() => navigateTo(0)} disabled={!canGoBack} title="First move">
+                <svg viewBox="0 0 16 16" fill="currentColor" className="w-5 h-5">
+                  <path d="M3.5 3a.5.5 0 0 1 .5.5v3.793l6.146-4.439A.5.5 0 0 1 11 3.5v9a.5.5 0 0 1-.854.354L4 8.707V12.5a.5.5 0 0 1-1 0v-9a.5.5 0 0 1 .5-.5z" />
+                </svg>
+              </NavBtn>
+              <NavBtn onClick={() => navigateTo(displayIndex - 1)} disabled={!canGoBack} title="Previous move">
+                <svg viewBox="0 0 16 16" fill="currentColor" className="w-5 h-5">
+                  <path d="M11.354 3.646a.5.5 0 0 1 0 .708L6.707 9l4.647 4.646a.5.5 0 0 1-.708.708l-5-5a.5.5 0 0 1 0-.708l5-5a.5.5 0 0 1 .708 0z" />
+                </svg>
+              </NavBtn>
+              <NavBtn onClick={() => navigateTo(displayIndex + 1)} disabled={!canGoForward} title="Next move">
+                <svg viewBox="0 0 16 16" fill="currentColor" className="w-5 h-5">
+                  <path d="M4.646 3.646a.5.5 0 0 1 .708 0l5 5a.5.5 0 0 1 0 .708l-5 5a.5.5 0 0 1-.708-.708L9.293 9 4.646 4.354a.5.5 0 0 1 0-.708z" />
+                </svg>
+              </NavBtn>
+              <NavBtn onClick={() => navigateTo(currentMoveIndex)} disabled={isLive} title="Latest move">
+                <svg viewBox="0 0 16 16" fill="currentColor" className="w-5 h-5">
+                  <path d="M12.5 3a.5.5 0 0 0-.5.5v3.793L5.854 2.854A.5.5 0 0 0 5 3.5v9a.5.5 0 0 0 .854.354L12 8.207V12.5a.5.5 0 0 0 1 0v-9a.5.5 0 0 0-.5-.5z" />
+                </svg>
+              </NavBtn>
+            </div>
+          </div>
+          <div className="flex justify-end">{controlsRight}</div>
         </div>
-
-        {/* Spacer — keeps nav truly centered */}
-        <div className="flex justify-end">{controlsRight}</div>
-      </div>
+      )}
       {((status === 'complete' && isLive) || (mode === 'learn' && isViewingLineEnd)) &&
         !overlayDismissed && (
           <CompletionOverlay
@@ -1059,29 +1094,4 @@ export function PracticeBoard({
         )}
     </div>
   );
-}
-
-// ─── Nav button ───────────────────────────────────────────────────────────────
-
-function NavBtn({
-  onClick,
-  disabled,
-  title,
-  children,
-}: {
-  onClick: () => void;
-  disabled: boolean;
-  title: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <button
-      onClick={onClick}
-      disabled={disabled}
-      title={title}
-      className="flex items-center justify-center px-5 py-2.5 text-gray-400 transition-colors hover:bg-white/5 hover:text-white disabled:cursor-default disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-gray-400"
-    >
-      {children}
-    </button>
-  );
-}
+});

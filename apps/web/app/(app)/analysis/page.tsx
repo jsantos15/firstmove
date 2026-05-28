@@ -1232,52 +1232,8 @@ export default function AnalysisPage() {
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
-      {/* ── Header ── */}
-      <header className="z-10 h-14 shrink-0 bg-(--bg-base)/80 backdrop-blur">
-        <div className="flex h-full items-center justify-between gap-4 px-4 lg:px-6">
-          <span className="text-sm font-medium text-white">Analysis</span>
-
-          <div className="flex items-center gap-2">
-            {analyzedGame && (
-              <>
-                {engineError ? (
-                  <span className="hidden text-[10px] text-red-400 sm:block">{engineError}</span>
-                ) : engineStatus ? (
-                  <span className="hidden text-[10px] text-gray-500 sm:block">{engineStatus}</span>
-                ) : null}
-                <button
-                  type="button"
-                  onClick={() => void runStockfish()}
-                  disabled={isEngineRunning}
-                  className="rounded-lg border border-white/10 bg-white/3 px-3 py-1.5 text-xs font-medium text-gray-300 transition-colors hover:border-white/20 hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  {isEngineRunning ? (
-                    <span className="flex items-center gap-1.5">
-                      <span className="h-2.5 w-2.5 animate-spin rounded-full border border-amber-400/40 border-t-amber-400" />
-                      Analyzing...
-                    </span>
-                  ) : (
-                    'Run Stockfish'
-                  )}
-                </button>
-              </>
-            )}
-            <button
-              type="button"
-              onClick={() => {
-                setParseError(null);
-                setShowImportModal(true);
-              }}
-              className="rounded-lg bg-amber-400 px-4 py-1.5 text-xs font-semibold text-[#0f1117] transition-colors hover:bg-amber-300"
-            >
-              Import game
-            </button>
-          </div>
-        </div>
-      </header>
-
       {/* ── Main content ── */}
-      <div className="flex-1 min-h-0 overflow-hidden px-4 pb-3 pt-2 lg:px-6 lg:pb-4 lg:pt-3">
+      <div className="flex-1 min-h-0 overflow-hidden px-4 pb-3 pt-3 lg:px-6 lg:pb-4 lg:pt-4">
         <div className="mx-auto flex h-full w-full max-w-410 gap-3 lg:gap-3">
           {/* Left: Board column */}
           <div className="flex h-full min-w-0 flex-1 justify-end">
@@ -1331,6 +1287,44 @@ export default function AnalysisPage() {
 
           {/* Right: Sidebar */}
           <div className="w-[24rem] lg:w-108 shrink-0 h-full flex flex-col gap-3">
+            {/* Actions */}
+            <div className="shrink-0 flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setParseError(null);
+                  setShowImportModal(true);
+                }}
+                className="rounded-lg bg-amber-400 px-4 py-1.5 text-xs font-semibold text-[#0f1117] transition-colors hover:bg-amber-300"
+              >
+                Import game
+              </button>
+              {analyzedGame && (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => void runStockfish()}
+                    disabled={isEngineRunning}
+                    className="rounded-lg border border-white/10 bg-white/3 px-3 py-1.5 text-xs font-medium text-gray-300 transition-colors hover:border-white/20 hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {isEngineRunning ? (
+                      <span className="flex items-center gap-1.5">
+                        <span className="h-2.5 w-2.5 animate-spin rounded-full border border-amber-400/40 border-t-amber-400" />
+                        Analyzing...
+                      </span>
+                    ) : (
+                      'Run Stockfish'
+                    )}
+                  </button>
+                  {engineError ? (
+                    <span className="text-[10px] text-red-400">{engineError}</span>
+                  ) : engineStatus ? (
+                    <span className="text-[10px] text-gray-500">{engineStatus}</span>
+                  ) : null}
+                </>
+              )}
+            </div>
+
             {/* Coach */}
             <CoachBubble
               feedback={coachFeedback}
