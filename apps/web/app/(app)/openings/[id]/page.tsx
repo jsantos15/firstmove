@@ -519,7 +519,7 @@ export default function PracticePage({ params, searchParams }: PageProps) {
           <div className="flex h-full min-w-0 flex-1">
             <div className="relative h-full w-full overflow-hidden rounded-xl border border-white/5 bg-(--bg-panel) flex flex-col">
               {/* Top row — same height as the nav controls bar in the sidebar */}
-              <div className="shrink-0 h-14" />
+              <div className="shrink-0 h-15" />
               {/* Board area */}
               <div className="relative min-h-0 flex-1">
                 {selectedVariation && (
@@ -537,7 +537,7 @@ export default function PracticePage({ params, searchParams }: PageProps) {
                 )}
               </div>
               {/* Bottom row — same height as the nav controls bar in the sidebar */}
-              <div className="shrink-0 h-14" />
+              <div className="shrink-0 h-15" />
             </div>
           </div>
 
