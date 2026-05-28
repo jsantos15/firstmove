@@ -1236,7 +1236,7 @@ export default function AnalysisPage() {
     <div className="flex h-full flex-col overflow-hidden">
       {/* ── Main content ── */}
       <div className="flex-1 min-h-0 overflow-hidden p-3">
-        <div className="flex h-full w-full max-w-336 gap-3">
+        <div className="flex h-full w-full max-w-447 gap-3">
           {/* Left: Board card */}
           <div className="min-w-0 flex-1 overflow-hidden rounded-xl border border-white/5 bg-(--bg-panel) flex flex-col select-none">
             {/* Top player (opponent) */}
