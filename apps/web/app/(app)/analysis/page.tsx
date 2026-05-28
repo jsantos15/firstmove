@@ -239,7 +239,7 @@ function EvalBar({
   if (typeof evalCp !== 'number' || !Number.isFinite(evalCp)) {
     return reserveSpace ? (
       <div
-        className="relative hidden w-10 shrink-0 overflow-hidden rounded-md border border-white/15 bg-[#181818] shadow-inner shadow-black/40 sm:block"
+        className="relative hidden w-16 shrink-0 overflow-hidden rounded-md border border-white/15 bg-[#181818] shadow-inner shadow-black/40 sm:block"
         style={barStyle}
         title="Engine evaluation loading"
         aria-label="Engine evaluation loading"
@@ -257,7 +257,7 @@ function EvalBar({
 
   return (
     <div
-      className="relative hidden w-10 shrink-0 overflow-hidden rounded-md border border-white/15 bg-[#181818] shadow-inner shadow-black/40 sm:block"
+      className="relative hidden w-16 shrink-0 overflow-hidden rounded-md border border-white/15 bg-[#181818] shadow-inner shadow-black/40 sm:block"
       style={barStyle}
       title={`Engine evaluation: ${label}`}
       aria-label={`Engine evaluation ${label}`}
@@ -1022,7 +1022,9 @@ export default function AnalysisPage() {
     const el = wrapperRef.current;
     if (!el) return;
     const update = () => {
-      const size = Math.min(el.clientWidth, el.clientHeight);
+      // Reserve space for the eval bar (w-16 = 64px) + gap (8px)
+      const evalBarReserved = 72;
+      const size = Math.min(el.clientWidth - evalBarReserved, el.clientHeight);
       if (size > 0) setBoardSize(size);
     };
     const observer = new ResizeObserver(update);
@@ -1233,12 +1235,12 @@ export default function AnalysisPage() {
   return (
     <div className="flex h-full flex-col overflow-hidden">
       {/* ── Main content ── */}
-      <div className="flex-1 min-h-0 overflow-hidden px-4 pb-3 pt-3 lg:px-6 lg:pb-4 lg:pt-4">
-        <div className="mx-auto flex h-full w-full max-w-410 gap-3 lg:gap-3">
+      <div className="flex-1 min-h-0 overflow-hidden p-3">
+        <div className="flex h-full w-full gap-3">
           {/* Left: Board card */}
           <div className="min-w-0 flex-1 overflow-hidden rounded-xl border border-white/5 bg-(--bg-panel) flex flex-col select-none">
             {/* Top player (opponent) */}
-            <div className="shrink-0 px-4 pt-3">
+            <div className="shrink-0 px-6 py-5">
               <PlayerPanel
                 name={topPlayer.name}
                 rating={topPlayer.rating}
@@ -1250,28 +1252,31 @@ export default function AnalysisPage() {
               />
             </div>
 
-            {/* Board */}
+            {/* Board + eval bar */}
             <div ref={wrapperRef} className="flex min-h-0 flex-1 items-center justify-center">
-              <div className="relative">
-                <div className="overflow-hidden rounded-xl ring-1 ring-white/10">
-                  <Chessboard
-                    position={currentFen}
-                    boardWidth={boardSize}
-                    boardOrientation={settings.flipBoard ? 'black' : 'white'}
-                    arePiecesDraggable={false}
-                    customSquareStyles={customSquareStyles}
-                    showBoardNotation={settings.showCoordinates}
-                    customDarkSquareStyle={{ backgroundColor: theme.dark }}
-                    customLightSquareStyle={{ backgroundColor: theme.light }}
-                    animationDuration={animationDuration}
-                    customPieces={customPieces}
-                  />
+              <div className="flex items-center gap-2">
+                <EvalBar evalCp={displayEvalCp} reserveSpace={true} size={boardSize} />
+                <div className="relative">
+                  <div className="overflow-hidden rounded-xl ring-1 ring-white/10">
+                    <Chessboard
+                      position={currentFen}
+                      boardWidth={boardSize}
+                      boardOrientation={settings.flipBoard ? 'black' : 'white'}
+                      arePiecesDraggable={false}
+                      customSquareStyles={customSquareStyles}
+                      showBoardNotation={settings.showCoordinates}
+                      customDarkSquareStyle={{ backgroundColor: theme.dark }}
+                      customLightSquareStyle={{ backgroundColor: theme.light }}
+                      animationDuration={animationDuration}
+                      customPieces={customPieces}
+                    />
+                  </div>
                 </div>
               </div>
             </div>
 
             {/* Bottom player (self) */}
-            <div className="shrink-0 px-4 pb-3">
+            <div className="shrink-0 px-6 py-5">
               <PlayerPanel
                 name={bottomPlayer.name}
                 rating={bottomPlayer.rating}
@@ -1284,13 +1289,8 @@ export default function AnalysisPage() {
             </div>
           </div>
 
-          {/* Eval bar — between the two panels, aligned to board center */}
-          <div className="flex shrink-0 self-center">
-            <EvalBar evalCp={displayEvalCp} reserveSpace={true} size={boardSize} />
-          </div>
-
           {/* Right: Sidebar card */}
-          <div className="w-[24rem] lg:w-108 shrink-0 h-full rounded-xl border border-white/5 bg-(--bg-panel) overflow-hidden flex flex-col">
+          <div className="w-[26rem] lg:w-[30rem] shrink-0 h-full rounded-xl border border-white/5 bg-(--bg-panel) overflow-hidden flex flex-col">
             {/* Actions */}
             <div className="shrink-0 flex items-center gap-2 border-b border-white/5 px-4 py-3">
               <button

@@ -513,8 +513,8 @@ export default function PracticePage({ params, searchParams }: PageProps) {
 
   return (
     <div className="h-full flex flex-col overflow-hidden">
-      <div className="flex-1 min-h-0 overflow-hidden px-4 pb-3 pt-3 lg:px-6 lg:pb-4 lg:pt-4">
-        <div className="mx-auto flex h-full w-full max-w-410 gap-3 lg:gap-3">
+      <div className="flex-1 min-h-0 overflow-hidden p-3">
+        <div className="flex h-full w-full gap-3">
           {/* Board card */}
           <div className="flex h-full min-w-0 flex-1">
             <div className="relative h-full w-full overflow-hidden rounded-xl border border-white/5 bg-(--bg-panel)">
