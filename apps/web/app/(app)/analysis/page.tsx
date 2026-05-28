@@ -239,7 +239,7 @@ function EvalBar({
   if (typeof evalCp !== 'number' || !Number.isFinite(evalCp)) {
     return reserveSpace ? (
       <div
-        className="relative hidden w-16 shrink-0 overflow-hidden rounded-md border border-white/15 bg-[#181818] shadow-inner shadow-black/40 sm:block"
+        className="relative hidden w-12 shrink-0 overflow-hidden rounded-md border border-white/15 bg-[#181818] shadow-inner shadow-black/40 sm:block"
         style={barStyle}
         title="Engine evaluation loading"
         aria-label="Engine evaluation loading"
@@ -257,7 +257,7 @@ function EvalBar({
 
   return (
     <div
-      className="relative hidden w-16 shrink-0 overflow-hidden rounded-md border border-white/15 bg-[#181818] shadow-inner shadow-black/40 sm:block"
+      className="relative hidden w-12 shrink-0 overflow-hidden rounded-md border border-white/15 bg-[#181818] shadow-inner shadow-black/40 sm:block"
       style={barStyle}
       title={`Engine evaluation: ${label}`}
       aria-label={`Engine evaluation ${label}`}
@@ -1023,7 +1023,7 @@ export default function AnalysisPage() {
     if (!el) return;
     const update = () => {
       // Reserve space for the eval bar (w-16 = 64px) + gap (8px)
-      const evalBarReserved = 72;
+      const evalBarReserved = 56; // w-12 (48px) + gap-2 (8px)
       const size = Math.min(el.clientWidth - evalBarReserved, el.clientHeight);
       if (size > 0) setBoardSize(size);
     };
@@ -1236,7 +1236,7 @@ export default function AnalysisPage() {
     <div className="flex h-full flex-col overflow-hidden">
       {/* ── Main content ── */}
       <div className="flex-1 min-h-0 overflow-hidden p-3">
-        <div className="flex h-full w-full gap-3">
+        <div className="flex h-full w-full max-w-336 gap-3">
           {/* Left: Board card */}
           <div className="min-w-0 flex-1 overflow-hidden rounded-xl border border-white/5 bg-(--bg-panel) flex flex-col select-none">
             {/* Top player (opponent) */}
