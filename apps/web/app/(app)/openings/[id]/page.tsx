@@ -762,7 +762,7 @@ function ModeButton({
     <button
       type="button"
       onClick={onClick}
-      className={`flex-1 py-2.5 text-sm font-semibold transition-colors ${
+      className={`flex-1 py-5 text-sm font-semibold transition-colors ${
         active
           ? 'bg-amber-400/15 text-amber-300'
           : 'text-gray-400 hover:bg-white/5 hover:text-white'
