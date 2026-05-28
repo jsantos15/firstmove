@@ -971,7 +971,7 @@ export const PracticeBoard = forwardRef<PracticeBoardHandle, PracticeBoardProps>
         />
         <div className="relative">
           <div
-            className={`overflow-hidden rounded-xl transition-all duration-150 ${
+            className={`overflow-hidden transition-all duration-150 ${
               !isLive
                 ? 'ring-2 ring-blue-500/40'
                 : status === 'wrong'
