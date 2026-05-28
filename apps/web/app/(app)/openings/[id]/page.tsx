@@ -518,8 +518,11 @@ export default function PracticePage({ params, searchParams }: PageProps) {
           {/* Board card */}
           <div className="flex h-full min-w-0 flex-1">
             <div className="relative h-full w-full overflow-hidden rounded-xl border border-white/5 bg-(--bg-panel) flex flex-col">
-              {/* Top row — same height as the nav controls bar in the sidebar */}
-              <div className="shrink-0 h-16" />
+              {/* Top row: Learn/Practice toggle */}
+              <div className="shrink-0 flex border-b border-white/5">
+                <ModeButton active={mode === 'learn'} onClick={() => setMode('learn')}>Learn</ModeButton>
+                <ModeButton active={mode === 'practice'} onClick={() => setMode('practice')}>Practice</ModeButton>
+              </div>
               {/* Board area */}
               <div className="relative min-h-0 flex-1">
                 {selectedVariation && (
@@ -536,23 +539,36 @@ export default function PracticePage({ params, searchParams }: PageProps) {
                   />
                 )}
               </div>
-              {/* Bottom row — same height as the nav controls bar in the sidebar */}
-              <div className="shrink-0 h-16" />
+              {/* Bottom row: Nav controls */}
+              <div className="shrink-0 flex items-center justify-between border-t border-white/5 px-4 py-2.5">
+                <button
+                  type="button"
+                  onClick={() => practiceBoardRef.current?.reset()}
+                  className="flex h-9 items-center gap-1.5 rounded border border-white/10 px-3 text-sm text-gray-400 transition-colors hover:border-white/20 hover:text-white"
+                >
+                  ↺ Restart
+                </button>
+                <div className="flex items-center divide-x divide-white/10 overflow-hidden rounded-lg border border-white/10">
+                  <SidebarNavBtn onClick={() => practiceBoardRef.current?.navigateFirst()} disabled={!navState.canGoBack} title="First move">
+                    <svg viewBox="0 0 16 16" fill="currentColor" className="w-5 h-5"><path d="M3.5 3a.5.5 0 0 1 .5.5v3.793l6.146-4.439A.5.5 0 0 1 11 3.5v9a.5.5 0 0 1-.854.354L4 8.707V12.5a.5.5 0 0 1-1 0v-9a.5.5 0 0 1 .5-.5z" /></svg>
+                  </SidebarNavBtn>
+                  <SidebarNavBtn onClick={() => practiceBoardRef.current?.navigateBack()} disabled={!navState.canGoBack} title="Previous move">
+                    <svg viewBox="0 0 16 16" fill="currentColor" className="w-5 h-5"><path d="M11.354 3.646a.5.5 0 0 1 0 .708L6.707 9l4.647 4.646a.5.5 0 0 1-.708.708l-5-5a.5.5 0 0 1 0-.708l5-5a.5.5 0 0 1 .708 0z" /></svg>
+                  </SidebarNavBtn>
+                  <SidebarNavBtn onClick={() => practiceBoardRef.current?.navigateForward()} disabled={!navState.canGoForward} title="Next move">
+                    <svg viewBox="0 0 16 16" fill="currentColor" className="w-5 h-5"><path d="M4.646 3.646a.5.5 0 0 1 .708 0l5 5a.5.5 0 0 1 0 .708l-5 5a.5.5 0 0 1-.708-.708L9.293 9 4.646 4.354a.5.5 0 0 1 0-.708z" /></svg>
+                  </SidebarNavBtn>
+                  <SidebarNavBtn onClick={() => practiceBoardRef.current?.navigateLast()} disabled={navState.isLive} title="Latest move">
+                    <svg viewBox="0 0 16 16" fill="currentColor" className="w-5 h-5"><path d="M12.5 3a.5.5 0 0 0-.5.5v3.793L5.854 2.854A.5.5 0 0 0 5 3.5v9a.5.5 0 0 0 .854.354L12 8.207V12.5a.5.5 0 0 0 1 0v-9a.5.5 0 0 0-.5-.5z" /></svg>
+                  </SidebarNavBtn>
+                </div>
+                <BoardSettingsPopover />
+              </div>
             </div>
           </div>
 
           {/* Sidebar card */}
           <div className="w-[24rem] lg:w-108 shrink-0 h-full rounded-xl border border-white/5 bg-(--bg-panel) overflow-hidden flex flex-col">
-            {/* Mode toggle */}
-            <div className="shrink-0 flex border-b border-white/5">
-              <ModeButton active={mode === 'learn'} onClick={() => setMode('learn')}>
-                Learn
-              </ModeButton>
-              <ModeButton active={mode === 'practice'} onClick={() => setMode('practice')}>
-                Practice
-              </ModeButton>
-            </div>
-
             {/* Coach */}
             <div className="shrink-0 border-b border-white/5">
               <CoachBubble feedback={coachFeedback} fallbackText={opening.description} dark />
@@ -725,32 +741,6 @@ export default function PracticePage({ params, searchParams }: PageProps) {
               </div>
             </div>
             {/* end variations+branches */}
-
-            {/* Nav controls */}
-            <div className="shrink-0 flex items-center justify-between border-t border-white/5 px-4 py-2.5">
-              <button
-                type="button"
-                onClick={() => practiceBoardRef.current?.reset()}
-                className="flex h-9 items-center gap-1.5 rounded border border-white/10 px-3 text-sm text-gray-400 transition-colors hover:border-white/20 hover:text-white"
-              >
-                ↺ Restart
-              </button>
-              <div className="flex items-center divide-x divide-white/10 overflow-hidden rounded-lg border border-white/10">
-                <SidebarNavBtn onClick={() => practiceBoardRef.current?.navigateFirst()} disabled={!navState.canGoBack} title="First move">
-                  <svg viewBox="0 0 16 16" fill="currentColor" className="w-5 h-5"><path d="M3.5 3a.5.5 0 0 1 .5.5v3.793l6.146-4.439A.5.5 0 0 1 11 3.5v9a.5.5 0 0 1-.854.354L4 8.707V12.5a.5.5 0 0 1-1 0v-9a.5.5 0 0 1 .5-.5z" /></svg>
-                </SidebarNavBtn>
-                <SidebarNavBtn onClick={() => practiceBoardRef.current?.navigateBack()} disabled={!navState.canGoBack} title="Previous move">
-                  <svg viewBox="0 0 16 16" fill="currentColor" className="w-5 h-5"><path d="M11.354 3.646a.5.5 0 0 1 0 .708L6.707 9l4.647 4.646a.5.5 0 0 1-.708.708l-5-5a.5.5 0 0 1 0-.708l5-5a.5.5 0 0 1 .708 0z" /></svg>
-                </SidebarNavBtn>
-                <SidebarNavBtn onClick={() => practiceBoardRef.current?.navigateForward()} disabled={!navState.canGoForward} title="Next move">
-                  <svg viewBox="0 0 16 16" fill="currentColor" className="w-5 h-5"><path d="M4.646 3.646a.5.5 0 0 1 .708 0l5 5a.5.5 0 0 1 0 .708l-5 5a.5.5 0 0 1-.708-.708L9.293 9 4.646 4.354a.5.5 0 0 1 0-.708z" /></svg>
-                </SidebarNavBtn>
-                <SidebarNavBtn onClick={() => practiceBoardRef.current?.navigateLast()} disabled={navState.isLive} title="Latest move">
-                  <svg viewBox="0 0 16 16" fill="currentColor" className="w-5 h-5"><path d="M12.5 3a.5.5 0 0 0-.5.5v3.793L5.854 2.854A.5.5 0 0 0 5 3.5v9a.5.5 0 0 0 .854.354L12 8.207V12.5a.5.5 0 0 0 1 0v-9a.5.5 0 0 0-.5-.5z" /></svg>
-                </SidebarNavBtn>
-              </div>
-              <BoardSettingsPopover />
-            </div>
           </div>
           {/* end sidebar card */}
         </div>
