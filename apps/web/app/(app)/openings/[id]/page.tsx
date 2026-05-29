@@ -573,7 +573,7 @@ export default function PracticePage({ params, searchParams }: PageProps) {
           </div>
 
           {/* Sidebar card */}
-          <div className="w-108 lg:w-120 shrink-0 h-full rounded-xl border border-white/5 bg-(--bg-panel) overflow-hidden flex flex-col">
+          <div className="w-120 lg:w-132 shrink-0 h-full rounded-xl border border-white/5 bg-(--bg-panel) overflow-hidden flex flex-col">
             {/* Coach */}
             <div className="shrink-0 border-b border-white/5">
               <CoachBubble feedback={coachFeedback} fallbackText={opening.description} dark />
