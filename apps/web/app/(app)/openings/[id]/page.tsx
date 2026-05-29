@@ -512,8 +512,8 @@ const selectedReferenceVariation =
 
   return (
     <div className="h-full flex flex-col overflow-hidden">
-      <div className="flex-1 min-h-0 overflow-hidden p-3">
-        <div className="flex h-full w-full max-w-447 gap-3 justify-center">
+      <div className="flex-1 min-h-0 overflow-hidden p-3 flex justify-center">
+        <div className="flex h-full gap-3">
           {/* Board card */}
           <div className="shrink-0 h-full overflow-hidden rounded-xl border border-white/5 bg-(--bg-panel)">
               {selectedVariation && (
