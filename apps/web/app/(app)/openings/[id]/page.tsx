@@ -194,12 +194,6 @@ function BranchRow({
   );
 }
 
-
-function formatBranchPercent(value?: number | null) {
-  if (typeof value !== 'number' || !Number.isFinite(value)) return null;
-  return `${Math.round(value * 100)}%`;
-}
-
 function formatBranchEval(value?: number | null) {
   if (typeof value !== 'number' || !Number.isFinite(value)) return null;
   if (Math.abs(value) >= 9000) return '#';
@@ -441,8 +435,7 @@ export default function PracticePage({ params, searchParams }: PageProps) {
 
   const groups = groupVariations(opening.variations, opening.name);
   const activeReferenceLineId = selectedReferenceLineId ?? selectedLineId;
-  const activeGroup = groups.find(g => g.lines.some(l => l.id === activeReferenceLineId));
-  const selectedReferenceVariation =
+const selectedReferenceVariation =
     opening.variations.find(v => v.id === activeReferenceLineId) ?? opening.variations[0];
   const selectedVariation =
     allPracticeLines.find(v => v.id === selectedLineId) ?? opening.variations[0];
@@ -520,10 +513,9 @@ export default function PracticePage({ params, searchParams }: PageProps) {
   return (
     <div className="h-full flex flex-col overflow-hidden">
       <div className="flex-1 min-h-0 overflow-hidden p-3">
-        <div className="flex h-full w-full max-w-447 gap-3">
+        <div className="flex h-full w-full max-w-447 gap-3 justify-center">
           {/* Board card */}
-          <div className="flex h-full min-w-0 flex-1">
-            <div className="relative h-full w-full overflow-hidden rounded-xl border border-white/5 bg-(--bg-panel)">
+          <div className="shrink-0 h-full overflow-hidden rounded-xl border border-white/5 bg-(--bg-panel)">
               {selectedVariation && (
                 <PracticeBoard
                   ref={practiceBoardRef}
@@ -569,7 +561,6 @@ export default function PracticePage({ params, searchParams }: PageProps) {
                   }
                 />
               )}
-            </div>
           </div>
 
           {/* Sidebar card */}

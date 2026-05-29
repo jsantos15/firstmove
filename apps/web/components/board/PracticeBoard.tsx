@@ -508,8 +508,7 @@ export const PracticeBoard = forwardRef<PracticeBoardHandle, PracticeBoardProps>
     const el = wrapperRef.current;
     if (!el) return;
     const updateSize = () => {
-      // Reserve space for the eval bar (w-8 = 32px) + ml-2 gap (8px)
-      const size = Math.min(el.clientWidth - 40, el.clientHeight);
+      const size = el.clientHeight;
       if (size > 0) {
         setBoardSize(size);
       }
@@ -656,7 +655,6 @@ export const PracticeBoard = forwardRef<PracticeBoardHandle, PracticeBoardProps>
     (typeof dbEvalCp === 'number' && Number.isFinite(dbEvalCp)) ||
     (typeof currentStaticEvalCp === 'number' && Number.isFinite(currentStaticEvalCp)) ||
     (typeof variation.finalEvalCp === 'number' && Number.isFinite(variation.finalEvalCp));
-  const boardAlignedClassName = `ml-auto w-full ${hasVisibleEvalBar ? 'mr-10' : ''}`;
 
   const legalTargets = useMemo(() => {
     if (!isLive || status !== 'playing' || !selectedSquare) return [];
@@ -957,18 +955,16 @@ export const PracticeBoard = forwardRef<PracticeBoardHandle, PracticeBoardProps>
   }, [canGoBack, canGoForward, isLive, onNavStateChange]);
 
   return (
-    <div className="relative flex h-full w-full select-none flex-col">
+    <div className="relative flex h-full select-none flex-col">
       {/* Optional top bar — aligned to board edges */}
       {topBar && (
-        <div className="shrink-0">
-          <div className={boardAlignedClassName} style={{ maxWidth: boardSize }}>
-            {topBar}
-          </div>
+        <div className="shrink-0" style={{ width: boardSize }}>
+          {topBar}
         </div>
       )}
 
       {/* Board */}
-      <div ref={wrapperRef} className="relative flex min-h-0 flex-1 items-center justify-end">
+      <div ref={wrapperRef} className="relative flex min-h-0 flex-1 items-center">
         <div className="relative">
           <div
             className={`overflow-hidden transition-all duration-150 ${
@@ -1025,17 +1021,15 @@ export const PracticeBoard = forwardRef<PracticeBoardHandle, PracticeBoardProps>
 
       {/* Optional bottom bar — aligned to board edges */}
       {bottomBar && (
-        <div className="shrink-0">
-          <div className={boardAlignedClassName} style={{ maxWidth: boardSize }}>
-            {bottomBar}
-          </div>
+        <div className="shrink-0" style={{ width: boardSize }}>
+          {bottomBar}
         </div>
       )}
 
       {!hideControls && !bottomBar && (
         <div
-          className={`${boardAlignedClassName} grid shrink-0 grid-cols-3 items-center`}
-          style={{ maxWidth: boardSize }}
+          className="grid shrink-0 grid-cols-3 items-center"
+          style={{ width: boardSize }}
         >
           <div className="flex items-center gap-2">
             <button
