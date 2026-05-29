@@ -122,7 +122,7 @@ function EvalBar({
   if (typeof evalCp !== 'number' || !Number.isFinite(evalCp)) {
     return reserveSpace ? (
       <div
-        className={`relative mr-2 hidden ${heightClass} w-8 shrink-0 overflow-hidden rounded-md border border-white/15 ${topClassName} shadow-inner shadow-black/40 sm:block`}
+        className={`relative ml-2 hidden ${heightClass} w-8 shrink-0 overflow-hidden rounded-md border border-white/15 ${topClassName} shadow-inner shadow-black/40 sm:block`}
         style={heightStyle}
         title="Engine evaluation loading"
         aria-label="Engine evaluation loading"
@@ -144,7 +144,7 @@ function EvalBar({
 
   return (
     <div
-      className={`relative mr-2 hidden ${heightClass} w-8 shrink-0 overflow-hidden rounded-md border border-white/15 ${topClassName} shadow-inner shadow-black/40 sm:block`}
+      className={`relative ml-2 hidden ${heightClass} w-8 shrink-0 overflow-hidden rounded-md border border-white/15 ${topClassName} shadow-inner shadow-black/40 sm:block`}
       style={heightStyle}
       title={`Engine evaluation for ${perspectiveLabel}: ${label}`}
       aria-label={`Engine evaluation for ${perspectiveLabel} ${label}`}
@@ -508,7 +508,7 @@ export const PracticeBoard = forwardRef<PracticeBoardHandle, PracticeBoardProps>
     const el = wrapperRef.current;
     if (!el) return;
     const updateSize = () => {
-      // Reserve space for the eval bar (w-8 = 32px) + mr-2 gap (8px)
+      // Reserve space for the eval bar (w-8 = 32px) + ml-2 gap (8px)
       const size = Math.min(el.clientWidth - 40, el.clientHeight);
       if (size > 0) {
         setBoardSize(size);
@@ -656,7 +656,7 @@ export const PracticeBoard = forwardRef<PracticeBoardHandle, PracticeBoardProps>
     (typeof dbEvalCp === 'number' && Number.isFinite(dbEvalCp)) ||
     (typeof currentStaticEvalCp === 'number' && Number.isFinite(currentStaticEvalCp)) ||
     (typeof variation.finalEvalCp === 'number' && Number.isFinite(variation.finalEvalCp));
-  const boardAlignedClassName = `mx-auto w-full ${hasVisibleEvalBar ? 'sm:translate-x-[20px]' : ''}`;
+  const boardAlignedClassName = `mx-auto w-full ${hasVisibleEvalBar ? 'sm:-translate-x-[20px]' : ''}`;
 
   const legalTargets = useMemo(() => {
     if (!isLive || status !== 'playing' || !selectedSquare) return [];
@@ -969,12 +969,6 @@ export const PracticeBoard = forwardRef<PracticeBoardHandle, PracticeBoardProps>
 
       {/* Board */}
       <div ref={wrapperRef} className="relative flex min-h-0 flex-1 items-center justify-center">
-        <EvalBar
-          evalCp={displayedEvalCp}
-          displayPerspective={boardOrientation}
-          reserveSpace={hasVisibleEvalBar}
-          size={boardSize}
-        />
         <div className="relative">
           <div
             className={`overflow-hidden transition-all duration-150 ${
@@ -1012,6 +1006,12 @@ export const PracticeBoard = forwardRef<PracticeBoardHandle, PracticeBoardProps>
             />
           </div>
         </div>
+        <EvalBar
+          evalCp={displayedEvalCp}
+          displayPerspective={boardOrientation}
+          reserveSpace={hasVisibleEvalBar}
+          size={boardSize}
+        />
         {((status === 'complete' && isLive) || (mode === 'learn' && isViewingLineEnd)) &&
           !overlayDismissed && (
             <CompletionOverlay
