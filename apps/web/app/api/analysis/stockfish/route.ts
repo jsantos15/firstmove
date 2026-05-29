@@ -26,7 +26,7 @@ export async function POST(request: Request) {
     const result = await enrichAnalyzedGameWithStockfish({
       game: body.game,
       depth: boundedInteger(body.depth, 8, 1, 14),
-      maxMoves: boundedInteger(body.maxMoves, 40, 1, 80),
+      maxMoves: boundedInteger(body.maxMoves, body.game.moves.length, 1, body.game.moves.length),
     });
 
     return NextResponse.json(result);

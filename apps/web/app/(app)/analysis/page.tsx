@@ -29,7 +29,6 @@ const INITIAL_FEN = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
 const EVAL_BAR_CP_LIMIT = 600;
 const INITIAL_EVAL_CP = 20;
 const STOCKFISH_DEPTH = 10;
-const STOCKFISH_MOVE_LIMIT = 40;
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -1179,7 +1178,7 @@ export default function AnalysisPage() {
         body: JSON.stringify({
           game: analyzedGame,
           depth: STOCKFISH_DEPTH,
-          maxMoves: STOCKFISH_MOVE_LIMIT,
+          maxMoves: analyzedGame.moves.length,
         }),
       });
       const payload = (await response.json()) as Partial<StockfishResponse> & { error?: string };

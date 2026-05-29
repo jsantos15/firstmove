@@ -225,7 +225,7 @@ async function enrichMove({
 export async function enrichAnalyzedGameWithStockfish({
   game,
   depth = 8,
-  maxMoves = 40,
+  maxMoves = game.moves.length,
 }: EnrichAnalyzedGameInput): Promise<EnrichAnalyzedGameResult> {
   const engine = loadEngine(resolveLiteSingleEnginePath());
   const boundedMoves = game.moves.slice(0, Math.max(0, maxMoves));
