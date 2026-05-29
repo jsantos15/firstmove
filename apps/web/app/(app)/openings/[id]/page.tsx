@@ -11,6 +11,7 @@ import { CoachBubble } from '@/components/practice/CoachBubble';
 import { useAuth } from '@/app/providers';
 import { useAllProgress, MASTERY_COLORS } from '@/hooks/useProgress';
 import { useCoachSettings } from '@/hooks/useCoachSettings';
+import { useBoardSettings } from '@/hooks/useBoardSettings';
 import { BoardSettingsPopover } from '@/components/board/BoardSettingsPopover';
 import type { CoachFeedback } from '@/lib/coachFeedback';
 
@@ -343,6 +344,11 @@ export default function PracticePage({ params, searchParams }: PageProps) {
   const [navState, setNavState] = useState({ canGoBack: false, canGoForward: false, isLive: true });
   const practiceBoardRef = useRef<import('@/components/board/PracticeBoard').PracticeBoardHandle | null>(null);
   const { settings: coachSettings } = useCoachSettings();
+  const { setSettings: setBoardSettings } = useBoardSettings();
+
+  useEffect(() => {
+    return () => { setBoardSettings({ flipBoard: false }); };
+  }, [setBoardSettings]);
   const allPracticeLines = useMemo(
     () => [...(opening?.variations ?? []), ...(opening?.practicalBranches ?? [])],
     [opening?.practicalBranches, opening?.variations]
@@ -567,7 +573,7 @@ export default function PracticePage({ params, searchParams }: PageProps) {
           </div>
 
           {/* Sidebar card */}
-          <div className="w-[24rem] lg:w-108 shrink-0 h-full rounded-xl border border-white/5 bg-(--bg-panel) overflow-hidden flex flex-col">
+          <div className="w-108 lg:w-120 shrink-0 h-full rounded-xl border border-white/5 bg-(--bg-panel) overflow-hidden flex flex-col">
             {/* Coach */}
             <div className="shrink-0 border-b border-white/5">
               <CoachBubble feedback={coachFeedback} fallbackText={opening.description} dark />
