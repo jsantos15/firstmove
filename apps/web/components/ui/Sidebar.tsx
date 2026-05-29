@@ -71,7 +71,7 @@ export function Sidebar() {
   const pathname = usePathname();
 
   return (
-    <aside className="w-[220px] shrink-0 h-full flex flex-col border-r border-white/5" style={{ backgroundColor: 'var(--bg-sidebar)' }}>
+    <aside className="w-64 shrink-0 h-full flex flex-col border-r border-white/5" style={{ backgroundColor: 'var(--bg-sidebar)' }}>
 
       {/* Logo — h-16 matches the global top bar so both dividers align */}
       <div className="h-16 px-5 flex items-center gap-2.5">
