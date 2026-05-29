@@ -383,7 +383,7 @@ export const PracticeBoard = forwardRef<PracticeBoardHandle, PracticeBoardProps>
   const displayIndex = viewIndex ?? currentMoveIndex;
   const canGoBack = displayIndex > 0;
   const moves = variation.moves;
-  const maxNavigableIndex = currentMoveIndex;
+  const maxNavigableIndex = mode === 'learn' ? moves.length : currentMoveIndex;
   const canGoForward = displayIndex < maxNavigableIndex;
 
   const isMyTurn = isLive && status === 'playing' && isUserTurn(currentMoveIndex, opening.color);
