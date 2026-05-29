@@ -656,7 +656,7 @@ export const PracticeBoard = forwardRef<PracticeBoardHandle, PracticeBoardProps>
     (typeof dbEvalCp === 'number' && Number.isFinite(dbEvalCp)) ||
     (typeof currentStaticEvalCp === 'number' && Number.isFinite(currentStaticEvalCp)) ||
     (typeof variation.finalEvalCp === 'number' && Number.isFinite(variation.finalEvalCp));
-  const boardAlignedClassName = `mx-auto w-full ${hasVisibleEvalBar ? 'sm:-translate-x-[20px]' : ''}`;
+  const boardAlignedClassName = `ml-auto w-full ${hasVisibleEvalBar ? 'mr-10' : ''}`;
 
   const legalTargets = useMemo(() => {
     if (!isLive || status !== 'playing' || !selectedSquare) return [];
@@ -968,7 +968,7 @@ export const PracticeBoard = forwardRef<PracticeBoardHandle, PracticeBoardProps>
       )}
 
       {/* Board */}
-      <div ref={wrapperRef} className="relative flex min-h-0 flex-1 items-center justify-center">
+      <div ref={wrapperRef} className="relative flex min-h-0 flex-1 items-center justify-end">
         <div className="relative">
           <div
             className={`overflow-hidden transition-all duration-150 ${

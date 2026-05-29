@@ -519,10 +519,11 @@ export default function PracticePage({ params, searchParams }: PageProps) {
 
   return (
     <div className="h-full flex flex-col overflow-hidden">
-      <div className="flex-1 min-h-0 overflow-hidden p-3 flex justify-end">
-        <div className="flex h-full gap-3">
+      <div className="flex-1 min-h-0 overflow-hidden p-3">
+        <div className="flex h-full w-full max-w-447 gap-3">
           {/* Board card */}
-          <div className="relative shrink-0 h-full aspect-square overflow-hidden rounded-xl border border-white/5 bg-(--bg-panel)">
+          <div className="flex h-full min-w-0 flex-1">
+            <div className="relative h-full w-full overflow-hidden rounded-xl border border-white/5 bg-(--bg-panel)">
               {selectedVariation && (
                 <PracticeBoard
                   ref={practiceBoardRef}
@@ -568,6 +569,7 @@ export default function PracticePage({ params, searchParams }: PageProps) {
                   }
                 />
               )}
+            </div>
           </div>
 
           {/* Sidebar card */}
