@@ -159,6 +159,38 @@ test('game review report counts one category per move by side', () => {
   assert.equal(report.black.total, 1);
 });
 
+test('PGN parser imports Chess.com review hints and ECO book depth', () => {
+  const game = core.buildAnalyzedGameFromPgn({
+    id: 'chesscom-review-hints',
+    pgn: [
+      '[ECOUrl "https://www.chess.com/openings/Scandinavian-Defense-Mieses-Kotrc-Main-Line-4.Nf3-Nf6"]',
+      '',
+      '1. e4 d5 2. exd5 Qxd5 3. Nc3 Qa5 4. Nf3 Nf6 5. d3 c6 6. Bd2 Bf5',
+      '7. Ne4 Qb6 8. Nxf6+ gxf6 $2 9. b3 $6 e5 10. Be2 $6 Rg8',
+      '11. Nh4 $6 Be6 12. Be3 $4 Qb4+ $1 1-0',
+    ].join('\n'),
+  });
+
+  assert.equal(game.moves.length, 24);
+  assert.deepEqual(
+    game.moves.slice(0, 8).map(move => move.isBookMove),
+    [true, true, true, true, true, true, true, true]
+  );
+  assert.equal(game.moves[8].isBookMove, false);
+  assert.equal(game.moves[15].providerReviewCategory, 'mistake');
+  assert.equal(game.moves[16].providerReviewCategory, 'inaccuracy');
+  assert.equal(game.moves[22].providerReviewCategory, 'blunder');
+  assert.equal(game.moves[23].providerReviewCategory, 'great');
+
+  const report = core.buildGameReviewReport(game);
+  assert.equal(report.white.categories.book, 4);
+  assert.equal(report.black.categories.book, 4);
+  assert.equal(report.black.categories.mistake, 1);
+  assert.equal(report.white.categories.inaccuracy, 3);
+  assert.equal(report.white.categories.blunder, 1);
+  assert.equal(report.black.categories.great, 1);
+});
+
 test('event-specific spoken fallback works without event-specific display copy', () => {
   const event = core.buildGameAnalysisMoveEventsFromEngine({
     gameId: 'game-1',

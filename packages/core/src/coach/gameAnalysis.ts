@@ -43,6 +43,7 @@ export interface GameAnalysisMoveEventInput {
   isCriticalMove?: boolean;
   isSacrifice?: boolean;
   isBookMove?: boolean;
+  providerReviewCategory?: GameReviewCategory;
   missedOpportunityCp?: number;
   themeTags?: CoachThemeTag[];
   persona?: CoachPersona;
@@ -69,6 +70,7 @@ export interface GameAnalysisEngineMoveInput {
   isCriticalMove?: boolean;
   isSacrifice?: boolean;
   isBookMove?: boolean;
+  providerReviewCategory?: GameReviewCategory;
   themeTags?: CoachThemeTag[];
   persona?: CoachPersona;
 }
@@ -97,6 +99,7 @@ export interface AnalyzedGameMove {
   isCriticalMove?: boolean;
   isSacrifice?: boolean;
   isBookMove?: boolean;
+  providerReviewCategory?: GameReviewCategory;
   themeTags?: CoachThemeTag[];
   clockRemainingMs?: number; // Remaining clock time after this move, from [%clk] PGN annotation
 }
@@ -211,6 +214,7 @@ export interface GameAnalysisMoveFacts {
   isCriticalMove?: boolean;
   isSacrifice?: boolean;
   isBookMove?: boolean;
+  providerReviewCategory?: GameReviewCategory;
   reviewCategory: GameReviewCategory;
   missedOpportunityCp?: number;
   themeTags: CoachThemeTag[];
@@ -315,6 +319,14 @@ const PIECE_NAMES: Record<PieceCode, string> = {
   q: 'queen',
   k: 'king',
 };
+
+const PGN_NAG_REVIEW_CATEGORIES = {
+  '$1': 'great',
+  '$2': 'mistake',
+  '$3': 'brilliant',
+  '$4': 'blunder',
+  '$6': 'inaccuracy',
+} as const satisfies Record<string, GameReviewCategory>;
 
 interface PawnInfo {
   square: string;
@@ -1504,6 +1516,89 @@ function parsePgnClockTimesMs(pgn: string): (number | undefined)[] {
   return times;
 }
 
+function stripPgnVariations(pgn: string) {
+  let depth = 0;
+  let output = '';
+
+  for (const char of pgn) {
+    if (char === '(') {
+      depth += 1;
+      output += ' ';
+      continue;
+    }
+    if (char === ')') {
+      depth = Math.max(0, depth - 1);
+      output += ' ';
+      continue;
+    }
+    if (depth === 0) output += char;
+  }
+
+  return output;
+}
+
+function pgnMoveTokenSan(token: string) {
+  const withoutSuffixNag = token.replace(/\$\d+$/, '');
+  const compactBlack = withoutSuffixNag.match(/^\d+\.\.\.(.+)$/);
+  if (compactBlack) return compactBlack[1];
+  const compactWhite = withoutSuffixNag.match(/^\d+\.(.+)$/);
+  if (compactWhite) return compactWhite[1];
+  if (/^\d+\.(?:\.\.)?$/.test(withoutSuffixNag)) return null;
+  if (/^(?:1-0|0-1|1\/2-1\/2|\*)$/.test(withoutSuffixNag)) return null;
+  if (withoutSuffixNag === '...') return null;
+  return withoutSuffixNag || null;
+}
+
+function extractPgnReviewAnnotations(pgn: string): Array<GameReviewCategory | undefined> {
+  const annotations: Array<GameReviewCategory | undefined> = [];
+  const body = stripPgnVariations(
+    pgn
+      .replace(/^\s*\[[^\]]*\]\s*$/gm, ' ')
+      .replace(/\{[^}]*\}/g, ' ')
+      .replace(/;[^\n\r]*/g, ' ')
+  );
+  let moveIndex = -1;
+
+  for (const rawToken of body.split(/\s+/)) {
+    if (!rawToken) continue;
+
+    const standaloneCategory =
+      PGN_NAG_REVIEW_CATEGORIES[rawToken as keyof typeof PGN_NAG_REVIEW_CATEGORIES];
+    if (standaloneCategory && moveIndex >= 0) {
+      annotations[moveIndex] = standaloneCategory;
+      continue;
+    }
+
+    const attachedNag = rawToken.match(/(\$\d+)$/)?.[1];
+    const san = pgnMoveTokenSan(rawToken);
+    if (!san) continue;
+
+    moveIndex += 1;
+    const attachedCategory =
+      attachedNag &&
+      PGN_NAG_REVIEW_CATEGORIES[attachedNag as keyof typeof PGN_NAG_REVIEW_CATEGORIES];
+    if (attachedCategory) annotations[moveIndex] = attachedCategory;
+  }
+
+  return annotations;
+}
+
+function extractEcoUrlBookPlyCount(pgn: string) {
+  const ecoUrl = pgn.match(/\[ECOUrl\s+"([^"]+)"\]/)?.[1];
+  if (!ecoUrl) return 0;
+
+  let bookPlyCount = 0;
+  const pattern = /(?:^|[-/])(\d+)\.([A-Za-z0-9+#=O]+)(?:-([A-Za-z0-9+#=O]+))?/g;
+  let match: RegExpExecArray | null;
+  while ((match = pattern.exec(ecoUrl)) !== null) {
+    const moveNumber = Number(match[1]);
+    if (!Number.isFinite(moveNumber) || moveNumber <= 0) continue;
+    bookPlyCount = Math.max(bookPlyCount, moveNumber * 2 - (match[3] ? 0 : 1));
+  }
+
+  return bookPlyCount;
+}
+
 export function buildAnalyzedGameFromPgn({
   id,
   pgn,
@@ -1512,6 +1607,8 @@ export function buildAnalyzedGameFromPgn({
   const chess = initialFen ? new Chess(initialFen) : new Chess();
   chess.loadPgn(pgn);
   const clockTimes = parsePgnClockTimesMs(pgn);
+  const providerReviewCategories = extractPgnReviewAnnotations(pgn);
+  const bookPlyCount = extractEcoUrlBookPlyCount(pgn);
 
   const moves = chess.history({ verbose: true }).map(
     (move, index): AnalyzedGameMove => ({
@@ -1524,6 +1621,8 @@ export function buildAnalyzedGameFromPgn({
       beforeFen: move.before,
       afterFen: move.after,
       afterPlayedEvalCp: 0,
+      isBookMove: index < bookPlyCount,
+      providerReviewCategory: providerReviewCategories[index],
       clockRemainingMs: clockTimes[index],
     })
   );
@@ -1650,7 +1749,8 @@ function buildFactsBase(input: GameAnalysisMoveEventInput): GameAnalysisMoveFact
   const centipawnGain = input.centipawnGain ?? 0;
   const hasEngineAnalysis = input.hasEngineAnalysis ?? true;
   const reviewCategory =
-    !hasEngineAnalysis && !input.isBookMove
+    input.providerReviewCategory ??
+    (!hasEngineAnalysis && !input.isBookMove
       ? 'good'
       : buildGameReviewCategory({
           centipawnLoss,
@@ -1661,7 +1761,7 @@ function buildFactsBase(input: GameAnalysisMoveEventInput): GameAnalysisMoveFact
           isOnlyGoodMove: input.isOnlyGoodMove,
           isCriticalMove: input.isCriticalMove,
           missedOpportunityCp: input.missedOpportunityCp,
-        });
+        }));
   const afterPlayerEvalCp =
     typeof input.afterEvalCp === 'number' && Number.isFinite(input.afterEvalCp)
       ? input.afterEvalCp
@@ -1786,6 +1886,7 @@ function buildFactsBase(input: GameAnalysisMoveEventInput): GameAnalysisMoveFact
     isCriticalMove: input.isCriticalMove,
     isSacrifice: input.isSacrifice,
     isBookMove: input.isBookMove,
+    providerReviewCategory: input.providerReviewCategory,
     reviewCategory,
     missedOpportunityCp: input.missedOpportunityCp,
     themeTags,
@@ -1832,6 +1933,7 @@ function candidateAnalysisFacts(
     isCriticalMove: facts.isCriticalMove ?? null,
     isSacrifice: facts.isSacrifice ?? null,
     isBookMove: facts.isBookMove ?? null,
+    providerReviewCategory: facts.providerReviewCategory ?? null,
     reviewCategory: facts.reviewCategory,
     hasEngineAnalysis: facts.hasEngineAnalysis,
     missedOpportunityCp: facts.missedOpportunityCp ?? null,
@@ -2909,6 +3011,7 @@ export function buildGameAnalysisMoveEvents(input: GameAnalysisMoveEventInput): 
 export function getAnalyzedGameMoveReviewCategory(
   move: AnalyzedGameMove
 ): GameReviewCategory | null {
+  if (move.providerReviewCategory) return move.providerReviewCategory;
   if (move.isBookMove) return 'book';
   if (!move.hasEngineAnalysis) return null;
 
@@ -3054,6 +3157,7 @@ export function buildGameAnalysisMoveEventsFromEngine(
     isCriticalMove,
     isSacrifice: input.isSacrifice,
     isBookMove: input.isBookMove,
+    providerReviewCategory: input.providerReviewCategory,
     missedOpportunityCp,
     themeTags: input.themeTags,
     persona: input.persona,
@@ -3088,6 +3192,7 @@ export function buildGameAnalysisMoveEventsFromAnalyzedGameMove({
     isCriticalMove: move.isCriticalMove,
     isSacrifice: move.isSacrifice,
     isBookMove: move.isBookMove,
+    providerReviewCategory: move.providerReviewCategory,
     themeTags: move.themeTags,
     persona,
   });
