@@ -39,7 +39,8 @@ interface PracticeBoardProps {
   onMoveIndexChange?: (index: number) => void;
   onCoachFeedbackChange?: (feedback: CoachFeedback | null) => void;
   onNavStateChange?: (state: { canGoBack: boolean; canGoForward: boolean; isLive: boolean }) => void;
-  onBoardSizeChange?: (size: number) => void;
+  topBar?: React.ReactNode;
+  bottomBar?: React.ReactNode;
   controlsRight?: React.ReactNode;
   hideControls?: boolean;
 }
@@ -103,13 +104,11 @@ function toWhiteEvalCp(
 
 function EvalBar({
   evalCp,
-  displayEvalCp,
   displayPerspective,
   reserveSpace = false,
   size,
 }: {
   evalCp?: number;
-  displayEvalCp?: number;
   displayPerspective: 'white' | 'black';
   reserveSpace?: boolean;
   size?: number;
@@ -137,11 +136,11 @@ function EvalBar({
   const clamped = Math.max(-EVAL_BAR_CP_LIMIT, Math.min(EVAL_BAR_CP_LIMIT, evalCp));
   const whiteHeight = 50 + (clamped / EVAL_BAR_CP_LIMIT) * 45;
   const bottomHeight = bottomColor === 'white' ? whiteHeight : 100 - whiteHeight;
-  const labelValue =
-    typeof displayEvalCp === 'number' && Number.isFinite(displayEvalCp) ? displayEvalCp : evalCp;
-  const label = formatEvalLabel(labelValue);
-  const labelOnBottom = labelValue >= 0;
-  const perspectiveLabel = displayPerspective === 'white' ? 'White' : 'Black';
+  // Show eval from the bottom color's perspective so +X means bottom is winning
+  const bottomColorEvalCp = bottomColor === 'white' ? evalCp : -evalCp;
+  const label = formatEvalLabel(bottomColorEvalCp);
+  const labelOnBottom = bottomColorEvalCp >= 0;
+  const perspectiveLabel = bottomColor === 'white' ? 'White' : 'Black';
 
   return (
     <div
@@ -345,7 +344,8 @@ export const PracticeBoard = forwardRef<PracticeBoardHandle, PracticeBoardProps>
   onMoveIndexChange,
   onCoachFeedbackChange,
   onNavStateChange,
-  onBoardSizeChange,
+  topBar,
+  bottomBar,
   controlsRight,
   hideControls = false,
 }, ref) {
@@ -512,7 +512,6 @@ export const PracticeBoard = forwardRef<PracticeBoardHandle, PracticeBoardProps>
       const size = Math.min(el.clientWidth - 40, el.clientHeight);
       if (size > 0) {
         setBoardSize(size);
-        onBoardSizeChange?.(size);
       }
     };
     const observer = new ResizeObserver(updateSize);
@@ -651,12 +650,6 @@ export const PracticeBoard = forwardRef<PracticeBoardHandle, PracticeBoardProps>
   const currentStaticEvalCp = getEvalAtPly(displayIndex);
   const dbEvalCp = useOpeningPositionEval(displayPosition);
   const displayedEvalCp = currentStaticEvalCp ?? dbEvalCp;
-  const trainedSideDisplayedEvalCp =
-    typeof displayedEvalCp === 'number' && Number.isFinite(displayedEvalCp)
-      ? opening.color === 'white'
-        ? displayedEvalCp
-        : -displayedEvalCp
-      : undefined;
 
   // Keep board offset stable from the start whenever this line can show eval data.
   const hasVisibleEvalBar =
@@ -965,12 +958,20 @@ export const PracticeBoard = forwardRef<PracticeBoardHandle, PracticeBoardProps>
 
   return (
     <div className="relative flex h-full w-full select-none flex-col">
+      {/* Optional top bar — aligned to board edges */}
+      {topBar && (
+        <div className="shrink-0">
+          <div className={boardAlignedClassName} style={{ maxWidth: boardSize }}>
+            {topBar}
+          </div>
+        </div>
+      )}
+
       {/* Board */}
-      <div ref={wrapperRef} className="flex min-h-0 flex-1 items-center justify-center">
+      <div ref={wrapperRef} className="relative flex min-h-0 flex-1 items-center justify-center">
         <EvalBar
           evalCp={displayedEvalCp}
-          displayEvalCp={trainedSideDisplayedEvalCp}
-          displayPerspective={opening.color}
+          displayPerspective={boardOrientation}
           reserveSpace={hasVisibleEvalBar}
           size={boardSize}
         />
@@ -1011,9 +1012,27 @@ export const PracticeBoard = forwardRef<PracticeBoardHandle, PracticeBoardProps>
             />
           </div>
         </div>
+        {((status === 'complete' && isLive) || (mode === 'learn' && isViewingLineEnd)) &&
+          !overlayDismissed && (
+            <CompletionOverlay
+              variationName={variation.name}
+              moveCount={moves.length}
+              onPracticeAgain={resetPractice}
+              onDismiss={() => setOverlayDismissed(true)}
+            />
+          )}
       </div>
 
-      {!hideControls && (
+      {/* Optional bottom bar — aligned to board edges */}
+      {bottomBar && (
+        <div className="shrink-0">
+          <div className={boardAlignedClassName} style={{ maxWidth: boardSize }}>
+            {bottomBar}
+          </div>
+        </div>
+      )}
+
+      {!hideControls && !bottomBar && (
         <div
           className={`${boardAlignedClassName} grid shrink-0 grid-cols-3 items-center`}
           style={{ maxWidth: boardSize }}
@@ -1065,15 +1084,6 @@ export const PracticeBoard = forwardRef<PracticeBoardHandle, PracticeBoardProps>
           <div className="flex justify-end">{controlsRight}</div>
         </div>
       )}
-      {((status === 'complete' && isLive) || (mode === 'learn' && isViewingLineEnd)) &&
-        !overlayDismissed && (
-          <CompletionOverlay
-            variationName={variation.name}
-            moveCount={moves.length}
-            onPracticeAgain={resetPractice}
-            onDismiss={() => setOverlayDismissed(true)}
-          />
-        )}
     </div>
   );
 });
