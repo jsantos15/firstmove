@@ -43,7 +43,7 @@ export function CoachBubble({ feedback, fallbackText, dark = false }: CoachBubbl
 
   if (dark) {
     return (
-      <div className="h-full flex items-center gap-2 pl-0 pr-3">
+      <div className="h-full flex items-end gap-1 pl-0 pr-3">
         {/* Coach image — bigger, shifted left and slightly up */}
         <div className="relative h-full w-28 shrink-0 -translate-y-1.5">
           <Image
@@ -56,13 +56,21 @@ export function CoachBubble({ feedback, fallbackText, dark = false }: CoachBubbl
             unoptimized
           />
         </div>
-        {/* White speech bubble — centered with top/bottom gaps */}
+        {/* White speech bubble — bottom aligned with coach image, top gap */}
         <div
-          className="relative min-h-0 min-w-0 flex-1 flex flex-col justify-center rounded-xl bg-white px-3 py-2.5 shadow-lg shadow-black/30 my-2"
+          className="relative min-h-0 min-w-0 flex-1 flex flex-col justify-center rounded-xl bg-white px-3 py-2.5 shadow-lg shadow-black/30 mt-2 mb-1.5"
           aria-live="polite"
         >
-          {/* Arrow tail pointing left toward coach */}
-          <div className="absolute -left-2 top-1/2 -translate-y-1/2 h-4 w-4 rotate-45 bg-white" />
+          {/* Curved tail pointing left toward coach */}
+          <svg
+            className="absolute -left-3.5 top-1/2 -translate-y-1/2"
+            width="14"
+            height="22"
+            viewBox="0 0 14 22"
+            fill="white"
+          >
+            <path d="M 14 2 Q 0 11 14 20 Z" />
+          </svg>
           {feedback ? (
             <div className="flex min-w-0 flex-col gap-1 overflow-hidden">
               <div className="flex min-w-0 items-center gap-2">
