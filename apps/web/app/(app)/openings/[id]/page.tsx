@@ -527,12 +527,7 @@ const selectedReferenceVariation =
                   onCoachFeedbackChange={setCoachFeedback}
                   onNavStateChange={setNavState}
                   hideControls
-                  topBar={
-                    <div className="flex">
-                      <ModeButton active={mode === 'learn'} onClick={() => setMode('learn')}>Learn</ModeButton>
-                      <ModeButton active={mode === 'practice'} onClick={() => setMode('practice')}>Practice</ModeButton>
-                    </div>
-                  }
+                  topBar={<div className="h-15" />}
                   bottomBar={
                     <div className="grid grid-cols-3 items-center py-2.5">
                       <div>
@@ -570,9 +565,12 @@ const selectedReferenceVariation =
           </div>
 
           {/* Sidebar card */}
-          <div className="w-120 lg:w-132 shrink-0 h-full rounded-xl border border-white/5 bg-(--bg-panel) overflow-hidden flex flex-col">
-            {/* Spacer — height matches topBar (ModeButton py-5 + text = 60px) so the separator aligns with the board top edge */}
-            <div className="h-15 shrink-0 border-b border-white/5" />
+          <div className="w-104 lg:w-114 shrink-0 h-full rounded-xl border border-white/5 bg-(--bg-panel) overflow-hidden flex flex-col">
+            {/* Learn / Practice toggle — same height as board topBar so the separator aligns with the board top edge */}
+            <div className="h-15 shrink-0 flex border-b border-white/5">
+              <ModeButton active={mode === 'learn'} onClick={() => setMode('learn')}>Learn</ModeButton>
+              <ModeButton active={mode === 'practice'} onClick={() => setMode('practice')}>Practice</ModeButton>
+            </div>
             {/* Coach */}
             <div className="shrink-0 border-b border-white/5">
               <CoachBubble feedback={coachFeedback} fallbackText={opening.description} dark />
@@ -599,19 +597,9 @@ const selectedReferenceVariation =
             <div className="flex-1 min-h-0 flex flex-col">
               {/* Variations panel */}
               <div className="min-h-0 flex flex-col border-b border-white/5" style={{ flex: 44 }}>
-                {/* Panel header */}
-                <div className="shrink-0 flex items-start justify-between px-4 pt-4 pb-3 border-b border-white/5">
-                  <div>
-                    <h3 className="text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Variations
-                    </h3>
-                    <p className="mt-0.5 text-[10px] text-gray-600">
-                      Named lines — select to study the moves
-                    </p>
-                  </div>
-                  <span className="text-[11px] text-gray-600 mt-0.5">
-                    {groups.length} var · {opening.variations.length} lines
-                  </span>
+                <div className="shrink-0 flex items-center justify-between px-4 py-3 border-b border-white/5">
+                  <h3 className="text-[11px] font-semibold uppercase tracking-widest text-gray-500">Variations</h3>
+                  <span className="text-[11px] text-gray-600">{groups.length} · {opening.variations.length}</span>
                 </div>
 
                 {/* Accordion */}
@@ -672,16 +660,15 @@ const selectedReferenceVariation =
                 )}
               </div>
 
-              {/* Reference line + Branches panel */}
+              {/* Lines panel */}
               <div className="min-h-0 flex flex-col" style={{ flex: 56 }}>
-                <div className="flex-1 min-h-0 overflow-y-auto">
-                  {/* Reference line section */}
-                  <div className="px-4 pt-3 pb-2">
-                    <p className="text-[10px] font-medium uppercase tracking-wider text-gray-600">
-                      Reference line
-                    </p>
-                  </div>
-                  <div className="px-3 pb-3">
+                <div className="shrink-0 flex items-center px-4 py-3 border-b border-white/5">
+                  <h3 className="text-[11px] font-semibold uppercase tracking-widest text-gray-500">Lines</h3>
+                </div>
+                <div className="flex-1 min-h-0 overflow-y-auto divide-y divide-white/5">
+                  {/* Reference */}
+                  <div className="px-3 py-2.5">
+                    <p className="mb-2 px-1 text-[10px] font-medium uppercase tracking-wider text-gray-600">Reference</p>
                     {selectedReferenceVariation ? (
                       <button
                         type="button"
@@ -692,55 +679,40 @@ const selectedReferenceVariation =
                             : 'border-white/5 bg-white/2 hover:border-white/10 hover:bg-white/4'
                         }`}
                       >
-                        <span
-                          className={`block truncate text-xs font-medium leading-tight ${
-                            viewingFullLine ? 'text-amber-300' : 'text-gray-300'
-                          }`}
-                        >
+                        <span className={`block truncate text-xs font-medium leading-tight ${viewingFullLine ? 'text-amber-300' : 'text-gray-300'}`}>
                           {selectedReferenceVariation.name}
                         </span>
-                        <span className="mt-0.5 block text-[10px] text-gray-600">
-                          Engine continuation
-                        </span>
+                        <span className="mt-0.5 block text-[10px] text-gray-600">Engine continuation</span>
                       </button>
                     ) : (
-                      <p className="text-xs text-gray-600">Select a variation above.</p>
+                      <p className="px-1 text-xs text-gray-600">Select a variation above.</p>
                     )}
                   </div>
-
-                  {/* Divider */}
-                  <div className="mx-4 border-t border-white/5" />
-
-                  {/* Punish lines section */}
-                  <div className="px-4 pt-3 pb-1">
-                    <p className="text-[10px] font-medium uppercase tracking-wider text-gray-600">
-                      Punish lines
-                    </p>
-                    <p className="mt-0.5 text-[10px] text-gray-700">Punish opponent mistakes</p>
+                  {/* Punish */}
+                  <div className="px-3 py-2.5">
+                    <p className="mb-2 px-1 text-[10px] font-medium uppercase tracking-wider text-gray-600">Punish</p>
+                    {selectedReferenceBranches.length > 0 ? (
+                      <div className="flex flex-col gap-1.5">
+                        {selectedReferenceBranches.map(branch => {
+                          const branchProgress = progress?.get(`${opening.id}/${branch.id}`);
+                          return (
+                            <PracticalBranchRow
+                              key={branch.id}
+                              branch={branch}
+                              isActive={branch.id === selectedLineId}
+                              locked={activeReferenceGlobalIndex > 0 && !user}
+                              mastery={branchProgress?.mastery}
+                              completions={branchProgress?.timesCompleted}
+                              openingColor={opening.color}
+                              onClick={() => handleBranchClick(branch.id)}
+                            />
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <p className="px-1 text-xs text-gray-600">No punish lines for this variation yet.</p>
+                    )}
                   </div>
-                  {selectedReferenceBranches.length > 0 ? (
-                    <div className="px-3 pb-3 flex flex-col gap-1.5">
-                      {selectedReferenceBranches.map(branch => {
-                        const branchProgress = progress?.get(`${opening.id}/${branch.id}`);
-                        return (
-                          <PracticalBranchRow
-                            key={branch.id}
-                            branch={branch}
-                            isActive={branch.id === selectedLineId}
-                            locked={activeReferenceGlobalIndex > 0 && !user}
-                            mastery={branchProgress?.mastery}
-                            completions={branchProgress?.timesCompleted}
-                            openingColor={opening.color}
-                            onClick={() => handleBranchClick(branch.id)}
-                          />
-                        );
-                      })}
-                    </div>
-                  ) : (
-                    <p className="px-4 pb-3 text-xs text-gray-600">
-                      No punish lines stored for this variation yet.
-                    </p>
-                  )}
                 </div>
               </div>
             </div>
