@@ -58,7 +58,7 @@ export function CoachBubble({ feedback, fallbackText, dark = false }: CoachBubbl
         </div>
         {/* White speech bubble — bottom aligned with coach image, top gap */}
         <div
-          className="relative min-h-0 min-w-0 flex-1 flex flex-col justify-center rounded-xl bg-white px-3 py-2.5 shadow-lg shadow-black/30 mt-2 mb-1.5 -ml-3"
+          className="relative min-h-0 min-w-0 flex-1 flex flex-col justify-center rounded-xl bg-white px-3 py-2.5 shadow-lg shadow-black/30 mt-2 mb-1.5 -ml-2.25"
           aria-live="polite"
         >
           {/* Comic-style speech bubble tail — both arcs bow downward (regular parabola) */}
