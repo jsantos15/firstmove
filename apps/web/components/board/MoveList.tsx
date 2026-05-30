@@ -112,46 +112,46 @@ export function MoveList({ variation, currentMoveIndex, milestones = [] }: MoveL
   }, [variation, currentMoveIndex]);
 
   return (
-    <div className="flex h-70 shrink-0 flex-col p-4">
-      {/* Header + dynamic variation name label */}
-      <div className="shrink-0 mb-3">
-        <div className="flex items-center justify-between">
-          <h3 className="text-xs font-medium uppercase tracking-wider text-gray-500">Moves</h3>
-          {currentMoveIndex >= 0 && (
-            <button
-              type="button"
-              onClick={handleCopy}
-              title="Copy PGN"
-              className="text-gray-600 transition-colors hover:text-gray-400"
-            >
-              {copied ? (
-                <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="text-amber-400">
-                  <polyline points="20 6 9 17 4 12" />
-                </svg>
-              ) : (
-                <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
-                  <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
-                </svg>
-              )}
-            </button>
-          )}
-        </div>
-        <div className="mt-1 h-4 overflow-hidden">
-          <span
-            className={`block text-[11px] font-medium transition-all duration-200 ${
-              activeMilestone
-                ? 'translate-y-0 opacity-100 text-amber-400/80'
-                : 'translate-y-1 opacity-0'
-            }`}
+    <div className="flex h-70 shrink-0 flex-col">
+      {/* Header — matches Variations/Lines style */}
+      <div className="shrink-0 flex items-center justify-between px-4 py-3 border-b border-white/8">
+        <h3 className="text-[11px] font-semibold uppercase tracking-widest text-gray-500">Moves</h3>
+        {currentMoveIndex >= 0 && (
+          <button
+            type="button"
+            onClick={handleCopy}
+            title="Copy PGN"
+            className="text-gray-600 transition-colors hover:text-gray-400"
           >
-            {activeMilestone?.name ?? ''}
-          </span>
-        </div>
+            {copied ? (
+              <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="text-amber-400">
+                <polyline points="20 6 9 17 4 12" />
+              </svg>
+            ) : (
+              <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+              </svg>
+            )}
+          </button>
+        )}
+      </div>
+
+      {/* Milestone label */}
+      <div className="shrink-0 h-5 overflow-hidden px-4 pt-1">
+        <span
+          className={`block text-[11px] font-medium transition-all duration-200 ${
+            activeMilestone
+              ? 'translate-y-0 opacity-100 text-amber-400/80'
+              : 'translate-y-1 opacity-0'
+          }`}
+        >
+          {activeMilestone?.name ?? ''}
+        </span>
       </div>
 
       {/* Move rows */}
-      <div className="min-h-0 flex-1 overflow-y-auto pr-1">
+      <div className="min-h-0 flex-1 overflow-y-auto px-4 pr-3">
         <div className="grid grid-cols-[1.5rem_4.5rem_4.5rem] gap-y-0.5 font-mono text-sm w-fit">
           {pairs.map(pair => {
             const isNextRow =
