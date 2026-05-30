@@ -43,7 +43,7 @@ export function CoachBubble({ feedback, fallbackText, dark = false }: CoachBubbl
 
   if (dark) {
     return (
-      <div className="h-full flex items-end gap-1 pl-0 pr-3">
+      <div className="h-full flex items-end gap-0 pl-0 pr-3">
         {/* Coach image — bigger, shifted left and slightly up */}
         <div className="relative h-full w-28 shrink-0 -translate-y-1.5">
           <Image
