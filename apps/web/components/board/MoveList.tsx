@@ -116,7 +116,7 @@ export function MoveList({ variation, currentMoveIndex, milestones = [] }: MoveL
       {/* Header + dynamic variation name label */}
       <div className="shrink-0 mb-3">
         <div className="flex items-center justify-between">
-          <h3 className="text-xs font-medium uppercase tracking-wider text-gray-500">Move sequence</h3>
+          <h3 className="text-xs font-medium uppercase tracking-wider text-gray-500">Moves</h3>
           {currentMoveIndex >= 0 && (
             <button
               type="button"

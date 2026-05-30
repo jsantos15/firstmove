@@ -39,6 +39,7 @@ interface PracticeBoardProps {
   onMoveIndexChange?: (index: number) => void;
   onCoachFeedbackChange?: (feedback: CoachFeedback | null) => void;
   onNavStateChange?: (state: { canGoBack: boolean; canGoForward: boolean; isLive: boolean }) => void;
+  onBoardSizeChange?: (size: number) => void;
   topBar?: React.ReactNode;
   bottomBar?: React.ReactNode;
   controlsRight?: React.ReactNode;
@@ -344,6 +345,7 @@ export const PracticeBoard = forwardRef<PracticeBoardHandle, PracticeBoardProps>
   onMoveIndexChange,
   onCoachFeedbackChange,
   onNavStateChange,
+  onBoardSizeChange,
   topBar,
   bottomBar,
   controlsRight,
@@ -511,6 +513,7 @@ export const PracticeBoard = forwardRef<PracticeBoardHandle, PracticeBoardProps>
       const size = el.clientHeight;
       if (size > 0) {
         setBoardSize(size);
+        onBoardSizeChange?.(size);
       }
     };
     const observer = new ResizeObserver(updateSize);

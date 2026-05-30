@@ -336,6 +336,7 @@ export default function PracticePage({ params, searchParams }: PageProps) {
   const [mode, setMode] = useState<PracticeMode>('learn');
   const [coachFeedback, setCoachFeedback] = useState<CoachFeedback | null>(null);
   const [navState, setNavState] = useState({ canGoBack: false, canGoForward: false, isLive: true });
+  const [boardSize, setBoardSize] = useState(480);
   const practiceBoardRef = useRef<import('@/components/board/PracticeBoard').PracticeBoardHandle | null>(null);
   const { settings: coachSettings } = useCoachSettings();
   const { setSettings: setBoardSettings } = useBoardSettings();
@@ -526,6 +527,7 @@ const selectedReferenceVariation =
                   onMoveIndexChange={setCurrentMoveIndex}
                   onCoachFeedbackChange={setCoachFeedback}
                   onNavStateChange={setNavState}
+                  onBoardSizeChange={setBoardSize}
                   hideControls
                   topBar={<div className="h-15" />}
                   bottomBar={
@@ -571,8 +573,8 @@ const selectedReferenceVariation =
               <ModeButton active={mode === 'learn'} onClick={() => setMode('learn')}>Learn</ModeButton>
               <ModeButton active={mode === 'practice'} onClick={() => setMode('practice')}>Practice</ModeButton>
             </div>
-            {/* Coach */}
-            <div className="shrink-0 border-b border-white/5">
+            {/* Coach — height = 1/8 of board; separator lives at its bottom edge */}
+            <div className="shrink-0 overflow-hidden border-b border-white/5" style={{ height: boardSize / 8 }}>
               <CoachBubble feedback={coachFeedback} fallbackText={opening.description} dark />
             </div>
 
