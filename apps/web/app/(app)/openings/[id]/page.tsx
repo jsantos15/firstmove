@@ -572,12 +572,12 @@ const selectedReferenceVariation =
               <ModeButton active={mode === 'practice'} onClick={() => setMode('practice')}>Practice</ModeButton>
             </div>
             {/* Coach — height = 1 board square (board area = 100% - 120px topBar+bottomBar, /8 squares) */}
-            <div className="shrink-0 overflow-hidden border-b border-white/5" style={{ height: 'calc((100% - 120px) / 8)' }}>
+            <div className="shrink-0 overflow-hidden" style={{ height: 'calc((100% - 120px) / 8)' }}>
               <CoachBubble feedback={coachFeedback} fallbackText={opening.description} dark />
             </div>
 
             {/* Sections — padded content area with card borders */}
-            <div className="flex-1 min-h-0 flex flex-col gap-2 p-2">
+            <div className="flex-1 min-h-0 flex flex-col gap-2 px-2 pb-2">
 
             {/* Move list — anchor moves only until user explicitly views full line */}
             {mode === 'learn' && selectedVariation && (
