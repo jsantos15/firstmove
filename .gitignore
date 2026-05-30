@@ -48,6 +48,7 @@ supabase/.temp
 # OS
 .DS_Store
 Thumbs.db
+Microsoft/
 
 # Logs
 *.log

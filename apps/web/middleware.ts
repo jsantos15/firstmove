@@ -7,7 +7,7 @@ const PUBLIC_PATHS = ['/', '/login', '/signup', '/auth/callback', '/openings'];
 // Auth pages that authenticated users should be bounced away from
 const AUTH_ONLY_PATHS = ['/login', '/signup'];
 
-export async function proxy(request: NextRequest) {
+export async function middleware(request: NextRequest) {
   // Start with a pass-through response that carries the request cookies
   let supabaseResponse = NextResponse.next({ request });
 
