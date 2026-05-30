@@ -61,7 +61,7 @@ export function CoachBubble({ feedback, fallbackText, dark = false }: CoachBubbl
           className="relative min-h-0 min-w-0 flex-1 flex flex-col justify-center rounded-xl bg-white px-3 py-2.5 shadow-lg shadow-black/30 mt-2 mb-1.5"
           aria-live="polite"
         >
-          {/* Horn-shaped tail: two outward-curving arcs meeting at a sharp point */}
+          {/* Speech bubble tail — cubic Bézier, sharp tip, organic curved sides */}
           <svg
             className="absolute -left-3.5 top-1/2 -translate-y-1/2"
             width="14"
@@ -69,7 +69,7 @@ export function CoachBubble({ feedback, fallbackText, dark = false }: CoachBubbl
             viewBox="0 0 14 22"
             fill="white"
           >
-            <path d="M 14 3 Q 9 1 0 11 Q 9 21 14 19 Z" />
+            <path d="M 14 5 C 14 3 0 6 0 11 C 0 16 14 19 14 17 Z" />
           </svg>
           {feedback ? (
             <div className="flex min-w-0 flex-col gap-1 overflow-hidden">
