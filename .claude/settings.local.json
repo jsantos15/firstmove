@@ -6,7 +6,14 @@
       "Bash(curl -s -o /dev/null -w \"cardinal: %{http_code}\\\\n\" \"https://cdn.jsdelivr.net/gh/lichess-org/lila@master/public/piece/cardinal/wK.svg\")",
       "Bash(perl -i -pe ' *)",
       "Bash(node -e ' *)",
-      "WebFetch(domain:github.com)"
+      "WebFetch(domain:github.com)",
+      "PowerShell(Get-ChildItem -Path \"c:\\\\Users\\\\jesnt\\\\Documents\\\\Projects\\\\FirstMove\" -Force | Format-Table -Property Name, @{Name=\"Type\"; Expression={if\\($_.PSIsContainer\\){\"[DIR]\"}else{\"[FILE]\"}}} -AutoSize)",
+      "PowerShell(Write-Host \"=== APPS DIRECTORY ===\" ; Get-ChildItem -Path \"c:\\\\Users\\\\jesnt\\\\Documents\\\\Projects\\\\FirstMove\\\\apps\" -Force | Format-Table -Property Name, @{Name=\"Type\"; Expression={if\\($_.PSIsContainer\\){\"[DIR]\"}else{\"[FILE]\"}}} -AutoSize)",
+      "PowerShell(Write-Host \"=== PACKAGES DIRECTORY ===\" ; Get-ChildItem -Path \"c:\\\\Users\\\\jesnt\\\\Documents\\\\Projects\\\\FirstMove\\\\packages\" -Force | Format-Table -Property Name, @{Name=\"Type\"; Expression={if\\($_.PSIsContainer\\){\"[DIR]\"}else{\"[FILE]\"}}} -AutoSize)",
+      "PowerShell(Get-ChildItem -Path \"c:\\\\Users\\\\jesnt\\\\Documents\\\\Projects\\\\FirstMove\" -Force | Select-Object Name, @{Name=\"Type\";Expression={if\\($_.PSIsContainer\\){\"DIR\"}else{\"FILE\"}}} | Format-Table -AutoSize)",
+      "PowerShell(Get-ChildItem -Path \"c:\\\\Users\\\\jesnt\\\\Documents\\\\Projects\\\\FirstMove\\\\apps\" -Recurse -Force | Select-Object FullName | ForEach-Object { $_.FullName -replace [regex]::Escape\\(\"c:\\\\Users\\\\jesnt\\\\Documents\\\\Projects\\\\FirstMove\\\\\"\\), \"\" })",
+      "Bash(git check-ignore *)",
+      "Bash(grep -E \"\\\\.\\(log|err\\)$\")"
     ]
   }
 }

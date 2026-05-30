@@ -43,22 +43,22 @@ export function CoachBubble({ feedback, fallbackText, dark = false }: CoachBubbl
 
   if (dark) {
     return (
-      <div className="h-full flex items-end gap-0 pl-0 pr-3">
-        {/* Coach image — bigger, shifted left and slightly up */}
-        <div className="relative h-full w-28 shrink-0 -translate-y-1.5">
+      <div className="h-full flex items-center gap-0 pl-3 pr-3">
+        {/* Coach image */}
+        <div className="relative shrink-0 w-20 self-end mb-5" style={{ height: 'calc(100% - 14px)' }}>
           <Image
             src="/coaches/jazmin.png"
             alt="Jazmin, your opening coach"
             fill
-            sizes="112px"
+            sizes="80px"
             className="object-contain object-bottom drop-shadow-lg"
             priority
             unoptimized
           />
         </div>
-        {/* White speech bubble — bottom aligned with coach image, top gap */}
+        {/* White speech bubble */}
         <div
-          className="relative min-h-0 min-w-0 flex-1 flex flex-col justify-center rounded-xl bg-white px-3 py-2.5 shadow-lg shadow-black/30 mt-2 mb-1.5 -ml-2.25"
+          className="relative min-h-0 min-w-0 flex-1 flex flex-col justify-center rounded-xl bg-white px-3 py-2.5 shadow-lg shadow-black/30 my-2 ml-2"
           aria-live="polite"
         >
           {/* Comic-style speech bubble tail — both arcs bow downward (regular parabola) */}
