@@ -61,15 +61,15 @@ export function CoachBubble({ feedback, fallbackText, dark = false }: CoachBubbl
           className="relative min-h-0 min-w-0 flex-1 flex flex-col justify-center rounded-xl bg-white px-3 py-2.5 shadow-lg shadow-black/30 mt-2 mb-1.5"
           aria-live="polite"
         >
-          {/* Speech bubble tail — cubic Bézier, sharp tip, organic curved sides */}
+          {/* Comic-style speech bubble tail */}
           <svg
             className="absolute -left-3.5 top-1/2 -translate-y-1/2"
             width="14"
-            height="22"
-            viewBox="0 0 14 22"
+            height="20"
+            viewBox="0 0 14 20"
             fill="white"
           >
-            <path d="M 14 5 C 14 3 0 6 0 11 C 0 16 14 19 14 17 Z" />
+            <path d="M 14 6 Q 7 3 0 10 Q 7 17 14 14 Z" />
           </svg>
           {feedback ? (
             <div className="flex min-w-0 flex-col gap-1 overflow-hidden">
