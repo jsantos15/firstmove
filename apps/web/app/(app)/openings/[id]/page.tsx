@@ -576,9 +576,12 @@ const selectedReferenceVariation =
               <CoachBubble feedback={coachFeedback} fallbackText={opening.description} dark />
             </div>
 
+            {/* Sections — padded content area with card borders */}
+            <div className="flex-1 min-h-0 flex flex-col gap-2 p-2">
+
             {/* Move list — anchor moves only until user explicitly views full line */}
             {mode === 'learn' && selectedVariation && (
-              <div className="shrink-0 border-b border-white/5">
+              <div className="shrink-0 rounded-lg border border-white/10 overflow-hidden">
                 <MoveList
                   variation={{
                     ...selectedVariation,
@@ -593,11 +596,12 @@ const selectedReferenceVariation =
               </div>
             )}
 
-            {/* Variations + Branches panels */}
-            <div className="flex-1 min-h-0 flex flex-col">
-              {/* Variations panel */}
-              <div className="min-h-0 flex flex-col border-b border-white/5" style={{ flex: 44 }}>
-                <div className="shrink-0 flex items-center justify-between px-4 py-3 border-b border-white/5">
+            {/* Variations + Lines — each a bordered card */}
+            <div className="flex-1 min-h-0 flex flex-col gap-2">
+
+              {/* Variations card */}
+              <div className="min-h-0 flex flex-col rounded-lg border border-white/10 overflow-hidden" style={{ flex: 44 }}>
+                <div className="shrink-0 flex items-center justify-between px-4 py-3 border-b border-white/8">
                   <h3 className="text-[11px] font-semibold uppercase tracking-widest text-gray-500">Variations</h3>
                   <span className="text-[11px] text-gray-600">{groups.length} · {opening.variations.length}</span>
                 </div>
@@ -660,12 +664,12 @@ const selectedReferenceVariation =
                 )}
               </div>
 
-              {/* Lines panel */}
-              <div className="min-h-0 flex flex-col" style={{ flex: 56 }}>
-                <div className="shrink-0 flex items-center px-4 py-3 border-b border-white/5">
+              {/* Lines card */}
+              <div className="min-h-0 flex flex-col rounded-lg border border-white/10 overflow-hidden" style={{ flex: 56 }}>
+                <div className="shrink-0 flex items-center px-4 py-3 border-b border-white/8">
                   <h3 className="text-[11px] font-semibold uppercase tracking-widest text-gray-500">Lines</h3>
                 </div>
-                <div className="flex-1 min-h-0 overflow-y-auto divide-y divide-white/5">
+                <div className="flex-1 min-h-0 overflow-y-auto divide-y divide-white/8">
                   {/* Reference */}
                   <div className="px-3 py-2.5">
                     <p className="mb-2 px-1 text-[10px] font-medium uppercase tracking-wider text-gray-600">Reference</p>
@@ -715,8 +719,12 @@ const selectedReferenceVariation =
                   </div>
                 </div>
               </div>
+
             </div>
-            {/* end variations+branches */}
+            {/* end Variations+Lines */}
+
+            </div>
+            {/* end sections wrapper */}
           </div>
           {/* end sidebar card */}
         </div>
