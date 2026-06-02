@@ -21,7 +21,6 @@ import {
   type GameReviewReport,
 } from '@/lib/coachFeedback';
 import type { AnalyzedGame, AnalyzedGameMove } from '@firstmove/core';
-import { computeMaterial, type PieceType } from '@/lib/capturedPieces';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -77,149 +76,6 @@ function extractGameTitle(pgn: string): string | null {
   if (white && black) return `${white} vs ${black}`;
   if (white) return white;
   return null;
-}
-
-function extractPlayerInfo(pgn: string): {
-  white: { name: string; rating?: number; country?: string };
-  black: { name: string; rating?: number; country?: string };
-} {
-  const parseName = (tag: string) => pgn.match(new RegExp(`\\[${tag} "([^"]+)"\\]`))?.[1];
-  const parseElo = (tag: string) => {
-    const raw = parseName(tag);
-    if (!raw || raw === '?' || raw === '-') return undefined;
-    const n = Number(raw);
-    return Number.isFinite(n) && n > 0 ? n : undefined;
-  };
-  const parseCountry = (tag: string) => {
-    const raw = parseName(tag);
-    return raw && raw !== '?' ? raw.toLowerCase() : undefined;
-  };
-  return {
-    white: {
-      name: parseName('White') ?? 'White',
-      rating: parseElo('WhiteElo'),
-      country: parseCountry('WhiteCountry'),
-    },
-    black: {
-      name: parseName('Black') ?? 'Black',
-      rating: parseElo('BlackElo'),
-      country: parseCountry('BlackCountry'),
-    },
-  };
-}
-
-// ─── Player Panel ─────────────────────────────────────────────────────────────
-
-const BLACK_SYMBOLS: Record<string, string> = { p: '♟', n: '♞', b: '♝', r: '♜', q: '♛' };
-const WHITE_SYMBOLS: Record<string, string> = { p: '♙', n: '♘', b: '♗', r: '♖', q: '♕' };
-const PIECE_ORDER: PieceType[] = ['q', 'r', 'b', 'n', 'p'];
-
-function groupCaptured(pieces: PieceType[]): Array<{ type: PieceType; count: number }> {
-  const counts = new Map<PieceType, number>();
-  for (const p of pieces) counts.set(p, (counts.get(p) ?? 0) + 1);
-  return PIECE_ORDER.flatMap(t => {
-    const c = counts.get(t) ?? 0;
-    return c > 0 ? [{ type: t, count: c }] : [];
-  });
-}
-
-function countryToFlag(code: string): string | null {
-  if (!code || code.length !== 2) return null;
-  const u = code.toUpperCase();
-  try {
-    return (
-      String.fromCodePoint(0x1f1e6 + u.charCodeAt(0) - 65) +
-      String.fromCodePoint(0x1f1e6 + u.charCodeAt(1) - 65)
-    );
-  } catch {
-    return null;
-  }
-}
-
-function getPlayerClockMs(
-  moves: AnalyzedGameMove[],
-  color: 'white' | 'black',
-  currentPlyIndex: number
-): number | undefined {
-  for (let i = Math.min(currentPlyIndex, moves.length - 1); i >= 0; i--) {
-    const move = moves[i];
-    if (move.playedBy === color && move.clockRemainingMs != null) return move.clockRemainingMs;
-  }
-  return undefined;
-}
-
-function PlayerPanel({
-  name,
-  rating,
-  country,
-  color,
-  captured,
-  advantage,
-  clockMs,
-}: {
-  name: string;
-  rating?: number;
-  country?: string;
-  color: 'white' | 'black';
-  captured: PieceType[];
-  advantage: number;
-  clockMs?: number;
-}) {
-  const symbols = color === 'white' ? BLACK_SYMBOLS : WHITE_SYMBOLS;
-  const pieceColor = color === 'white' ? 'text-gray-500' : 'text-gray-200';
-  const grouped = groupCaptured(captured);
-  const flag = country ? countryToFlag(country) : null;
-  const initial = name[0]?.toUpperCase() ?? '?';
-
-  return (
-    <div className="flex shrink-0 items-center gap-2 py-1">
-      {/* Avatar */}
-      <div
-        className={`h-8 w-8 shrink-0 rounded flex items-center justify-center text-sm font-bold select-none ${
-          color === 'white' ? 'bg-zinc-200 text-zinc-800' : 'bg-zinc-700 text-zinc-200'
-        }`}
-      >
-        {initial}
-      </div>
-
-      {/* Info + pieces */}
-      <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-        {/* Name row */}
-        <div className="flex items-center gap-1.5 min-w-0">
-          <span className="truncate text-sm font-medium text-gray-200 leading-none">{name}</span>
-          {flag && <span className="shrink-0 text-xs leading-none">{flag}</span>}
-          {rating != null && (
-            <span className="shrink-0 text-[11px] text-gray-500 leading-none">({rating})</span>
-          )}
-        </div>
-        {/* Pieces row */}
-        {grouped.length > 0 && (
-          <div className="flex items-center gap-0.5">
-            {grouped.map(({ type, count }) =>
-              Array.from({ length: count }).map((_, i) => (
-                <span
-                  key={`${type}-${i}`}
-                  className={`text-base leading-none select-none ${pieceColor}`}
-                >
-                  {symbols[type]}
-                </span>
-              ))
-            )}
-            {advantage > 0 && (
-              <span className="ml-1 text-[10px] font-medium text-gray-500">+{advantage}</span>
-            )}
-          </div>
-        )}
-      </div>
-
-      {/* Clock */}
-      {clockMs != null && (
-        <span className="ml-auto shrink-0 rounded bg-white/5 px-2 py-0.5 font-mono text-xs tabular-nums text-gray-300">
-          {formatClockMs(clockMs)}
-        </span>
-      )}
-    </div>
-  );
 }
 
 // ─── Eval Bar ─────────────────────────────────────────────────────────────────
@@ -999,12 +855,7 @@ export default function AnalysisPage() {
   const [engineError, setEngineError] = useState<string | null>(null);
   const [activeBottomPanel, setActiveBottomPanel] = useState<BottomPanelTab>('review');
   const [boardSize, setBoardSize] = useState(480);
-  const [playerInfo, setPlayerInfo] = useState<{
-    white: { name: string; rating?: number; country?: string };
-    black: { name: string; rating?: number; country?: string };
-  } | null>(null);
-
-  const { theme, animationDuration, settings, setSettings } = useBoardSettings();
+const { theme, animationDuration, settings, setSettings } = useBoardSettings();
   const { settings: coachSettings } = useCoachSettings();
   const customPieces = useMemo(() => getCustomPieces(settings.pieceSetId), [settings.pieceSetId]);
   const wrapperRef = useRef<HTMLDivElement>(null);
@@ -1094,8 +945,6 @@ export default function AnalysisPage() {
   // PracticeBoard's INITIAL_POSITION_EVAL_CP fallback so the eval bar always has a label.
   const displayEvalCp = currentEvalCp ?? (currentPlyIndex <= -1 ? INITIAL_EVAL_CP : undefined);
 
-  const material = useMemo(() => computeMaterial(currentFen), [currentFen]);
-
   const coachFeedback: CoachFeedback | null = useMemo(() => {
     if (!analyzedGame || !currentMove) return null;
     try {
@@ -1157,8 +1006,7 @@ export default function AnalysisPage() {
       setShowImportModal(false);
 
       const label = extractGameTitle(pgn) ?? `Game ${sessionGames.length + 1}`;
-      setPlayerInfo(extractPlayerInfo(pgn));
-      setSessionGames(prev => [{ id: game.id, label, game, hasEngine: false }, ...prev]);
+setSessionGames(prev => [{ id: game.id, label, game, hasEngine: false }, ...prev]);
     } catch (error) {
       setParseError(error instanceof Error ? error.message : 'Could not parse that PGN/FEN.');
     }
@@ -1211,125 +1059,83 @@ export default function AnalysisPage() {
   const totalMoves = analyzedGame?.moves.length ?? 0;
   const canGoBack = analyzedGame !== null && currentPlyIndex >= 0;
   const canGoForward = analyzedGame !== null && currentPlyIndex < totalMoves - 1;
-  const isFlipped = settings.flipBoard;
-  const topColor = isFlipped ? 'white' : 'black';
-  const bottomColor = isFlipped ? 'black' : 'white';
-  const topPlayer = playerInfo?.[topColor] ?? { name: topColor === 'white' ? 'White' : 'Black' };
-  const bottomPlayer = playerInfo?.[bottomColor] ?? {
-    name: bottomColor === 'white' ? 'White' : 'Black',
-  };
-  const topCaptured = topColor === 'white' ? material.whiteCaptured : material.blackCaptured;
-  const bottomCaptured = bottomColor === 'white' ? material.whiteCaptured : material.blackCaptured;
-  const topAdvantage =
-    topColor === 'white' ? Math.max(0, material.advantage) : Math.max(0, -material.advantage);
-  const bottomAdvantage =
-    bottomColor === 'white' ? Math.max(0, material.advantage) : Math.max(0, -material.advantage);
-  const topClockMs = analyzedGame
-    ? getPlayerClockMs(analyzedGame.moves, topColor, currentPlyIndex)
-    : undefined;
-  const bottomClockMs = analyzedGame
-    ? getPlayerClockMs(analyzedGame.moves, bottomColor, currentPlyIndex)
-    : undefined;
-
   return (
-    <div className="flex h-full flex-col overflow-hidden">
-      {/* ── Main content ── */}
+    <div className="h-full flex flex-col overflow-hidden">
       <div className="flex-1 min-h-0 overflow-hidden p-3">
-        <div className="flex h-full w-full max-w-447 gap-3">
-          {/* Left: Board card */}
+        <div className="flex h-full w-full gap-3">
+
+          {/* Board card — same structure as openings */}
           <div className="min-w-0 flex-1 overflow-hidden rounded-xl border border-white/5 bg-(--bg-panel) flex flex-col select-none">
-            {/* Top player (opponent) */}
-            <div className="shrink-0 px-6 py-5">
-              <PlayerPanel
-                name={topPlayer.name}
-                rating={topPlayer.rating}
-                country={topPlayer.country}
-                color={topColor}
-                captured={topCaptured}
-                advantage={topAdvantage}
-                clockMs={topClockMs}
-              />
-            </div>
+            {/* topBar — matches sidebar top row height */}
+            <div className="h-15 shrink-0" />
 
             {/* Board + eval bar */}
             <div ref={wrapperRef} className="flex min-h-0 flex-1 items-center justify-center">
               <div className="flex items-center gap-2">
                 <EvalBar evalCp={displayEvalCp} reserveSpace={true} size={boardSize} />
-                <div className="relative">
-                  <div className="overflow-hidden rounded-xl ring-1 ring-white/10">
-                    <Chessboard
-                      position={currentFen}
-                      boardWidth={boardSize}
-                      boardOrientation={settings.flipBoard ? 'black' : 'white'}
-                      arePiecesDraggable={false}
-                      customSquareStyles={customSquareStyles}
-                      showBoardNotation={settings.showCoordinates}
-                      customDarkSquareStyle={{ backgroundColor: theme.dark }}
-                      customLightSquareStyle={{ backgroundColor: theme.light }}
-                      animationDuration={animationDuration}
-                      customPieces={customPieces}
-                    />
-                  </div>
+                <div className="overflow-hidden rounded-xl ring-1 ring-white/10">
+                  <Chessboard
+                    position={currentFen}
+                    boardWidth={boardSize}
+                    boardOrientation={settings.flipBoard ? 'black' : 'white'}
+                    arePiecesDraggable={false}
+                    customSquareStyles={customSquareStyles}
+                    showBoardNotation={settings.showCoordinates}
+                    customDarkSquareStyle={{ backgroundColor: theme.dark }}
+                    customLightSquareStyle={{ backgroundColor: theme.light }}
+                    animationDuration={animationDuration}
+                    customPieces={customPieces}
+                  />
                 </div>
               </div>
             </div>
 
-            {/* Bottom player (self) */}
-            <div className="shrink-0 px-6 py-5">
-              <PlayerPanel
-                name={bottomPlayer.name}
-                rating={bottomPlayer.rating}
-                country={bottomPlayer.country}
-                color={bottomColor}
-                captured={bottomCaptured}
-                advantage={bottomAdvantage}
-                clockMs={bottomClockMs}
-              />
+            {/* bottomBar — flip | nav | settings */}
+            <div className="shrink-0 grid grid-cols-3 items-center py-2.5">
+              <div className="pl-3">
+                <button
+                  type="button"
+                  onClick={() => setSettings({ flipBoard: !settings.flipBoard })}
+                  title="Flip board"
+                  className="flex h-9 w-9 items-center justify-center rounded text-gray-500 transition-colors hover:bg-white/5 hover:text-gray-300"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
+                    <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8" />
+                    <path d="M21 3v5h-5" />
+                    <path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16" />
+                    <path d="M8 21H3v-5" />
+                  </svg>
+                </button>
+              </div>
+              <div className="flex justify-center">
+                <div className="flex items-center divide-x divide-white/10 overflow-hidden rounded-lg border border-white/10">
+                  <NavBtn onClick={() => goTo(-1)} disabled={!canGoBack} title="First position">
+                    <svg viewBox="0 0 16 16" fill="currentColor" className="w-5 h-5"><path d="M3.5 3a.5.5 0 0 1 .5.5v3.793l6.146-4.439A.5.5 0 0 1 11 3.5v9a.5.5 0 0 1-.854.354L4 8.707V12.5a.5.5 0 0 1-1 0v-9a.5.5 0 0 1 .5-.5z" /></svg>
+                  </NavBtn>
+                  <NavBtn onClick={() => goTo(currentPlyIndex - 1)} disabled={!canGoBack} title="Previous (←)">
+                    <svg viewBox="0 0 16 16" fill="currentColor" className="w-5 h-5"><path d="M11.354 3.646a.5.5 0 0 1 0 .708L6.707 9l4.647 4.646a.5.5 0 0 1-.708.708l-5-5a.5.5 0 0 1 0-.708l5-5a.5.5 0 0 1 .708 0z" /></svg>
+                  </NavBtn>
+                  <NavBtn onClick={() => goTo(currentPlyIndex + 1)} disabled={!canGoForward} title="Next (→)">
+                    <svg viewBox="0 0 16 16" fill="currentColor" className="w-5 h-5"><path d="M4.646 3.646a.5.5 0 0 1 .708 0l5 5a.5.5 0 0 1 0 .708l-5 5a.5.5 0 0 1-.708-.708L9.293 9 4.646 4.354a.5.5 0 0 1 0-.708z" /></svg>
+                  </NavBtn>
+                  <NavBtn onClick={() => goTo(totalMoves - 1)} disabled={!canGoForward} title="Last position">
+                    <svg viewBox="0 0 16 16" fill="currentColor" className="w-5 h-5"><path d="M12.5 3a.5.5 0 0 0-.5.5v3.793L5.854 2.854A.5.5 0 0 0 5 3.5v9a.5.5 0 0 0 .854.354L12 8.207V12.5a.5.5 0 0 0 1 0v-9a.5.5 0 0 0-.5-.5z" /></svg>
+                  </NavBtn>
+                </div>
+              </div>
+              <div className="flex justify-end">
+                <BoardSettingsPopover />
+              </div>
             </div>
           </div>
 
-          {/* Right: Sidebar card */}
-          <div className="w-[26rem] lg:w-[30rem] shrink-0 h-full rounded-xl border border-white/5 bg-(--bg-panel) overflow-hidden flex flex-col">
-            {/* Actions */}
-            <div className="shrink-0 flex items-center gap-2 border-b border-white/5 px-4 py-3">
-              <button
-                type="button"
-                onClick={() => {
-                  setParseError(null);
-                  setShowImportModal(true);
-                }}
-                className="rounded-lg bg-amber-400 px-4 py-1.5 text-xs font-semibold text-[#0f1117] transition-colors hover:bg-amber-300"
-              >
-                Import game
-              </button>
-              {analyzedGame && (
-                <>
-                  <button
-                    type="button"
-                    onClick={() => void runStockfish()}
-                    disabled={isEngineRunning}
-                    className="rounded-lg border border-white/10 bg-white/3 px-3 py-1.5 text-xs font-medium text-gray-300 transition-colors hover:border-white/20 hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    {isEngineRunning ? (
-                      <span className="flex items-center gap-1.5">
-                        <span className="h-2.5 w-2.5 animate-spin rounded-full border border-amber-400/40 border-t-amber-400" />
-                        Analyzing...
-                      </span>
-                    ) : (
-                      'Run Stockfish'
-                    )}
-                  </button>
-                  {engineError ? (
-                    <span className="text-[10px] text-red-400">{engineError}</span>
-                  ) : engineStatus ? (
-                    <span className="text-[10px] text-gray-500">{engineStatus}</span>
-                  ) : null}
-                </>
-              )}
-            </div>
+          {/* Sidebar card — same container as openings */}
+          <div className="w-104 lg:w-114 shrink-0 h-full rounded-xl border border-white/5 bg-(--bg-panel) overflow-hidden flex flex-col">
+            {/* Empty top row — same height as board topBar for visual alignment */}
+            <div className="h-15 shrink-0 border-b border-white/5" />
 
-            {/* Coach */}
-            <div className="shrink-0 border-b border-white/5">
+            {/* Coach — same sizing as openings (1 board square) */}
+            <div className="shrink-0 overflow-hidden" style={{ height: 'calc((100% - 120px) / 8)' }}>
               <CoachBubble
                 feedback={coachFeedback}
                 fallbackText={
@@ -1341,172 +1147,139 @@ export default function AnalysisPage() {
               />
             </div>
 
-            {/* Coach analysis */}
-            <div className="shrink-0 border-b border-white/5">
-              <CoachAnalysisPanel feedback={coachFeedback} move={currentMove} />
-            </div>
-
-            {/* Move list + bottom panel */}
-            <div className="flex min-h-0 flex-1 flex-col">
-              {/* Move list */}
-              <div className="min-h-0 border-b border-white/5" style={{ flex: 60 }}>
-                {analyzedGame ? (
-                  <AnalysisMoveList
-                    game={analyzedGame}
-                    currentPlyIndex={currentPlyIndex}
-                    onNavigate={goTo}
-                  />
-                ) : (
-                  <div className="flex h-full flex-col items-center justify-center gap-3 px-6 py-8">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/10">
-                      <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth={1.5}
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        className="h-5 w-5 text-gray-600"
-                      >
-                        <path d="M9 12h6m-3-3v6m-7 4h14a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2Z" />
-                      </svg>
-                    </div>
-                    <div className="text-center">
-                      <p className="text-sm font-medium text-gray-400">No game loaded</p>
-                      <p className="mt-1 text-xs leading-5 text-gray-600">
-                        Import a PGN to review moves and get coach feedback on each position.
-                      </p>
-                    </div>
+            {/* Content */}
+            <div className="flex-1 min-h-0 flex flex-col">
+              {/* Actions */}
+              <div className="shrink-0 flex items-center gap-2 border-b border-white/5 px-4 py-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setParseError(null);
+                    setShowImportModal(true);
+                  }}
+                  className="rounded-lg bg-amber-400 px-4 py-1.5 text-xs font-semibold text-[#0f1117] transition-colors hover:bg-amber-300"
+                >
+                  Import game
+                </button>
+                {analyzedGame && (
+                  <>
                     <button
                       type="button"
-                      onClick={() => {
-                        setParseError(null);
-                        setShowImportModal(true);
-                      }}
-                      className="mt-1 rounded-lg border border-amber-400/20 bg-amber-400/10 px-4 py-2 text-xs font-semibold text-amber-300 transition-colors hover:bg-amber-400/15"
+                      onClick={() => void runStockfish()}
+                      disabled={isEngineRunning}
+                      className="rounded-lg border border-white/10 bg-white/3 px-3 py-1.5 text-xs font-medium text-gray-300 transition-colors hover:border-white/20 hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
                     >
-                      Import a game
-                    </button>
-                  </div>
-                )}
-              </div>
-
-              {/* Bottom panel: Review / Engine / Recap / Games */}
-              <div className="flex min-h-0 flex-col" style={{ flex: 40 }}>
-                {/* Tabs */}
-                <div className="flex shrink-0 border-b border-white/5">
-                  {(['review', 'engine', 'recap', 'games'] as const).map(tab => (
-                    <button
-                      key={tab}
-                      type="button"
-                      onClick={() => setActiveBottomPanel(tab)}
-                      className={`relative flex-1 py-2.5 text-xs font-medium capitalize transition-colors ${
-                        activeBottomPanel === tab
-                          ? 'text-white'
-                          : 'text-gray-500 hover:text-gray-300'
-                      }`}
-                    >
-                      {tab === 'engine'
-                        ? 'Engine'
-                        : tab === 'recap'
-                          ? 'Recap'
-                          : tab === 'review'
-                            ? 'Review'
-                            : `Games${sessionGames.length > 0 ? ` (${sessionGames.length})` : ''}`}
-                      {activeBottomPanel === tab && (
-                        <span className="absolute inset-x-0 bottom-0 h-px bg-amber-400" />
+                      {isEngineRunning ? (
+                        <span className="flex items-center gap-1.5">
+                          <span className="h-2.5 w-2.5 animate-spin rounded-full border border-amber-400/40 border-t-amber-400" />
+                          Analyzing...
+                        </span>
+                      ) : (
+                        'Run Stockfish'
                       )}
                     </button>
-                  ))}
-                </div>
-
-                {/* Tab content */}
-                {activeBottomPanel === 'review' ? (
-                  <GameReviewReportPanel
-                    report={gameReviewReport}
-                    hasEngineAnalysis={hasEngineAnalysis}
-                  />
-                ) : activeBottomPanel === 'engine' ? (
-                  <EngineLines move={currentMove} />
-                ) : activeBottomPanel === 'recap' ? (
-                  <GameRecapPanel
-                    summaries={summaryFeedbacks}
-                    hasEngineAnalysis={hasEngineAnalysis}
-                  />
-                ) : (
-                  <SessionGamesList
-                    games={sessionGames}
-                    currentGameId={analyzedGame?.id}
-                    onSelect={switchToGame}
-                  />
+                    {engineError ? (
+                      <span className="text-[10px] text-red-400">{engineError}</span>
+                    ) : engineStatus ? (
+                      <span className="text-[10px] text-gray-500">{engineStatus}</span>
+                    ) : null}
+                  </>
                 )}
               </div>
-            </div>
 
-            {/* Controls */}
-            <div className="shrink-0 flex items-center justify-between border-t border-white/5 px-4 py-2">
-              <button
-                type="button"
-                onClick={() => setSettings({ flipBoard: !settings.flipBoard })}
-                title="Flip board"
-                className="flex h-9 w-9 items-center justify-center rounded text-gray-500 transition-colors hover:bg-white/5 hover:text-gray-300"
-              >
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth={1.5}
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  className="h-4 w-4"
-                >
-                  <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8" />
-                  <path d="M21 3v5h-5" />
-                  <path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16" />
-                  <path d="M8 21H3v-5" />
-                </svg>
-              </button>
-
-              <div className="flex items-center divide-x divide-white/10 overflow-hidden rounded-lg border border-white/10">
-                <NavBtn onClick={() => goTo(-1)} disabled={!canGoBack} title="First position">
-                  <svg viewBox="0 0 16 16" fill="currentColor" className="w-5 h-5">
-                    <path d="M3.5 3a.5.5 0 0 1 .5.5v3.793l6.146-4.439A.5.5 0 0 1 11 3.5v9a.5.5 0 0 1-.854.354L4 8.707V12.5a.5.5 0 0 1-1 0v-9a.5.5 0 0 1 .5-.5z" />
-                  </svg>
-                </NavBtn>
-                <NavBtn
-                  onClick={() => goTo(currentPlyIndex - 1)}
-                  disabled={!canGoBack}
-                  title="Previous (←)"
-                >
-                  <svg viewBox="0 0 16 16" fill="currentColor" className="w-5 h-5">
-                    <path d="M11.354 3.646a.5.5 0 0 1 0 .708L6.707 9l4.647 4.646a.5.5 0 0 1-.708.708l-5-5a.5.5 0 0 1 0-.708l5-5a.5.5 0 0 1 .708 0z" />
-                  </svg>
-                </NavBtn>
-                <NavBtn
-                  onClick={() => goTo(currentPlyIndex + 1)}
-                  disabled={!canGoForward}
-                  title="Next (→)"
-                >
-                  <svg viewBox="0 0 16 16" fill="currentColor" className="w-5 h-5">
-                    <path d="M4.646 3.646a.5.5 0 0 1 .708 0l5 5a.5.5 0 0 1 0 .708l-5 5a.5.5 0 0 1-.708-.708L9.293 9 4.646 4.354a.5.5 0 0 1 0-.708z" />
-                  </svg>
-                </NavBtn>
-                <NavBtn
-                  onClick={() => goTo(totalMoves - 1)}
-                  disabled={!canGoForward}
-                  title="Last position"
-                >
-                  <svg viewBox="0 0 16 16" fill="currentColor" className="w-5 h-5">
-                    <path d="M12.5 3a.5.5 0 0 0-.5.5v3.793L5.854 2.854A.5.5 0 0 0 5 3.5v9a.5.5 0 0 0 .854.354L12 8.207V12.5a.5.5 0 0 0 1 0v-9a.5.5 0 0 0-.5-.5z" />
-                  </svg>
-                </NavBtn>
+              {/* Coach analysis */}
+              <div className="shrink-0 border-b border-white/5">
+                <CoachAnalysisPanel feedback={coachFeedback} move={currentMove} />
               </div>
 
-              <BoardSettingsPopover />
+              {/* Move list + bottom panel */}
+              <div className="flex min-h-0 flex-1 flex-col">
+                {/* Move list */}
+                <div className="min-h-0 border-b border-white/5" style={{ flex: 60 }}>
+                  {analyzedGame ? (
+                    <AnalysisMoveList
+                      game={analyzedGame}
+                      currentPlyIndex={currentPlyIndex}
+                      onNavigate={goTo}
+                    />
+                  ) : (
+                    <div className="flex h-full flex-col items-center justify-center gap-3 px-6 py-8">
+                      <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/10">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5 text-gray-600">
+                          <path d="M9 12h6m-3-3v6m-7 4h14a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2Z" />
+                        </svg>
+                      </div>
+                      <div className="text-center">
+                        <p className="text-sm font-medium text-gray-400">No game loaded</p>
+                        <p className="mt-1 text-xs leading-5 text-gray-600">
+                          Import a PGN to review moves and get coach feedback on each position.
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setParseError(null);
+                          setShowImportModal(true);
+                        }}
+                        className="mt-1 rounded-lg border border-amber-400/20 bg-amber-400/10 px-4 py-2 text-xs font-semibold text-amber-300 transition-colors hover:bg-amber-400/15"
+                      >
+                        Import a game
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                {/* Bottom panel: Review / Engine / Recap / Games */}
+                <div className="flex min-h-0 flex-col" style={{ flex: 40 }}>
+                  <div className="flex shrink-0 border-b border-white/5">
+                    {(['review', 'engine', 'recap', 'games'] as const).map(tab => (
+                      <button
+                        key={tab}
+                        type="button"
+                        onClick={() => setActiveBottomPanel(tab)}
+                        className={`relative flex-1 py-2.5 text-xs font-medium capitalize transition-colors ${
+                          activeBottomPanel === tab
+                            ? 'text-white'
+                            : 'text-gray-500 hover:text-gray-300'
+                        }`}
+                      >
+                        {tab === 'engine'
+                          ? 'Engine'
+                          : tab === 'recap'
+                            ? 'Recap'
+                            : tab === 'review'
+                              ? 'Review'
+                              : `Games${sessionGames.length > 0 ? ` (${sessionGames.length})` : ''}`}
+                        {activeBottomPanel === tab && (
+                          <span className="absolute inset-x-0 bottom-0 h-px bg-amber-400" />
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                  {activeBottomPanel === 'review' ? (
+                    <GameReviewReportPanel
+                      report={gameReviewReport}
+                      hasEngineAnalysis={hasEngineAnalysis}
+                    />
+                  ) : activeBottomPanel === 'engine' ? (
+                    <EngineLines move={currentMove} />
+                  ) : activeBottomPanel === 'recap' ? (
+                    <GameRecapPanel
+                      summaries={summaryFeedbacks}
+                      hasEngineAnalysis={hasEngineAnalysis}
+                    />
+                  ) : (
+                    <SessionGamesList
+                      games={sessionGames}
+                      currentGameId={analyzedGame?.id}
+                      onSelect={switchToGame}
+                    />
+                  )}
+                </div>
+              </div>
             </div>
           </div>
+
         </div>
       </div>
 
