@@ -671,7 +671,7 @@ const selectedReferenceVariation =
               {/* Variations card */}
               <div className="min-h-0 flex flex-col rounded-lg border border-white/10 overflow-hidden" style={{ flex: 44 }}>
                 <div className="shrink-0 flex items-center px-4 py-3 border-b border-white/8">
-                  <h3 className="text-[11px] font-semibold uppercase tracking-widest text-gray-500">Variations</h3>
+                  <h3 className="text-[11px] font-semibold uppercase tracking-widest text-gray-500">{opening.name} Variations</h3>
                 </div>
 
                 {/* Accordion */}
