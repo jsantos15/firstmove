@@ -112,7 +112,7 @@ function EvalBar({
 
   return (
     <div
-      className="relative hidden w-12 shrink-0 overflow-hidden rounded-md border border-white/15 bg-[#181818] shadow-inner shadow-black/40 sm:block"
+      className="relative ml-2 hidden w-7 shrink-0 overflow-hidden rounded-md border border-white/15 bg-[#181818] shadow-inner shadow-black/40 sm:block"
       style={barStyle}
       title={`Engine evaluation: ${label}`}
       aria-label={`Engine evaluation ${label}`}
