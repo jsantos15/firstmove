@@ -872,9 +872,7 @@ const { theme, animationDuration, settings, setSettings } = useBoardSettings();
     const el = wrapperRef.current;
     if (!el) return;
     const update = () => {
-      // Reserve space for the eval bar (w-16 = 64px) + gap (8px)
-      const evalBarReserved = 56; // w-12 (48px) + gap-2 (8px)
-      const size = Math.min(el.clientWidth - evalBarReserved, el.clientHeight);
+      const size = el.clientHeight;
       if (size > 0) setBoardSize(size);
     };
     const observer = new ResizeObserver(update);
@@ -1061,37 +1059,35 @@ setSessionGames(prev => [{ id: game.id, label, game, hasEngine: false }, ...prev
   const canGoForward = analyzedGame !== null && currentPlyIndex < totalMoves - 1;
   return (
     <div className="h-full flex flex-col overflow-hidden">
-      <div className="flex-1 min-h-0 overflow-hidden p-3">
-        <div className="flex h-full w-full gap-3">
+      <div className="flex-1 min-h-0 overflow-hidden p-3 flex justify-center">
+        <div className="flex h-full gap-3">
 
           {/* Board card — same structure as openings */}
-          <div className="min-w-0 flex-1 overflow-hidden rounded-xl border border-white/5 bg-(--bg-panel) flex flex-col select-none">
-            {/* topBar — matches sidebar top row height */}
-            <div className="h-15 shrink-0" />
+          <div className="shrink-0 h-full overflow-hidden rounded-xl border border-white/5 bg-(--bg-panel) flex flex-col select-none">
+            {/* topBar — aligned to board width */}
+            <div className="shrink-0 h-15" style={{ width: boardSize }} />
 
             {/* Board + eval bar */}
-            <div ref={wrapperRef} className="flex min-h-0 flex-1 items-center justify-center">
-              <div className="flex items-center gap-2">
-                <EvalBar evalCp={displayEvalCp} reserveSpace={true} size={boardSize} />
-                <div className="overflow-hidden rounded-xl ring-1 ring-white/10">
-                  <Chessboard
-                    position={currentFen}
-                    boardWidth={boardSize}
-                    boardOrientation={settings.flipBoard ? 'black' : 'white'}
-                    arePiecesDraggable={false}
-                    customSquareStyles={customSquareStyles}
-                    showBoardNotation={settings.showCoordinates}
-                    customDarkSquareStyle={{ backgroundColor: theme.dark }}
-                    customLightSquareStyle={{ backgroundColor: theme.light }}
-                    animationDuration={animationDuration}
-                    customPieces={customPieces}
-                  />
-                </div>
+            <div ref={wrapperRef} className="relative flex min-h-0 flex-1 items-center">
+              <div className="overflow-hidden rounded-xl ring-1 ring-white/10">
+                <Chessboard
+                  position={currentFen}
+                  boardWidth={boardSize}
+                  boardOrientation={settings.flipBoard ? 'black' : 'white'}
+                  arePiecesDraggable={false}
+                  customSquareStyles={customSquareStyles}
+                  showBoardNotation={settings.showCoordinates}
+                  customDarkSquareStyle={{ backgroundColor: theme.dark }}
+                  customLightSquareStyle={{ backgroundColor: theme.light }}
+                  animationDuration={animationDuration}
+                  customPieces={customPieces}
+                />
               </div>
+              <EvalBar evalCp={displayEvalCp} reserveSpace={true} size={boardSize} />
             </div>
 
             {/* bottomBar — flip | nav | settings */}
-            <div className="shrink-0 grid grid-cols-3 items-center py-2.5">
+            <div className="shrink-0 grid grid-cols-3 items-center py-2.5" style={{ width: boardSize }}>
               <div className="pl-3">
                 <button
                   type="button"
