@@ -1068,22 +1068,24 @@ setSessionGames(prev => [{ id: game.id, label, game, hasEngine: false }, ...prev
             <div className="shrink-0 h-15" style={{ width: boardSize }} />
 
             {/* Board + eval bar */}
-            <div ref={wrapperRef} className="relative flex min-h-0 flex-1 items-center">
-              <div className="overflow-hidden rounded-xl ring-1 ring-white/10">
-                <Chessboard
-                  position={currentFen}
-                  boardWidth={boardSize}
-                  boardOrientation={settings.flipBoard ? 'black' : 'white'}
-                  arePiecesDraggable={false}
-                  customSquareStyles={customSquareStyles}
-                  showBoardNotation={settings.showCoordinates}
-                  customDarkSquareStyle={{ backgroundColor: theme.dark }}
-                  customLightSquareStyle={{ backgroundColor: theme.light }}
-                  animationDuration={animationDuration}
-                  customPieces={customPieces}
-                />
+            <div ref={wrapperRef} className="min-h-0 flex-1 relative">
+              <div className="absolute inset-0 flex items-center">
+                <div className="overflow-hidden rounded-xl ring-1 ring-white/10">
+                  <Chessboard
+                    position={currentFen}
+                    boardWidth={boardSize}
+                    boardOrientation={settings.flipBoard ? 'black' : 'white'}
+                    arePiecesDraggable={false}
+                    customSquareStyles={customSquareStyles}
+                    showBoardNotation={settings.showCoordinates}
+                    customDarkSquareStyle={{ backgroundColor: theme.dark }}
+                    customLightSquareStyle={{ backgroundColor: theme.light }}
+                    animationDuration={animationDuration}
+                    customPieces={customPieces}
+                  />
+                </div>
+                <EvalBar evalCp={displayEvalCp} reserveSpace={true} size={boardSize} />
               </div>
-              <EvalBar evalCp={displayEvalCp} reserveSpace={true} size={boardSize} />
             </div>
 
             {/* bottomBar — flip | nav | settings */}
