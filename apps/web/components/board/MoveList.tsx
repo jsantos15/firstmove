@@ -7,7 +7,10 @@ import type { OpeningPositionMilestone } from '@/hooks/useOpeningPositionLabels'
 interface MoveListProps {
   variation: OpeningVariation;
   currentMoveIndex: number;
+  selectedMoveIndex?: number;
+  onNavigate?: (index: number) => void;
   milestones?: OpeningPositionMilestone[];
+  mode?: 'learn' | 'practice';
 }
 
 interface MovePair {
@@ -38,29 +41,34 @@ function MoveCell({
   san,
   index,
   currentMoveIndex,
+  selectedMoveIndex,
+  onNavigate,
+  mode,
 }: {
   san: string;
   index: number;
   currentMoveIndex: number;
+  selectedMoveIndex?: number;
+  onNavigate?: (index: number) => void;
+  mode?: 'learn' | 'practice';
 }) {
-  const isDone = index < currentMoveIndex;
-  const isCurrent = index === currentMoveIndex;
-  const isNext = index === currentMoveIndex + 1;
+  const isSelected = index === (selectedMoveIndex ?? currentMoveIndex);
+  const isPlayed = index <= currentMoveIndex;
 
   return (
-    <span
-      className={`px-2 py-1.5 transition-colors ${
-        isNext
-          ? 'bg-amber-400/15 text-amber-300 font-semibold'
-          : isCurrent
-            ? 'bg-white/6 text-white/60'
-            : isDone
-              ? 'text-gray-500'
-              : 'text-gray-600'
+    <button
+      type="button"
+      onClick={() => onNavigate?.(index)}
+      className={`w-full px-2 py-1.5 text-left font-mono text-sm transition-colors ${
+        isSelected
+          ? 'bg-white/20 text-white font-semibold'
+          : isPlayed || mode === 'learn'
+            ? 'text-gray-300 hover:bg-white/10 hover:text-white'
+            : 'text-gray-500 hover:bg-white/5 hover:text-gray-300'
       }`}
     >
       {san}
-    </span>
+    </button>
   );
 }
 
@@ -93,15 +101,15 @@ function getActiveMilestone(
   return active;
 }
 
-export function MoveList({ variation, currentMoveIndex, milestones = [] }: MoveListProps) {
+export function MoveList({ variation, currentMoveIndex, selectedMoveIndex, onNavigate, milestones = [], mode }: MoveListProps) {
   const pairs = toPairs(variation);
   const activeMilestone = getActiveMilestone(milestones, currentMoveIndex);
   const [copied, setCopied] = useState(false);
-  const nextRowRef = useRef<HTMLSpanElement>(null);
+  const selectedRowRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    nextRowRef.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-  }, [currentMoveIndex]);
+    selectedRowRef.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  }, [selectedMoveIndex ?? currentMoveIndex]);
 
   const handleCopy = useCallback(async () => {
     if (currentMoveIndex < 0) return;
@@ -111,9 +119,11 @@ export function MoveList({ variation, currentMoveIndex, milestones = [] }: MoveL
     setTimeout(() => setCopied(false), 1500);
   }, [variation, currentMoveIndex]);
 
+  const activeIndex = selectedMoveIndex ?? currentMoveIndex;
+
   return (
-    <div className="flex h-70 shrink-0 flex-col">
-      {/* Header — matches Variations/Lines style */}
+    <div className="flex h-78 shrink-0 flex-col">
+      {/* Header */}
       <div className="shrink-0 flex items-center justify-between px-4 py-3 border-b border-white/8">
         <h3 className="text-[11px] font-semibold uppercase tracking-widest text-gray-500">Moves</h3>
         {currentMoveIndex >= 0 && (
@@ -151,20 +161,33 @@ export function MoveList({ variation, currentMoveIndex, milestones = [] }: MoveL
       </div>
 
       {/* Move rows */}
-      <div className="min-h-0 flex-1 overflow-y-auto px-4 pr-3">
-        <div className="grid grid-cols-[1.5rem_4.5rem_4.5rem] gap-y-0.5 font-mono text-sm w-fit">
+      <div className="min-h-0 flex-1 overflow-y-auto">
+        <div className="grid grid-cols-[2.5rem_1fr_1fr] text-sm">
           {pairs.map(pair => {
-            const isNextRow =
-              pair.whiteIndex === currentMoveIndex + 1 ||
-              pair.blackIndex === currentMoveIndex + 1;
+            const isSelectedRow =
+              pair.whiteIndex === activeIndex || pair.blackIndex === activeIndex;
             return (
               <div key={pair.moveNumber} className="contents">
-                <span ref={isNextRow ? nextRowRef : undefined} className="flex items-center justify-end pr-1.5 text-[11px] text-gray-600 select-none">
-                  {pair.moveNumber}.
+                <span ref={isSelectedRow ? selectedRowRef : undefined} className="flex items-center justify-center text-[11px] text-gray-600 select-none font-mono">
+                  {pair.moveNumber}
                 </span>
-                <MoveCell san={pair.white} index={pair.whiteIndex} currentMoveIndex={currentMoveIndex} />
+                <MoveCell
+                  san={pair.white}
+                  index={pair.whiteIndex}
+                  currentMoveIndex={currentMoveIndex}
+                  selectedMoveIndex={selectedMoveIndex}
+                  onNavigate={onNavigate}
+                  mode={mode}
+                />
                 {pair.black !== null && pair.blackIndex !== null ? (
-                  <MoveCell san={pair.black} index={pair.blackIndex} currentMoveIndex={currentMoveIndex} />
+                  <MoveCell
+                    san={pair.black}
+                    index={pair.blackIndex}
+                    currentMoveIndex={currentMoveIndex}
+                    selectedMoveIndex={selectedMoveIndex}
+                    onNavigate={onNavigate}
+                    mode={mode}
+                  />
                 ) : (
                   <span />
                 )}

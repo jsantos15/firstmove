@@ -5,31 +5,49 @@ import { BOARD_THEMES, useBoardSettings } from '@/hooks/useBoardSettings';
 import { COACH_PERSONA_OPTIONS, useCoachSettings } from '@/hooks/useCoachSettings';
 import { PIECE_SETS } from '@/lib/piecesets';
 
-export function ToggleChip({
-  label,
-  active,
-  onClick,
-}: {
-  label: string;
-  active: boolean;
-  onClick: () => void;
-}) {
+function SettingRow({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`rounded-xl border px-3 py-2 text-xs font-medium transition-colors ${
-        active
-          ? 'border-amber-400/40 bg-amber-400/10 text-amber-300'
-          : 'border-white/10 bg-white/5 text-gray-300 hover:border-white/20 hover:text-white'
-      }`}
-    >
-      {label}
-    </button>
+    <div className="flex items-center justify-between gap-4">
+      <span className="text-sm text-gray-400">{label}</span>
+      {children}
+    </div>
   );
 }
 
-export function BoardSettingsPopover() {
+function SettingSelect({
+  value,
+  onChange,
+  children,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="relative">
+      <select
+        value={value}
+        onChange={e => onChange(e.target.value)}
+        className="appearance-none cursor-pointer rounded-lg border border-white/10 bg-white/5 py-1.5 pl-3 pr-7 text-xs text-gray-200 outline-none transition-colors focus:border-amber-400/40"
+      >
+        {children}
+      </select>
+      <svg
+        className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 h-3 w-3 text-gray-500"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth={2}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      >
+        <path d="M6 9l6 6 6-6" />
+      </svg>
+    </div>
+  );
+}
+
+export function BoardSettingsPopover({ onAnalyzePosition }: { onAnalyzePosition?: () => void }) {
   const { settings, setSettings } = useBoardSettings();
   const { settings: coachSettings, setSettings: setCoachSettings } = useCoachSettings();
   const [open, setOpen] = useState(false);
@@ -37,13 +55,11 @@ export function BoardSettingsPopover() {
 
   useEffect(() => {
     if (!open) return;
-
     function handlePointerDown(event: MouseEvent) {
       if (popoverRef.current && !popoverRef.current.contains(event.target as Node)) {
         setOpen(false);
       }
     }
-
     document.addEventListener('mousedown', handlePointerDown);
     return () => document.removeEventListener('mousedown', handlePointerDown);
   }, [open]);
@@ -77,140 +93,94 @@ export function BoardSettingsPopover() {
       </button>
 
       {open && (
-        <div className="absolute bottom-full right-0 z-30 mb-3 w-80 rounded-2xl border border-white/10 bg-(--bg-panel) p-4 shadow-2xl shadow-black/50 backdrop-blur">
-          <div className="mb-4">
-            <h3 className="text-sm font-semibold text-white">Board settings</h3>
-            <p className="mt-1 text-xs text-gray-500">Quick adjustments for this session.</p>
+        <div className="absolute bottom-full right-0 z-30 mb-3 w-72 rounded-2xl border border-white/10 bg-(--bg-panel) p-4 shadow-2xl shadow-black/50 backdrop-blur">
+          <h3 className="mb-4 text-sm font-semibold text-white">Board settings</h3>
+
+          <div className="space-y-3">
+            <SettingRow label="Theme">
+              <SettingSelect value={settings.themeId} onChange={v => setSettings({ themeId: v })}>
+                {BOARD_THEMES.map(t => (
+                  <option key={t.id} value={t.id}>{t.label}</option>
+                ))}
+              </SettingSelect>
+            </SettingRow>
+
+            <SettingRow label="Pieces">
+              <SettingSelect value={settings.pieceSetId} onChange={v => setSettings({ pieceSetId: v })}>
+                {PIECE_SETS.map(s => (
+                  <option key={s.id} value={s.id}>{s.label}</option>
+                ))}
+              </SettingSelect>
+            </SettingRow>
+
+            <SettingRow label="Animation">
+              <SettingSelect
+                value={settings.animationSpeed}
+                onChange={v => setSettings({ animationSpeed: v as typeof settings.animationSpeed })}
+              >
+                {(['off', 'slow', 'normal', 'fast'] as const).map(s => (
+                  <option key={s} value={s}>{s.charAt(0).toUpperCase() + s.slice(1)}</option>
+                ))}
+              </SettingSelect>
+            </SettingRow>
+
+            <SettingRow label="Coordinates">
+              <SettingSelect
+                value={settings.showCoordinates ? 'on' : 'off'}
+                onChange={v => setSettings({ showCoordinates: v === 'on' })}
+              >
+                <option value="on">On</option>
+                <option value="off">Off</option>
+              </SettingSelect>
+            </SettingRow>
+
+            <SettingRow label="Orientation">
+              <SettingSelect
+                value={settings.flipBoard ? 'flip' : 'normal'}
+                onChange={v => setSettings({ flipBoard: v === 'flip' })}
+              >
+                <option value="normal">White on bottom</option>
+                <option value="flip">Black on bottom</option>
+              </SettingSelect>
+            </SettingRow>
+
+            <SettingRow label="Move sound">
+              <SettingSelect
+                value={settings.moveSound ? 'on' : 'off'}
+                onChange={v => setSettings({ moveSound: v === 'on' })}
+              >
+                <option value="on">On</option>
+                <option value="off">Off</option>
+              </SettingSelect>
+            </SettingRow>
+
+            <SettingRow label="Coach">
+              <SettingSelect
+                value={coachSettings.persona}
+                onChange={v => setCoachSettings({ persona: v as typeof coachSettings.persona })}
+              >
+                {COACH_PERSONA_OPTIONS.map(o => (
+                  <option key={o.id} value={o.id}>{o.label}</option>
+                ))}
+              </SettingSelect>
+            </SettingRow>
           </div>
 
-          <div className="space-y-4">
-            <div>
-              <label className="mb-2 block text-[11px] font-medium uppercase tracking-wider text-gray-500">
-                Theme
-              </label>
-              <div className="grid grid-cols-3 gap-2">
-                {BOARD_THEMES.map(theme => (
-                  <button
-                    key={theme.id}
-                    type="button"
-                    onClick={() => setSettings({ themeId: theme.id })}
-                    className={`rounded-xl border p-2 transition-colors ${
-                      settings.themeId === theme.id
-                        ? 'border-amber-400/40 bg-amber-400/10'
-                        : 'border-white/10 bg-white/5 hover:border-white/20'
-                    }`}
-                  >
-                    <div className="mb-2 grid h-8 grid-cols-2 overflow-hidden rounded-md">
-                      <div style={{ backgroundColor: theme.light }} />
-                      <div style={{ backgroundColor: theme.dark }} />
-                      <div style={{ backgroundColor: theme.dark }} />
-                      <div style={{ backgroundColor: theme.light }} />
-                    </div>
-                    <span
-                      className={`text-xs font-medium ${
-                        settings.themeId === theme.id ? 'text-amber-300' : 'text-gray-300'
-                      }`}
-                    >
-                      {theme.label}
-                    </span>
-                  </button>
-                ))}
-              </div>
+          {onAnalyzePosition && (
+            <div className="mt-4 border-t border-white/8 pt-4">
+              <button
+                type="button"
+                onClick={() => { onAnalyzePosition(); setOpen(false); }}
+                className="flex w-full items-center gap-2.5 rounded-xl border border-white/10 bg-white/5 px-3 py-2.5 text-left text-xs font-medium text-gray-300 transition-colors hover:border-white/20 hover:text-white"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4 shrink-0 text-gray-500">
+                  <path d="M3 3v18h18" />
+                  <path d="m19 9-5 5-4-4-3 3" />
+                </svg>
+                Analyze current position
+              </button>
             </div>
-
-            <div>
-              <label className="mb-2 block text-[11px] font-medium uppercase tracking-wider text-gray-500">
-                Piece set
-              </label>
-              <div className="grid grid-cols-3 gap-2">
-                {PIECE_SETS.map(set => (
-                  <button
-                    key={set.id}
-                    type="button"
-                    onClick={() => setSettings({ pieceSetId: set.id })}
-                    className={`rounded-xl border px-3 py-2 text-xs font-medium transition-colors ${
-                      settings.pieceSetId === set.id
-                        ? 'border-amber-400/40 bg-amber-400/10 text-amber-300'
-                        : 'border-white/10 bg-white/5 text-gray-300 hover:border-white/20 hover:text-white'
-                    }`}
-                  >
-                    {set.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div>
-              <label className="mb-2 block text-[11px] font-medium uppercase tracking-wider text-gray-500">
-                Animation
-              </label>
-              <div className="flex overflow-hidden rounded-xl border border-white/10">
-                {(['off', 'slow', 'normal', 'fast'] as const).map(speed => (
-                  <button
-                    key={speed}
-                    type="button"
-                    onClick={() => setSettings({ animationSpeed: speed })}
-                    className={`flex-1 px-3 py-2 text-xs font-medium capitalize transition-colors ${
-                      settings.animationSpeed === speed
-                        ? 'bg-amber-400/15 text-amber-300'
-                        : 'bg-white/5 text-gray-300 hover:bg-white/10 hover:text-white'
-                    }`}
-                  >
-                    {speed}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div>
-              <label className="mb-2 block text-[11px] font-medium uppercase tracking-wider text-gray-500">
-                Coach
-              </label>
-              <div className="grid grid-cols-2 gap-2">
-                {COACH_PERSONA_OPTIONS.map(option => (
-                  <button
-                    key={option.id}
-                    type="button"
-                    onClick={() => setCoachSettings({ persona: option.id })}
-                    className={`rounded-xl border p-2 text-left transition-colors ${
-                      coachSettings.persona === option.id
-                        ? 'border-amber-400/40 bg-amber-400/10'
-                        : 'border-white/10 bg-white/5 hover:border-white/20'
-                    }`}
-                  >
-                    <span
-                      className={`block text-xs font-medium ${
-                        coachSettings.persona === option.id ? 'text-amber-300' : 'text-gray-300'
-                      }`}
-                    >
-                      {option.label}
-                    </span>
-                    <span className="mt-1 block text-[10px] leading-4 text-gray-500">
-                      {option.description}
-                    </span>
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div className="grid grid-cols-3 gap-2">
-              <ToggleChip
-                label="Coords"
-                active={settings.showCoordinates}
-                onClick={() => setSettings({ showCoordinates: !settings.showCoordinates })}
-              />
-              <ToggleChip
-                label="Flip"
-                active={settings.flipBoard}
-                onClick={() => setSettings({ flipBoard: !settings.flipBoard })}
-              />
-              <ToggleChip
-                label="Sound"
-                active={settings.moveSound}
-                onClick={() => setSettings({ moveSound: !settings.moveSound })}
-              />
-            </div>
-          </div>
+          )}
         </div>
       )}
     </div>

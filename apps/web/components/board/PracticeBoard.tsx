@@ -22,6 +22,7 @@ export interface PracticeBoardHandle {
   navigateBack: () => void;
   navigateForward: () => void;
   navigateLast: () => void;
+  navigateTo: (index: number) => void;
   reset: () => void;
 }
 
@@ -37,6 +38,7 @@ interface PracticeBoardProps {
   mode: PracticeMode;
   coachPersona?: CoachPersona;
   onMoveIndexChange?: (index: number) => void;
+  onDisplayIndexChange?: (index: number) => void;
   onCoachFeedbackChange?: (feedback: CoachFeedback | null) => void;
   onNavStateChange?: (state: { canGoBack: boolean; canGoForward: boolean; isLive: boolean }) => void;
   topBar?: React.ReactNode;
@@ -68,8 +70,8 @@ function isPromotionCandidate(chess: Chess, from: string, to: string) {
   return (piece.color === 'w' && targetRank === '8') || (piece.color === 'b' && targetRank === '1');
 }
 
-function isCaptureStyleMove(flags?: string) {
-  return Boolean(flags?.includes('c') || flags?.includes('e'));
+function isCaptureStyleMove(move: { captured?: string }) {
+  return move.captured !== undefined;
 }
 
 function normalizePromotionPiece(piece?: string): PromotionPiece {
@@ -342,6 +344,7 @@ export const PracticeBoard = forwardRef<PracticeBoardHandle, PracticeBoardProps>
   mode,
   coachPersona = 'neutral',
   onMoveIndexChange,
+  onDisplayIndexChange,
   onCoachFeedbackChange,
   onNavStateChange,
   topBar,
@@ -387,6 +390,10 @@ export const PracticeBoard = forwardRef<PracticeBoardHandle, PracticeBoardProps>
   const canGoForward = displayIndex < maxNavigableIndex;
 
   const isMyTurn = isLive && status === 'playing' && isUserTurn(currentMoveIndex, opening.color);
+  // In Learn mode the user can play at any displayed position where it's their turn
+  const learnIsMyTurn = mode === 'learn'
+    ? status === 'playing' && displayIndex < moves.length && isUserTurn(displayIndex, opening.color)
+    : isMyTurn;
   const playerColor = opening.color === 'white' ? 'w' : 'b';
   const boardOrientation = getBoardOrientation(opening.color, settings.flipBoard);
 
@@ -616,7 +623,7 @@ export const PracticeBoard = forwardRef<PracticeBoardHandle, PracticeBoardProps>
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isLive, displayIndex, moves, position]);
 
-  const isViewingLineEnd = displayIndex >= moves.length && moves.length > 0;
+
 
   const getEvalAtPly = (ply: number) => {
     const evalByPly = variation.evalCpByPly;
@@ -657,10 +664,12 @@ export const PracticeBoard = forwardRef<PracticeBoardHandle, PracticeBoardProps>
     (typeof variation.finalEvalCp === 'number' && Number.isFinite(variation.finalEvalCp));
 
   const legalTargets = useMemo(() => {
-    if (!isLive || status !== 'playing' || !selectedSquare) return [];
+    if (!selectedSquare || status !== 'playing') return [];
+    if (mode === 'learn' && !learnIsMyTurn) return [];
+    if (mode !== 'learn' && (!isLive || !isMyTurn)) return [];
 
-    const selectionChess = new Chess(chessRef.current.fen());
-    if (!isMyTurn) {
+    const selectionChess = mode === 'learn' ? new Chess(displayPosition) : new Chess(chessRef.current.fen());
+    if (mode !== 'learn' && !isMyTurn) {
       const opponentReply = moves[currentMoveIndex];
       if (!opponentReply) return [];
       try {
@@ -678,25 +687,25 @@ export const PracticeBoard = forwardRef<PracticeBoardHandle, PracticeBoardProps>
     } catch {
       return [];
     }
-  }, [currentMoveIndex, isLive, isMyTurn, moves, selectedSquare, status]);
+  }, [currentMoveIndex, displayPosition, isLive, isMyTurn, learnIsMyTurn, moves, selectedSquare, status]);
 
   const customSquareStyles = useMemo(() => {
     const styles: Record<string, React.CSSProperties> = {};
-    if (isLive && selectedSquare) {
+    if ((isLive || learnIsMyTurn) && selectedSquare) {
       styles[selectedSquare] = { background: '#D8A548' };
     }
     if (lastMove && status !== 'wrong') {
       styles[lastMove.from] = { background: 'rgba(255, 210, 0, 0.38)' };
       styles[lastMove.to] = { background: 'rgba(255, 210, 0, 0.38)' };
     }
-    if (isLive && status === 'wrong' && wrongMoveFrom && wrongMoveTo) {
+    if ((isLive || mode === 'learn') && status === 'wrong' && wrongMoveFrom && wrongMoveTo) {
       styles[wrongMoveFrom] = { background: 'rgba(220, 38, 38, 0.5)' };
       styles[wrongMoveTo] = { background: 'rgba(220, 38, 38, 0.5)' };
     }
-    if (isLive && selectedSquare && status === 'playing') {
+    if ((isLive || learnIsMyTurn) && selectedSquare && status === 'playing') {
       for (const move of legalTargets) {
         const base = styles[move.to] ?? {};
-        styles[move.to] = isCaptureStyleMove(move.flags)
+        styles[move.to] = isCaptureStyleMove(move)
           ? {
               ...base,
               background:
@@ -709,11 +718,11 @@ export const PracticeBoard = forwardRef<PracticeBoardHandle, PracticeBoardProps>
             };
       }
     }
-    if (isLive && isMyTurn && moves[currentMoveIndex]) {
-      const hintChess = new Chess(chessRef.current.fen());
+    if (learnIsMyTurn && moves[displayIndex]) {
+      const hintChess = new Chess(displayPosition);
       const match = hintChess
         .moves({ verbose: true })
-        .find(m => m.san === moves[currentMoveIndex].san);
+        .find(m => m.san === moves[displayIndex].san);
       if (match?.from) {
         const existingStyle = styles[match.from] ?? {};
         if (mode === 'learn') {
@@ -743,10 +752,13 @@ export const PracticeBoard = forwardRef<PracticeBoardHandle, PracticeBoardProps>
     return styles;
   }, [
     currentMoveIndex,
+    displayIndex,
+    displayPosition,
     hintActive,
     isLive,
     isMyTurn,
     lastMove,
+    learnIsMyTurn,
     legalTargets,
     mode,
     moves,
@@ -843,37 +855,54 @@ export const PracticeBoard = forwardRef<PracticeBoardHandle, PracticeBoardProps>
     return commitMove(sourceSquare, targetSquare, 'q', currentMoveIndex, nextChess);
   };
 
+  // Learn mode: play from the displayed position (may be a review position)
+  const attemptLearnMove = (sourceSquare: string, targetSquare: string) => {
+    const baseChess = new Chess(displayPosition);
+    if (isPromotionCandidate(baseChess, sourceSquare, targetSquare)) return false;
+    const success = commitMove(sourceSquare, targetSquare, 'q', displayIndex, baseChess);
+    if (success && !isLive) setViewIndex(null);
+    return success;
+  };
+
   const onPieceDrop = (sourceSquare: string, targetSquare: string) => {
+    if (mode === 'learn') {
+      if (!learnIsMyTurn) return false;
+      return attemptLearnMove(sourceSquare, targetSquare);
+    }
     if (!isLive || status !== 'playing') return false;
     if (!isMyTurn) return validatePremove(sourceSquare, targetSquare);
     return attemptMove(sourceSquare, targetSquare);
   };
 
   const onPieceClick = (piece: string, square: string) => {
-    if (!isLive || status !== 'playing') return;
+    if (mode === 'learn' ? !learnIsMyTurn : (!isLive || status !== 'playing')) return;
     if (piece[0] !== playerColor) return;
 
     setSelectedSquare(current => (current === square ? null : square));
   };
 
   const onPieceDragBegin = (piece: string, sourceSquare: string) => {
-    if (!isLive || status !== 'playing') return;
+    if (mode === 'learn' ? !learnIsMyTurn : (!isLive || status !== 'playing')) return;
     if (piece[0] !== playerColor) return;
     setSelectedSquare(sourceSquare);
   };
 
   const onPieceDragEnd = (piece: string, sourceSquare: string) => {
-    if (!isLive || status !== 'playing') return;
+    if (mode === 'learn' ? !learnIsMyTurn : (!isLive || status !== 'playing')) return;
     if (piece[0] !== playerColor) return;
 
-    const currentPiece = chessRef.current.get(sourceSquare as Parameters<Chess['get']>[0]);
-    if (currentPiece?.color === playerColor) {
+    if (mode === 'learn') {
       setSelectedSquare(sourceSquare);
+    } else {
+      const currentPiece = chessRef.current.get(sourceSquare as Parameters<Chess['get']>[0]);
+      if (currentPiece?.color === playerColor) {
+        setSelectedSquare(sourceSquare);
+      }
     }
   };
 
   const onSquareClick = (square: string, piece?: string) => {
-    if (!isLive || status !== 'playing') return;
+    if (mode === 'learn' ? status !== 'playing' : (!isLive || status !== 'playing')) return;
     const isOwnPiece = piece?.[0] === playerColor;
 
     if (!selectedSquare) {
@@ -889,6 +918,14 @@ export const PracticeBoard = forwardRef<PracticeBoardHandle, PracticeBoardProps>
 
     if (isOwnPiece) {
       setSelectedSquare(square);
+      return;
+    }
+
+    if (mode === 'learn') {
+      if (!learnIsMyTurn) { setSelectedSquare(null); return; }
+      const opensPromotion = isPromotionCandidate(new Chess(displayPosition), selectedSquare, square);
+      const moved = attemptLearnMove(selectedSquare, square);
+      if (!moved && !opensPromotion) setSelectedSquare(selectedSquare);
       return;
     }
 
@@ -910,6 +947,10 @@ export const PracticeBoard = forwardRef<PracticeBoardHandle, PracticeBoardProps>
   };
 
   const onPromotionCheck = (sourceSquare: string, targetSquare: string, piece: string) => {
+    if (mode === 'learn') {
+      if (!learnIsMyTurn || piece[0] !== playerColor) return false;
+      return isPromotionCandidate(new Chess(displayPosition), sourceSquare, targetSquare);
+    }
     if (!isLive || status !== 'playing' || !isMyTurn) return false;
     if (piece[0] !== playerColor) return false;
     return isPromotionCandidate(new Chess(chessRef.current.fen()), sourceSquare, targetSquare);
@@ -921,6 +962,12 @@ export const PracticeBoard = forwardRef<PracticeBoardHandle, PracticeBoardProps>
     promoteToSquare?: string
   ) => {
     if (!promoteFromSquare || !promoteToSquare) return false;
+    if (mode === 'learn') {
+      const baseChess = new Chess(displayPosition);
+      const success = commitMove(promoteFromSquare, promoteToSquare, normalizePromotionPiece(piece), displayIndex, baseChess);
+      if (success && !isLive) setViewIndex(null);
+      return success;
+    }
     const nextChess = new Chess(chessRef.current.fen());
     return commitMove(
       promoteFromSquare,
@@ -943,16 +990,21 @@ export const PracticeBoard = forwardRef<PracticeBoardHandle, PracticeBoardProps>
   }, [displayIndex, currentMoveIndex]);
 
   useImperativeHandle(ref, () => ({
-    navigateFirst: () => navigateTo(0),
+    navigateFirst: () => navigateTo(1),
     navigateBack: () => navigateTo(displayIndex - 1),
     navigateForward: () => navigateTo(displayIndex + 1),
-    navigateLast: () => navigateTo(currentMoveIndex),
+    navigateLast: () => navigateTo(maxNavigableIndex),
+    navigateTo,
     reset: resetPractice,
   }));
 
   useEffect(() => {
     onNavStateChange?.({ canGoBack, canGoForward, isLive });
   }, [canGoBack, canGoForward, isLive, onNavStateChange]);
+
+  useEffect(() => {
+    onDisplayIndexChange?.(displayIndex);
+  }, [displayIndex, onDisplayIndexChange]);
 
   return (
     <div className="relative flex h-full select-none flex-col">
@@ -989,10 +1041,10 @@ export const PracticeBoard = forwardRef<PracticeBoardHandle, PracticeBoardProps>
               onPromotionPieceSelect={onPromotionPieceSelect}
               boardWidth={boardSize}
               boardOrientation={boardOrientation}
-              arePiecesDraggable={isLive}
+              arePiecesDraggable={isLive || learnIsMyTurn}
               arePremovesAllowed={isLive}
               clearPremovesOnRightClick={true}
-              isDraggablePiece={({ piece }) => isLive && piece[0] === playerColor}
+              isDraggablePiece={({ piece }) => (isLive || learnIsMyTurn) && piece[0] === playerColor}
               customSquareStyles={customSquareStyles}
               showBoardNotation={settings.showCoordinates}
               customDarkSquareStyle={{ backgroundColor: theme.dark }}
@@ -1008,15 +1060,14 @@ export const PracticeBoard = forwardRef<PracticeBoardHandle, PracticeBoardProps>
           reserveSpace={hasVisibleEvalBar}
           size={boardSize}
         />
-        {((status === 'complete' && isLive) || (mode === 'learn' && isViewingLineEnd)) &&
-          !overlayDismissed && (
-            <CompletionOverlay
-              variationName={variation.name}
-              moveCount={moves.length}
-              onPracticeAgain={resetPractice}
-              onDismiss={() => setOverlayDismissed(true)}
-            />
-          )}
+        {mode === 'practice' && status === 'complete' && isLive && !overlayDismissed && (
+          <CompletionOverlay
+            variationName={variation.name}
+            moveCount={moves.length}
+            onPracticeAgain={resetPractice}
+            onDismiss={() => setOverlayDismissed(true)}
+          />
+        )}
       </div>
 
       {/* Optional bottom bar — aligned to board edges */}

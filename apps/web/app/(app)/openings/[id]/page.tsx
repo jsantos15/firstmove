@@ -2,6 +2,7 @@
 
 import { useState, use, useEffect, useMemo, useRef } from 'react';
 import { notFound } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { PracticeBoard, type PracticeMode } from '@/components/board/PracticeBoard';
 import { useOpening, type AppVariation } from '@/hooks/useOpenings';
@@ -142,6 +143,7 @@ function BranchRow({
   completions,
   onClick,
   buttonRef,
+  rowIndex = 0,
 }: {
   line: VariationGroup['lines'][number];
   globalIndex: number;
@@ -151,25 +153,26 @@ function BranchRow({
   completions?: number;
   onClick: () => void;
   buttonRef?: React.RefObject<HTMLButtonElement | null>;
+  rowIndex?: number;
 }) {
   const locked = globalIndex > 0 && !user;
+  const zebraClass = rowIndex % 2 === 0 ? 'bg-white/2' : '';
 
   return (
     <button
       ref={buttonRef}
       type="button"
       onClick={onClick}
-      className={`group relative w-full flex items-start gap-2.5 px-3 py-2 text-left text-xs transition-all ${
+      className={`group relative w-full flex items-center gap-2.5 px-4 py-2.5 text-left text-xs transition-all ${
         isActive
-          ? 'bg-amber-400/8 text-amber-300'
+          ? 'bg-amber-400/10 text-amber-300'
           : locked
-            ? 'text-gray-600'
-            : 'text-gray-400 hover:bg-white/4 hover:text-white'
+            ? `${zebraClass} text-gray-600`
+            : `${zebraClass} text-gray-400 hover:bg-white/5 hover:text-white`
       }`}
     >
-      {/* Left accent bar */}
       <span
-        className={`absolute inset-y-1.5 left-0 w-0.5 rounded-full transition-colors ${
+        className={`absolute inset-y-2 left-0 w-0.5 rounded-full transition-colors ${
           isActive ? 'bg-amber-400' : 'bg-transparent group-hover:bg-white/15'
         }`}
       />
@@ -265,6 +268,7 @@ function PracticalBranchRow({
   completions,
   openingColor,
   onClick,
+  rowIndex = 0,
 }: {
   branch: AppVariation;
   isActive: boolean;
@@ -273,48 +277,53 @@ function PracticalBranchRow({
   completions?: number;
   openingColor: 'white' | 'black';
   onClick: () => void;
+  rowIndex?: number;
 }) {
   const metadata = branch.branchMetadata;
   const title = metadata?.lesson_title ?? branch.name;
   const evalLabel = formatBranchEval(branchEvalValue(branch, openingColor));
+  const zebraClass = rowIndex % 2 === 0 ? 'bg-white/2' : '';
 
   return (
     <button
       type="button"
       onClick={onClick}
-      className={`group relative w-full rounded-lg border px-3 py-2 text-left transition-colors ${
+      className={`group relative w-full flex items-center gap-2.5 px-4 py-2.5 text-left text-xs transition-all ${
         isActive
-          ? 'border-amber-400/30 bg-amber-400/10'
+          ? 'bg-amber-400/10 text-amber-300'
           : locked
-            ? 'border-white/5 bg-white/[0.02] opacity-60'
-            : 'border-white/5 bg-white/2 hover:border-white/10 hover:bg-white/4'
+            ? `${zebraClass} text-gray-600 opacity-60`
+            : `${zebraClass} text-gray-400 hover:bg-white/5 hover:text-white`
       }`}
     >
-      <div className="flex min-w-0 items-start justify-between gap-2">
-        <div className="min-w-0">
-          <span
-            className={`block truncate text-xs font-medium leading-tight ${isActive ? 'text-amber-300' : 'text-gray-300'}`}
-          >
-            {title}
+      <span
+        className={`absolute inset-y-2 left-0 w-0.5 rounded-full transition-colors ${
+          isActive ? 'bg-amber-400' : 'bg-transparent group-hover:bg-white/15'
+        }`}
+      />
+      <div className="min-w-0 flex-1">
+        <span
+          className={`block truncate text-xs font-medium leading-tight ${isActive ? 'text-amber-300' : 'text-gray-300'}`}
+        >
+          {title}
+        </span>
+      </div>
+      <div className="flex shrink-0 items-center gap-1.5">
+        {evalLabel && (
+          <span className="rounded bg-white/5 px-1.5 py-0.5 text-[10px] tabular-nums text-gray-400">
+            {evalLabel}
           </span>
-        </div>
-        <div className="flex shrink-0 items-center gap-1.5">
-          {evalLabel && (
-            <span className="rounded bg-white/5 px-1.5 py-0.5 text-[10px] tabular-nums text-gray-400">
-              {evalLabel}
-            </span>
-          )}
-          {completions != null && completions > 0 && (
-            <span className="text-[10px] text-gray-600">{completions}x</span>
-          )}
-          {locked ? (
-            <span className="text-[11px]">Lock</span>
-          ) : mastery && mastery !== 'new' ? (
-            <span
-              className={`h-1.5 w-1.5 rounded-full ${MASTERY_COLORS[mastery as keyof typeof MASTERY_COLORS]}`}
-            />
-          ) : null}
-        </div>
+        )}
+        {completions != null && completions > 0 && (
+          <span className="text-[10px] text-gray-600">{completions}x</span>
+        )}
+        {locked ? (
+          <span className="text-[11px]">🔒</span>
+        ) : mastery && mastery !== 'new' ? (
+          <span
+            className={`h-1.5 w-1.5 rounded-full ${MASTERY_COLORS[mastery as keyof typeof MASTERY_COLORS]}`}
+          />
+        ) : null}
       </div>
     </button>
   );
@@ -323,6 +332,7 @@ function PracticalBranchRow({
 export default function PracticePage({ params, searchParams }: PageProps) {
   const { id } = use(params);
   const { variation: variationParam } = use(searchParams);
+  const router = useRouter();
   const { data: opening, isLoading } = useOpening(id);
   const { user } = useAuth();
   const { data: progress } = useAllProgress();
@@ -333,6 +343,7 @@ export default function PracticePage({ params, searchParams }: PageProps) {
   const [viewingFullLine, setViewingFullLine] = useState(false);
   const activeLineRef = useRef<HTMLButtonElement>(null);
   const [currentMoveIndex, setCurrentMoveIndex] = useState(-1);
+  const [displayMoveIndex, setDisplayMoveIndex] = useState(-1);
   const [mode, setMode] = useState<PracticeMode>('learn');
   const [coachFeedback, setCoachFeedback] = useState<CoachFeedback | null>(null);
   const [navState, setNavState] = useState({ canGoBack: false, canGoForward: false, isLive: true });
@@ -448,12 +459,38 @@ const selectedReferenceVariation =
     selectedLine?.lineKind !== 'practical_branch'
       ? (selectedLine?.variationAnchorPly ?? null)
       : null;
+  // In Practice mode, apply anchor-ply slicing the same way Learn does — unless the
+  // user explicitly clicked the Reference button (viewingFullLine), which means they
+  // want the full engine continuation. Punish branches always use all their moves.
+  const practicedVariation = selectedVariation && {
+    ...selectedVariation,
+    moves:
+      !viewingFullLine && selectedVariationAnchorPly != null
+        ? selectedVariation.moves.slice(0, selectedVariationAnchorPly)
+        : selectedVariation.moves,
+  };
   const selectedReferenceBranches = sortAndLimitDisplayedBranches(
     opening.practicalBranches.filter(
       branch => branch.branchMetadata?.parent_line_slug === activeReferenceLineId
     ),
     opening.color
   );
+
+  function handleAnalyzePosition() {
+    const movesToInclude = displayMoveIndex >= 0
+      ? selectedVariation.moves.slice(0, displayMoveIndex + 1)
+      : [];
+    const parts: string[] = [];
+    for (let i = 0; i < movesToInclude.length; i++) {
+      if (i % 2 === 0) parts.push(`${Math.floor(i / 2) + 1}.`);
+      parts.push(movesToInclude[i].san);
+    }
+    sessionStorage.setItem(
+      'firstmove_analyze_position',
+      JSON.stringify({ pgn: parts.join(' '), label: selectedVariation.name ?? opening?.name ?? 'Opening' })
+    );
+    router.push('/analysis');
+  }
 
   // Group header click: toggle expand/collapse and auto-select first child if needed
   function handleGroupClick(group: VariationGroup) {
@@ -516,47 +553,76 @@ const selectedReferenceVariation =
         <div className="flex h-full gap-3">
           {/* Board card */}
           <div className="shrink-0 h-full overflow-hidden rounded-xl border border-white/5 bg-(--bg-panel)">
-              {selectedVariation && (
+              {practicedVariation && (
                 <PracticeBoard
                   ref={practiceBoardRef}
                   opening={opening}
-                  variation={selectedVariation}
+                  variation={practicedVariation}
                   mode={mode}
                   coachPersona={coachSettings.persona}
                   onMoveIndexChange={setCurrentMoveIndex}
+                  onDisplayIndexChange={(idx) => setDisplayMoveIndex(idx > 0 ? idx - 1 : -1)}
                   onCoachFeedbackChange={setCoachFeedback}
                   onNavStateChange={setNavState}
                   hideControls
-                  topBar={<div className="h-15" />}
+                  topBar={
+                    <div className="h-15 flex flex-col justify-end pb-2 gap-1">
+                      {mode === 'practice' && practicedVariation && (
+                        <>
+                          <div className="flex justify-end">
+                            <span className="text-[11px] tabular-nums text-gray-500">
+                              {Math.max(0, currentMoveIndex + 1)}/{practicedVariation.moves.length}
+                            </span>
+                          </div>
+                          <div className="h-1.5 overflow-hidden rounded-full bg-white/8">
+                            <div
+                              className="h-full rounded-full bg-amber-400 transition-[width] duration-300 ease-out"
+                              style={{
+                                width: `${Math.min(100, Math.max(0, (currentMoveIndex + 1) / practicedVariation.moves.length * 100))}%`,
+                              }}
+                            />
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  }
                   bottomBar={
                     <div className="grid grid-cols-3 items-center py-2.5">
                       <div>
-                        <button
-                          type="button"
-                          onClick={() => practiceBoardRef.current?.reset()}
-                          className="ml-3 flex h-10 items-center gap-1.5 rounded border border-white/10 px-4 text-sm text-gray-400 transition-colors hover:border-white/20 hover:text-white"
-                        >
-                          ↺ Restart
-                        </button>
+                        {mode === 'practice' && (
+                          <button
+                            type="button"
+                            onClick={() => practiceBoardRef.current?.reset()}
+                            className="ml-3 flex h-10 items-center gap-1.5 rounded border border-white/10 px-4 text-sm text-gray-400 transition-colors hover:border-white/20 hover:text-white"
+                          >
+                            ↺ Restart
+                          </button>
+                        )}
                       </div>
                       <div className="flex justify-center">
                         <div className="flex items-center divide-x divide-white/10 overflow-hidden rounded-lg border border-white/10">
-                          <SidebarNavBtn onClick={() => practiceBoardRef.current?.navigateFirst()} disabled={!navState.canGoBack} title="First move">
+                          <SidebarNavBtn onClick={() => practiceBoardRef.current?.navigateFirst()} disabled={mode !== 'learn' && !navState.canGoBack} title="First move">
                             <svg viewBox="0 0 16 16" fill="currentColor" className="w-5 h-5"><path d="M3.5 3a.5.5 0 0 1 .5.5v3.793l6.146-4.439A.5.5 0 0 1 11 3.5v9a.5.5 0 0 1-.854.354L4 8.707V12.5a.5.5 0 0 1-1 0v-9a.5.5 0 0 1 .5-.5z" /></svg>
                           </SidebarNavBtn>
-                          <SidebarNavBtn onClick={() => practiceBoardRef.current?.navigateBack()} disabled={!navState.canGoBack} title="Previous move">
+                          <SidebarNavBtn onClick={() => practiceBoardRef.current?.navigateBack()} disabled={mode !== 'learn' && !navState.canGoBack} title="Previous move">
                             <svg viewBox="0 0 16 16" fill="currentColor" className="w-5 h-5"><path d="M11.354 3.646a.5.5 0 0 1 0 .708L6.707 9l4.647 4.646a.5.5 0 0 1-.708.708l-5-5a.5.5 0 0 1 0-.708l5-5a.5.5 0 0 1 .708 0z" /></svg>
                           </SidebarNavBtn>
-                          <SidebarNavBtn onClick={() => practiceBoardRef.current?.navigateForward()} disabled={!navState.canGoForward} title="Next move">
+                          <SidebarNavBtn
+                            onClick={() => practiceBoardRef.current?.navigateForward()}
+                            disabled={mode !== 'learn' && !navState.canGoForward}
+                            title="Next move"
+                          >
                             <svg viewBox="0 0 16 16" fill="currentColor" className="w-5 h-5"><path d="M4.646 3.646a.5.5 0 0 1 .708 0l5 5a.5.5 0 0 1 0 .708l-5 5a.5.5 0 0 1-.708-.708L9.293 9 4.646 4.354a.5.5 0 0 1 0-.708z" /></svg>
                           </SidebarNavBtn>
-                          <SidebarNavBtn onClick={() => practiceBoardRef.current?.navigateLast()} disabled={navState.isLive} title="Latest move">
+                          <SidebarNavBtn onClick={() => practiceBoardRef.current?.navigateLast()} disabled={mode !== 'learn' && navState.isLive} title="Latest move">
                             <svg viewBox="0 0 16 16" fill="currentColor" className="w-5 h-5"><path d="M12.5 3a.5.5 0 0 0-.5.5v3.793L5.854 2.854A.5.5 0 0 0 5 3.5v9a.5.5 0 0 0 .854.354L12 8.207V12.5a.5.5 0 0 0 1 0v-9a.5.5 0 0 0-.5-.5z" /></svg>
                           </SidebarNavBtn>
                         </div>
                       </div>
                       <div className="flex justify-end">
-                        <BoardSettingsPopover />
+                        <BoardSettingsPopover
+                          onAnalyzePosition={mode === 'learn' ? handleAnalyzePosition : undefined}
+                        />
                       </div>
                     </div>
                   }
@@ -577,7 +643,7 @@ const selectedReferenceVariation =
             </div>
 
             {/* Sections — padded content area with card borders */}
-            <div className="flex-1 min-h-0 flex flex-col gap-2 px-2 pb-2">
+            <div className="flex-1 min-h-0 flex flex-col gap-4 px-2 pb-2">
 
             {/* Move list — anchor moves only until user explicitly views full line */}
             {mode === 'learn' && selectedVariation && (
@@ -591,23 +657,25 @@ const selectedReferenceVariation =
                         : selectedVariation.moves,
                   }}
                   currentMoveIndex={currentMoveIndex}
+                  selectedMoveIndex={displayMoveIndex}
+                  onNavigate={(idx) => practiceBoardRef.current?.navigateTo(idx + 1)}
                   milestones={lessonOpeningMilestones}
+                  mode={mode}
                 />
               </div>
             )}
 
             {/* Variations + Lines — each a bordered card */}
-            <div className="flex-1 min-h-0 flex flex-col gap-2">
+            <div className="flex-1 min-h-0 flex flex-col gap-4">
 
               {/* Variations card */}
               <div className="min-h-0 flex flex-col rounded-lg border border-white/10 overflow-hidden" style={{ flex: 44 }}>
-                <div className="shrink-0 flex items-center justify-between px-4 py-3 border-b border-white/8">
+                <div className="shrink-0 flex items-center px-4 py-3 border-b border-white/8">
                   <h3 className="text-[11px] font-semibold uppercase tracking-widest text-gray-500">Variations</h3>
-                  <span className="text-[11px] text-gray-600">{groups.length} · {opening.variations.length}</span>
                 </div>
 
                 {/* Accordion */}
-                <div className="flex-1 min-h-0 overflow-y-auto py-1">
+                <div className="flex-1 min-h-0 overflow-y-auto">
                   {groups.map(group => {
                     const isExpanded = expandedGroupId === group.id;
                     const hasActiveChild = group.lines.some(l => l.id === activeReferenceLineId);
@@ -622,8 +690,8 @@ const selectedReferenceVariation =
                           onClick={() => handleGroupClick(group)}
                         />
                         {isExpanded && group.lines.length > 0 && (
-                          <div className="mx-3 mb-2.5 mt-0.5 overflow-hidden rounded-lg border border-white/5 divide-y divide-white/5">
-                            {group.lines.map(line => {
+                          <div className="mb-1">
+                            {group.lines.map((line, idx) => {
                               const globalIndex = opening.variations.findIndex(
                                 v => v.id === line.id
                               );
@@ -641,6 +709,7 @@ const selectedReferenceVariation =
                                   buttonRef={
                                     line.id === activeReferenceLineId ? activeLineRef : undefined
                                   }
+                                  rowIndex={idx}
                                 />
                               );
                             })}
@@ -665,58 +734,63 @@ const selectedReferenceVariation =
               </div>
 
               {/* Lines card */}
-              <div className="min-h-0 flex flex-col rounded-lg border border-white/10 overflow-hidden" style={{ flex: 56 }}>
-                <div className="shrink-0 flex items-center px-4 py-3 border-b border-white/8">
-                  <h3 className="text-[11px] font-semibold uppercase tracking-widest text-gray-500">Lines</h3>
-                </div>
-                <div className="flex-1 min-h-0 overflow-y-auto divide-y divide-white/8">
+              <div className="min-h-0 flex flex-col rounded-lg border border-white/10 overflow-hidden" style={{ flex: 34 }}>
+                <div className="flex-1 min-h-0 overflow-y-auto">
                   {/* Reference */}
-                  <div className="px-3 py-2.5">
-                    <p className="mb-2 px-1 text-[10px] font-medium uppercase tracking-wider text-gray-600">Reference</p>
-                    {selectedReferenceVariation ? (
-                      <button
-                        type="button"
-                        onClick={handleReferenceLineClick}
-                        className={`group relative w-full rounded-lg border px-3 py-2 text-left transition-colors ${
-                          viewingFullLine
-                            ? 'border-amber-400/30 bg-amber-400/10'
-                            : 'border-white/5 bg-white/2 hover:border-white/10 hover:bg-white/4'
+                  <div className="px-4 pt-2.5 pb-1">
+                    <p className="text-[10px] font-medium uppercase tracking-wider text-gray-600">Reference (engine continuation)</p>
+                  </div>
+                  {selectedReferenceVariation ? (
+                    <button
+                      type="button"
+                      onClick={handleReferenceLineClick}
+                      className={`group relative w-full flex items-center gap-2.5 px-4 py-2.5 text-left text-xs transition-all ${
+                        viewingFullLine
+                          ? 'bg-amber-400/10 text-amber-300'
+                          : 'bg-white/2 text-gray-400 hover:bg-white/5 hover:text-white'
+                      }`}
+                    >
+                      <span
+                        className={`absolute inset-y-2 left-0 w-0.5 rounded-full transition-colors ${
+                          viewingFullLine ? 'bg-amber-400' : 'bg-transparent group-hover:bg-white/15'
                         }`}
-                      >
+                      />
+                      <div className="min-w-0 flex-1">
                         <span className={`block truncate text-xs font-medium leading-tight ${viewingFullLine ? 'text-amber-300' : 'text-gray-300'}`}>
                           {selectedReferenceVariation.name}
                         </span>
-                        <span className="mt-0.5 block text-[10px] text-gray-600">Engine continuation</span>
-                      </button>
-                    ) : (
-                      <p className="px-1 text-xs text-gray-600">Select a variation above.</p>
-                    )}
-                  </div>
-                  {/* Punish */}
-                  <div className="px-3 py-2.5">
-                    <p className="mb-2 px-1 text-[10px] font-medium uppercase tracking-wider text-gray-600">Punish</p>
-                    {selectedReferenceBranches.length > 0 ? (
-                      <div className="flex flex-col gap-1.5">
-                        {selectedReferenceBranches.map(branch => {
-                          const branchProgress = progress?.get(`${opening.id}/${branch.id}`);
-                          return (
-                            <PracticalBranchRow
-                              key={branch.id}
-                              branch={branch}
-                              isActive={branch.id === selectedLineId}
-                              locked={activeReferenceGlobalIndex > 0 && !user}
-                              mastery={branchProgress?.mastery}
-                              completions={branchProgress?.timesCompleted}
-                              openingColor={opening.color}
-                              onClick={() => handleBranchClick(branch.id)}
-                            />
-                          );
-                        })}
                       </div>
-                    ) : (
-                      <p className="px-1 text-xs text-gray-600">No punish lines for this variation yet.</p>
-                    )}
+                    </button>
+                  ) : (
+                    <p className="px-4 py-2 text-xs text-gray-600">Select a variation above.</p>
+                  )}
+                  <div className="border-t border-white/8" />
+                  {/* Punish */}
+                  <div className="px-4 pt-3 pb-1">
+                    <p className="text-[10px] font-medium uppercase tracking-wider text-gray-600">Punish</p>
                   </div>
+                  {selectedReferenceBranches.length > 0 ? (
+                    <>
+                      {selectedReferenceBranches.map((branch, idx) => {
+                        const branchProgress = progress?.get(`${opening.id}/${branch.id}`);
+                        return (
+                          <PracticalBranchRow
+                            key={branch.id}
+                            branch={branch}
+                            isActive={branch.id === selectedLineId}
+                            locked={activeReferenceGlobalIndex > 0 && !user}
+                            mastery={branchProgress?.mastery}
+                            completions={branchProgress?.timesCompleted}
+                            openingColor={opening.color}
+                            onClick={() => handleBranchClick(branch.id)}
+                            rowIndex={idx}
+                          />
+                        );
+                      })}
+                    </>
+                  ) : (
+                    <p className="px-4 py-2 text-xs text-gray-600">No punish lines for this variation yet.</p>
+                  )}
                 </div>
               </div>
 
