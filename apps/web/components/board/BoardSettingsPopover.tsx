@@ -17,32 +17,68 @@ function SettingRow({ label, children }: { label: string; children: React.ReactN
 function SettingSelect({
   value,
   onChange,
-  children,
+  options,
 }: {
   value: string;
   onChange: (v: string) => void;
-  children: React.ReactNode;
+  options: { value: string; label: string }[];
 }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  const selectedLabel = options.find(o => o.value === value)?.label ?? value;
+
+  useEffect(() => {
+    if (!open) return;
+    function onPointerDown(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener('mousedown', onPointerDown);
+    return () => document.removeEventListener('mousedown', onPointerDown);
+  }, [open]);
+
   return (
-    <div className="relative w-36">
-      <select
-        value={value}
-        onChange={e => onChange(e.target.value)}
-        className="w-full appearance-none cursor-pointer rounded-lg border border-white/10 bg-white/5 py-1.5 pl-3 pr-7 text-xs text-gray-200 outline-none transition-colors focus:border-amber-400/40"
+    <div ref={ref} className="relative w-36">
+      <button
+        type="button"
+        onClick={() => setOpen(v => !v)}
+        className={`flex w-full items-center justify-between gap-2 rounded-lg border px-3 py-1.5 text-xs transition-colors ${
+          open
+            ? 'border-amber-400/40 bg-white/8 text-white'
+            : 'border-white/10 bg-white/5 text-gray-200 hover:border-white/20 hover:text-white'
+        }`}
       >
-        {children}
-      </select>
-      <svg
-        className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 h-3 w-3 text-gray-500"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth={2}
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      >
-        <path d="M6 9l6 6 6-6" />
-      </svg>
+        <span className="truncate">{selectedLabel}</span>
+        <svg
+          className={`h-3 w-3 shrink-0 text-gray-500 transition-transform ${open ? 'rotate-180' : ''}`}
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth={2}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <path d="M6 9l6 6 6-6" />
+        </svg>
+      </button>
+
+      {open && (
+        <div className="absolute right-0 top-full z-50 mt-1 w-full overflow-hidden rounded-lg border border-white/10 bg-[#1a1a2e] shadow-xl shadow-black/60">
+          {options.map(opt => (
+            <button
+              key={opt.value}
+              type="button"
+              onClick={() => { onChange(opt.value); setOpen(false); }}
+              className={`flex w-full items-center px-3 py-1.5 text-left text-xs transition-colors ${
+                opt.value === value
+                  ? 'bg-amber-400/15 text-amber-300'
+                  : 'text-gray-300 hover:bg-white/8 hover:text-white'
+              }`}
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -98,74 +134,67 @@ export function BoardSettingsPopover() {
 
           <div className="space-y-3">
             <SettingRow label="Theme">
-              <SettingSelect value={settings.themeId} onChange={v => setSettings({ themeId: v })}>
-                {BOARD_THEMES.map(t => (
-                  <option key={t.id} value={t.id}>{t.label}</option>
-                ))}
-              </SettingSelect>
+              <SettingSelect
+                value={settings.themeId}
+                onChange={v => setSettings({ themeId: v })}
+                options={BOARD_THEMES.map(t => ({ value: t.id, label: t.label }))}
+              />
             </SettingRow>
 
             <SettingRow label="Pieces">
-              <SettingSelect value={settings.pieceSetId} onChange={v => setSettings({ pieceSetId: v })}>
-                {PIECE_SETS.map(s => (
-                  <option key={s.id} value={s.id}>{s.label}</option>
-                ))}
-              </SettingSelect>
+              <SettingSelect
+                value={settings.pieceSetId}
+                onChange={v => setSettings({ pieceSetId: v })}
+                options={PIECE_SETS.map(s => ({ value: s.id, label: s.label }))}
+              />
             </SettingRow>
 
             <SettingRow label="Animation">
               <SettingSelect
                 value={settings.animationSpeed}
                 onChange={v => setSettings({ animationSpeed: v as typeof settings.animationSpeed })}
-              >
-                {(['off', 'slow', 'normal', 'fast'] as const).map(s => (
-                  <option key={s} value={s}>{s.charAt(0).toUpperCase() + s.slice(1)}</option>
-                ))}
-              </SettingSelect>
+                options={(['off', 'slow', 'normal', 'fast'] as const).map(s => ({
+                  value: s,
+                  label: s.charAt(0).toUpperCase() + s.slice(1),
+                }))}
+              />
             </SettingRow>
 
             <SettingRow label="Coordinates">
               <SettingSelect
                 value={settings.showCoordinates ? 'on' : 'off'}
                 onChange={v => setSettings({ showCoordinates: v === 'on' })}
-              >
-                <option value="on">On</option>
-                <option value="off">Off</option>
-              </SettingSelect>
+                options={[{ value: 'on', label: 'On' }, { value: 'off', label: 'Off' }]}
+              />
             </SettingRow>
 
             <SettingRow label="Orientation">
               <SettingSelect
                 value={settings.flipBoard ? 'flip' : 'normal'}
                 onChange={v => setSettings({ flipBoard: v === 'flip' })}
-              >
-                <option value="normal">White on bottom</option>
-                <option value="flip">Black on bottom</option>
-              </SettingSelect>
+                options={[
+                  { value: 'normal', label: 'White on bottom' },
+                  { value: 'flip', label: 'Black on bottom' },
+                ]}
+              />
             </SettingRow>
 
             <SettingRow label="Move sound">
               <SettingSelect
                 value={settings.moveSound ? 'on' : 'off'}
                 onChange={v => setSettings({ moveSound: v === 'on' })}
-              >
-                <option value="on">On</option>
-                <option value="off">Off</option>
-              </SettingSelect>
+                options={[{ value: 'on', label: 'On' }, { value: 'off', label: 'Off' }]}
+              />
             </SettingRow>
 
             <SettingRow label="Coach">
               <SettingSelect
                 value={coachSettings.persona}
                 onChange={v => setCoachSettings({ persona: v as typeof coachSettings.persona })}
-              >
-                {COACH_PERSONA_OPTIONS.map(o => (
-                  <option key={o.id} value={o.id}>{o.label}</option>
-                ))}
-              </SettingSelect>
+                options={COACH_PERSONA_OPTIONS.map(o => ({ value: o.id, label: o.label }))}
+              />
             </SettingRow>
           </div>
-
         </div>
       )}
     </div>
