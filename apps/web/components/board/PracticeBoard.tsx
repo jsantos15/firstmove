@@ -124,7 +124,7 @@ function EvalBar({
   if (typeof evalCp !== 'number' || !Number.isFinite(evalCp)) {
     return reserveSpace ? (
       <div
-        className={`relative ml-2 hidden ${heightClass} w-8 shrink-0 overflow-hidden rounded-md border border-white/15 ${topClassName} shadow-inner shadow-black/40 sm:block`}
+        className={`relative ml-2 hidden ${heightClass} w-7 shrink-0 overflow-hidden rounded-md border border-white/15 ${topClassName} shadow-inner shadow-black/40 sm:block`}
         style={heightStyle}
         title="Engine evaluation loading"
         aria-label="Engine evaluation loading"
@@ -146,7 +146,7 @@ function EvalBar({
 
   return (
     <div
-      className={`relative ml-2 hidden ${heightClass} w-8 shrink-0 overflow-hidden rounded-md border border-white/15 ${topClassName} shadow-inner shadow-black/40 sm:block`}
+      className={`relative ml-2 hidden ${heightClass} w-7 shrink-0 overflow-hidden rounded-md border border-white/15 ${topClassName} shadow-inner shadow-black/40 sm:block`}
       style={heightStyle}
       title={`Engine evaluation for ${perspectiveLabel}: ${label}`}
       aria-label={`Engine evaluation for ${perspectiveLabel} ${label}`}
