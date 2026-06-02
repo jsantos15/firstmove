@@ -1017,35 +1017,6 @@ export default function AnalysisPage() {
   const totalMovesRef = useRef(0);
   totalMovesRef.current = analyzedGame?.moves.length ?? 0;
 
-  // Auto-load a position passed from the Learn feature via sessionStorage
-  useEffect(() => {
-    const raw = sessionStorage.getItem('firstmove_analyze_position');
-    if (!raw) return;
-    sessionStorage.removeItem('firstmove_analyze_position');
-    try {
-      const { pgn, label } = JSON.parse(raw) as { pgn: string; label: string };
-      const game = buildAnalyzedGameFromPgn({ id: `game-${Date.now()}`, pgn });
-      setAnalyzedGame(game);
-      const lastIndex = game.moves.length - 1;
-      setCurrentPlyIndex(lastIndex);
-      if (lastIndex >= 0) {
-        const lastMove = game.moves[lastIndex];
-        if (lastMove?.beforeFen) {
-          try {
-            const chess = new Chess(lastMove.beforeFen);
-            const result = chess.move(lastMove.san);
-            setLastMoveSquares(result ? { from: result.from, to: result.to } : null);
-          } catch {
-            setLastMoveSquares(null);
-          }
-        }
-      }
-      setSessionGames([{ id: game.id, label, game, hasEngine: false }]);
-    } catch {
-      // silently ignore — bad data in sessionStorage
-    }
-  }, []);
-
   useEffect(() => {
     const el = wrapperRef.current;
     if (!el) return;

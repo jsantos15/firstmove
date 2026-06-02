@@ -2,7 +2,6 @@
 
 import { useState, use, useEffect, useMemo, useRef } from 'react';
 import { notFound } from 'next/navigation';
-import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { PracticeBoard, type PracticeMode } from '@/components/board/PracticeBoard';
 import { useOpening, type AppVariation } from '@/hooks/useOpenings';
@@ -332,7 +331,6 @@ function PracticalBranchRow({
 export default function PracticePage({ params, searchParams }: PageProps) {
   const { id } = use(params);
   const { variation: variationParam } = use(searchParams);
-  const router = useRouter();
   const { data: opening, isLoading } = useOpening(id);
   const { user } = useAuth();
   const { data: progress } = useAllProgress();
@@ -476,21 +474,7 @@ const selectedReferenceVariation =
     opening.color
   );
 
-  function handleAnalyzePosition() {
-    const movesToInclude = displayMoveIndex >= 0
-      ? selectedVariation.moves.slice(0, displayMoveIndex + 1)
-      : [];
-    const parts: string[] = [];
-    for (let i = 0; i < movesToInclude.length; i++) {
-      if (i % 2 === 0) parts.push(`${Math.floor(i / 2) + 1}.`);
-      parts.push(movesToInclude[i].san);
-    }
-    sessionStorage.setItem(
-      'firstmove_analyze_position',
-      JSON.stringify({ pgn: parts.join(' '), label: selectedVariation.name ?? opening?.name ?? 'Opening' })
-    );
-    router.push('/analysis');
-  }
+
 
   // Group header click: toggle expand/collapse and auto-select first child if needed
   function handleGroupClick(group: VariationGroup) {
@@ -621,7 +605,7 @@ const selectedReferenceVariation =
                       </div>
                       <div className="flex justify-end">
                         <BoardSettingsPopover
-                          onAnalyzePosition={mode === 'learn' ? handleAnalyzePosition : undefined}
+
                         />
                       </div>
                     </div>

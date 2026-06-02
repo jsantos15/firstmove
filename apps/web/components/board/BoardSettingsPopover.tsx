@@ -24,11 +24,11 @@ function SettingSelect({
   children: React.ReactNode;
 }) {
   return (
-    <div className="relative">
+    <div className="relative w-36">
       <select
         value={value}
         onChange={e => onChange(e.target.value)}
-        className="appearance-none cursor-pointer rounded-lg border border-white/10 bg-white/5 py-1.5 pl-3 pr-7 text-xs text-gray-200 outline-none transition-colors focus:border-amber-400/40"
+        className="w-full appearance-none cursor-pointer rounded-lg border border-white/10 bg-white/5 py-1.5 pl-3 pr-7 text-xs text-gray-200 outline-none transition-colors focus:border-amber-400/40"
       >
         {children}
       </select>
@@ -47,7 +47,7 @@ function SettingSelect({
   );
 }
 
-export function BoardSettingsPopover({ onAnalyzePosition }: { onAnalyzePosition?: () => void }) {
+export function BoardSettingsPopover() {
   const { settings, setSettings } = useBoardSettings();
   const { settings: coachSettings, setSettings: setCoachSettings } = useCoachSettings();
   const [open, setOpen] = useState(false);
@@ -166,21 +166,6 @@ export function BoardSettingsPopover({ onAnalyzePosition }: { onAnalyzePosition?
             </SettingRow>
           </div>
 
-          {onAnalyzePosition && (
-            <div className="mt-4 border-t border-white/8 pt-4">
-              <button
-                type="button"
-                onClick={() => { onAnalyzePosition(); setOpen(false); }}
-                className="flex w-full items-center gap-2.5 rounded-xl border border-white/10 bg-white/5 px-3 py-2.5 text-left text-xs font-medium text-gray-300 transition-colors hover:border-white/20 hover:text-white"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4 shrink-0 text-gray-500">
-                  <path d="M3 3v18h18" />
-                  <path d="m19 9-5 5-4-4-3 3" />
-                </svg>
-                Analyze current position
-              </button>
-            </div>
-          )}
         </div>
       )}
     </div>
