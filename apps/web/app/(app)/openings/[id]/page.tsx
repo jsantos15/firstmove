@@ -4,6 +4,7 @@ import { useState, use, useEffect, useMemo, useRef } from 'react';
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import { PracticeBoard, type PracticeMode } from '@/components/board/PracticeBoard';
+import { SidePanel } from '@/components/board/SidePanel';
 import { useOpening, type AppVariation } from '@/hooks/useOpenings';
 import { useOpeningPositionLabels } from '@/hooks/useOpeningPositionLabels';
 import { MoveList } from '@/components/board/MoveList';
@@ -535,9 +536,7 @@ const selectedReferenceVariation =
     <div className="h-full flex flex-col overflow-hidden">
       <div className="flex-1 min-h-0 overflow-hidden p-3 flex justify-center">
         <div className="flex h-full gap-3">
-          {/* Board card */}
-          <div className="shrink-0 h-full overflow-hidden rounded-xl border border-white/5 bg-(--bg-panel)">
-              {practicedVariation && (
+          {practicedVariation && (
                 <PracticeBoard
                   ref={practiceBoardRef}
                   opening={opening}
@@ -612,21 +611,16 @@ const selectedReferenceVariation =
                   }
                 />
               )}
-          </div>
 
-          {/* Sidebar card */}
-          <div className="w-104 lg:w-114 shrink-0 h-full rounded-xl border border-white/5 bg-(--bg-panel) overflow-hidden flex flex-col">
-            {/* Learn / Practice toggle — same height as board topBar so the separator aligns with the board top edge */}
-            <div className="h-15 shrink-0 flex border-b border-white/5">
-              <ModeButton active={mode === 'learn'} onClick={() => setMode('learn')}>Learn</ModeButton>
-              <ModeButton active={mode === 'practice'} onClick={() => setMode('practice')}>Practice</ModeButton>
-            </div>
-            {/* Coach — height = 1 board square (board area = 100% - 120px topBar+bottomBar, /8 squares) */}
-            <div className="shrink-0 overflow-hidden" style={{ height: 'calc((100% - 120px) / 8)' }}>
-              <CoachBubble feedback={coachFeedback} fallbackText={opening.description} dark />
-            </div>
-
-            {/* Sections — padded content area with card borders */}
+          <SidePanel
+            topBar={
+              <>
+                <ModeButton active={mode === 'learn'} onClick={() => setMode('learn')}>Learn</ModeButton>
+                <ModeButton active={mode === 'practice'} onClick={() => setMode('practice')}>Practice</ModeButton>
+              </>
+            }
+            coach={<CoachBubble feedback={coachFeedback} fallbackText={opening.description} dark />}
+          >
             <div className="flex-1 min-h-0 flex flex-col gap-4 px-2 pb-2">
 
             {/* Move list — anchor moves only until user explicitly views full line */}
@@ -783,8 +777,7 @@ const selectedReferenceVariation =
 
             </div>
             {/* end sections wrapper */}
-          </div>
-          {/* end sidebar card */}
+          </SidePanel>
         </div>
       </div>
     </div>

@@ -4,6 +4,8 @@ import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { Chessboard } from 'react-chessboard';
 import { Chess } from '@firstmove/core';
 import { CoachBubble } from '@/components/practice/CoachBubble';
+import { BoardPanel } from '@/components/board/BoardPanel';
+import { SidePanel } from '@/components/board/SidePanel';
 import { useBoardSettings } from '@/hooks/useBoardSettings';
 import { useCoachSettings } from '@/hooks/useCoachSettings';
 import { getCustomPieces } from '@/lib/piecesets';
@@ -25,7 +27,6 @@ import type { AnalyzedGame, AnalyzedGameMove } from '@firstmove/core';
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const INITIAL_FEN = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
-const EVAL_BAR_CP_LIMIT = 600;
 const INITIAL_EVAL_CP = 20;
 const STOCKFISH_DEPTH = 10;
 
@@ -76,61 +77,6 @@ function extractGameTitle(pgn: string): string | null {
   if (white && black) return `${white} vs ${black}`;
   if (white) return white;
   return null;
-}
-
-// ─── Eval Bar ─────────────────────────────────────────────────────────────────
-
-function EvalBar({
-  evalCp,
-  reserveSpace = false,
-  size,
-}: {
-  evalCp?: number;
-  reserveSpace?: boolean;
-  size: number;
-}) {
-  const barStyle = { height: size };
-
-  if (typeof evalCp !== 'number' || !Number.isFinite(evalCp)) {
-    return reserveSpace ? (
-      <div
-        className="relative ml-2 hidden w-7 shrink-0 overflow-hidden rounded-md border border-white/15 bg-[#181818] shadow-inner shadow-black/40 sm:block"
-        style={barStyle}
-        title="Engine evaluation loading"
-        aria-label="Engine evaluation loading"
-      >
-        <div className="absolute inset-x-0 bottom-0 h-1/2 bg-zinc-100 opacity-70" />
-        <div className="pointer-events-none absolute inset-x-0 top-1/2 h-px bg-amber-400/45" />
-      </div>
-    ) : null;
-  }
-
-  const clamped = Math.max(-EVAL_BAR_CP_LIMIT, Math.min(EVAL_BAR_CP_LIMIT, evalCp));
-  const whiteHeight = 50 + (clamped / EVAL_BAR_CP_LIMIT) * 45;
-  const label = formatEval(evalCp);
-  const labelOnWhite = evalCp < 0;
-
-  return (
-    <div
-      className="relative ml-2 hidden w-7 shrink-0 overflow-hidden rounded-md border border-white/15 bg-[#181818] shadow-inner shadow-black/40 sm:block"
-      style={barStyle}
-      title={`Engine evaluation: ${label}`}
-      aria-label={`Engine evaluation ${label}`}
-    >
-      <div
-        className="absolute inset-x-0 bottom-0 bg-zinc-100 transition-[height] duration-300"
-        style={{ height: `${whiteHeight}%` }}
-      />
-      <div className="pointer-events-none absolute inset-x-0 top-1/2 h-px bg-amber-400/45" />
-      <div
-        className={`pointer-events-none absolute left-1/2 -translate-x-1/2 text-[10px] font-semibold tabular-nums ${
-          labelOnWhite ? 'bottom-1 text-zinc-950' : 'top-1 text-zinc-100'
-        }`}
-      >
-        {label}
-      </div>
-    </div>
-  );
 }
 
 // ─── Nav Button ───────────────────────────────────────────────────────────────
@@ -855,10 +801,9 @@ export default function AnalysisPage() {
   const [engineError, setEngineError] = useState<string | null>(null);
   const [activeBottomPanel, setActiveBottomPanel] = useState<BottomPanelTab>('review');
   const [boardSize, setBoardSize] = useState(480);
-const { theme, animationDuration, settings, setSettings } = useBoardSettings();
+  const { theme, animationDuration, settings, setSettings } = useBoardSettings();
   const { settings: coachSettings } = useCoachSettings();
   const customPieces = useMemo(() => getCustomPieces(settings.pieceSetId), [settings.pieceSetId]);
-  const wrapperRef = useRef<HTMLDivElement>(null);
 
   // Stable refs so callbacks don't go stale
   const analyzedGameRef = useRef<AnalyzedGame | null>(null);
@@ -867,19 +812,6 @@ const { theme, animationDuration, settings, setSettings } = useBoardSettings();
   currentPlyRef.current = currentPlyIndex;
   const totalMovesRef = useRef(0);
   totalMovesRef.current = analyzedGame?.moves.length ?? 0;
-
-  useEffect(() => {
-    const el = wrapperRef.current;
-    if (!el) return;
-    const update = () => {
-      const size = el.clientHeight;
-      if (size > 0) setBoardSize(size);
-    };
-    const observer = new ResizeObserver(update);
-    observer.observe(el);
-    update();
-    return () => observer.disconnect();
-  }, []);
 
   const goTo = useCallback((plyIndex: number, game?: AnalyzedGame) => {
     const g = game ?? analyzedGameRef.current;
@@ -1062,78 +994,69 @@ setSessionGames(prev => [{ id: game.id, label, game, hasEngine: false }, ...prev
       <div className="flex-1 min-h-0 overflow-hidden p-3 flex justify-center">
         <div className="flex h-full gap-3">
 
-          {/* Board card — same structure as openings */}
-          <div className="shrink-0 h-full overflow-hidden rounded-xl border border-white/5 bg-(--bg-panel) flex flex-col select-none">
-            {/* topBar — aligned to board width */}
-            <div className="shrink-0 h-15" style={{ width: boardSize }} />
-
-            {/* Board + eval bar */}
-            <div ref={wrapperRef} className="min-h-0 flex-1 relative">
-              <div className="absolute inset-0 flex items-center">
-                <div className="overflow-hidden rounded-xl ring-1 ring-white/10">
-                  <Chessboard
-                    position={currentFen}
-                    boardWidth={boardSize}
-                    boardOrientation={settings.flipBoard ? 'black' : 'white'}
-                    arePiecesDraggable={false}
-                    customSquareStyles={customSquareStyles}
-                    showBoardNotation={settings.showCoordinates}
-                    customDarkSquareStyle={{ backgroundColor: theme.dark }}
-                    customLightSquareStyle={{ backgroundColor: theme.light }}
-                    animationDuration={animationDuration}
-                    customPieces={customPieces}
-                  />
+          <BoardPanel
+            evalCp={displayEvalCp}
+            displayPerspective={settings.flipBoard ? 'black' : 'white'}
+            reserveEvalSpace={true}
+            boardSize={boardSize}
+            onBoardSizeChange={setBoardSize}
+            bottomBar={
+              <div className="grid grid-cols-3 items-center py-2.5">
+                <div className="pl-3">
+                  <button
+                    type="button"
+                    onClick={() => setSettings({ flipBoard: !settings.flipBoard })}
+                    title="Flip board"
+                    className="flex h-9 w-9 items-center justify-center rounded text-gray-500 transition-colors hover:bg-white/5 hover:text-gray-300"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
+                      <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8" />
+                      <path d="M21 3v5h-5" />
+                      <path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16" />
+                      <path d="M8 21H3v-5" />
+                    </svg>
+                  </button>
                 </div>
-                <EvalBar evalCp={displayEvalCp} reserveSpace={true} size={boardSize} />
-              </div>
-            </div>
-
-            {/* bottomBar — flip | nav | settings */}
-            <div className="shrink-0 grid grid-cols-3 items-center py-2.5" style={{ width: boardSize }}>
-              <div className="pl-3">
-                <button
-                  type="button"
-                  onClick={() => setSettings({ flipBoard: !settings.flipBoard })}
-                  title="Flip board"
-                  className="flex h-9 w-9 items-center justify-center rounded text-gray-500 transition-colors hover:bg-white/5 hover:text-gray-300"
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
-                    <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8" />
-                    <path d="M21 3v5h-5" />
-                    <path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16" />
-                    <path d="M8 21H3v-5" />
-                  </svg>
-                </button>
-              </div>
-              <div className="flex justify-center">
-                <div className="flex items-center divide-x divide-white/10 overflow-hidden rounded-lg border border-white/10">
-                  <NavBtn onClick={() => goTo(-1)} disabled={!canGoBack} title="First position">
-                    <svg viewBox="0 0 16 16" fill="currentColor" className="w-5 h-5"><path d="M3.5 3a.5.5 0 0 1 .5.5v3.793l6.146-4.439A.5.5 0 0 1 11 3.5v9a.5.5 0 0 1-.854.354L4 8.707V12.5a.5.5 0 0 1-1 0v-9a.5.5 0 0 1 .5-.5z" /></svg>
-                  </NavBtn>
-                  <NavBtn onClick={() => goTo(currentPlyIndex - 1)} disabled={!canGoBack} title="Previous (←)">
-                    <svg viewBox="0 0 16 16" fill="currentColor" className="w-5 h-5"><path d="M11.354 3.646a.5.5 0 0 1 0 .708L6.707 9l4.647 4.646a.5.5 0 0 1-.708.708l-5-5a.5.5 0 0 1 0-.708l5-5a.5.5 0 0 1 .708 0z" /></svg>
-                  </NavBtn>
-                  <NavBtn onClick={() => goTo(currentPlyIndex + 1)} disabled={!canGoForward} title="Next (→)">
-                    <svg viewBox="0 0 16 16" fill="currentColor" className="w-5 h-5"><path d="M4.646 3.646a.5.5 0 0 1 .708 0l5 5a.5.5 0 0 1 0 .708l-5 5a.5.5 0 0 1-.708-.708L9.293 9 4.646 4.354a.5.5 0 0 1 0-.708z" /></svg>
-                  </NavBtn>
-                  <NavBtn onClick={() => goTo(totalMoves - 1)} disabled={!canGoForward} title="Last position">
-                    <svg viewBox="0 0 16 16" fill="currentColor" className="w-5 h-5"><path d="M12.5 3a.5.5 0 0 0-.5.5v3.793L5.854 2.854A.5.5 0 0 0 5 3.5v9a.5.5 0 0 0 .854.354L12 8.207V12.5a.5.5 0 0 0 1 0v-9a.5.5 0 0 0-.5-.5z" /></svg>
-                  </NavBtn>
+                <div className="flex justify-center">
+                  <div className="flex items-center divide-x divide-white/10 overflow-hidden rounded-lg border border-white/10">
+                    <NavBtn onClick={() => goTo(-1)} disabled={!canGoBack} title="First position">
+                      <svg viewBox="0 0 16 16" fill="currentColor" className="w-5 h-5"><path d="M3.5 3a.5.5 0 0 1 .5.5v3.793l6.146-4.439A.5.5 0 0 1 11 3.5v9a.5.5 0 0 1-.854.354L4 8.707V12.5a.5.5 0 0 1-1 0v-9a.5.5 0 0 1 .5-.5z" /></svg>
+                    </NavBtn>
+                    <NavBtn onClick={() => goTo(currentPlyIndex - 1)} disabled={!canGoBack} title="Previous (←)">
+                      <svg viewBox="0 0 16 16" fill="currentColor" className="w-5 h-5"><path d="M11.354 3.646a.5.5 0 0 1 0 .708L6.707 9l4.647 4.646a.5.5 0 0 1-.708.708l-5-5a.5.5 0 0 1 0-.708l5-5a.5.5 0 0 1 .708 0z" /></svg>
+                    </NavBtn>
+                    <NavBtn onClick={() => goTo(currentPlyIndex + 1)} disabled={!canGoForward} title="Next (→)">
+                      <svg viewBox="0 0 16 16" fill="currentColor" className="w-5 h-5"><path d="M4.646 3.646a.5.5 0 0 1 .708 0l5 5a.5.5 0 0 1 0 .708l-5 5a.5.5 0 0 1-.708-.708L9.293 9 4.646 4.354a.5.5 0 0 1 0-.708z" /></svg>
+                    </NavBtn>
+                    <NavBtn onClick={() => goTo(totalMoves - 1)} disabled={!canGoForward} title="Last position">
+                      <svg viewBox="0 0 16 16" fill="currentColor" className="w-5 h-5"><path d="M12.5 3a.5.5 0 0 0-.5.5v3.793L5.854 2.854A.5.5 0 0 0 5 3.5v9a.5.5 0 0 0 .854.354L12 8.207V12.5a.5.5 0 0 0 1 0v-9a.5.5 0 0 0-.5-.5z" /></svg>
+                    </NavBtn>
+                  </div>
+                </div>
+                <div className="flex justify-end">
+                  <BoardSettingsPopover />
                 </div>
               </div>
-              <div className="flex justify-end">
-                <BoardSettingsPopover />
-              </div>
+            }
+          >
+            <div className="overflow-hidden rounded-xl ring-1 ring-white/10">
+              <Chessboard
+                position={currentFen}
+                boardWidth={boardSize}
+                boardOrientation={settings.flipBoard ? 'black' : 'white'}
+                arePiecesDraggable={false}
+                customSquareStyles={customSquareStyles}
+                showBoardNotation={settings.showCoordinates}
+                customDarkSquareStyle={{ backgroundColor: theme.dark }}
+                customLightSquareStyle={{ backgroundColor: theme.light }}
+                animationDuration={animationDuration}
+                customPieces={customPieces}
+              />
             </div>
-          </div>
+          </BoardPanel>
 
-          {/* Sidebar card — same container as openings */}
-          <div className="w-104 lg:w-114 shrink-0 h-full rounded-xl border border-white/5 bg-(--bg-panel) overflow-hidden flex flex-col">
-            {/* Empty top row — same height as board topBar for visual alignment */}
-            <div className="h-15 shrink-0 border-b border-white/5" />
-
-            {/* Coach — same sizing as openings (1 board square) */}
-            <div className="shrink-0 overflow-hidden" style={{ height: 'calc((100% - 120px) / 8)' }}>
+          <SidePanel
+            coach={
               <CoachBubble
                 feedback={coachFeedback}
                 fallbackText={
@@ -1143,9 +1066,8 @@ setSessionGames(prev => [{ id: game.id, label, game, hasEngine: false }, ...prev
                 }
                 dark
               />
-            </div>
-
-            {/* Content */}
+            }
+          >
             <div className="flex-1 min-h-0 flex flex-col">
               {/* Actions */}
               <div className="shrink-0 flex items-center gap-2 border-b border-white/5 px-4 py-3">
@@ -1276,7 +1198,7 @@ setSessionGames(prev => [{ id: game.id, label, game, hasEngine: false }, ...prev
                 </div>
               </div>
             </div>
-          </div>
+          </SidePanel>
 
         </div>
       </div>

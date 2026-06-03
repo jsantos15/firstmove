@@ -6,6 +6,7 @@ import { Chess, type CoachPersona, type Opening, type OpeningVariation } from '@
 import { useRecordCompletion, useRecordLearned } from '@/hooks/useProgress';
 import { useAuth } from '@/app/providers';
 import { CompletionOverlay } from './CompletionOverlay';
+import { BoardPanel } from './BoardPanel';
 import { useBoardSettings } from '@/hooks/useBoardSettings';
 import { getCustomPieces } from '@/lib/piecesets';
 import {
@@ -56,7 +57,6 @@ interface QueuedPremove {
 }
 
 const WRONG_MOVE_RESET_MS = 900;
-const EVAL_BAR_CP_LIMIT = 600;
 const INITIAL_POSITION_EVAL_CP = 20;
 
 function isUserTurn(moveIndex: number, openingColor: 'white' | 'black') {
@@ -87,13 +87,6 @@ function getBoardOrientation(openingColor: 'white' | 'black', flipBoard: boolean
   return baseOrientation === 'white' ? 'black' : 'white';
 }
 
-function formatEvalLabel(evalCp: number) {
-  if (Math.abs(evalCp) >= 9000) return '#';
-  if (Math.abs(evalCp) < 10) return '0.0';
-  const pawns = Math.abs(evalCp) / 100;
-  return `${evalCp > 0 ? '+' : '-'}${pawns.toFixed(1)}`;
-}
-
 function toWhiteEvalCp(
   finalEvalCp: number | undefined,
   perspective: 'white' | 'black' | undefined,
@@ -102,75 +95,6 @@ function toWhiteEvalCp(
   if (typeof finalEvalCp !== 'number' || !Number.isFinite(finalEvalCp)) return null;
   const evalPerspective = perspective ?? fallbackPerspective;
   return evalPerspective === 'white' ? finalEvalCp : -finalEvalCp;
-}
-
-function EvalBar({
-  evalCp,
-  displayPerspective,
-  reserveSpace = false,
-  size,
-}: {
-  evalCp?: number;
-  displayPerspective: 'white' | 'black';
-  reserveSpace?: boolean;
-  size?: number;
-}) {
-  const bottomColor = displayPerspective;
-  const bottomClassName = bottomColor === 'white' ? 'bg-zinc-100' : 'bg-[#181818]';
-  const topClassName = bottomColor === 'white' ? 'bg-[#181818]' : 'bg-zinc-100';
-  const heightStyle = size != null ? { height: size } : undefined;
-  const heightClass = size != null ? '' : 'h-full';
-
-  if (typeof evalCp !== 'number' || !Number.isFinite(evalCp)) {
-    return reserveSpace ? (
-      <div
-        className={`relative ml-2 hidden ${heightClass} w-7 shrink-0 overflow-hidden rounded-md border border-white/15 ${topClassName} shadow-inner shadow-black/40 sm:block`}
-        style={heightStyle}
-        title="Engine evaluation loading"
-        aria-label="Engine evaluation loading"
-      >
-        <div className={`absolute inset-x-0 bottom-0 h-1/2 opacity-70 ${bottomClassName}`} />
-        <div className="pointer-events-none absolute inset-x-0 top-1/2 h-px bg-amber-400/45" />
-      </div>
-    ) : null;
-  }
-
-  const clamped = Math.max(-EVAL_BAR_CP_LIMIT, Math.min(EVAL_BAR_CP_LIMIT, evalCp));
-  const whiteHeight = 50 + (clamped / EVAL_BAR_CP_LIMIT) * 45;
-  const bottomHeight = bottomColor === 'white' ? whiteHeight : 100 - whiteHeight;
-  // Show eval from the bottom color's perspective so +X means bottom is winning
-  const bottomColorEvalCp = bottomColor === 'white' ? evalCp : -evalCp;
-  const label = formatEvalLabel(bottomColorEvalCp);
-  const labelOnBottom = bottomColorEvalCp >= 0;
-  const perspectiveLabel = bottomColor === 'white' ? 'White' : 'Black';
-
-  return (
-    <div
-      className={`relative ml-2 hidden ${heightClass} w-7 shrink-0 overflow-hidden rounded-md border border-white/15 ${topClassName} shadow-inner shadow-black/40 sm:block`}
-      style={heightStyle}
-      title={`Engine evaluation for ${perspectiveLabel}: ${label}`}
-      aria-label={`Engine evaluation for ${perspectiveLabel} ${label}`}
-    >
-      <div
-        className={`absolute inset-x-0 bottom-0 transition-[height] duration-300 ${bottomClassName}`}
-        style={{ height: `${bottomHeight}%` }}
-      />
-      <div className="pointer-events-none absolute inset-x-0 top-1/2 h-px bg-amber-400/45" />
-      <div
-        className={`pointer-events-none absolute left-1/2 -translate-x-1/2 text-[10px] font-semibold tabular-nums ${
-          labelOnBottom
-            ? bottomColor === 'white'
-              ? 'bottom-1 text-zinc-950'
-              : 'bottom-1 text-zinc-100'
-            : bottomColor === 'white'
-              ? 'top-1 text-zinc-100'
-              : 'top-1 text-zinc-950'
-        }`}
-      >
-        {label}
-      </div>
-    </div>
-  );
 }
 
 let moveSoundCtx: AudioContext | null = null;
@@ -362,7 +286,6 @@ export const PracticeBoard = forwardRef<PracticeBoardHandle, PracticeBoardProps>
     null
   );
   const chessRef = useRef(new Chess());
-  const wrapperRef = useRef<HTMLDivElement>(null);
   const wrongResetRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const clickPremoveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const hasRecordedRef = useRef(false);
@@ -509,21 +432,6 @@ export const PracticeBoard = forwardRef<PracticeBoardHandle, PracticeBoardProps>
       if (clickPremoveTimerRef.current) clearTimeout(clickPremoveTimerRef.current);
       stopMoveSoundWake();
     };
-  }, []);
-
-  useEffect(() => {
-    const el = wrapperRef.current;
-    if (!el) return;
-    const updateSize = () => {
-      const size = el.clientHeight;
-      if (size > 0) {
-        setBoardSize(size);
-      }
-    };
-    const observer = new ResizeObserver(updateSize);
-    observer.observe(el);
-    updateSize();
-    return () => observer.disconnect();
   }, []);
 
   useEffect(() => {
@@ -1006,129 +914,109 @@ export const PracticeBoard = forwardRef<PracticeBoardHandle, PracticeBoardProps>
     onDisplayIndexChange?.(displayIndex);
   }, [displayIndex, onDisplayIndexChange]);
 
-  return (
-    <div className="relative flex h-full select-none flex-col">
-      {/* Optional top bar — aligned to board edges */}
-      {topBar && (
-        <div className="shrink-0" style={{ width: boardSize }}>
-          {topBar}
-        </div>
-      )}
+  const ringClass = !isLive
+    ? 'ring-2 ring-blue-500/40'
+    : status === 'wrong'
+      ? 'ring-2 ring-red-500/60'
+      : status === 'complete'
+        ? 'ring-2 ring-green-400/60'
+        : 'ring-1 ring-white/10';
 
-      {/* Board */}
-      <div ref={wrapperRef} className="relative flex min-h-0 flex-1 items-center">
-        <div className="relative">
-          <div
-            className={`overflow-hidden transition-all duration-150 ${
-              !isLive
-                ? 'ring-2 ring-blue-500/40'
-                : status === 'wrong'
-                  ? 'ring-2 ring-red-500/60'
-                  : status === 'complete'
-                    ? 'ring-2 ring-green-400/60'
-                    : 'ring-1 ring-white/10'
-            }`}
+  const defaultControls = !hideControls && !bottomBar ? (
+    <div className="grid grid-cols-3 items-center">
+      <div className="flex items-center gap-2">
+        <button
+          onClick={resetPractice}
+          className="rounded-lg border border-white/10 px-4 py-2 text-sm text-gray-400 transition-colors hover:border-white/20 hover:text-white"
+        >
+          ↺ Restart
+        </button>
+        {mode === 'practice' && isMyTurn && (
+          <button
+            onClick={() => {
+              hintUsedRef.current = true;
+              setHintActive(true);
+            }}
+            disabled={hintActive}
+            className="rounded-lg border border-white/10 px-4 py-2 text-sm text-gray-400 transition-colors hover:border-white/20 hover:text-white disabled:opacity-40"
           >
-            <Chessboard
-              ref={chessboardRef}
-              position={displayPosition}
-              onPieceDrop={onPieceDrop}
-              onPieceClick={onPieceClick}
-              onPieceDragBegin={onPieceDragBegin}
-              onPieceDragEnd={onPieceDragEnd}
-              onSquareClick={onSquareClick}
-              onPromotionCheck={onPromotionCheck}
-              onPromotionPieceSelect={onPromotionPieceSelect}
-              boardWidth={boardSize}
-              boardOrientation={boardOrientation}
-              arePiecesDraggable={isLive || learnIsMyTurn}
-              arePremovesAllowed={isLive}
-              clearPremovesOnRightClick={true}
-              isDraggablePiece={({ piece }) => (isLive || learnIsMyTurn) && piece[0] === playerColor}
-              customSquareStyles={customSquareStyles}
-              showBoardNotation={settings.showCoordinates}
-              customDarkSquareStyle={{ backgroundColor: theme.dark }}
-              customLightSquareStyle={{ backgroundColor: theme.light }}
-              animationDuration={animationDuration}
-              customPieces={customPieces}
-            />
-          </div>
-        </div>
-        <EvalBar
-          evalCp={displayedEvalCp}
-          displayPerspective={boardOrientation}
-          reserveSpace={hasVisibleEvalBar}
-          size={boardSize}
-        />
-        {mode === 'practice' && status === 'complete' && isLive && !overlayDismissed && (
-          <CompletionOverlay
-            variationName={variation.name}
-            moveCount={moves.length}
-            onPracticeAgain={resetPractice}
-            onDismiss={() => setOverlayDismissed(true)}
-          />
+            Hint
+          </button>
         )}
       </div>
-
-      {/* Optional bottom bar — aligned to board edges */}
-      {bottomBar && (
-        <div className="shrink-0" style={{ width: boardSize }}>
-          {bottomBar}
+      <div className="flex justify-center">
+        <div className="flex items-center divide-x divide-white/10 overflow-hidden rounded-lg border border-white/10">
+          <NavBtn onClick={() => navigateTo(0)} disabled={!canGoBack} title="First move">
+            <svg viewBox="0 0 16 16" fill="currentColor" className="w-5 h-5">
+              <path d="M3.5 3a.5.5 0 0 1 .5.5v3.793l6.146-4.439A.5.5 0 0 1 11 3.5v9a.5.5 0 0 1-.854.354L4 8.707V12.5a.5.5 0 0 1-1 0v-9a.5.5 0 0 1 .5-.5z" />
+            </svg>
+          </NavBtn>
+          <NavBtn onClick={() => navigateTo(displayIndex - 1)} disabled={!canGoBack} title="Previous move">
+            <svg viewBox="0 0 16 16" fill="currentColor" className="w-5 h-5">
+              <path d="M11.354 3.646a.5.5 0 0 1 0 .708L6.707 9l4.647 4.646a.5.5 0 0 1-.708.708l-5-5a.5.5 0 0 1 0-.708l5-5a.5.5 0 0 1 .708 0z" />
+            </svg>
+          </NavBtn>
+          <NavBtn onClick={() => navigateTo(displayIndex + 1)} disabled={!canGoForward} title="Next move">
+            <svg viewBox="0 0 16 16" fill="currentColor" className="w-5 h-5">
+              <path d="M4.646 3.646a.5.5 0 0 1 .708 0l5 5a.5.5 0 0 1 0 .708l-5 5a.5.5 0 0 1-.708-.708L9.293 9 4.646 4.354a.5.5 0 0 1 0-.708z" />
+            </svg>
+          </NavBtn>
+          <NavBtn onClick={() => navigateTo(currentMoveIndex)} disabled={isLive} title="Latest move">
+            <svg viewBox="0 0 16 16" fill="currentColor" className="w-5 h-5">
+              <path d="M12.5 3a.5.5 0 0 0-.5.5v3.793L5.854 2.854A.5.5 0 0 0 5 3.5v9a.5.5 0 0 0 .854.354L12 8.207V12.5a.5.5 0 0 0 1 0v-9a.5.5 0 0 0-.5-.5z" />
+            </svg>
+          </NavBtn>
         </div>
-      )}
-
-      {!hideControls && !bottomBar && (
-        <div
-          className="grid shrink-0 grid-cols-3 items-center"
-          style={{ width: boardSize }}
-        >
-          <div className="flex items-center gap-2">
-            <button
-              onClick={resetPractice}
-              className="rounded-lg border border-white/10 px-4 py-2 text-sm text-gray-400 transition-colors hover:border-white/20 hover:text-white"
-            >
-              ↺ Restart
-            </button>
-            {mode === 'practice' && isMyTurn && (
-              <button
-                onClick={() => {
-                  hintUsedRef.current = true;
-                  setHintActive(true);
-                }}
-                disabled={hintActive}
-                className="rounded-lg border border-white/10 px-4 py-2 text-sm text-gray-400 transition-colors hover:border-white/20 hover:text-white disabled:opacity-40"
-              >
-                Hint
-              </button>
-            )}
-          </div>
-          <div className="flex justify-center">
-            <div className="flex items-center divide-x divide-white/10 overflow-hidden rounded-lg border border-white/10">
-              <NavBtn onClick={() => navigateTo(0)} disabled={!canGoBack} title="First move">
-                <svg viewBox="0 0 16 16" fill="currentColor" className="w-5 h-5">
-                  <path d="M3.5 3a.5.5 0 0 1 .5.5v3.793l6.146-4.439A.5.5 0 0 1 11 3.5v9a.5.5 0 0 1-.854.354L4 8.707V12.5a.5.5 0 0 1-1 0v-9a.5.5 0 0 1 .5-.5z" />
-                </svg>
-              </NavBtn>
-              <NavBtn onClick={() => navigateTo(displayIndex - 1)} disabled={!canGoBack} title="Previous move">
-                <svg viewBox="0 0 16 16" fill="currentColor" className="w-5 h-5">
-                  <path d="M11.354 3.646a.5.5 0 0 1 0 .708L6.707 9l4.647 4.646a.5.5 0 0 1-.708.708l-5-5a.5.5 0 0 1 0-.708l5-5a.5.5 0 0 1 .708 0z" />
-                </svg>
-              </NavBtn>
-              <NavBtn onClick={() => navigateTo(displayIndex + 1)} disabled={!canGoForward} title="Next move">
-                <svg viewBox="0 0 16 16" fill="currentColor" className="w-5 h-5">
-                  <path d="M4.646 3.646a.5.5 0 0 1 .708 0l5 5a.5.5 0 0 1 0 .708l-5 5a.5.5 0 0 1-.708-.708L9.293 9 4.646 4.354a.5.5 0 0 1 0-.708z" />
-                </svg>
-              </NavBtn>
-              <NavBtn onClick={() => navigateTo(currentMoveIndex)} disabled={isLive} title="Latest move">
-                <svg viewBox="0 0 16 16" fill="currentColor" className="w-5 h-5">
-                  <path d="M12.5 3a.5.5 0 0 0-.5.5v3.793L5.854 2.854A.5.5 0 0 0 5 3.5v9a.5.5 0 0 0 .854.354L12 8.207V12.5a.5.5 0 0 0 1 0v-9a.5.5 0 0 0-.5-.5z" />
-                </svg>
-              </NavBtn>
-            </div>
-          </div>
-          <div className="flex justify-end">{controlsRight}</div>
-        </div>
-      )}
+      </div>
+      <div className="flex justify-end">{controlsRight}</div>
     </div>
+  ) : null;
+
+  return (
+    <BoardPanel
+      topBar={topBar}
+      bottomBar={bottomBar ?? defaultControls ?? undefined}
+      evalCp={displayedEvalCp}
+      displayPerspective={boardOrientation}
+      reserveEvalSpace={hasVisibleEvalBar}
+      boardSize={boardSize}
+      onBoardSizeChange={setBoardSize}
+    >
+      <div className="relative">
+        <div className={`overflow-hidden transition-all duration-150 ${ringClass}`}>
+          <Chessboard
+            ref={chessboardRef}
+            position={displayPosition}
+            onPieceDrop={onPieceDrop}
+            onPieceClick={onPieceClick}
+            onPieceDragBegin={onPieceDragBegin}
+            onPieceDragEnd={onPieceDragEnd}
+            onSquareClick={onSquareClick}
+            onPromotionCheck={onPromotionCheck}
+            onPromotionPieceSelect={onPromotionPieceSelect}
+            boardWidth={boardSize}
+            boardOrientation={boardOrientation}
+            arePiecesDraggable={isLive || learnIsMyTurn}
+            arePremovesAllowed={isLive}
+            clearPremovesOnRightClick={true}
+            isDraggablePiece={({ piece }) => (isLive || learnIsMyTurn) && piece[0] === playerColor}
+            customSquareStyles={customSquareStyles}
+            showBoardNotation={settings.showCoordinates}
+            customDarkSquareStyle={{ backgroundColor: theme.dark }}
+            customLightSquareStyle={{ backgroundColor: theme.light }}
+            animationDuration={animationDuration}
+            customPieces={customPieces}
+          />
+        </div>
+      </div>
+      {mode === 'practice' && status === 'complete' && isLive && !overlayDismissed && (
+        <CompletionOverlay
+          variationName={variation.name}
+          moveCount={moves.length}
+          onPracticeAgain={resetPractice}
+          onDismiss={() => setOverlayDismissed(true)}
+        />
+      )}
+    </BoardPanel>
   );
 });
