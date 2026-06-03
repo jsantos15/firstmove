@@ -54,7 +54,7 @@ export function BoardPanel({
 
       {/* Board area — ResizeObserver target; eval bar is an in-flow flex sibling */}
       <div ref={wrapperRef} className="relative min-h-0 flex-1 flex items-center">
-        <div className={`overflow-hidden rounded-xl transition-all duration-150 ${ringClass}`}>
+        <div className={`overflow-hidden transition-all duration-150 ${ringClass}`}>
           {children}
         </div>
         {overlay}
