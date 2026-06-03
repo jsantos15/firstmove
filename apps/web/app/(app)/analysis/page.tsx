@@ -7,6 +7,7 @@ import { CoachBubble } from '@/components/practice/CoachBubble';
 import { BoardPanel } from '@/components/board/BoardPanel';
 import { SidePanel } from '@/components/board/SidePanel';
 import { useBoardSettings } from '@/hooks/useBoardSettings';
+import { usePositionAnalysis } from '@/hooks/usePositionAnalysis';
 import { useCoachSettings } from '@/hooks/useCoachSettings';
 import { getCustomPieces } from '@/lib/piecesets';
 import { BoardSettingsPopover } from '@/components/board/BoardSettingsPopover';
@@ -801,6 +802,7 @@ export default function AnalysisPage() {
   const [engineError, setEngineError] = useState<string | null>(null);
   const [activeBottomPanel, setActiveBottomPanel] = useState<BottomPanelTab>('review');
   const [boardSize, setBoardSize] = useState(480);
+  const [freeExploreFen, setFreeExploreFen] = useState<string | null>(null);
   const { theme, animationDuration, settings, setSettings } = useBoardSettings();
   const { settings: coachSettings } = useCoachSettings();
   const customPieces = useMemo(() => getCustomPieces(settings.pieceSetId), [settings.pieceSetId]);
@@ -817,6 +819,7 @@ export default function AnalysisPage() {
     const g = game ?? analyzedGameRef.current;
     if (!g) return;
     const clamped = Math.max(-1, Math.min(plyIndex, g.moves.length - 1));
+    setFreeExploreFen(null);
     setCurrentPlyIndex(clamped);
 
     if (clamped >= 0) {
@@ -989,6 +992,59 @@ setSessionGames(prev => [{ id: game.id, label, game, hasEngine: false }, ...prev
   const totalMoves = analyzedGame?.moves.length ?? 0;
   const canGoBack = analyzedGame !== null && currentPlyIndex >= 0;
   const canGoForward = analyzedGame !== null && currentPlyIndex < totalMoves - 1;
+
+  // boardFen is the FEN actually shown and analyzed — follows game navigation unless the
+  // user has played a move freely, in which case freeExploreFen takes over.
+  const boardFen = freeExploreFen ?? currentFen;
+  const { bestMoveUci, isAnalyzing } = usePositionAnalysis(boardFen);
+  const bestMoveArrow = useMemo(
+    () =>
+      bestMoveUci && bestMoveUci.length >= 4
+        ? [[bestMoveUci.slice(0, 2), bestMoveUci.slice(2, 4), 'rgba(0, 168, 0, 0.85)']]
+        : [],
+    [bestMoveUci]
+  );
+
+  const onPieceDrop = (from: string, to: string): boolean => {
+    try {
+      const chess = new Chess(boardFen);
+      const move = chess.move({ from, to, promotion: 'q' });
+      if (!move) return false;
+      setFreeExploreFen(chess.fen());
+      setLastMoveSquares({ from: move.from, to: move.to });
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
+  const onPromotionCheck = (from: string, to: string, piece: string): boolean => {
+    try {
+      const chess = new Chess(boardFen);
+      const p = chess.get(from as Parameters<Chess['get']>[0]);
+      if (!p || p.type !== 'p' || piece[0] !== p.color) return false;
+      const rank = to[1];
+      return (p.color === 'w' && rank === '8') || (p.color === 'b' && rank === '1');
+    } catch {
+      return false;
+    }
+  };
+
+  const onPromotionPieceSelect = (piece?: string, from?: string, to?: string): boolean => {
+    if (!from || !to) return false;
+    const promotion = (piece?.slice(1)?.toLowerCase() ?? 'q') as 'q' | 'r' | 'b' | 'n';
+    try {
+      const chess = new Chess(boardFen);
+      const move = chess.move({ from, to, promotion });
+      if (!move) return false;
+      setFreeExploreFen(chess.fen());
+      setLastMoveSquares({ from: move.from, to: move.to });
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
   return (
     <div className="h-full flex flex-col overflow-hidden">
       <div className="flex-1 min-h-0 overflow-hidden p-3 flex justify-center">
@@ -1000,6 +1056,16 @@ setSessionGames(prev => [{ id: game.id, label, game, hasEngine: false }, ...prev
             reserveEvalSpace={true}
             boardSize={boardSize}
             onBoardSizeChange={setBoardSize}
+            topBar={
+              <div className="flex h-full items-center justify-end pr-3">
+                {isAnalyzing && (
+                  <span className="flex items-center gap-1.5 text-[10px] font-medium text-emerald-400">
+                    <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-400" />
+                    Engine
+                  </span>
+                )}
+              </div>
+            }
             bottomBar={
               <div className="grid grid-cols-3 items-center py-2.5">
                 <div className="pl-3">
@@ -1040,11 +1106,16 @@ setSessionGames(prev => [{ id: game.id, label, game, hasEngine: false }, ...prev
             }
           >
             <Chessboard
-              position={currentFen}
+              position={boardFen}
               boardWidth={boardSize}
               boardOrientation={settings.flipBoard ? 'black' : 'white'}
-              arePiecesDraggable={false}
+              arePiecesDraggable={true}
+              isDraggablePiece={() => true}
+              onPieceDrop={onPieceDrop}
+              onPromotionCheck={onPromotionCheck}
+              onPromotionPieceSelect={onPromotionPieceSelect}
               customSquareStyles={customSquareStyles}
+              customArrows={bestMoveArrow as any}
               showBoardNotation={settings.showCoordinates}
               customDarkSquareStyle={{ backgroundColor: theme.dark }}
               customLightSquareStyle={{ backgroundColor: theme.light }}
