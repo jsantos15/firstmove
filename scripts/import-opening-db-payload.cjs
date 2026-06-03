@@ -14,6 +14,10 @@ const DEFAULT_BEST_EVAL_CACHE = path.resolve(
   "output",
   "best-known-eval-cache.json"
 );
+const DEFAULT_CHUNK_SIZE = 500;
+const POSITION_EVAL_CHUNK_SIZE = 100;
+const MIN_POSITION_EVAL_CHUNK_SIZE = 25;
+const MAX_UPSERT_ATTEMPTS = 4;
 
 function parseArgs(argv) {
   const args = {
@@ -275,6 +279,19 @@ async function hasOpeningLineGenerationMetadataColumns(headers, supabaseUrl) {
   return response.ok;
 }
 
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function isRetryableUpsertFailure(error) {
+  if (!error) return false;
+  if (error.status === 429 || error.status === 408) return true;
+  if (typeof error.status === "number" && error.status >= 500) return true;
+  return /57014|timeout|temporarily|connection|fetch failed|network|ECONNRESET|ETIMEDOUT|UND_ERR|terminated/i.test(
+    error.body ?? error.cause?.message ?? error.message ?? ""
+  );
+}
+
 async function upsert(table, rows, headers, supabaseUrl) {
   const response = await fetch(`${supabaseUrl}/rest/v1/${table}`, {
     method: "POST",
@@ -284,8 +301,94 @@ async function upsert(table, rows, headers, supabaseUrl) {
 
   if (!response.ok) {
     const body = await response.text();
-    throw new Error(`Upsert into ${table} failed (${response.status}): ${body}`);
+    const error = new Error(
+      `Upsert into ${table} failed (${response.status}): ${body}`
+    );
+    error.status = response.status;
+    error.body = body;
+    throw error;
   }
+}
+
+async function upsertWithRetry(table, rows, headers, supabaseUrl, options = {}) {
+  const maxAttempts = options.maxAttempts ?? MAX_UPSERT_ATTEMPTS;
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    try {
+      await upsert(table, rows, headers, supabaseUrl);
+      return;
+    } catch (error) {
+      const shouldRetry = attempt < maxAttempts && isRetryableUpsertFailure(error);
+      if (!shouldRetry) throw error;
+
+      const delayMs = 750 * 2 ** (attempt - 1);
+      console.warn(
+        `Retrying ${table} upsert chunk (${rows.length} rows) after attempt ${attempt}/${maxAttempts}: ${
+          error.message
+        }`
+      );
+      await sleep(delayMs);
+    }
+  }
+}
+
+async function upsertResilientChunk(table, rows, headers, supabaseUrl, options = {}) {
+  const minChunkSize = options.minChunkSize ?? rows.length;
+  try {
+    await upsertWithRetry(table, rows, headers, supabaseUrl, options);
+    return rows.length;
+  } catch (error) {
+    if (rows.length <= minChunkSize || !isRetryableUpsertFailure(error)) {
+      throw error;
+    }
+
+    const midpoint = Math.ceil(rows.length / 2);
+    console.warn(
+      `Splitting ${table} upsert chunk from ${rows.length} to ${midpoint}/${rows.length - midpoint} rows after retryable failure.`
+    );
+    const first = await upsertResilientChunk(
+      table,
+      rows.slice(0, midpoint),
+      headers,
+      supabaseUrl,
+      options
+    );
+    const second = await upsertResilientChunk(
+      table,
+      rows.slice(midpoint),
+      headers,
+      supabaseUrl,
+      options
+    );
+    return first + second;
+  }
+}
+
+async function upsertInChunks(table, rows, headers, supabaseUrl, options = {}) {
+  const chunkSize = options.chunkSize ?? DEFAULT_CHUNK_SIZE;
+  const progressEvery = options.progressEvery ?? 25;
+  let imported = 0;
+
+  for (let index = 0; index < rows.length; index += chunkSize) {
+    imported += await upsertResilientChunk(
+      table,
+      rows.slice(index, index + chunkSize),
+      headers,
+      supabaseUrl,
+      options
+    );
+
+    const chunkNumber = Math.ceil(index / chunkSize) + 1;
+    if (
+      rows.length > chunkSize &&
+      (chunkNumber === 1 ||
+        imported === rows.length ||
+        chunkNumber % progressEvery === 0)
+    ) {
+      console.log(`${table}: imported ${imported}/${rows.length} rows`);
+    }
+  }
+
+  return imported;
 }
 
 async function main() {
@@ -365,36 +468,30 @@ async function main() {
 
   await upsert("openings_catalog", catalogRows, headers, supabaseUrl);
 
-  const chunkSize = 500;
-  for (let index = 0; index < lineRows.length; index += chunkSize) {
-    await upsert(
-      "opening_lines",
-      lineRows.slice(index, index + chunkSize),
+  await upsertInChunks("opening_lines", lineRows, headers, supabaseUrl);
+
+  if (includeBranchMetadata) {
+    await upsertInChunks(
+      "opening_line_branch_metadata",
+      branchMetadataRows,
       headers,
       supabaseUrl
     );
   }
 
   if (includePositionEvals) {
-    for (let index = 0; index < positionEvalRows.length; index += chunkSize) {
-      await upsert(
-        "opening_position_evals",
-        positionEvalRows.slice(index, index + chunkSize),
-        headers,
-        supabaseUrl
-      );
-    }
-  }
-
-  if (includeBranchMetadata) {
-    for (let index = 0; index < branchMetadataRows.length; index += chunkSize) {
-      await upsert(
-        "opening_line_branch_metadata",
-        branchMetadataRows.slice(index, index + chunkSize),
-        headers,
-        supabaseUrl
-      );
-    }
+    await upsertInChunks(
+      "opening_position_evals",
+      positionEvalRows,
+      headers,
+      supabaseUrl,
+      {
+        chunkSize: POSITION_EVAL_CHUNK_SIZE,
+        minChunkSize: MIN_POSITION_EVAL_CHUNK_SIZE,
+        maxAttempts: MAX_UPSERT_ATTEMPTS,
+        progressEvery: 50,
+      }
+    );
   }
 
   console.log(
