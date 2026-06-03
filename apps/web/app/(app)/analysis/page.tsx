@@ -1000,7 +1000,7 @@ setSessionGames(prev => [{ id: game.id, label, game, hasEngine: false }, ...prev
   const bestMoveArrow = useMemo(
     () =>
       bestMoveUci && bestMoveUci.length >= 4
-        ? [[bestMoveUci.slice(0, 2), bestMoveUci.slice(2, 4), 'rgba(0, 168, 0, 0.85)']]
+        ? [[bestMoveUci.slice(0, 2), bestMoveUci.slice(2, 4), 'rgba(0, 168, 0, 0.45)']]
         : [],
     [bestMoveUci]
   );
