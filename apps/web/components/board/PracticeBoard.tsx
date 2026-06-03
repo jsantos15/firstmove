@@ -981,42 +981,39 @@ export const PracticeBoard = forwardRef<PracticeBoardHandle, PracticeBoardProps>
       reserveEvalSpace={hasVisibleEvalBar}
       boardSize={boardSize}
       onBoardSizeChange={setBoardSize}
-    >
-      <div className="relative">
-        <div className={`overflow-hidden transition-all duration-150 ${ringClass}`}>
-          <Chessboard
-            ref={chessboardRef}
-            position={displayPosition}
-            onPieceDrop={onPieceDrop}
-            onPieceClick={onPieceClick}
-            onPieceDragBegin={onPieceDragBegin}
-            onPieceDragEnd={onPieceDragEnd}
-            onSquareClick={onSquareClick}
-            onPromotionCheck={onPromotionCheck}
-            onPromotionPieceSelect={onPromotionPieceSelect}
-            boardWidth={boardSize}
-            boardOrientation={boardOrientation}
-            arePiecesDraggable={isLive || learnIsMyTurn}
-            arePremovesAllowed={isLive}
-            clearPremovesOnRightClick={true}
-            isDraggablePiece={({ piece }) => (isLive || learnIsMyTurn) && piece[0] === playerColor}
-            customSquareStyles={customSquareStyles}
-            showBoardNotation={settings.showCoordinates}
-            customDarkSquareStyle={{ backgroundColor: theme.dark }}
-            customLightSquareStyle={{ backgroundColor: theme.light }}
-            animationDuration={animationDuration}
-            customPieces={customPieces}
-          />
-        </div>
-      </div>
-      {mode === 'practice' && status === 'complete' && isLive && !overlayDismissed && (
+      ringClass={ringClass}
+      overlay={mode === 'practice' && status === 'complete' && isLive && !overlayDismissed ? (
         <CompletionOverlay
           variationName={variation.name}
           moveCount={moves.length}
           onPracticeAgain={resetPractice}
           onDismiss={() => setOverlayDismissed(true)}
         />
-      )}
+      ) : undefined}
+    >
+      <Chessboard
+        ref={chessboardRef}
+        position={displayPosition}
+        onPieceDrop={onPieceDrop}
+        onPieceClick={onPieceClick}
+        onPieceDragBegin={onPieceDragBegin}
+        onPieceDragEnd={onPieceDragEnd}
+        onSquareClick={onSquareClick}
+        onPromotionCheck={onPromotionCheck}
+        onPromotionPieceSelect={onPromotionPieceSelect}
+        boardWidth={boardSize}
+        boardOrientation={boardOrientation}
+        arePiecesDraggable={isLive || learnIsMyTurn}
+        arePremovesAllowed={isLive}
+        clearPremovesOnRightClick={true}
+        isDraggablePiece={({ piece }) => (isLive || learnIsMyTurn) && piece[0] === playerColor}
+        customSquareStyles={customSquareStyles}
+        showBoardNotation={settings.showCoordinates}
+        customDarkSquareStyle={{ backgroundColor: theme.dark }}
+        customLightSquareStyle={{ backgroundColor: theme.light }}
+        animationDuration={animationDuration}
+        customPieces={customPieces}
+      />
     </BoardPanel>
   );
 });

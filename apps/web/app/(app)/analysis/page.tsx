@@ -1039,20 +1039,18 @@ setSessionGames(prev => [{ id: game.id, label, game, hasEngine: false }, ...prev
               </div>
             }
           >
-            <div className="overflow-hidden rounded-xl ring-1 ring-white/10">
-              <Chessboard
-                position={currentFen}
-                boardWidth={boardSize}
-                boardOrientation={settings.flipBoard ? 'black' : 'white'}
-                arePiecesDraggable={false}
-                customSquareStyles={customSquareStyles}
-                showBoardNotation={settings.showCoordinates}
-                customDarkSquareStyle={{ backgroundColor: theme.dark }}
-                customLightSquareStyle={{ backgroundColor: theme.light }}
-                animationDuration={animationDuration}
-                customPieces={customPieces}
-              />
-            </div>
+            <Chessboard
+              position={currentFen}
+              boardWidth={boardSize}
+              boardOrientation={settings.flipBoard ? 'black' : 'white'}
+              arePiecesDraggable={false}
+              customSquareStyles={customSquareStyles}
+              showBoardNotation={settings.showCoordinates}
+              customDarkSquareStyle={{ backgroundColor: theme.dark }}
+              customLightSquareStyle={{ backgroundColor: theme.light }}
+              animationDuration={animationDuration}
+              customPieces={customPieces}
+            />
           </BoardPanel>
 
           <SidePanel

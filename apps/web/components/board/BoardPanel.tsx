@@ -11,6 +11,8 @@ interface BoardPanelProps {
   reserveEvalSpace?: boolean;
   boardSize: number;
   onBoardSizeChange: (size: number) => void;
+  ringClass?: string;
+  overlay?: React.ReactNode;
   children: React.ReactNode;
 }
 
@@ -22,6 +24,8 @@ export function BoardPanel({
   reserveEvalSpace = false,
   boardSize,
   onBoardSizeChange,
+  ringClass = 'ring-1 ring-white/10',
+  overlay,
   children,
 }: BoardPanelProps) {
   const wrapperRef = useRef<HTMLDivElement>(null);
@@ -50,7 +54,10 @@ export function BoardPanel({
 
       {/* Board area — ResizeObserver target; eval bar is an in-flow flex sibling */}
       <div ref={wrapperRef} className="relative min-h-0 flex-1 flex items-center">
-        {children}
+        <div className={`overflow-hidden rounded-xl transition-all duration-150 ${ringClass}`}>
+          {children}
+        </div>
+        {overlay}
         <EvalBar
           evalCp={evalCp}
           displayPerspective={displayPerspective}
