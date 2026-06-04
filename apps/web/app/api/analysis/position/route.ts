@@ -123,7 +123,7 @@ export async function GET(request: NextRequest) {
         await new Promise<void>(resolve => {
           pendingResolve = resolve;
           engine.send(
-            'go movetime 6000',
+            'go movetime 8000',
             (bestmoveLine) => {
               if (!finished) {
                 const match = bestmoveLine.match(/^bestmove\s+(\S+)/);
