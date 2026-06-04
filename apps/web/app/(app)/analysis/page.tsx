@@ -907,14 +907,6 @@ export default function AnalysisPage() {
     [analyzedGame]
   );
 
-  const customSquareStyles = useMemo(() => {
-    const styles: Record<string, React.CSSProperties> = {};
-    if (lastMoveSquares) {
-      styles[lastMoveSquares.from] = { background: 'rgba(255, 210, 0, 0.35)' };
-      styles[lastMoveSquares.to] = { background: 'rgba(255, 210, 0, 0.52)' };
-    }
-    return styles;
-  }, [lastMoveSquares]);
 
   function handleImport(pgn: string, fen: string) {
     try {
@@ -1062,6 +1054,18 @@ setSessionGames(prev => [{ id: game.id, label, game, hasEngine: false }, ...prev
     if (!tryMove(selectedSquare, square)) setSelectedSquare(null);
   };
 
+  const onPieceDragBegin = (_piece: string, square: string) => {
+    setSelectedSquare(square);
+  };
+
+  const onPieceDragEnd = (_piece: string, square: string) => {
+    // If the piece snapped back (failed drop), keep it selected so the next click works.
+    const chess = new Chess(boardFen);
+    if (chess.get(square as Parameters<Chess['get']>[0])) {
+      setSelectedSquare(square);
+    }
+  };
+
   const onPieceDrop = (from: string, to: string): boolean => tryMove(from, to);
 
   const onPromotionCheck = (from: string, to: string, piece: string): boolean => {
@@ -1159,6 +1163,8 @@ setSessionGames(prev => [{ id: game.id, label, game, hasEngine: false }, ...prev
               isDraggablePiece={() => true}
               onPieceDrop={onPieceDrop}
               onPieceClick={onPieceClick}
+              onPieceDragBegin={onPieceDragBegin}
+              onPieceDragEnd={onPieceDragEnd}
               onSquareClick={onSquareClick}
               onPromotionCheck={onPromotionCheck}
               onPromotionPieceSelect={onPromotionPieceSelect}
