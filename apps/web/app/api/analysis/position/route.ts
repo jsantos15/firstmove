@@ -48,6 +48,17 @@ function getEnginePath(): string {
   return cachedEnginePath;
 }
 
+// ─── Singleton ────────────────────────────────────────────────────────────────
+// Only one Stockfish instance is ever active at a time. When a new request
+// arrives it synchronously kills whatever was running before starting.
+let activeCancel: (() => void) | null = null;
+
+function killActive() {
+  const cancel = activeCancel;
+  activeCancel = null;
+  cancel?.();
+}
+
 export async function GET(request: NextRequest) {
   const fen = request.nextUrl.searchParams.get('fen');
   if (!fen) return new Response('Missing fen', { status: 400 });
@@ -58,6 +69,9 @@ export async function GET(request: NextRequest) {
   } catch (err) {
     return new Response((err as Error).message, { status: 500 });
   }
+
+  // Kill previous analysis immediately, before spawning anything new.
+  killActive();
 
   const encoder = new TextEncoder();
 
@@ -75,6 +89,7 @@ export async function GET(request: NextRequest) {
       const finish = () => {
         if (finished) return;
         finished = true;
+        if (activeCancel === finish) activeCancel = null;
         const r = goResolve;
         goResolve = null;
         r?.();
@@ -82,12 +97,11 @@ export async function GET(request: NextRequest) {
         try { controller.close(); } catch {}
       };
 
-      // stop_moves() marks the go command as discarded so its done callback never fires —
-      // we must call finish() ourselves to unblock the awaiting Promise.
-      request.signal.addEventListener('abort', () => {
-        engine.stop_moves();
-        finish();
-      }, { once: true });
+      // Register this analysis as the active one so the next request can kill it.
+      activeCancel = finish;
+
+      // Also clean up when the client disconnects.
+      request.signal.addEventListener('abort', finish, { once: true });
 
       try {
         await new Promise<void>(r => engine.send('uci', () => r()));

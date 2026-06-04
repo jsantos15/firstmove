@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 
-const DEBOUNCE_MS = 400;
+const DEBOUNCE_MS = 150;
 
 interface PositionAnalysis {
   bestMoveUci: string | null;
