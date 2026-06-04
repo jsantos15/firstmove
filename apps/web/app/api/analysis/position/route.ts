@@ -42,13 +42,19 @@ function parseBestMove(line: string): string | null {
   return pvMatch[1];
 }
 
+let cachedEnginePath: string | null = null;
+function getEnginePath(): string {
+  if (!cachedEnginePath) cachedEnginePath = resolveEnginePath();
+  return cachedEnginePath;
+}
+
 export async function GET(request: NextRequest) {
   const fen = request.nextUrl.searchParams.get('fen');
   if (!fen) return new Response('Missing fen', { status: 400 });
 
   let enginePath: string;
   try {
-    enginePath = resolveEnginePath();
+    enginePath = getEnginePath();
   } catch (err) {
     return new Response((err as Error).message, { status: 500 });
   }
