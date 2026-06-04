@@ -108,14 +108,6 @@ function NavBtn({
 
 // ─── Move List ────────────────────────────────────────────────────────────────
 
-function formatClockMs(ms: number): string {
-  const totalSeconds = Math.floor(ms / 1000);
-  const h = Math.floor(totalSeconds / 3600);
-  const m = Math.floor((totalSeconds % 3600) / 60);
-  const s = totalSeconds % 60;
-  if (h > 0) return `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
-  return `${m}:${String(s).padStart(2, '0')}`;
-}
 
 interface MoveItem {
   san: string;
@@ -803,6 +795,7 @@ export default function AnalysisPage() {
   const [activeBottomPanel, setActiveBottomPanel] = useState<BottomPanelTab>('review');
   const [boardSize, setBoardSize] = useState(480);
   const [freeExploreFen, setFreeExploreFen] = useState<string | null>(null);
+  const [selectedSquare, setSelectedSquare] = useState<string | null>(null);
   const { theme, animationDuration, settings, setSettings } = useBoardSettings();
   const { settings: coachSettings } = useCoachSettings();
   const customPieces = useMemo(() => getCustomPieces(settings.pieceSetId), [settings.pieceSetId]);
@@ -920,6 +913,9 @@ export default function AnalysisPage() {
       styles[lastMoveSquares.from] = { background: 'rgba(255, 210, 0, 0.35)' };
       styles[lastMoveSquares.to] = { background: 'rgba(255, 210, 0, 0.52)' };
     }
+    if (selectedSquare) {
+      styles[selectedSquare] = { background: 'rgba(100, 180, 255, 0.55)' };
+    }
     return styles;
   }, [lastMoveSquares]);
 
@@ -1000,23 +996,40 @@ setSessionGames(prev => [{ id: game.id, label, game, hasEngine: false }, ...prev
   const bestMoveArrow = useMemo(
     () =>
       bestMoveUci && bestMoveUci.length >= 4
-        ? [[bestMoveUci.slice(0, 2), bestMoveUci.slice(2, 4), 'rgb(15, 120, 15)']]
+        ? [[bestMoveUci.slice(0, 2), bestMoveUci.slice(2, 4), 'rgba(15, 120, 15, 0.5)']]
         : [],
     [bestMoveUci]
   );
 
-  const onPieceDrop = (from: string, to: string): boolean => {
+  const tryMove = (from: string, to: string): boolean => {
     try {
       const chess = new Chess(boardFen);
       const move = chess.move({ from, to, promotion: 'q' });
       if (!move) return false;
       setFreeExploreFen(chess.fen());
       setLastMoveSquares({ from: move.from, to: move.to });
+      setSelectedSquare(null);
       return true;
     } catch {
       return false;
     }
   };
+
+  const onPieceClick = (_piece: string, square: string) => {
+    setSelectedSquare(sq => sq === square ? null : square);
+  };
+
+  const onSquareClick = (square: string) => {
+    if (!selectedSquare) return;
+    if (selectedSquare === square) { setSelectedSquare(null); return; }
+    if (!tryMove(selectedSquare, square)) {
+      // Maybe clicking a different piece — select it instead if occupied
+      const chess = new Chess(boardFen);
+      setSelectedSquare(chess.get(square as Parameters<Chess['get']>[0]) ? square : null);
+    }
+  };
+
+  const onPieceDrop = (from: string, to: string): boolean => tryMove(from, to);
 
   const onPromotionCheck = (from: string, to: string, piece: string): boolean => {
     try {
@@ -1112,6 +1125,8 @@ setSessionGames(prev => [{ id: game.id, label, game, hasEngine: false }, ...prev
               arePiecesDraggable={true}
               isDraggablePiece={() => true}
               onPieceDrop={onPieceDrop}
+              onPieceClick={onPieceClick}
+              onSquareClick={onSquareClick}
               onPromotionCheck={onPromotionCheck}
               onPromotionPieceSelect={onPromotionPieceSelect}
               customSquareStyles={customSquareStyles}
