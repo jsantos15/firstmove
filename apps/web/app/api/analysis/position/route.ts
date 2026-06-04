@@ -36,10 +36,8 @@ function parseBestMove(line: string): string | null {
   if (!line.startsWith('info ')) return null;
   const multipvMatch = line.match(/\bmultipv\s+(\d+)/);
   if (multipvMatch && Number(multipvMatch[1]) !== 1) return null;
-  const depthMatch = line.match(/\bdepth\s+(\d+)/);
-  const pvMatch = line.match(/\bpv\s+(\S+)/);
-  if (!depthMatch || !pvMatch) return null;
-  return pvMatch[1];
+  if (!line.match(/\bdepth\s+\d+/) || !line.match(/\bpv\s+\S+/)) return null;
+  return line.match(/\bpv\s+(\S+)/)?.[1] ?? null;
 }
 
 let cachedEnginePath: string | null = null;
@@ -49,8 +47,8 @@ function getEnginePath(): string {
 }
 
 // ─── Singleton ────────────────────────────────────────────────────────────────
-// Only one Stockfish instance is ever active at a time. When a new request
-// arrives it synchronously kills whatever was running before starting.
+// Only one Stockfish instance ever runs. Each new request kills the previous one
+// synchronously before starting.
 let activeCancel: (() => void) | null = null;
 
 function killActive() {
@@ -70,7 +68,7 @@ export async function GET(request: NextRequest) {
     return new Response((err as Error).message, { status: 500 });
   }
 
-  // Kill previous analysis immediately, before spawning anything new.
+  // Kill whatever was running — synchronously, before touching the engine.
   killActive();
 
   const encoder = new TextEncoder();
@@ -79,7 +77,11 @@ export async function GET(request: NextRequest) {
     async start(controller) {
       const engine = loadEngine(enginePath);
       let finished = false;
-      let goResolve: (() => void) | null = null;
+
+      // Single resolve tracked at module level — always points to whichever
+      // await is currently blocked (uci, isready, or go). finish() calls it
+      // to guarantee the async function exits in every phase.
+      let pendingResolve: (() => void) | null = null;
 
       const enqueue = (data: object) => {
         if (finished) return;
@@ -90,31 +92,38 @@ export async function GET(request: NextRequest) {
         if (finished) return;
         finished = true;
         if (activeCancel === finish) activeCancel = null;
-        const r = goResolve;
-        goResolve = null;
-        r?.();
+        const r = pendingResolve;
+        pendingResolve = null;
+        r?.();                        // unblock whichever await is pending
         try { engine.quit(); } catch {}
         try { controller.close(); } catch {}
       };
 
-      // Register this analysis as the active one so the next request can kill it.
       activeCancel = finish;
-
-      // Also clean up when the client disconnects.
       request.signal.addEventListener('abort', finish, { once: true });
 
+      // Awaits any engine command while remaining cancellable via finish().
+      const waitFor = (cmd: string): Promise<void> =>
+        new Promise<void>(resolve => {
+          pendingResolve = resolve;
+          engine.send(cmd, () => {
+            if (!finished) pendingResolve = null;
+            resolve();
+          });
+        });
+
       try {
-        await new Promise<void>(r => engine.send('uci', () => r()));
+        await waitFor('uci');
         if (finished) return;
-        await new Promise<void>(r => engine.send('isready', () => r()));
+        await waitFor('isready');
         if (finished) return;
 
         engine.send(`position fen ${fen}`);
 
         await new Promise<void>(resolve => {
-          goResolve = resolve;
+          pendingResolve = resolve;
           engine.send(
-            'go movetime 8000',
+            'go movetime 6000',
             (bestmoveLine) => {
               if (!finished) {
                 const match = bestmoveLine.match(/^bestmove\s+(\S+)/);
