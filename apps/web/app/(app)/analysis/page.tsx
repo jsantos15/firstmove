@@ -913,9 +913,6 @@ export default function AnalysisPage() {
       styles[lastMoveSquares.from] = { background: 'rgba(255, 210, 0, 0.35)' };
       styles[lastMoveSquares.to] = { background: 'rgba(255, 210, 0, 0.52)' };
     }
-    if (selectedSquare) {
-      styles[selectedSquare] = { background: 'rgba(100, 180, 255, 0.55)' };
-    }
     return styles;
   }, [lastMoveSquares]);
 
@@ -992,6 +989,37 @@ setSessionGames(prev => [{ id: game.id, label, game, hasEngine: false }, ...prev
   // boardFen is the FEN actually shown and analyzed — follows game navigation unless the
   // user has played a move freely, in which case freeExploreFen takes over.
   const boardFen = freeExploreFen ?? currentFen;
+
+  const legalTargets = useMemo(() => {
+    if (!selectedSquare) return [];
+    try {
+      return new Chess(boardFen).moves({
+        square: selectedSquare as Parameters<Chess['moves']>[0]['square'],
+        verbose: true,
+      });
+    } catch {
+      return [];
+    }
+  }, [selectedSquare, boardFen]);
+
+  const squareStyles = useMemo(() => {
+    const styles: Record<string, React.CSSProperties> = {};
+    if (lastMoveSquares) {
+      styles[lastMoveSquares.from] = { background: 'rgba(255, 210, 0, 0.35)' };
+      styles[lastMoveSquares.to] = { background: 'rgba(255, 210, 0, 0.52)' };
+    }
+    if (selectedSquare) {
+      styles[selectedSquare] = { background: '#D8A548' };
+      for (const move of legalTargets) {
+        const base = styles[move.to] ?? {};
+        styles[move.to] = move.captured
+          ? { ...base, background: 'radial-gradient(circle, rgba(0,0,0,0) 61%, rgba(32,32,32,0.45) 63%, rgba(32,32,32,0.45) 73%, rgba(0,0,0,0) 75%)', borderRadius: '50%' }
+          : { ...base, background: 'radial-gradient(circle, rgba(36,40,50,0.42) 22%, rgba(0,0,0,0) 24%)' };
+      }
+    }
+    return styles;
+  }, [lastMoveSquares, selectedSquare, legalTargets]);
+
   const { bestMoveUci, isAnalyzing } = usePositionAnalysis(boardFen);
   const bestMoveArrow = useMemo(
     () =>
@@ -1019,14 +1047,19 @@ setSessionGames(prev => [{ id: game.id, label, game, hasEngine: false }, ...prev
     setSelectedSquare(sq => sq === square ? null : square);
   };
 
-  const onSquareClick = (square: string) => {
-    if (!selectedSquare) return;
-    if (selectedSquare === square) { setSelectedSquare(null); return; }
-    if (!tryMove(selectedSquare, square)) {
-      // Maybe clicking a different piece — select it instead if occupied
-      const chess = new Chess(boardFen);
-      setSelectedSquare(chess.get(square as Parameters<Chess['get']>[0]) ? square : null);
+  const onSquareClick = (square: string, piece?: string) => {
+    if (!selectedSquare) {
+      // onPieceClick handles piece selection — nothing to do here
+      return;
     }
+    if (selectedSquare === square) { setSelectedSquare(null); return; }
+    if (piece) {
+      // Clicking a piece while something is selected: try capture; if illegal, re-select
+      if (!tryMove(selectedSquare, square)) setSelectedSquare(square);
+      return;
+    }
+    // Empty square — try to move there
+    if (!tryMove(selectedSquare, square)) setSelectedSquare(null);
   };
 
   const onPieceDrop = (from: string, to: string): boolean => tryMove(from, to);
@@ -1129,7 +1162,7 @@ setSessionGames(prev => [{ id: game.id, label, game, hasEngine: false }, ...prev
               onSquareClick={onSquareClick}
               onPromotionCheck={onPromotionCheck}
               onPromotionPieceSelect={onPromotionPieceSelect}
-              customSquareStyles={customSquareStyles}
+              customSquareStyles={squareStyles}
               customArrows={bestMoveArrow as any}
               showBoardNotation={settings.showCoordinates}
               customDarkSquareStyle={{ backgroundColor: theme.dark }}
