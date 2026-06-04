@@ -32,12 +32,14 @@ function resolveEnginePath(): string {
   return path.join(src, entry);
 }
 
-function parseBestMove(line: string): string | null {
+function parseMoveInfo(line: string): { move: string; depth: number } | null {
   if (!line.startsWith('info ')) return null;
   const multipvMatch = line.match(/\bmultipv\s+(\d+)/);
   if (multipvMatch && Number(multipvMatch[1]) !== 1) return null;
-  if (!line.match(/\bdepth\s+\d+/) || !line.match(/\bpv\s+\S+/)) return null;
-  return line.match(/\bpv\s+(\S+)/)?.[1] ?? null;
+  const depthMatch = line.match(/\bdepth\s+(\d+)/);
+  const pvMatch = line.match(/\bpv\s+(\S+)/);
+  if (!depthMatch || !pvMatch) return null;
+  return { move: pvMatch[1], depth: Number(depthMatch[1]) };
 }
 
 let cachedEnginePath: string | null = null;
@@ -60,6 +62,11 @@ function killActive() {
 export async function GET(request: NextRequest) {
   const fen = request.nextUrl.searchParams.get('fen');
   if (!fen) return new Response('Missing fen', { status: 400 });
+
+  const movetimeParam = Number(request.nextUrl.searchParams.get('movetime'));
+  const movetime = Number.isFinite(movetimeParam) && movetimeParam > 0
+    ? Math.min(30000, movetimeParam)
+    : 8000;
 
   let enginePath: string;
   try {
@@ -123,7 +130,7 @@ export async function GET(request: NextRequest) {
         await new Promise<void>(resolve => {
           pendingResolve = resolve;
           engine.send(
-            'go movetime 8000',
+            `go movetime ${movetime}`,
             (bestmoveLine) => {
               if (!finished) {
                 const match = bestmoveLine.match(/^bestmove\s+(\S+)/);
@@ -135,8 +142,8 @@ export async function GET(request: NextRequest) {
             },
             (line) => {
               if (finished) return;
-              const move = parseBestMove(line);
-              if (move) enqueue({ type: 'update', move });
+              const info = parseMoveInfo(line);
+              if (info) enqueue({ type: 'update', move: info.move, depth: info.depth });
             }
           );
         });

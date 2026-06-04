@@ -981,6 +981,16 @@ setSessionGames(prev => [{ id: game.id, label, game, hasEngine: false }, ...prev
   // boardFen is the FEN actually shown and analyzed — follows game navigation unless the
   // user has played a move freely, in which case freeExploreFen takes over.
   const boardFen = freeExploreFen ?? currentFen;
+  const [extendKey, setExtendKey] = useState(0);
+
+  // Reset extend key whenever the position changes so each new FEN starts fresh at 8s.
+  const prevBoardFenRef = useRef(boardFen);
+  useEffect(() => {
+    if (prevBoardFenRef.current !== boardFen) {
+      prevBoardFenRef.current = boardFen;
+      setExtendKey(0);
+    }
+  }, [boardFen]);
 
   const legalTargets = useMemo(() => {
     if (!selectedSquare) return [];
@@ -1012,7 +1022,7 @@ setSessionGames(prev => [{ id: game.id, label, game, hasEngine: false }, ...prev
     return styles;
   }, [lastMoveSquares, selectedSquare, legalTargets]);
 
-  const { bestMoveUci, isAnalyzing } = usePositionAnalysis(boardFen);
+  const { bestMoveUci, depth, isAnalyzing, isDone } = usePositionAnalysis(boardFen, extendKey);
   const bestMoveArrow = useMemo(
     () =>
       bestMoveUci && bestMoveUci.length >= 4
@@ -1107,12 +1117,25 @@ setSessionGames(prev => [{ id: game.id, label, game, hasEngine: false }, ...prev
             boardSize={boardSize}
             onBoardSizeChange={setBoardSize}
             topBar={
-              <div className="flex h-full items-center justify-end pr-3">
-                {isAnalyzing && (
-                  <span className="flex items-center gap-1.5 text-[10px] font-medium text-emerald-400">
-                    <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-400" />
-                    Engine
-                  </span>
+              <div className="flex h-full items-center justify-end gap-2 pr-3">
+                {depth !== null && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => setExtendKey(k => k + 1)}
+                      disabled={!isDone}
+                      title="Think 20 seconds deeper"
+                      className="flex h-6 w-6 items-center justify-center rounded text-sm font-bold text-gray-500 transition-colors hover:bg-white/5 hover:text-white disabled:cursor-not-allowed disabled:opacity-25"
+                    >
+                      +
+                    </button>
+                    <span className="text-[11px] text-gray-400">
+                      Depth <span className={isAnalyzing ? 'text-emerald-400' : 'text-gray-200'}>{depth}</span>
+                    </span>
+                    {isAnalyzing && (
+                      <span className="h-1.5 w-1.5 shrink-0 animate-pulse rounded-full bg-emerald-400" />
+                    )}
+                  </>
                 )}
               </div>
             }
