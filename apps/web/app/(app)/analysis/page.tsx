@@ -856,7 +856,7 @@ export default function AnalysisPage() {
   return (
     <div className="h-full flex flex-col overflow-hidden">
       <div className="flex-1 min-h-0 overflow-hidden p-3 flex justify-center">
-        <div className="flex h-full gap-3">
+        <div className="flex h-full gap-3 w-full">
 
           <BoardPanel
             evalCp={displayEvalCp}
