@@ -790,7 +790,7 @@ export default function AnalysisPage() {
   const bestMoveArrow = useMemo(
     () =>
       bestMoveUci && bestMoveUci.length >= 4
-        ? [[bestMoveUci.slice(0, 2), bestMoveUci.slice(2, 4), 'rgba(15, 120, 15, 0.5)']]
+        ? [[bestMoveUci.slice(0, 2), bestMoveUci.slice(2, 4), 'rgb(22, 163, 74)']]
         : [],
     [bestMoveUci]
   );
