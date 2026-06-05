@@ -478,6 +478,89 @@ function ImportModal({
   );
 }
 
+// ─── Knight Arrow ─────────────────────────────────────────────────────────────
+
+function isKnightMove(uci: string): boolean {
+  if (uci.length < 4) return false;
+  const df = Math.abs(uci.charCodeAt(2) - uci.charCodeAt(0));
+  const dr = Math.abs(Number(uci[3]) - Number(uci[1]));
+  return (df === 1 && dr === 2) || (df === 2 && dr === 1);
+}
+
+function KnightArrow({
+  from, to, color, boardSize, flipped,
+}: {
+  from: string; to: string; color: string; boardSize: number; flipped: boolean;
+}) {
+  const sq = boardSize / 8;
+
+  const fromFile = from.charCodeAt(0) - 97;
+  const fromRank = Number(from[1]) - 1;
+  const toFile = to.charCodeAt(0) - 97;
+  const toRank = Number(to[1]) - 1;
+
+  // SVG coordinate conversion — accounts for board orientation
+  const svgX = (f: number) => (flipped ? 7 - f : f) * sq + sq / 2;
+  const svgY = (r: number) => (flipped ? r : 7 - r) * sq + sq / 2;
+
+  const x1 = svgX(fromFile);
+  const y1 = svgY(fromRank);
+  const x2 = svgX(toFile);
+  const y2 = svgY(toRank);
+
+  const df = Math.abs(toFile - fromFile);
+  const dr = Math.abs(toRank - fromRank);
+
+  // Corner: travel the longer leg first, then the shorter leg
+  const cx = dr >= df ? x1 : x2;
+  const cy = dr >= df ? y2 : y1;
+
+  // Arrowhead direction — last segment: corner → destination
+  const dx = x2 - cx;
+  const dy = y2 - cy;
+  const len = Math.sqrt(dx * dx + dy * dy);
+  const nx = dx / len;
+  const ny = dy / len;
+
+  const strokeW = sq * 0.13;
+  const headLen = sq * 0.38;
+  const headHalf = sq * 0.2;
+
+  // Pull the line end back so the arrowhead tip lands exactly on the to-square center
+  const lx = x2 - nx * headLen;
+  const ly = y2 - ny * headLen;
+
+  const arrowPoints = [
+    `${x2},${y2}`,
+    `${x2 - nx * headLen - ny * headHalf},${y2 - ny * headLen + nx * headHalf}`,
+    `${x2 - nx * headLen + ny * headHalf},${y2 - ny * headLen - nx * headHalf}`,
+  ].join(' ');
+
+  return (
+    <svg
+      width={boardSize}
+      height={boardSize}
+      style={{
+        position: 'absolute',
+        top: '50%',
+        left: '50%',
+        transform: 'translate(-50%, -50%)',
+        pointerEvents: 'none',
+      }}
+    >
+      <path
+        d={`M ${x1} ${y1} L ${cx} ${cy} L ${lx} ${ly}`}
+        fill="none"
+        stroke={color}
+        strokeWidth={strokeW}
+        strokeLinejoin="round"
+        strokeLinecap="round"
+      />
+      <polygon points={arrowPoints} fill={color} />
+    </svg>
+  );
+}
+
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function AnalysisPage() {
@@ -789,11 +872,24 @@ export default function AnalysisPage() {
 
   const bestMoveArrow = useMemo(
     () =>
-      bestMoveUci && bestMoveUci.length >= 4
+      bestMoveUci && bestMoveUci.length >= 4 && !isKnightMove(bestMoveUci)
         ? [[bestMoveUci.slice(0, 2), bestMoveUci.slice(2, 4), 'rgb(22, 163, 74)']]
         : [],
     [bestMoveUci]
   );
+
+  const knightArrowOverlay = useMemo(() => {
+    if (!bestMoveUci || !isKnightMove(bestMoveUci)) return null;
+    return (
+      <KnightArrow
+        from={bestMoveUci.slice(0, 2)}
+        to={bestMoveUci.slice(2, 4)}
+        color="rgb(22, 163, 74)"
+        boardSize={boardSize}
+        flipped={settings.flipBoard}
+      />
+    );
+  }, [bestMoveUci, boardSize, settings.flipBoard]);
 
   const tryMove = (from: string, to: string): boolean => {
     try {
@@ -883,6 +979,7 @@ export default function AnalysisPage() {
             boardSize={boardSize}
             onBoardSizeChange={setBoardSize}
             maxWidth={maxBoardWidth}
+            overlay={knightArrowOverlay}
             topBar={
               <div className="flex h-full items-center justify-end gap-2 pr-3">
                 {depth !== null && (
