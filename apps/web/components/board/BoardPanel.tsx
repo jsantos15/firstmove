@@ -48,9 +48,9 @@ export function BoardPanel({
   }, []);
 
   return (
-    // No shrink-0 — the panel must be able to yield horizontal space so the board
-    // shrinks instead of being clipped when the viewport narrows.
-    <div className="h-full overflow-hidden rounded-xl border border-white/5 bg-(--bg-panel) flex flex-col select-none">
+    // flex-1 min-w-0: fills all remaining horizontal space at full width, AND shrinks
+    // below natural content size when the viewport is narrow (e.g. DevTools open).
+    <div className="flex-1 min-w-0 h-full overflow-hidden rounded-xl border border-white/5 bg-(--bg-panel) flex flex-col select-none">
       {/* Top row — always h-15 to align with sidebar */}
       <div className="shrink-0 h-15" style={{ width: boardSize }}>
         {topBar}
