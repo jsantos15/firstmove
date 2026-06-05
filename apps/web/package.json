@@ -3,8 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
-    "build": "next build",
+    "dev": "node scripts/copy-stockfish.js && next dev",
+    "build": "node scripts/copy-stockfish.js && next build",
+    "copy-engine": "node scripts/copy-stockfish.js",
     "start": "next start",
     "lint": "eslint .",
     "type-check": "tsc --noEmit",

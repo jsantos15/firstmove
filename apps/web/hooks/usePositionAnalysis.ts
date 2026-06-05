@@ -2,11 +2,39 @@
 
 import { useState, useEffect } from 'react';
 
+// Stockfish WASM served as a static asset from public/stockfish/.
+// Running the engine as a browser Web Worker moves all memory pressure
+// to the browser tab — the Node.js dev/prod server is never involved.
+const WORKER_SCRIPT = '/stockfish/stockfish-17.1-lite-single-03e3232.js';
+
 interface PositionAnalysis {
   bestMoveUci: string | null;
   depth: number | null;
   isAnalyzing: boolean;
   isDone: boolean;
+}
+
+// Singleton worker — one instance for the page lifetime.
+// Reusing it across FEN changes avoids repeated init overhead (~150ms).
+let sharedWorker: Worker | null = null;
+let workerReadyPromise: Promise<void> | null = null;
+
+function ensureWorker(): Promise<void> {
+  if (workerReadyPromise) return workerReadyPromise;
+  sharedWorker = new Worker(WORKER_SCRIPT);
+  workerReadyPromise = new Promise<void>(resolve => {
+    function onInit(e: MessageEvent) {
+      const line = typeof e.data === 'string' ? e.data : String(e.data);
+      if (line === 'uciok') sharedWorker!.postMessage('isready');
+      else if (line === 'readyok') {
+        sharedWorker!.removeEventListener('message', onInit);
+        resolve();
+      }
+    }
+    sharedWorker!.addEventListener('message', onInit);
+    sharedWorker!.postMessage('uci');
+  });
+  return workerReadyPromise;
 }
 
 /**
@@ -25,50 +53,56 @@ export function usePositionAnalysis(fen: string, extendKey = 0): PositionAnalysi
     const movetime = isExtension ? 20000 : 8000;
 
     if (!isExtension) {
-      // Fresh position — reset everything.
       setBestMoveUci(null);
       setDepth(null);
     }
     setIsAnalyzing(false);
     setIsDone(false);
 
-    let es: EventSource | null = null;
+    // Cancel any in-progress search before starting a new one.
+    sharedWorker?.postMessage('stop');
 
-    const timer = setTimeout(() => {
+    let cancelled = false;
+    let onMessage: ((e: MessageEvent) => void) | null = null;
+
+    const timer = setTimeout(async () => {
+      await ensureWorker();
+      if (cancelled) return;
+
       setIsAnalyzing(true);
-      es = new EventSource(
-        `/api/analysis/position?fen=${encodeURIComponent(fen)}&movetime=${movetime}`
-      );
 
-      es.onmessage = (event) => {
-        try {
-          const data = JSON.parse(event.data as string) as {
-            type: string;
-            move?: string;
-            depth?: number;
-          };
-          if (data.type === 'update') {
-            if (data.move) setBestMoveUci(data.move);
-            if (data.depth != null) setDepth(data.depth);
-          } else if (data.type === 'bestmove' && data.move) {
-            setBestMoveUci(data.move);
-          } else if (data.type === 'done') {
-            setIsAnalyzing(false);
-            setIsDone(true);
-            es?.close();
-          }
-        } catch {}
+      onMessage = (e: MessageEvent) => {
+        if (cancelled) return;
+        const line = typeof e.data === 'string' ? e.data : String(e.data);
+
+        if (line.startsWith('info ')) {
+          const multipvMatch = line.match(/\bmultipv\s+(\d+)/);
+          if (multipvMatch && Number(multipvMatch[1]) !== 1) return;
+          const depthMatch = line.match(/\bdepth\s+(\d+)/);
+          const pvMatch = line.match(/\bpv\s+(\S+)/);
+          if (depthMatch) setDepth(Number(depthMatch[1]));
+          if (pvMatch) setBestMoveUci(pvMatch[1]);
+        } else if (line.startsWith('bestmove ')) {
+          const match = line.match(/^bestmove\s+(\S+)/);
+          const move = match?.[1] && match[1] !== '(none)' ? match[1] : null;
+          if (move) setBestMoveUci(move);
+          setIsAnalyzing(false);
+          setIsDone(true);
+          if (onMessage) sharedWorker!.removeEventListener('message', onMessage);
+          onMessage = null;
+        }
       };
 
-      es.onerror = () => {
-        setIsAnalyzing(false);
-        es?.close();
-      };
+      sharedWorker!.addEventListener('message', onMessage);
+      sharedWorker!.postMessage(`position fen ${fen}`);
+      sharedWorker!.postMessage(`go movetime ${movetime}`);
     }, isExtension ? 0 : 150);
 
     return () => {
+      cancelled = true;
       clearTimeout(timer);
-      es?.close();
+      if (onMessage) sharedWorker?.removeEventListener('message', onMessage);
+      sharedWorker?.postMessage('stop');
       setIsAnalyzing(false);
     };
   }, [fen, extendKey]);
