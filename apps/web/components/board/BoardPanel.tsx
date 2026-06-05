@@ -28,15 +28,17 @@ export function BoardPanel({
   overlay,
   children,
 }: BoardPanelProps) {
-  const wrapperRef = useRef<HTMLDivElement>(null);
+  const boardAreaRef = useRef<HTMLDivElement>(null);
   const callbackRef = useRef(onBoardSizeChange);
   callbackRef.current = onBoardSizeChange;
 
   useEffect(() => {
-    const el = wrapperRef.current;
+    const el = boardAreaRef.current;
     if (!el) return;
     const update = () => {
-      const size = el.clientHeight;
+      // Use the smaller of available width and height so the board stays square
+      // and shrinks correctly when horizontal space is constrained (e.g. DevTools open).
+      const size = Math.min(el.clientWidth, el.clientHeight);
       if (size > 0) callbackRef.current(size);
     };
     const observer = new ResizeObserver(update);
@@ -46,18 +48,26 @@ export function BoardPanel({
   }, []);
 
   return (
-    <div className="shrink-0 h-full overflow-hidden rounded-xl border border-white/5 bg-(--bg-panel) flex flex-col select-none">
+    // No shrink-0 — the panel must be able to yield horizontal space so the board
+    // shrinks instead of being clipped when the viewport narrows.
+    <div className="h-full overflow-hidden rounded-xl border border-white/5 bg-(--bg-panel) flex flex-col select-none">
       {/* Top row — always h-15 to align with sidebar */}
       <div className="shrink-0 h-15" style={{ width: boardSize }}>
         {topBar}
       </div>
 
-      {/* Board area — ResizeObserver target; eval bar is an in-flow flex sibling */}
-      <div ref={wrapperRef} className="relative min-h-0 flex-1 flex items-center">
-        <div className={`overflow-hidden transition-all duration-150 ${ringClass}`}>
-          {children}
+      {/* Middle row: board area + eval bar as flex siblings so the board area's
+          clientWidth reflects only the space available to the board, not the eval bar. */}
+      <div className="min-h-0 flex-1 flex items-center">
+        <div
+          ref={boardAreaRef}
+          className="relative flex-1 min-w-0 self-stretch flex items-center"
+        >
+          <div className={`overflow-hidden transition-all duration-150 ${ringClass}`}>
+            {children}
+          </div>
+          {overlay}
         </div>
-        {overlay}
         <EvalBar
           evalCp={evalCp}
           displayPerspective={displayPerspective}
