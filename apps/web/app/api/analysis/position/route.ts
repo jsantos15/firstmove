@@ -98,6 +98,10 @@ export async function GET(request: NextRequest) {
       const finish = () => {
         if (finished) return;
         finished = true;
+        // Remove the abort listener immediately so request.signal does not keep
+        // this closure (and transitively engine, controller, encoder, que) alive
+        // after the analysis ends. Without this every completed analysis leaks.
+        request.signal.removeEventListener('abort', finish);
         if (activeCancel === finish) activeCancel = null;
         const r = pendingResolve;
         pendingResolve = null;
