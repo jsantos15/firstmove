@@ -493,13 +493,15 @@ function KnightArrow({
   from: string; to: string; color: string; boardSize: number; flipped: boolean;
 }) {
   const sq = boardSize / 8;
+  // Match react-chessboard's arrow style exactly
+  const strokeWidth = boardSize / 40;
+  const endReducer = boardSize / 32; // how far back from dest center the line ends
 
   const fromFile = from.charCodeAt(0) - 97;
   const fromRank = Number(from[1]) - 1;
   const toFile = to.charCodeAt(0) - 97;
   const toRank = Number(to[1]) - 1;
 
-  // SVG coordinate conversion — accounts for board orientation
   const svgX = (f: number) => (flipped ? 7 - f : f) * sq + sq / 2;
   const svgY = (r: number) => (flipped ? r : 7 - r) * sq + sq / 2;
 
@@ -515,26 +517,14 @@ function KnightArrow({
   const cx = dr >= df ? x1 : x2;
   const cy = dr >= df ? y2 : y1;
 
-  // Arrowhead direction — last segment: corner → destination
+  // Shorten last segment by endReducer, matching react-chessboard's line shortening
   const dx = x2 - cx;
   const dy = y2 - cy;
-  const len = Math.sqrt(dx * dx + dy * dy);
-  const nx = dx / len;
-  const ny = dy / len;
+  const segLen = Math.sqrt(dx * dx + dy * dy);
+  const ex = cx + dx * (segLen - endReducer) / segLen;
+  const ey = cy + dy * (segLen - endReducer) / segLen;
 
-  const strokeW = sq * 0.13;
-  const headLen = sq * 0.38;
-  const headHalf = sq * 0.2;
-
-  // Pull the line end back so the arrowhead tip lands exactly on the to-square center
-  const lx = x2 - nx * headLen;
-  const ly = y2 - ny * headLen;
-
-  const arrowPoints = [
-    `${x2},${y2}`,
-    `${x2 - nx * headLen - ny * headHalf},${y2 - ny * headLen + nx * headHalf}`,
-    `${x2 - nx * headLen + ny * headHalf},${y2 - ny * headLen - nx * headHalf}`,
-  ].join(' ');
+  const markerId = `knight-${from}${to}`;
 
   return (
     <svg
@@ -548,15 +538,28 @@ function KnightArrow({
         pointerEvents: 'none',
       }}
     >
+      <defs>
+        <marker
+          id={markerId}
+          markerWidth="2"
+          markerHeight="2.5"
+          refX="1.25"
+          refY="1.25"
+          orient="auto"
+        >
+          <polygon points="0.3 0, 2 1.25, 0.3 2.5" fill={color} />
+        </marker>
+      </defs>
       <path
-        d={`M ${x1} ${y1} L ${cx} ${cy} L ${lx} ${ly}`}
+        d={`M ${x1} ${y1} L ${cx} ${cy} L ${ex} ${ey}`}
         fill="none"
         stroke={color}
-        strokeWidth={strokeW}
+        strokeWidth={strokeWidth}
         strokeLinejoin="round"
         strokeLinecap="round"
+        opacity={0.65}
+        markerEnd={`url(#${markerId})`}
       />
-      <polygon points={arrowPoints} fill={color} />
     </svg>
   );
 }
