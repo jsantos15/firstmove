@@ -534,8 +534,8 @@ const selectedReferenceVariation =
 
   return (
     <div className="h-full flex flex-col overflow-hidden">
-      <div className="flex-1 min-h-0 overflow-hidden px-6 py-3 flex justify-center">
-        <div className="flex h-full gap-3 w-full">
+      <div className="flex-1 min-h-0 overflow-hidden p-3 flex justify-center">
+        <div className="flex h-full gap-3">
           {practicedVariation && (
                 <PracticeBoard
                   ref={practiceBoardRef}

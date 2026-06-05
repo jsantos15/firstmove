@@ -495,11 +495,29 @@ export default function AnalysisPage() {
   const [coachByPly, setCoachByPly] = useState<Map<number, CoachFeedback | null>>(new Map());
   const [lastExploreMove, setLastExploreMove] = useState<{ san: string; prevFen: string } | null>(null);
   const [boardSize, setBoardSize] = useState(480);
+  const [maxBoardWidth, setMaxBoardWidth] = useState<number | undefined>(undefined);
+  const boardContainerRef = useRef<HTMLDivElement>(null);
   const [freeExploreFen, setFreeExploreFen] = useState<string | null>(null);
   const [selectedSquare, setSelectedSquare] = useState<string | null>(null);
   const { theme, animationDuration, settings, setSettings } = useBoardSettings();
   const { settings: coachSettings } = useCoachSettings();
   const customPieces = useMemo(() => getCustomPieces(settings.pieceSetId), [settings.pieceSetId]);
+
+  // Cap board size to the available horizontal space so the board shrinks instead
+  // of clipping when the viewport is narrow (e.g. DevTools open). The centered
+  // layout is preserved at full width, restoring the gap beside the right panel.
+  useEffect(() => {
+    const el = boardContainerRef.current;
+    if (!el) return;
+    const obs = new ResizeObserver(() => {
+      // SidePanel: w-104 (416px) at <lg, lg:w-114 (456px) at ≥1024px viewport
+      const sideW = window.innerWidth >= 1024 ? 456 : 416;
+      const max = Math.max(100, el.clientWidth - 24 - sideW - 12 - 36); // pad(2×12) + side + gap(12) + evalBar(36)
+      setMaxBoardWidth(max);
+    });
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, []);
 
   // Stable refs so callbacks don't go stale
   const analyzedGameRef = useRef<AnalyzedGame | null>(null);
@@ -855,8 +873,8 @@ export default function AnalysisPage() {
 
   return (
     <div className="h-full flex flex-col overflow-hidden">
-      <div className="flex-1 min-h-0 overflow-hidden px-6 py-3 flex justify-center">
-        <div className="flex h-full gap-3 w-full">
+      <div ref={boardContainerRef} className="flex-1 min-h-0 overflow-hidden p-3 flex justify-center">
+        <div className="flex h-full gap-3">
 
           <BoardPanel
             evalCp={displayEvalCp}
@@ -864,6 +882,7 @@ export default function AnalysisPage() {
             reserveEvalSpace={true}
             boardSize={boardSize}
             onBoardSizeChange={setBoardSize}
+            maxWidth={maxBoardWidth}
             topBar={
               <div className="flex h-full items-center justify-end gap-2 pr-3">
                 {depth !== null && (
