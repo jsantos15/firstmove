@@ -556,7 +556,7 @@ function KnightArrow({
         stroke={color}
         strokeWidth={strokeWidth}
         strokeLinejoin="round"
-        strokeLinecap="round"
+        strokeLinecap="butt"
         opacity={0.65}
         markerEnd={`url(#${markerId})`}
       />
