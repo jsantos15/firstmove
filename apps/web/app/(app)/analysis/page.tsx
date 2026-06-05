@@ -11,6 +11,8 @@ import { usePositionAnalysis } from '@/hooks/usePositionAnalysis';
 import { useCoachSettings } from '@/hooks/useCoachSettings';
 import { getCustomPieces } from '@/lib/piecesets';
 import { BoardSettingsPopover } from '@/components/board/BoardSettingsPopover';
+import { AnalysisWorkerPool, workerPoolSize } from '@/lib/client/analysisPool';
+import { enrichGameMove } from '@/lib/client/enrichGameMove';
 import {
   buildAnalyzedGameFromPgn,
   buildGameAnalysisCoachFeedbackFromAnalyzedGameMove,
@@ -32,21 +34,6 @@ const INITIAL_EVAL_CP = 20;
 const STOCKFISH_DEPTH = 10;
 
 // ─── Types ────────────────────────────────────────────────────────────────────
-
-interface SessionGame {
-  id: string;
-  label: string;
-  game: AnalyzedGame;
-  hasEngine: boolean;
-}
-
-type StockfishResponse = {
-  game: AnalyzedGame;
-  analyzedMoves: number;
-  requestedMoves: number;
-  maxMoves: number;
-  depth: number;
-};
 
 type PanelTab = 'explore' | 'review';
 type ReviewSubTab = 'summary' | 'moves';
@@ -497,11 +484,12 @@ export default function AnalysisPage() {
   const [analyzedGame, setAnalyzedGame] = useState<AnalyzedGame | null>(null);
   const [currentPlyIndex, setCurrentPlyIndex] = useState(-1);
   const [lastMoveSquares, setLastMoveSquares] = useState<{ from: string; to: string } | null>(null);
-  const [sessionGames, setSessionGames] = useState<SessionGame[]>([]);
   const [showImportModal, setShowImportModal] = useState(false);
   const [parseError, setParseError] = useState<string | null>(null);
   const [isEngineRunning, setIsEngineRunning] = useState(false);
+  const [engineProgress, setEngineProgress] = useState(0);
   const [engineError, setEngineError] = useState<string | null>(null);
+  const enginePoolRef = useRef<AnalysisWorkerPool | null>(null);
   const [activeTab, setActiveTab] = useState<PanelTab>('explore');
   const [reviewSubTab, setReviewSubTab] = useState<ReviewSubTab>('summary');
   const [coachByPly, setCoachByPly] = useState<Map<number, CoachFeedback | null>>(new Map());
@@ -624,8 +612,6 @@ export default function AnalysisPage() {
       setShowImportModal(false);
       setActiveTab('review');
       setReviewSubTab('summary');
-      const label = extractGameTitle(pgn) ?? `Game ${sessionGames.length + 1}`;
-      setSessionGames(prev => [{ id: game.id, label, game, hasEngine: false }, ...prev]);
     } catch (error) {
       setParseError(error instanceof Error ? error.message : 'Could not parse that PGN/FEN.');
     }
@@ -634,56 +620,65 @@ export default function AnalysisPage() {
   async function runStockfish() {
     if (!analyzedGame || isEngineRunning) return;
     setIsEngineRunning(true);
+    setEngineProgress(0);
     setEngineError(null);
-    const gameId = analyzedGame.id;
+
+    let pool: AnalysisWorkerPool;
+    try {
+      pool = await AnalysisWorkerPool.create(workerPoolSize());
+      enginePoolRef.current = pool;
+    } catch {
+      setEngineError('Failed to initialize analysis engines.');
+      setIsEngineRunning(false);
+      return;
+    }
+
+    const moves = [...analyzedGame.moves];
+    const enriched: AnalyzedGameMove[] = new Array(moves.length);
+    let completed = 0;
 
     try {
-      const response = await fetch('/api/analysis/stockfish', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          game: analyzedGame,
-          depth: STOCKFISH_DEPTH,
-          maxMoves: analyzedGame.moves.length,
-        }),
-      });
-      const payload = (await response.json()) as Partial<StockfishResponse> & { error?: string };
-      if (!response.ok || !payload.game) throw new Error(payload.error ?? 'Stockfish failed.');
-
-      setAnalyzedGame(payload.game);
-      setSessionGames(prev =>
-        prev.map(sg => (sg.id === gameId ? { ...sg, game: payload.game!, hasEngine: true } : sg))
+      await Promise.all(
+        moves.map(async (move, i) => {
+          if (pool.terminated) return;
+          enriched[i] = await enrichGameMove(move, pool, STOCKFISH_DEPTH);
+          if (!pool.terminated) {
+            completed++;
+            setEngineProgress(completed / moves.length);
+          }
+        })
       );
-      // Pre-compute coach texts for every ply — pure JS, instant.
-      const byPly = new Map<number, CoachFeedback | null>();
-      for (const move of payload.game.moves) {
-        try {
-          const feedbacks = buildGameAnalysisCoachFeedbackFromAnalyzedGameMove({
-            game: payload.game,
-            move,
-            persona: coachSettings.persona,
-          });
-          byPly.set(move.plyIndex, feedbacks[0] ?? null);
-        } catch {
-          byPly.set(move.plyIndex, null);
+
+      if (!pool.terminated) {
+        const enrichedGame: AnalyzedGame = { ...analyzedGame, moves: enriched };
+        setAnalyzedGame(enrichedGame);
+
+        const byPly = new Map<number, CoachFeedback | null>();
+        for (const move of enrichedGame.moves) {
+          try {
+            const feedbacks = buildGameAnalysisCoachFeedbackFromAnalyzedGameMove({
+              game: enrichedGame,
+              move,
+              persona: coachSettings.persona,
+            });
+            byPly.set(move.plyIndex, feedbacks[0] ?? null);
+          } catch {
+            byPly.set(move.plyIndex, null);
+          }
         }
+        setCoachByPly(byPly);
+        setReviewSubTab('summary');
+        goTo(currentPlyRef.current, enrichedGame);
       }
-      setCoachByPly(byPly);
-      setReviewSubTab('summary');
-      goTo(currentPlyRef.current, payload.game);
     } catch (error) {
-      setEngineError(error instanceof Error ? error.message : 'Engine analysis failed.');
+      if (!pool.terminated) {
+        setEngineError(error instanceof Error ? error.message : 'Engine analysis failed.');
+      }
     } finally {
+      pool.terminate();
+      enginePoolRef.current = null;
       setIsEngineRunning(false);
     }
-  }
-
-  function switchToGame(game: AnalyzedGame) {
-    setAnalyzedGame(game);
-    setCurrentPlyIndex(-1);
-    setLastMoveSquares(null);
-    setEngineError(null);
-    setCoachByPly(new Map());
   }
 
   const totalMoves = analyzedGame?.moves.length ?? 0;
@@ -1022,15 +1017,25 @@ export default function AnalysisPage() {
                 {/* ── Game loaded ── */}
                 {analyzedGame && (
                   <>
-                    {/* Stockfish loading overlay */}
+                    {/* Engine progress overlay */}
                     {isEngineRunning && (
-                      <div className="flex flex-1 min-h-0 flex-col items-center justify-center gap-4 px-6 py-8">
-                        <div className="flex h-10 w-10 items-center justify-center">
-                          <span className="h-8 w-8 animate-spin rounded-full border-2 border-white/10 border-t-amber-400" />
-                        </div>
-                        <div className="text-center">
-                          <p className="text-sm font-medium text-gray-300">Analyzing with Stockfish</p>
-                          <p className="mt-1 text-xs text-gray-600">Running through all moves…</p>
+                      <div className="flex flex-1 min-h-0 flex-col items-center justify-center gap-5 px-6 py-8">
+                        <div className="w-full max-w-[160px]">
+                          <div className="mb-2 flex items-center justify-between">
+                            <p className="text-xs font-medium text-gray-300">Analyzing</p>
+                            <span className="text-xs tabular-nums text-gray-500">
+                              {Math.round(engineProgress * 100)}%
+                            </span>
+                          </div>
+                          <div className="h-1 w-full overflow-hidden rounded-full bg-white/5">
+                            <div
+                              className="h-full rounded-full bg-amber-400 transition-all duration-300"
+                              style={{ width: `${Math.round(engineProgress * 100)}%` }}
+                            />
+                          </div>
+                          <p className="mt-2 text-[10px] text-gray-600">
+                            {analyzedGame.moves.length} moves · {workerPoolSize()} engines
+                          </p>
                         </div>
                       </div>
                     )}
