@@ -48,16 +48,11 @@ type StockfishResponse = {
   depth: number;
 };
 
-type BottomPanelTab = 'review' | 'engine' | 'recap' | 'games';
+type PanelTab = 'explore' | 'review';
+type ReviewSubTab = 'summary' | 'moves';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function formatEval(cp: number | undefined): string {
-  if (typeof cp !== 'number' || !Number.isFinite(cp)) return '—';
-  if (Math.abs(cp) >= 9000) return cp > 0 ? '#' : '-#';
-  if (Math.abs(cp) < 10) return '0.0';
-  return `${cp > 0 ? '+' : ''}${(cp / 100).toFixed(1)}`;
-}
 
 const CLASSIFICATION_DOT: Record<GameReviewCategory, string> = {
   brilliant: 'bg-cyan-400',
@@ -242,242 +237,7 @@ function AnalysisMoveList({
   );
 }
 
-// ─── Engine Lines ─────────────────────────────────────────────────────────────
-
-function EngineLines({ move }: { move: AnalyzedGameMove | null }) {
-  if (!move || !move.hasEngineAnalysis) {
-    return (
-      <div className="flex flex-1 items-center justify-center px-4 py-3 text-center">
-        <p className="text-xs leading-5 text-gray-600">
-          Run Stockfish to see the best lines and evaluation for each position.
-        </p>
-      </div>
-    );
-  }
-
-  const bestLine = move.bestLine;
-  const alternatives = move.bestMoveAlternatives
-    ?.filter(alt => alt.san !== move.bestMoveSan)
-    .slice(0, 2);
-
-  return (
-    <div className="flex min-h-0 flex-1 flex-col gap-1.5 overflow-y-auto px-3 py-2">
-      {move.bestMoveSan && (
-        <div className="rounded-lg border border-amber-400/15 bg-amber-400/5 px-3 py-2">
-          <div className="mb-1.5 flex items-center justify-between gap-2">
-            <span className="text-[10px] font-medium uppercase tracking-wider text-amber-400/70">
-              Best line
-            </span>
-            {typeof move.afterBestEvalCp === 'number' && (
-              <span className="tabular-nums text-[10px] text-amber-300/70">
-                {formatEval(move.afterBestEvalCp)}
-              </span>
-            )}
-          </div>
-          {bestLine && bestLine.length > 0 ? (
-            <div className="flex flex-wrap gap-x-1.5 gap-y-0.5">
-              {bestLine.map((lineMove, i) => (
-                <span
-                  key={i}
-                  className={`font-mono text-xs ${
-                    lineMove.isKeyMove ? 'font-semibold text-amber-300' : 'text-gray-300'
-                  }`}
-                >
-                  {lineMove.san}
-                </span>
-              ))}
-            </div>
-          ) : (
-            <span className="font-mono text-xs font-semibold text-amber-300">
-              {move.bestMoveSan}
-            </span>
-          )}
-        </div>
-      )}
-
-      {alternatives && alternatives.length > 0 && (
-        <>
-          {alternatives.map((alt, i) => (
-            <div
-              key={i}
-              className="flex items-center justify-between gap-2 rounded-lg border border-white/5 px-3 py-2"
-            >
-              <span className="font-mono text-xs text-gray-400">{alt.san}</span>
-              {typeof alt.evalCp === 'number' && (
-                <span className="tabular-nums text-[10px] text-gray-500">
-                  {formatEval(alt.evalCp)}
-                </span>
-              )}
-            </div>
-          ))}
-        </>
-      )}
-    </div>
-  );
-}
-
 // ─── Session Games List ────────────────────────────────────────────────────────
-
-type CoachEvidence = NonNullable<CoachFeedback['evidence']>;
-
-function CoachEvidenceMoves({
-  moves,
-}: {
-  moves: Array<{ san: string; isKeyMove?: boolean; evalCp?: number }>;
-}) {
-  return (
-    <div className="flex flex-wrap gap-x-1.5 gap-y-1">
-      {moves.map((move, index) => (
-        <span
-          key={`${move.san}-${index}`}
-          className={`rounded px-1.5 py-0.5 font-mono text-xs ${
-            move.isKeyMove
-              ? 'bg-amber-400/15 font-semibold text-amber-300'
-              : 'bg-white/[0.03] text-gray-300'
-          }`}
-          title={typeof move.evalCp === 'number' ? `Eval ${formatEval(move.evalCp)}` : undefined}
-        >
-          {move.san}
-        </span>
-      ))}
-    </div>
-  );
-}
-
-function CoachEvidenceDetails({ evidence }: { evidence: CoachEvidence }) {
-  if (evidence.kind === 'line') {
-    return (
-      <div className="space-y-2">
-        <CoachEvidenceMoves moves={evidence.moves} />
-        {evidence.summary && <p className="text-xs leading-5 text-gray-500">{evidence.summary}</p>}
-      </div>
-    );
-  }
-
-  if (evidence.kind === 'single_move') {
-    return (
-      <div className="space-y-2">
-        <CoachEvidenceMoves moves={[evidence.move]} />
-        {evidence.summary && <p className="text-xs leading-5 text-gray-500">{evidence.summary}</p>}
-      </div>
-    );
-  }
-
-  if (evidence.kind === 'square') {
-    return (
-      <div className="space-y-2">
-        <div className="flex flex-wrap gap-1.5">
-          {evidence.squares.map(square => (
-            <span
-              key={square}
-              className="rounded border border-amber-400/20 bg-amber-400/10 px-2 py-1 font-mono text-xs font-semibold text-amber-300"
-            >
-              {square}
-            </span>
-          ))}
-        </div>
-        {evidence.summary && <p className="text-xs leading-5 text-gray-500">{evidence.summary}</p>}
-      </div>
-    );
-  }
-
-  if (evidence.kind === 'piece') {
-    return (
-      <div className="space-y-2">
-        <div className="grid gap-1.5">
-          {evidence.pieces.map(piece => (
-            <div
-              key={`${piece.role}-${piece.square}`}
-              className="flex items-center justify-between gap-2 rounded border border-white/5 bg-white/[0.03] px-2.5 py-1.5"
-            >
-              <span className="truncate text-xs capitalize text-gray-300">
-                {piece.role.replace(/_/g, ' ')}
-              </span>
-              <span className="font-mono text-xs font-semibold text-amber-300">{piece.square}</span>
-            </div>
-          ))}
-        </div>
-        {evidence.summary && <p className="text-xs leading-5 text-gray-500">{evidence.summary}</p>}
-      </div>
-    );
-  }
-
-  return (
-    <div className="space-y-2">
-      {evidence.keyMove && (
-        <CoachEvidenceMoves moves={[{ san: evidence.keyMove, isKeyMove: true }]} />
-      )}
-      {evidence.targetSquares && evidence.targetSquares.length > 0 && (
-        <div className="flex flex-wrap gap-1.5">
-          {evidence.targetSquares.map(square => (
-            <span
-              key={square}
-              className="rounded border border-white/10 bg-white/[0.03] px-2 py-1 font-mono text-xs text-gray-300"
-            >
-              {square}
-            </span>
-          ))}
-        </div>
-      )}
-      <p className="text-xs leading-5 text-gray-500">{evidence.summary}</p>
-    </div>
-  );
-}
-
-function CoachAnalysisPanel({
-  feedback,
-  move,
-}: {
-  feedback: CoachFeedback | null;
-  move: AnalyzedGameMove | null;
-}) {
-  const evidence = feedback?.evidence;
-  const moveLabel =
-    move && move.plyIndex >= 0
-      ? `${Math.floor(move.plyIndex / 2) + 1}${move.playedBy === 'black' ? '...' : '.'} ${move.san}`
-      : null;
-
-  return (
-    <div className="shrink-0">
-      <div className="flex items-center justify-between gap-3 border-b border-white/5 px-4 py-2.5">
-        <div className="min-w-0">
-          <h3 className="text-xs font-medium uppercase tracking-wider text-gray-500">
-            Coach analysis
-          </h3>
-          {moveLabel && (
-            <p className="mt-0.5 truncate font-mono text-xs text-gray-400">{moveLabel}</p>
-          )}
-        </div>
-        {feedback && (
-          <span className="shrink-0 rounded-full border border-white/10 px-2 py-0.5 text-[10px] font-semibold uppercase leading-4 text-gray-400">
-            {feedback.label}
-          </span>
-        )}
-      </div>
-
-      <div className="space-y-3 px-4 py-3">
-        {evidence ? (
-          <div>
-            <div className="mb-2 flex items-center justify-between gap-2">
-              <p className="truncate text-sm font-semibold text-white">{evidence.title}</p>
-              <span className="shrink-0 text-[10px] font-medium uppercase tracking-wider text-amber-400/70">
-                {evidence.actionLabel}
-              </span>
-            </div>
-            <CoachEvidenceDetails evidence={evidence} />
-          </div>
-        ) : (
-          <p className="text-xs leading-5 text-gray-600">
-            {feedback
-              ? 'This move has a coach note, but no concrete line or target is attached yet.'
-              : 'Select a move after importing a game to see the concrete coach evidence.'}
-          </p>
-        )}
-
-      </div>
-    </div>
-  );
-}
 
 function GameRecapPanel({
   summaries,
@@ -632,55 +392,6 @@ function GameReviewReportPanel({
   );
 }
 
-function SessionGamesList({
-  games,
-  currentGameId,
-  onSelect,
-}: {
-  games: SessionGame[];
-  currentGameId?: string;
-  onSelect: (game: AnalyzedGame) => void;
-}) {
-  if (games.length === 0) {
-    return (
-      <div className="flex flex-1 items-center justify-center px-4 py-3 text-center">
-        <p className="text-xs leading-5 text-gray-600">
-          Imported games appear here. You can switch between them any time.
-        </p>
-      </div>
-    );
-  }
-
-  return (
-    <div className="flex min-h-0 flex-1 flex-col gap-1.5 overflow-y-auto px-3 py-2">
-      {games.map(sg => (
-        <button
-          key={sg.id}
-          type="button"
-          onClick={() => onSelect(sg.game)}
-          className={`w-full rounded-lg border px-3 py-2 text-left transition-colors ${
-            sg.id === currentGameId
-              ? 'border-amber-400/30 bg-amber-400/10'
-              : 'border-white/5 bg-white/[0.02] hover:border-white/10 hover:bg-white/[0.04]'
-          }`}
-        >
-          <span
-            className={`block truncate text-xs font-medium ${
-              sg.id === currentGameId ? 'text-amber-300' : 'text-gray-300'
-            }`}
-          >
-            {sg.label}
-          </span>
-          <div className="mt-1 flex items-center gap-2">
-            <span className="text-[10px] text-gray-600">{sg.game.moves.length} moves</span>
-            {sg.hasEngine && <span className="text-[10px] text-emerald-500/80">● Engine</span>}
-          </div>
-        </button>
-      ))}
-    </div>
-  );
-}
-
 // ─── Import Modal ─────────────────────────────────────────────────────────────
 
 function ImportModal({
@@ -790,9 +501,11 @@ export default function AnalysisPage() {
   const [showImportModal, setShowImportModal] = useState(false);
   const [parseError, setParseError] = useState<string | null>(null);
   const [isEngineRunning, setIsEngineRunning] = useState(false);
-  const [engineStatus, setEngineStatus] = useState<string | null>(null);
   const [engineError, setEngineError] = useState<string | null>(null);
-  const [activeBottomPanel, setActiveBottomPanel] = useState<BottomPanelTab>('review');
+  const [activeTab, setActiveTab] = useState<PanelTab>('explore');
+  const [reviewSubTab, setReviewSubTab] = useState<ReviewSubTab>('summary');
+  const [coachByPly, setCoachByPly] = useState<Map<number, CoachFeedback | null>>(new Map());
+  const [lastExploreMove, setLastExploreMove] = useState<{ san: string; prevFen: string } | null>(null);
   const [boardSize, setBoardSize] = useState(480);
   const [freeExploreFen, setFreeExploreFen] = useState<string | null>(null);
   const [selectedSquare, setSelectedSquare] = useState<string | null>(null);
@@ -813,6 +526,7 @@ export default function AnalysisPage() {
     if (!g) return;
     const clamped = Math.max(-1, Math.min(plyIndex, g.moves.length - 1));
     setFreeExploreFen(null);
+    setLastExploreMove(null);
     setCurrentPlyIndex(clamped);
 
     if (clamped >= 0) {
@@ -871,20 +585,6 @@ export default function AnalysisPage() {
   // PracticeBoard's INITIAL_POSITION_EVAL_CP fallback so the eval bar always has a label.
   const displayEvalCp = currentEvalCp ?? (currentPlyIndex <= -1 ? INITIAL_EVAL_CP : undefined);
 
-  const coachFeedback: CoachFeedback | null = useMemo(() => {
-    if (!analyzedGame || !currentMove) return null;
-    try {
-      const feedbacks = buildGameAnalysisCoachFeedbackFromAnalyzedGameMove({
-        game: analyzedGame,
-        move: currentMove,
-        persona: coachSettings.persona,
-      });
-      return feedbacks[0] ?? null;
-    } catch {
-      return null;
-    }
-  }, [analyzedGame, currentMove, coachSettings.persona]);
-
   const summaryFeedbacks = useMemo(() => {
     if (!analyzedGame) return [];
     try {
@@ -920,11 +620,12 @@ export default function AnalysisPage() {
       setLastMoveSquares(null);
       setParseError(null);
       setEngineError(null);
-      setEngineStatus(null);
+      setCoachByPly(new Map());
       setShowImportModal(false);
-
+      setActiveTab('review');
+      setReviewSubTab('summary');
       const label = extractGameTitle(pgn) ?? `Game ${sessionGames.length + 1}`;
-setSessionGames(prev => [{ id: game.id, label, game, hasEngine: false }, ...prev]);
+      setSessionGames(prev => [{ id: game.id, label, game, hasEngine: false }, ...prev]);
     } catch (error) {
       setParseError(error instanceof Error ? error.message : 'Could not parse that PGN/FEN.');
     }
@@ -934,7 +635,6 @@ setSessionGames(prev => [{ id: game.id, label, game, hasEngine: false }, ...prev
     if (!analyzedGame || isEngineRunning) return;
     setIsEngineRunning(true);
     setEngineError(null);
-    setEngineStatus('Running Stockfish...');
     const gameId = analyzedGame.id;
 
     try {
@@ -951,16 +651,28 @@ setSessionGames(prev => [{ id: game.id, label, game, hasEngine: false }, ...prev
       if (!response.ok || !payload.game) throw new Error(payload.error ?? 'Stockfish failed.');
 
       setAnalyzedGame(payload.game);
-      setEngineStatus(
-        `${payload.analyzedMoves ?? 0} moves at depth ${payload.depth ?? STOCKFISH_DEPTH}.`
-      );
       setSessionGames(prev =>
         prev.map(sg => (sg.id === gameId ? { ...sg, game: payload.game!, hasEngine: true } : sg))
       );
+      // Pre-compute coach texts for every ply — pure JS, instant.
+      const byPly = new Map<number, CoachFeedback | null>();
+      for (const move of payload.game.moves) {
+        try {
+          const feedbacks = buildGameAnalysisCoachFeedbackFromAnalyzedGameMove({
+            game: payload.game,
+            move,
+            persona: coachSettings.persona,
+          });
+          byPly.set(move.plyIndex, feedbacks[0] ?? null);
+        } catch {
+          byPly.set(move.plyIndex, null);
+        }
+      }
+      setCoachByPly(byPly);
+      setReviewSubTab('summary');
       goTo(currentPlyRef.current, payload.game);
     } catch (error) {
       setEngineError(error instanceof Error ? error.message : 'Engine analysis failed.');
-      setEngineStatus(null);
     } finally {
       setIsEngineRunning(false);
     }
@@ -971,13 +683,12 @@ setSessionGames(prev => [{ id: game.id, label, game, hasEngine: false }, ...prev
     setCurrentPlyIndex(-1);
     setLastMoveSquares(null);
     setEngineError(null);
-    setEngineStatus(null);
+    setCoachByPly(new Map());
   }
 
   const totalMoves = analyzedGame?.moves.length ?? 0;
   const canGoBack = analyzedGame !== null && currentPlyIndex >= 0;
   const canGoForward = analyzedGame !== null && currentPlyIndex < totalMoves - 1;
-
   // boardFen is the FEN actually shown and analyzed — follows game navigation unless the
   // user has played a move freely, in which case freeExploreFen takes over.
   const boardFen = freeExploreFen ?? currentFen;
@@ -1023,6 +734,46 @@ setSessionGames(prev => [{ id: game.id, label, game, hasEngine: false }, ...prev
   }, [lastMoveSquares, selectedSquare, legalTargets]);
 
   const { bestMoveUci, depth, isAnalyzing, isDone } = usePositionAnalysis(boardFen, extendKey);
+
+  // Explore/deviation coach: once depth ≥ 12, compare played move vs engine best.
+  const exploreCoach = useMemo((): CoachFeedback | null => {
+    if (!lastExploreMove || !bestMoveUci || !depth || depth < 12) return null;
+    try {
+      const chess = new Chess(lastExploreMove.prevFen);
+      const bestMove = chess.move({
+        from: bestMoveUci.slice(0, 2),
+        to: bestMoveUci.slice(2, 4),
+        promotion: (bestMoveUci[4] ?? 'q') as 'q' | 'r' | 'b' | 'n',
+      });
+      const bestSan = bestMove?.san ?? bestMoveUci;
+      const isMatch = lastExploreMove.san === bestSan;
+      return {
+        id: 'explore',
+        event: { eventType: isMatch ? 'best' : 'inaccuracy', moveIndex: 0 },
+        tone: isMatch ? 'positive' : 'warning',
+        label: isMatch ? 'Best' : 'Suboptimal',
+        title: isMatch
+          ? `${lastExploreMove.san} is the best move`
+          : `${lastExploreMove.san} · engine prefers ${bestSan}`,
+        message: isMatch
+          ? "You found the engine's top choice for this position."
+          : `${bestSan} leads to a stronger position according to the engine.`,
+        variables: {},
+      } as unknown as CoachFeedback;
+    } catch {
+      return null;
+    }
+  }, [lastExploreMove, bestMoveUci, depth]);
+
+  // Active coach: review tab on main game line → pre-computed text.
+  // Explore tab or deviations → depth-triggered explore coach.
+  const activeCoach = useMemo((): CoachFeedback | null => {
+    if (activeTab === 'review' && !freeExploreFen) {
+      return coachByPly.get(currentPlyIndex) ?? null;
+    }
+    return exploreCoach;
+  }, [activeTab, freeExploreFen, coachByPly, currentPlyIndex, exploreCoach]);
+
   const bestMoveArrow = useMemo(
     () =>
       bestMoveUci && bestMoveUci.length >= 4
@@ -1033,11 +784,13 @@ setSessionGames(prev => [{ id: game.id, label, game, hasEngine: false }, ...prev
 
   const tryMove = (from: string, to: string): boolean => {
     try {
-      const chess = new Chess(boardFen);
+      const prevFen = boardFen;
+      const chess = new Chess(prevFen);
       const move = chess.move({ from, to, promotion: 'q' });
       if (!move) return false;
       setFreeExploreFen(chess.fen());
       setLastMoveSquares({ from: move.from, to: move.to });
+      setLastExploreMove({ san: move.san, prevFen });
       setSelectedSquare(null);
       return true;
     } catch {
@@ -1140,41 +893,21 @@ setSessionGames(prev => [{ id: game.id, label, game, hasEngine: false }, ...prev
               </div>
             }
             bottomBar={
-              <div className="grid grid-cols-3 items-center py-2.5">
-                <div className="pl-3">
-                  <button
-                    type="button"
-                    onClick={() => setSettings({ flipBoard: !settings.flipBoard })}
-                    title="Flip board"
-                    className="flex h-9 w-9 items-center justify-center rounded text-gray-500 transition-colors hover:bg-white/5 hover:text-gray-300"
-                  >
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
-                      <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8" />
-                      <path d="M21 3v5h-5" />
-                      <path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16" />
-                      <path d="M8 21H3v-5" />
-                    </svg>
-                  </button>
-                </div>
-                <div className="flex justify-center">
-                  <div className="flex items-center divide-x divide-white/10 overflow-hidden rounded-lg border border-white/10">
-                    <NavBtn onClick={() => goTo(-1)} disabled={!canGoBack} title="First position">
-                      <svg viewBox="0 0 16 16" fill="currentColor" className="w-5 h-5"><path d="M3.5 3a.5.5 0 0 1 .5.5v3.793l6.146-4.439A.5.5 0 0 1 11 3.5v9a.5.5 0 0 1-.854.354L4 8.707V12.5a.5.5 0 0 1-1 0v-9a.5.5 0 0 1 .5-.5z" /></svg>
-                    </NavBtn>
-                    <NavBtn onClick={() => goTo(currentPlyIndex - 1)} disabled={!canGoBack} title="Previous (←)">
-                      <svg viewBox="0 0 16 16" fill="currentColor" className="w-5 h-5"><path d="M11.354 3.646a.5.5 0 0 1 0 .708L6.707 9l4.647 4.646a.5.5 0 0 1-.708.708l-5-5a.5.5 0 0 1 0-.708l5-5a.5.5 0 0 1 .708 0z" /></svg>
-                    </NavBtn>
-                    <NavBtn onClick={() => goTo(currentPlyIndex + 1)} disabled={!canGoForward} title="Next (→)">
-                      <svg viewBox="0 0 16 16" fill="currentColor" className="w-5 h-5"><path d="M4.646 3.646a.5.5 0 0 1 .708 0l5 5a.5.5 0 0 1 0 .708l-5 5a.5.5 0 0 1-.708-.708L9.293 9 4.646 4.354a.5.5 0 0 1 0-.708z" /></svg>
-                    </NavBtn>
-                    <NavBtn onClick={() => goTo(totalMoves - 1)} disabled={!canGoForward} title="Last position">
-                      <svg viewBox="0 0 16 16" fill="currentColor" className="w-5 h-5"><path d="M12.5 3a.5.5 0 0 0-.5.5v3.793L5.854 2.854A.5.5 0 0 0 5 3.5v9a.5.5 0 0 0 .854.354L12 8.207V12.5a.5.5 0 0 0 1 0v-9a.5.5 0 0 0-.5-.5z" /></svg>
-                    </NavBtn>
-                  </div>
-                </div>
-                <div className="flex justify-end">
-                  <BoardSettingsPopover />
-                </div>
+              <div className="flex items-center justify-between px-3 py-2.5">
+                <button
+                  type="button"
+                  onClick={() => setSettings({ flipBoard: !settings.flipBoard })}
+                  title="Flip board"
+                  className="flex h-9 w-9 items-center justify-center rounded text-gray-500 transition-colors hover:bg-white/5 hover:text-gray-300"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
+                    <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8" />
+                    <path d="M21 3v5h-5" />
+                    <path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16" />
+                    <path d="M8 21H3v-5" />
+                  </svg>
+                </button>
+                <BoardSettingsPopover />
               </div>
             }
           >
@@ -1202,148 +935,204 @@ setSessionGames(prev => [{ id: game.id, label, game, hasEngine: false }, ...prev
           </BoardPanel>
 
           <SidePanel
+            topBar={
+              <div className="flex h-full w-full">
+                {(['explore', 'review'] as const).map(tab => (
+                  <button
+                    key={tab}
+                    type="button"
+                    onClick={() => setActiveTab(tab)}
+                    className={`relative flex-1 h-full text-xs font-medium transition-colors ${
+                      activeTab === tab ? 'text-white' : 'text-gray-500 hover:text-gray-300'
+                    }`}
+                  >
+                    {tab === 'explore' ? 'Explore' : 'Game Review'}
+                    {activeTab === tab && (
+                      <span className="absolute inset-x-0 bottom-0 h-0.5 bg-amber-400" />
+                    )}
+                  </button>
+                ))}
+              </div>
+            }
             coach={
               <CoachBubble
-                feedback={coachFeedback}
+                feedback={activeCoach}
                 fallbackText={
-                  analyzedGame
-                    ? 'Navigate to any move to see the coach analysis.'
-                    : 'Import a game to start your analysis session.'
+                  activeTab === 'explore'
+                    ? lastExploreMove
+                      ? 'Analyzing your move...'
+                      : 'Move pieces freely. The engine arrow shows the best continuation.'
+                    : !analyzedGame
+                      ? 'Import a game to get coach feedback on every move.'
+                      : !hasEngineAnalysis
+                        ? 'Click Analyze to enable move-by-move coach feedback.'
+                        : currentPlyIndex < 0
+                          ? 'Navigate to a move to see coach feedback.'
+                          : 'No specific feedback for this position.'
                 }
                 dark
               />
             }
           >
-            <div className="flex-1 min-h-0 flex flex-col">
-              {/* Actions */}
-              <div className="shrink-0 flex items-center gap-2 border-b border-white/5 px-4 py-3">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setParseError(null);
-                    setShowImportModal(true);
-                  }}
-                  className="rounded-lg bg-amber-400 px-4 py-1.5 text-xs font-semibold text-[#0f1117] transition-colors hover:bg-amber-300"
-                >
-                  Import game
-                </button>
-                {analyzedGame && (
-                  <>
+            {/* ── EXPLORE TAB ─────────────────────────────────────────────── */}
+            {activeTab === 'explore' && (
+              <div className="flex flex-1 min-h-0 flex-col items-center justify-center gap-3 px-6 py-8 text-center">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/10">
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5 text-gray-600">
+                    <path d="M9.663 17h4.673M12 3v1m6.364 1.636-.707.707M21 12h-1M4 12H3m3.343-5.657-.707-.707m2.828 9.9a5 5 0 1 1 7.072 0l-.548.547A3.374 3.374 0 0 0 14 18.469V19a2 2 0 1 1-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+                  </svg>
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-gray-400">Free exploration</p>
+                  <p className="mt-1 text-xs leading-5 text-gray-600">
+                    Move pieces on the board. The engine analyzes every position and the coach gives feedback once the analysis is deep enough.
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {/* ── GAME REVIEW TAB ──────────────────────────────────────────── */}
+            {activeTab === 'review' && (
+              <div className="flex flex-1 min-h-0 flex-col">
+
+                {/* ── No game loaded ── */}
+                {!analyzedGame && (
+                  <div className="flex flex-1 min-h-0 flex-col items-center justify-center gap-4 px-6 py-8 text-center">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/10">
+                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5 text-gray-600">
+                        <path d="M9 12h6m-3-3v6m-7 4h14a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2Z" />
+                      </svg>
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-gray-400">No game loaded</p>
+                      <p className="mt-1 text-xs leading-5 text-gray-600">
+                        Import a PGN to review moves, run the engine, and get coach feedback on every position.
+                      </p>
+                    </div>
                     <button
                       type="button"
-                      onClick={() => void runStockfish()}
-                      disabled={isEngineRunning}
-                      className="rounded-lg border border-white/10 bg-white/3 px-3 py-1.5 text-xs font-medium text-gray-300 transition-colors hover:border-white/20 hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
+                      onClick={() => { setParseError(null); setShowImportModal(true); }}
+                      className="rounded-lg bg-amber-400 px-5 py-2 text-xs font-semibold text-[#0f1117] transition-colors hover:bg-amber-300"
                     >
-                      {isEngineRunning ? (
-                        <span className="flex items-center gap-1.5">
-                          <span className="h-2.5 w-2.5 animate-spin rounded-full border border-amber-400/40 border-t-amber-400" />
-                          Analyzing...
-                        </span>
-                      ) : (
-                        'Run Stockfish'
-                      )}
+                      Import game
                     </button>
-                    {engineError ? (
-                      <span className="text-[10px] text-red-400">{engineError}</span>
-                    ) : engineStatus ? (
-                      <span className="text-[10px] text-gray-500">{engineStatus}</span>
-                    ) : null}
+                  </div>
+                )}
+
+                {/* ── Game loaded ── */}
+                {analyzedGame && (
+                  <>
+                    {/* Stockfish loading overlay */}
+                    {isEngineRunning && (
+                      <div className="flex flex-1 min-h-0 flex-col items-center justify-center gap-4 px-6 py-8">
+                        <div className="flex h-10 w-10 items-center justify-center">
+                          <span className="h-8 w-8 animate-spin rounded-full border-2 border-white/10 border-t-amber-400" />
+                        </div>
+                        <div className="text-center">
+                          <p className="text-sm font-medium text-gray-300">Analyzing with Stockfish</p>
+                          <p className="mt-1 text-xs text-gray-600">Running through all moves…</p>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Main review UI (hidden while loading) */}
+                    {!isEngineRunning && (
+                      <div className="flex flex-1 min-h-0 flex-col">
+
+                        {/* Actions bar */}
+                        <div className="shrink-0 flex items-center gap-2 border-b border-white/5 px-3 py-2.5">
+                          <button
+                            type="button"
+                            onClick={() => void runStockfish()}
+                            disabled={isEngineRunning || hasEngineAnalysis}
+                            className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors ${
+                              hasEngineAnalysis
+                                ? 'border border-emerald-500/30 bg-emerald-500/10 text-emerald-400 cursor-default'
+                                : 'bg-amber-400 text-[#0f1117] hover:bg-amber-300'
+                            }`}
+                          >
+                            {hasEngineAnalysis ? '✓ Analyzed' : 'Analyze'}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => { setParseError(null); setShowImportModal(true); }}
+                            className="rounded-lg border border-white/10 px-3 py-1.5 text-xs font-medium text-gray-400 transition-colors hover:border-white/20 hover:text-white"
+                          >
+                            Import
+                          </button>
+                          {engineError && (
+                            <span className="text-[10px] text-red-400">{engineError}</span>
+                          )}
+                        </div>
+
+                        {/* Sub-tabs: Summary | Moves */}
+                        <div className="flex shrink-0 border-b border-white/5">
+                          {(['summary', 'moves'] as const).map(sub => (
+                            <button
+                              key={sub}
+                              type="button"
+                              onClick={() => setReviewSubTab(sub)}
+                              className={`relative flex-1 py-2.5 text-xs font-medium capitalize transition-colors ${
+                                reviewSubTab === sub ? 'text-white' : 'text-gray-500 hover:text-gray-300'
+                              }`}
+                            >
+                              {sub === 'summary' ? 'Summary' : 'Moves'}
+                              {reviewSubTab === sub && (
+                                <span className="absolute inset-x-0 bottom-0 h-px bg-amber-400" />
+                              )}
+                            </button>
+                          ))}
+                        </div>
+
+                        {/* Tab content */}
+                        <div className="flex flex-1 min-h-0 flex-col overflow-hidden">
+                          {reviewSubTab === 'summary' ? (
+                            <div className="flex flex-1 min-h-0 flex-col overflow-y-auto">
+                              <GameReviewReportPanel
+                                report={gameReviewReport}
+                                hasEngineAnalysis={hasEngineAnalysis}
+                              />
+                              {summaryFeedbacks.length > 0 && (
+                                <GameRecapPanel
+                                  summaries={summaryFeedbacks}
+                                  hasEngineAnalysis={hasEngineAnalysis}
+                                />
+                              )}
+                            </div>
+                          ) : (
+                            <AnalysisMoveList
+                              game={analyzedGame}
+                              currentPlyIndex={currentPlyIndex}
+                              onNavigate={goTo}
+                            />
+                          )}
+                        </div>
+
+                        {/* Navigation bar */}
+                        <div className="shrink-0 border-t border-white/5 flex items-center justify-center py-1.5">
+                          <div className="flex items-center divide-x divide-white/10 overflow-hidden rounded-lg border border-white/10">
+                            <NavBtn onClick={() => goTo(-1)} disabled={!canGoBack} title="First position">
+                              <svg viewBox="0 0 16 16" fill="currentColor" className="w-4 h-4"><path d="M3.5 3a.5.5 0 0 1 .5.5v3.793l6.146-4.439A.5.5 0 0 1 11 3.5v9a.5.5 0 0 1-.854.354L4 8.707V12.5a.5.5 0 0 1-1 0v-9a.5.5 0 0 1 .5-.5z" /></svg>
+                            </NavBtn>
+                            <NavBtn onClick={() => goTo(currentPlyIndex - 1)} disabled={!canGoBack} title="Previous (←)">
+                              <svg viewBox="0 0 16 16" fill="currentColor" className="w-4 h-4"><path d="M11.354 3.646a.5.5 0 0 1 0 .708L6.707 9l4.647 4.646a.5.5 0 0 1-.708.708l-5-5a.5.5 0 0 1 0-.708l5-5a.5.5 0 0 1 .708 0z" /></svg>
+                            </NavBtn>
+                            <NavBtn onClick={() => goTo(currentPlyIndex + 1)} disabled={!canGoForward} title="Next (→)">
+                              <svg viewBox="0 0 16 16" fill="currentColor" className="w-4 h-4"><path d="M4.646 3.646a.5.5 0 0 1 .708 0l5 5a.5.5 0 0 1 0 .708l-5 5a.5.5 0 0 1-.708-.708L9.293 9 4.646 4.354a.5.5 0 0 1 0-.708z" /></svg>
+                            </NavBtn>
+                            <NavBtn onClick={() => goTo(totalMoves - 1)} disabled={!canGoForward} title="Last position">
+                              <svg viewBox="0 0 16 16" fill="currentColor" className="w-4 h-4"><path d="M12.5 3a.5.5 0 0 0-.5.5v3.793L5.854 2.854A.5.5 0 0 0 5 3.5v9a.5.5 0 0 0 .854.354L12 8.207V12.5a.5.5 0 0 0 1 0v-9a.5.5 0 0 0-.5-.5z" /></svg>
+                            </NavBtn>
+                          </div>
+                        </div>
+
+                      </div>
+                    )}
                   </>
                 )}
-              </div>
 
-              {/* Coach analysis */}
-              <div className="shrink-0 border-b border-white/5">
-                <CoachAnalysisPanel feedback={coachFeedback} move={currentMove} />
               </div>
-
-              {/* Move list + bottom panel */}
-              <div className="flex min-h-0 flex-1 flex-col">
-                {/* Move list */}
-                <div className="min-h-0 border-b border-white/5" style={{ flex: 60 }}>
-                  {analyzedGame ? (
-                    <AnalysisMoveList
-                      game={analyzedGame}
-                      currentPlyIndex={currentPlyIndex}
-                      onNavigate={goTo}
-                    />
-                  ) : (
-                    <div className="flex h-full flex-col items-center justify-center gap-3 px-6 py-8">
-                      <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/10">
-                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5 text-gray-600">
-                          <path d="M9 12h6m-3-3v6m-7 4h14a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2Z" />
-                        </svg>
-                      </div>
-                      <div className="text-center">
-                        <p className="text-sm font-medium text-gray-400">No game loaded</p>
-                        <p className="mt-1 text-xs leading-5 text-gray-600">
-                          Import a PGN to review moves and get coach feedback on each position.
-                        </p>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setParseError(null);
-                          setShowImportModal(true);
-                        }}
-                        className="mt-1 rounded-lg border border-amber-400/20 bg-amber-400/10 px-4 py-2 text-xs font-semibold text-amber-300 transition-colors hover:bg-amber-400/15"
-                      >
-                        Import a game
-                      </button>
-                    </div>
-                  )}
-                </div>
-
-                {/* Bottom panel: Review / Engine / Recap / Games */}
-                <div className="flex min-h-0 flex-col" style={{ flex: 40 }}>
-                  <div className="flex shrink-0 border-b border-white/5">
-                    {(['review', 'engine', 'recap', 'games'] as const).map(tab => (
-                      <button
-                        key={tab}
-                        type="button"
-                        onClick={() => setActiveBottomPanel(tab)}
-                        className={`relative flex-1 py-2.5 text-xs font-medium capitalize transition-colors ${
-                          activeBottomPanel === tab
-                            ? 'text-white'
-                            : 'text-gray-500 hover:text-gray-300'
-                        }`}
-                      >
-                        {tab === 'engine'
-                          ? 'Engine'
-                          : tab === 'recap'
-                            ? 'Recap'
-                            : tab === 'review'
-                              ? 'Review'
-                              : `Games${sessionGames.length > 0 ? ` (${sessionGames.length})` : ''}`}
-                        {activeBottomPanel === tab && (
-                          <span className="absolute inset-x-0 bottom-0 h-px bg-amber-400" />
-                        )}
-                      </button>
-                    ))}
-                  </div>
-                  {activeBottomPanel === 'review' ? (
-                    <GameReviewReportPanel
-                      report={gameReviewReport}
-                      hasEngineAnalysis={hasEngineAnalysis}
-                    />
-                  ) : activeBottomPanel === 'engine' ? (
-                    <EngineLines move={currentMove} />
-                  ) : activeBottomPanel === 'recap' ? (
-                    <GameRecapPanel
-                      summaries={summaryFeedbacks}
-                      hasEngineAnalysis={hasEngineAnalysis}
-                    />
-                  ) : (
-                    <SessionGamesList
-                      games={sessionGames}
-                      currentGameId={analyzedGame?.id}
-                      onSelect={switchToGame}
-                    />
-                  )}
-                </div>
-              </div>
-            </div>
+            )}
           </SidePanel>
 
         </div>
