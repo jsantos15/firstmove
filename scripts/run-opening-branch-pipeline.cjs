@@ -83,6 +83,44 @@ const OPENINGS = {
       "opening-db-payload-french-defense-branches.json"
     ),
   },
+  "ruy-lopez": {
+    slug: "ruy-lopez",
+    label: "Ruy Lopez",
+    referenceInput: path.resolve(
+      __dirname,
+      "output",
+      "generated-opening-candidates-ruy-lopez-cloud-reference.json"
+    ),
+    branchOutput: path.resolve(
+      __dirname,
+      "output",
+      "generated-opening-branches-ruy-lopez.json"
+    ),
+    payloadOutput: path.resolve(
+      __dirname,
+      "output",
+      "opening-db-payload-ruy-lopez-branches.json"
+    ),
+  },
+  "queens-gambit": {
+    slug: "queens-gambit",
+    label: "Queen's Gambit",
+    referenceInput: path.resolve(
+      __dirname,
+      "output",
+      "generated-opening-candidates-queens-gambit-cloud-reference.json"
+    ),
+    branchOutput: path.resolve(
+      __dirname,
+      "output",
+      "generated-opening-branches-queens-gambit.json"
+    ),
+    payloadOutput: path.resolve(
+      __dirname,
+      "output",
+      "opening-db-payload-queens-gambit-branches.json"
+    ),
+  },
 };
 
 function parseArgs(argv) {

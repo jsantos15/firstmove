@@ -87,6 +87,46 @@ const OPENINGS = {
       "opening-db-payload-french-defense-cloud-reference.json"
     ),
   },
+  "ruy-lopez": {
+    label: "Ruy Lopez",
+    startsWith: "Ruy Lopez",
+    sanPrefix: "e4,e5,Nf3,Nc6,Bb5",
+    generatedOutput: path.resolve(
+      __dirname,
+      "output",
+      "generated-opening-candidates-ruy-lopez-cloud-reference.json"
+    ),
+    diffOutput: path.resolve(
+      __dirname,
+      "output",
+      "opening-reference-diff-ruy-lopez.json"
+    ),
+    payloadOutput: path.resolve(
+      __dirname,
+      "output",
+      "opening-db-payload-ruy-lopez-cloud-reference.json"
+    ),
+  },
+  "queens-gambit": {
+    label: "Queen's Gambit",
+    startsWith: "Queen's Gambit",
+    sanPrefix: "d4,d5,c4",
+    generatedOutput: path.resolve(
+      __dirname,
+      "output",
+      "generated-opening-candidates-queens-gambit-cloud-reference.json"
+    ),
+    diffOutput: path.resolve(
+      __dirname,
+      "output",
+      "opening-reference-diff-queens-gambit.json"
+    ),
+    payloadOutput: path.resolve(
+      __dirname,
+      "output",
+      "opening-db-payload-queens-gambit-cloud-reference.json"
+    ),
+  },
 };
 
 function parseArgs(argv) {
