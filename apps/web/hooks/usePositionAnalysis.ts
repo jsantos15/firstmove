@@ -1,21 +1,27 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 
-// Stockfish WASM served as a static asset from public/stockfish/.
-// Running the engine as a browser Web Worker moves all memory pressure
-// to the browser tab — the Node.js dev/prod server is never involved.
 const WORKER_SCRIPT = '/stockfish/stockfish-17.1-lite-single-03e3232.js';
+const MIN_DISPLAY_DEPTH = 8;
+
+export interface EngineLine {
+  bestMoveUci: string | null;
+  evalCp: number | null;
+  pvUci: string[];
+  depth: number | null;
+}
 
 interface PositionAnalysis {
+  lines: EngineLine[];
+  // Convenience aliases for lines[0]
   bestMoveUci: string | null;
+  evalCp: number | null;
   depth: number | null;
   isAnalyzing: boolean;
   isDone: boolean;
 }
 
-// Singleton worker — one instance for the page lifetime.
-// Reusing it across FEN changes avoids repeated init overhead (~150ms).
 let sharedWorker: Worker | null = null;
 let workerReadyPromise: Promise<void> | null = null;
 
@@ -37,29 +43,34 @@ function ensureWorker(): Promise<void> {
   return workerReadyPromise;
 }
 
-/**
- * @param fen       Position to analyze.
- * @param extendKey Increment to trigger a 20-second extension on the same FEN.
- *                  Reset to 0 when FEN changes to restart with the default 8 seconds.
- */
-export function usePositionAnalysis(fen: string, extendKey = 0): PositionAnalysis {
-  const [bestMoveUci, setBestMoveUci] = useState<string | null>(null);
-  const [depth, setDepth] = useState<number | null>(null);
+function emptyLine(preserveEvalCp?: number | null): EngineLine {
+  return { bestMoveUci: null, evalCp: preserveEvalCp ?? null, pvUci: [], depth: null };
+}
+
+export function usePositionAnalysis(fen: string, extendKey = 0, numLines = 1): PositionAnalysis {
+  const [lines, setLines] = useState<EngineLine[]>(() => [emptyLine()]);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isDone, setIsDone] = useState(false);
+
+  // Keep a ref so the message handler closure captures it without going stale.
+  const numLinesRef = useRef(numLines);
+  numLinesRef.current = numLines;
 
   useEffect(() => {
     const isExtension = extendKey > 0;
     const movetime = isExtension ? 20000 : 8000;
 
     if (!isExtension) {
-      setBestMoveUci(null);
-      setDepth(null);
+      // Keep line 0's evalCp so the bar doesn't jump while the new search ramps up.
+      setLines(prev =>
+        Array.from({ length: numLines }, (_, i) =>
+          i === 0 ? emptyLine(prev[0]?.evalCp) : emptyLine()
+        )
+      );
     }
     setIsAnalyzing(false);
     setIsDone(false);
 
-    // Cancel any in-progress search before starting a new one.
     sharedWorker?.postMessage('stop');
 
     let cancelled = false;
@@ -77,15 +88,50 @@ export function usePositionAnalysis(fen: string, extendKey = 0): PositionAnalysi
 
         if (line.startsWith('info ')) {
           const multipvMatch = line.match(/\bmultipv\s+(\d+)/);
-          if (multipvMatch && Number(multipvMatch[1]) !== 1) return;
+          // 0-based index; default to 0 when there is no multipv token
+          const mvIdx = multipvMatch ? Number(multipvMatch[1]) - 1 : 0;
+          if (mvIdx >= numLinesRef.current) return;
+
           const depthMatch = line.match(/\bdepth\s+(\d+)/);
-          const pvMatch = line.match(/\bpv\s+(\S+)/);
-          if (depthMatch) setDepth(Number(depthMatch[1]));
-          if (pvMatch) setBestMoveUci(pvMatch[1]);
+          const scoreMatch = line.match(/\bscore\s+(cp|mate)\s+(-?\d+)/);
+          const pvMatch = line.match(/\bpv\s+(.+)$/);
+
+          const lineDepth = depthMatch ? Number(depthMatch[1]) : 0;
+          const pvMoves = pvMatch ? pvMatch[1].trim().split(/\s+/).slice(0, 8) : [];
+
+          let newEvalCp: number | null = null;
+          if (scoreMatch && lineDepth >= MIN_DISPLAY_DEPTH) {
+            const type = scoreMatch[1];
+            const value = Number(scoreMatch[2]);
+            const rawCp = type === 'mate' ? (value > 0 ? 9999 : -9999) : value;
+            const sideToMove = fen.split(' ')[1];
+            newEvalCp = sideToMove === 'b' ? -rawCp : rawCp;
+          }
+
+          setLines(prev => {
+            const next = [...prev];
+            while (next.length <= mvIdx) next.push(emptyLine());
+            const cur = next[mvIdx];
+            next[mvIdx] = {
+              bestMoveUci: pvMoves[0] ?? cur.bestMoveUci,
+              evalCp: newEvalCp !== null ? newEvalCp : cur.evalCp,
+              pvUci: pvMoves.length > 0 ? pvMoves : cur.pvUci,
+              depth: lineDepth > 0 ? lineDepth : cur.depth,
+            };
+            return next;
+          });
         } else if (line.startsWith('bestmove ')) {
           const match = line.match(/^bestmove\s+(\S+)/);
           const move = match?.[1] && match[1] !== '(none)' ? match[1] : null;
-          if (move) setBestMoveUci(move);
+          if (move) {
+            setLines(prev => {
+              const next = [...prev];
+              if (next.length > 0 && !next[0].bestMoveUci) {
+                next[0] = { ...next[0], bestMoveUci: move };
+              }
+              return next;
+            });
+          }
           setIsAnalyzing(false);
           setIsDone(true);
           if (onMessage) sharedWorker!.removeEventListener('message', onMessage);
@@ -94,6 +140,7 @@ export function usePositionAnalysis(fen: string, extendKey = 0): PositionAnalysi
       };
 
       sharedWorker!.addEventListener('message', onMessage);
+      sharedWorker!.postMessage(`setoption name MultiPV value ${numLines}`);
       sharedWorker!.postMessage(`position fen ${fen}`);
       sharedWorker!.postMessage(`go movetime ${movetime}`);
     }, isExtension ? 0 : 150);
@@ -105,7 +152,15 @@ export function usePositionAnalysis(fen: string, extendKey = 0): PositionAnalysi
       sharedWorker?.postMessage('stop');
       setIsAnalyzing(false);
     };
-  }, [fen, extendKey]);
+  }, [fen, extendKey, numLines]);
 
-  return { bestMoveUci, depth, isAnalyzing, isDone };
+  const line0 = lines[0];
+  return {
+    lines,
+    bestMoveUci: line0?.bestMoveUci ?? null,
+    evalCp: line0?.evalCp ?? null,
+    depth: line0?.depth ?? null,
+    isAnalyzing,
+    isDone,
+  };
 }

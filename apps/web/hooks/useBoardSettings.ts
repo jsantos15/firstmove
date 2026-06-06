@@ -31,6 +31,7 @@ export interface BoardSettings {
   flipBoard: boolean;
   animationSpeed: AnimationSpeed;
   moveSound: boolean;
+  engineLines: 1 | 2 | 3;
 }
 
 export const ANIMATION_MS: Record<AnimationSpeed, number> = {
@@ -49,6 +50,7 @@ const DEFAULTS: BoardSettings = {
   flipBoard: false,
   animationSpeed: 'normal',
   moveSound: true,
+  engineLines: 1,
 };
 
 const STORAGE_KEY = 'firstmove_board_settings';

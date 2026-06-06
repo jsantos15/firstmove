@@ -15,6 +15,7 @@ import {
   type CoachFeedback,
 } from '@/lib/coachFeedback';
 import { useOpeningPositionEval } from '@/hooks/useOpeningPositionEval';
+import { NavBtn } from './NavBtn';
 
 export type PracticeMode = 'learn' | 'practice';
 
@@ -233,31 +234,6 @@ function playMoveSound(enabled: boolean) {
       })
       .catch(() => {});
   } catch {}
-}
-
-// ─── Nav button ───────────────────────────────────────────────────────────────
-
-function NavBtn({
-  onClick,
-  disabled,
-  title,
-  children,
-}: {
-  onClick: () => void;
-  disabled: boolean;
-  title: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <button
-      onClick={onClick}
-      disabled={disabled}
-      title={title}
-      className="flex items-center justify-center px-5 py-2.5 text-gray-400 transition-colors hover:bg-white/5 hover:text-white disabled:cursor-default disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-gray-400"
-    >
-      {children}
-    </button>
-  );
 }
 
 // ─── Board ────────────────────────────────────────────────────────────────────

@@ -89,12 +89,10 @@ export function BoardPanel({
         />
       </div>
 
-      {/* Bottom row — centered to align with board+eval column */}
+      {/* Bottom row — full panel width so content can align to the panel edge */}
       {bottomBar != null && (
-        <div className="shrink-0 flex justify-center">
-          <div style={{ width: boardSize + 36 }}>
-            {bottomBar}
-          </div>
+        <div className="shrink-0 w-full">
+          {bottomBar}
         </div>
       )}
     </div>

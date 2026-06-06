@@ -6,6 +6,7 @@ import { Chess } from '@firstmove/core';
 import { CoachBubble } from '@/components/practice/CoachBubble';
 import { BoardPanel } from '@/components/board/BoardPanel';
 import { SidePanel } from '@/components/board/SidePanel';
+import { NavBtn } from '@/components/board/NavBtn';
 import { useBoardSettings } from '@/hooks/useBoardSettings';
 import { usePositionAnalysis } from '@/hooks/usePositionAnalysis';
 import { useCoachSettings } from '@/hooks/useCoachSettings';
@@ -54,38 +55,67 @@ const CLASSIFICATION_DOT: Record<GameReviewCategory, string> = {
   blunder: 'bg-red-500',
 };
 
+function pvToSan(startFen: string, pvUci: string[]): string[] {
+  try {
+    const chess = new Chess(startFen);
+    const sans: string[] = [];
+    for (const uci of pvUci) {
+      const move = chess.move({ from: uci.slice(0, 2), to: uci.slice(2, 4), promotion: (uci[4] ?? 'q') as 'q' | 'r' | 'b' | 'n' });
+      if (!move) break;
+      sans.push(move.san);
+    }
+    return sans;
+  } catch {
+    return [];
+  }
+}
+
+function formatEval(cp: number | null): string {
+  if (cp === null) return '...';
+  if (cp >= 9000) return '+M';
+  if (cp <= -9000) return '-M';
+  const pawns = cp / 100;
+  return (cp >= 0 ? '+' : '') + pawns.toFixed(1);
+}
+
+type ExplorePair = {
+  moveNumber: number;
+  white: { san: string; idx: number } | null;
+  black: { san: string; idx: number } | null;
+};
+
+type ExploreEntry = { san: string; fen: string; from: string; to: string };
+
+function buildExplorePairs(history: ExploreEntry[], startFen: string): ExplorePair[] {
+  if (history.length === 0) return [];
+  const parts = startFen.split(' ');
+  const startTurn = parts[1] ?? 'w';
+  const startMoveNum = parseInt(parts[5] ?? '1', 10);
+  const pairs: ExplorePair[] = [];
+  for (let i = 0; i < history.length; i++) {
+    const isWhite = i % 2 === 0 ? startTurn === 'w' : startTurn === 'b';
+    const moveOffset = i + (startTurn === 'b' ? 1 : 0);
+    const moveNum = startMoveNum + Math.floor(moveOffset / 2);
+    if (isWhite) {
+      pairs.push({ moveNumber: moveNum, white: { san: history[i]!.san, idx: i }, black: null });
+    } else {
+      const last = pairs[pairs.length - 1];
+      if (last && last.black === null) {
+        last.black = { san: history[i]!.san, idx: i };
+      } else {
+        pairs.push({ moveNumber: moveNum, white: null, black: { san: history[i]!.san, idx: i } });
+      }
+    }
+  }
+  return pairs;
+}
+
 function extractGameTitle(pgn: string): string | null {
   const white = pgn.match(/\[White "([^"]+)"\]/)?.[1];
   const black = pgn.match(/\[Black "([^"]+)"\]/)?.[1];
   if (white && black) return `${white} vs ${black}`;
   if (white) return white;
   return null;
-}
-
-// ─── Nav Button ───────────────────────────────────────────────────────────────
-
-function NavBtn({
-  onClick,
-  disabled,
-  title,
-  children,
-}: {
-  onClick: () => void;
-  disabled: boolean;
-  title: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      disabled={disabled}
-      title={title}
-      className="flex items-center justify-center px-5 py-2.5 text-gray-400 transition-colors hover:bg-white/5 hover:text-white disabled:cursor-default disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-gray-400"
-    >
-      {children}
-    </button>
-  );
 }
 
 // ─── Move List ────────────────────────────────────────────────────────────────
@@ -579,11 +609,11 @@ export default function AnalysisPage() {
   const [activeTab, setActiveTab] = useState<PanelTab>('explore');
   const [reviewSubTab, setReviewSubTab] = useState<ReviewSubTab>('summary');
   const [coachByPly, setCoachByPly] = useState<Map<number, CoachFeedback | null>>(new Map());
-  const [lastExploreMove, setLastExploreMove] = useState<{ san: string; prevFen: string } | null>(null);
   const [boardSize, setBoardSize] = useState(480);
   const [maxBoardWidth, setMaxBoardWidth] = useState<number | undefined>(undefined);
   const boardContainerRef = useRef<HTMLDivElement>(null);
-  const [freeExploreFen, setFreeExploreFen] = useState<string | null>(null);
+  const [exploreHistory, setExploreHistory] = useState<ExploreEntry[]>([]);
+  const [exploreHistoryIndex, setExploreHistoryIndex] = useState(-1);
   const [selectedSquare, setSelectedSquare] = useState<string | null>(null);
   const { theme, animationDuration, settings, setSettings } = useBoardSettings();
   const { settings: coachSettings } = useCoachSettings();
@@ -617,8 +647,8 @@ export default function AnalysisPage() {
     const g = game ?? analyzedGameRef.current;
     if (!g) return;
     const clamped = Math.max(-1, Math.min(plyIndex, g.moves.length - 1));
-    setFreeExploreFen(null);
-    setLastExploreMove(null);
+    setExploreHistory([]);
+    setExploreHistoryIndex(-1);
     setCurrentPlyIndex(clamped);
 
     if (clamped >= 0) {
@@ -668,14 +698,17 @@ export default function AnalysisPage() {
     return analyzedGame.moves[currentPlyIndex]?.afterFen ?? INITIAL_FEN;
   }, [analyzedGame, currentPlyIndex]);
 
+  // Derived from exploreHistory — placed here because they depend on currentFen.
+  const freeExploreFen = exploreHistoryIndex >= 0 ? (exploreHistory[exploreHistoryIndex]?.fen ?? null) : null;
+  const lastExploreMove = exploreHistoryIndex >= 0 ? {
+    san: exploreHistory[exploreHistoryIndex]!.san,
+    prevFen: exploreHistoryIndex > 0 ? exploreHistory[exploreHistoryIndex - 1]!.fen : currentFen,
+  } : null;
+
   const currentEvalCp = useMemo(
     () => (currentMove?.hasEngineAnalysis ? currentMove.afterPlayedEvalCp : undefined),
     [currentMove]
   );
-
-  // Show "0.0" at the initial position (no game loaded, or before any move) — mirrors
-  // PracticeBoard's INITIAL_POSITION_EVAL_CP fallback so the eval bar always has a label.
-  const displayEvalCp = currentEvalCp ?? (currentPlyIndex <= -1 ? INITIAL_EVAL_CP : undefined);
 
   const summaryFeedbacks = useMemo(() => {
     if (!analyzedGame) return [];
@@ -832,7 +865,10 @@ export default function AnalysisPage() {
     return styles;
   }, [lastMoveSquares, selectedSquare, legalTargets]);
 
-  const { bestMoveUci, depth, isAnalyzing, isDone } = usePositionAnalysis(boardFen, extendKey);
+  const { lines, bestMoveUci, evalCp: liveEvalCp, depth, isAnalyzing, isDone } = usePositionAnalysis(boardFen, extendKey, settings.engineLines);
+
+  // Priority: analyzed game data → live Stockfish eval → INITIAL_EVAL_CP at start position.
+  const displayEvalCp = currentEvalCp ?? liveEvalCp ?? (currentPlyIndex <= -1 ? INITIAL_EVAL_CP : undefined);
 
   // Explore/deviation coach: once depth ≥ 12, compare played move vs engine best.
   const exploreCoach = useMemo((): CoachFeedback | null => {
@@ -900,9 +936,10 @@ export default function AnalysisPage() {
       const chess = new Chess(prevFen);
       const move = chess.move({ from, to, promotion: 'q' });
       if (!move) return false;
-      setFreeExploreFen(chess.fen());
+      const newFen = chess.fen();
+      setExploreHistory(prev => [...prev.slice(0, exploreHistoryIndex + 1), { san: move.san, fen: newFen, from: move.from, to: move.to }]);
+      setExploreHistoryIndex(prev => prev + 1);
       setLastMoveSquares({ from: move.from, to: move.to });
-      setLastExploreMove({ san: move.san, prevFen });
       setSelectedSquare(null);
       return true;
     } catch {
@@ -962,7 +999,9 @@ export default function AnalysisPage() {
       const chess = new Chess(boardFen);
       const move = chess.move({ from, to, promotion });
       if (!move) return false;
-      setFreeExploreFen(chess.fen());
+      const newFen = chess.fen();
+      setExploreHistory(prev => [...prev.slice(0, exploreHistoryIndex + 1), { san: move.san, fen: newFen, from: move.from, to: move.to }]);
+      setExploreHistoryIndex(prev => prev + 1);
       setLastMoveSquares({ from: move.from, to: move.to });
       return true;
     } catch {
@@ -1007,20 +1046,7 @@ export default function AnalysisPage() {
               </div>
             }
             bottomBar={
-              <div className="flex items-center justify-between px-3 py-2.5">
-                <button
-                  type="button"
-                  onClick={() => setSettings({ flipBoard: !settings.flipBoard })}
-                  title="Flip board"
-                  className="flex h-9 w-9 items-center justify-center rounded text-gray-500 transition-colors hover:bg-white/5 hover:text-gray-300"
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
-                    <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8" />
-                    <path d="M21 3v5h-5" />
-                    <path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16" />
-                    <path d="M8 21H3v-5" />
-                  </svg>
-                </button>
+              <div className="flex items-center justify-end py-2.5">
                 <BoardSettingsPopover />
               </div>
             }
@@ -1049,6 +1075,26 @@ export default function AnalysisPage() {
           </BoardPanel>
 
           <SidePanel
+            bottomBar={
+              <div className="flex items-center justify-center gap-1.5 py-2 px-2">
+                <NavBtn onClick={() => goTo(-1)} disabled={!canGoBack} title="First position"
+                  className="flex h-12 w-12 items-center justify-center rounded-xl bg-white/[0.07] text-gray-300 transition-colors hover:bg-white/[0.13] hover:text-white disabled:cursor-default disabled:opacity-30">
+                  <svg viewBox="0 0 16 16" fill="currentColor" className="w-5 h-5"><path d="M3.5 3a.5.5 0 0 1 .5.5v3.793l6.146-4.439A.5.5 0 0 1 11 3.5v9a.5.5 0 0 1-.854.354L4 8.707V12.5a.5.5 0 0 1-1 0v-9a.5.5 0 0 1 .5-.5z" /></svg>
+                </NavBtn>
+                <NavBtn onClick={() => goTo(currentPlyIndex - 1)} disabled={!canGoBack} title="Previous (←)"
+                  className="flex h-12 w-12 items-center justify-center rounded-xl bg-white/[0.07] text-gray-300 transition-colors hover:bg-white/[0.13] hover:text-white disabled:cursor-default disabled:opacity-30">
+                  <svg viewBox="0 0 16 16" fill="currentColor" className="w-5 h-5"><path d="M11.354 3.646a.5.5 0 0 1 0 .708L6.707 9l4.647 4.646a.5.5 0 0 1-.708.708l-5-5a.5.5 0 0 1 0-.708l5-5a.5.5 0 0 1 .708 0z" /></svg>
+                </NavBtn>
+                <NavBtn onClick={() => goTo(currentPlyIndex + 1)} disabled={!canGoForward} title="Next (→)"
+                  className="flex h-12 w-12 items-center justify-center rounded-xl bg-white/[0.07] text-gray-300 transition-colors hover:bg-white/[0.13] hover:text-white disabled:cursor-default disabled:opacity-30">
+                  <svg viewBox="0 0 16 16" fill="currentColor" className="w-5 h-5"><path d="M4.646 3.646a.5.5 0 0 1 .708 0l5 5a.5.5 0 0 1 0 .708l-5 5a.5.5 0 0 1-.708-.708L9.293 9 4.646 4.354a.5.5 0 0 1 0-.708z" /></svg>
+                </NavBtn>
+                <NavBtn onClick={() => goTo(totalMoves - 1)} disabled={!canGoForward} title="Last position"
+                  className="flex h-12 w-12 items-center justify-center rounded-xl bg-white/[0.07] text-gray-300 transition-colors hover:bg-white/[0.13] hover:text-white disabled:cursor-default disabled:opacity-30">
+                  <svg viewBox="0 0 16 16" fill="currentColor" className="w-5 h-5"><path d="M12.5 3a.5.5 0 0 0-.5.5v3.793L5.854 2.854A.5.5 0 0 0 5 3.5v9a.5.5 0 0 0 .854.354L12 8.207V12.5a.5.5 0 0 0 1 0v-9a.5.5 0 0 0-.5-.5z" /></svg>
+                </NavBtn>
+              </div>
+            }
             topBar={
               <div className="flex h-full w-full">
                 {(['explore', 'review'] as const).map(tab => (
@@ -1090,17 +1136,93 @@ export default function AnalysisPage() {
           >
             {/* ── EXPLORE TAB ─────────────────────────────────────────────── */}
             {activeTab === 'explore' && (
-              <div className="flex flex-1 min-h-0 flex-col items-center justify-center gap-3 px-6 py-8 text-center">
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/10">
-                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5 text-gray-600">
-                    <path d="M9.663 17h4.673M12 3v1m6.364 1.636-.707.707M21 12h-1M4 12H3m3.343-5.657-.707-.707m2.828 9.9a5 5 0 1 1 7.072 0l-.548.547A3.374 3.374 0 0 0 14 18.469V19a2 2 0 1 1-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
-                  </svg>
+              <div className="flex flex-1 min-h-0 flex-col divide-y divide-white/5">
+                {/* Engine lines */}
+                <div className="shrink-0 px-3 py-3">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-[11px] font-medium uppercase tracking-wider text-gray-500">Engine</span>
+                    <div className="flex items-center gap-1.5">
+                      {isAnalyzing && <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />}
+                      {depth !== null && (
+                        <span className="text-[10px] text-gray-500">
+                          d<span className={isAnalyzing ? 'text-emerald-400' : 'text-gray-400'}>{depth}</span>
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    {lines.slice(0, settings.engineLines).map((engineLine, li) => {
+                      const pv = pvToSan(boardFen, engineLine.pvUci);
+                      const evalStr = formatEval(engineLine.evalCp);
+                      const positive = (engineLine.evalCp ?? 0) >= 0;
+                      return (
+                        <div key={li} className="flex items-center gap-2 rounded-lg bg-white/[0.04] px-2.5 py-1.5 min-w-0">
+                          <span className={`shrink-0 text-xs font-bold tabular-nums w-10 ${positive ? 'text-gray-100' : 'text-red-400'}`}>
+                            {evalStr}
+                          </span>
+                          <span className="flex-1 truncate font-mono text-xs text-gray-300">
+                            {pv.length > 0 ? pv.slice(0, 6).join(' ') : '...'}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
-                <div>
-                  <p className="text-sm font-medium text-gray-400">Free exploration</p>
-                  <p className="mt-1 text-xs leading-5 text-gray-600">
-                    Move pieces on the board. The engine analyzes every position and the coach gives feedback once the analysis is deep enough.
-                  </p>
+
+                {/* Explore moves */}
+                <div className="flex-1 min-h-0 overflow-y-auto">
+                  {exploreHistory.length === 0 ? (
+                    <p className="px-3 pt-4 text-center text-xs text-gray-600">
+                      Move pieces on the board to explore.
+                    </p>
+                  ) : (
+                    <div className="px-2 py-2">
+                      {buildExplorePairs(exploreHistory, currentFen).map(pair => {
+                        const goToExplore = (idx: number) => {
+                          setExploreHistoryIndex(idx);
+                          const entry = exploreHistory[idx];
+                          if (entry) setLastMoveSquares({ from: entry.from, to: entry.to });
+                        };
+                        return (
+                          <div key={pair.moveNumber} className="flex items-center gap-1">
+                            <span className="w-7 shrink-0 text-right font-mono text-xs text-gray-600">{pair.moveNumber}.</span>
+                            <div className="flex flex-1 gap-1">
+                              {pair.white ? (
+                                <button
+                                  type="button"
+                                  onClick={() => goToExplore(pair.white!.idx)}
+                                  className={`flex min-w-0 flex-1 items-center rounded px-2 py-0.5 font-mono text-sm transition-colors ${
+                                    exploreHistoryIndex === pair.white.idx
+                                      ? 'bg-amber-400/15 text-amber-300'
+                                      : 'text-gray-300 hover:bg-white/5 hover:text-white'
+                                  }`}
+                                >
+                                  {pair.white.san}
+                                </button>
+                              ) : (
+                                <span className="flex-1" />
+                              )}
+                              {pair.black ? (
+                                <button
+                                  type="button"
+                                  onClick={() => goToExplore(pair.black!.idx)}
+                                  className={`flex min-w-0 flex-1 items-center rounded px-2 py-0.5 font-mono text-sm transition-colors ${
+                                    exploreHistoryIndex === pair.black.idx
+                                      ? 'bg-amber-400/15 text-amber-300'
+                                      : 'text-gray-300 hover:bg-white/5 hover:text-white'
+                                  }`}
+                                >
+                                  {pair.black.san}
+                                </button>
+                              ) : (
+                                <span className="flex-1" />
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
               </div>
             )}
@@ -1230,24 +1352,6 @@ export default function AnalysisPage() {
                               onNavigate={goTo}
                             />
                           )}
-                        </div>
-
-                        {/* Navigation bar */}
-                        <div className="shrink-0 border-t border-white/5 flex items-center justify-center py-1.5">
-                          <div className="flex items-center divide-x divide-white/10 overflow-hidden rounded-lg border border-white/10">
-                            <NavBtn onClick={() => goTo(-1)} disabled={!canGoBack} title="First position">
-                              <svg viewBox="0 0 16 16" fill="currentColor" className="w-4 h-4"><path d="M3.5 3a.5.5 0 0 1 .5.5v3.793l6.146-4.439A.5.5 0 0 1 11 3.5v9a.5.5 0 0 1-.854.354L4 8.707V12.5a.5.5 0 0 1-1 0v-9a.5.5 0 0 1 .5-.5z" /></svg>
-                            </NavBtn>
-                            <NavBtn onClick={() => goTo(currentPlyIndex - 1)} disabled={!canGoBack} title="Previous (←)">
-                              <svg viewBox="0 0 16 16" fill="currentColor" className="w-4 h-4"><path d="M11.354 3.646a.5.5 0 0 1 0 .708L6.707 9l4.647 4.646a.5.5 0 0 1-.708.708l-5-5a.5.5 0 0 1 0-.708l5-5a.5.5 0 0 1 .708 0z" /></svg>
-                            </NavBtn>
-                            <NavBtn onClick={() => goTo(currentPlyIndex + 1)} disabled={!canGoForward} title="Next (→)">
-                              <svg viewBox="0 0 16 16" fill="currentColor" className="w-4 h-4"><path d="M4.646 3.646a.5.5 0 0 1 .708 0l5 5a.5.5 0 0 1 0 .708l-5 5a.5.5 0 0 1-.708-.708L9.293 9 4.646 4.354a.5.5 0 0 1 0-.708z" /></svg>
-                            </NavBtn>
-                            <NavBtn onClick={() => goTo(totalMoves - 1)} disabled={!canGoForward} title="Last position">
-                              <svg viewBox="0 0 16 16" fill="currentColor" className="w-4 h-4"><path d="M12.5 3a.5.5 0 0 0-.5.5v3.793L5.854 2.854A.5.5 0 0 0 5 3.5v9a.5.5 0 0 0 .854.354L12 8.207V12.5a.5.5 0 0 0 1 0v-9a.5.5 0 0 0-.5-.5z" /></svg>
-                            </NavBtn>
-                          </div>
                         </div>
 
                       </div>
