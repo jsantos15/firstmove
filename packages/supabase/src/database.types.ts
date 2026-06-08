@@ -6,6 +6,51 @@ export type Database = {
   };
   public: {
     Tables: {
+      lichess_opening_popularity: {
+        Row: {
+          anchor_fen: string;
+          anchor_sans: string[];
+          created_at: string;
+          eco_code: string;
+          family_name: string;
+          fetched_at: string | null;
+          full_name: string;
+          id: number;
+          opening_eco_code: string | null;
+          popularity_games: number | null;
+          type: string;
+          variation_name: string | null;
+        };
+        Insert: {
+          anchor_fen: string;
+          anchor_sans: string[];
+          created_at?: string;
+          eco_code: string;
+          family_name: string;
+          fetched_at?: string | null;
+          full_name: string;
+          id?: number;
+          opening_eco_code?: string | null;
+          popularity_games?: number | null;
+          type: string;
+          variation_name?: string | null;
+        };
+        Update: {
+          anchor_fen?: string;
+          anchor_sans?: string[];
+          created_at?: string;
+          eco_code?: string;
+          family_name?: string;
+          fetched_at?: string | null;
+          full_name?: string;
+          id?: number;
+          opening_eco_code?: string | null;
+          popularity_games?: number | null;
+          type?: string;
+          variation_name?: string | null;
+        };
+        Relationships: [];
+      };
       opening_lines: {
         Row: {
           created_at: string;
@@ -571,6 +616,7 @@ export type Database = {
           popularity_games: number | null;
           popularity_rank: number | null;
           popularity_score: number | null;
+          preview_fen: string | null;
           slug: string;
           tags: string[];
           updated_at: string;
@@ -588,6 +634,7 @@ export type Database = {
           popularity_games?: number | null;
           popularity_rank?: number | null;
           popularity_score?: number | null;
+          preview_fen?: string | null;
           slug: string;
           tags?: string[];
           updated_at?: string;
@@ -605,6 +652,7 @@ export type Database = {
           popularity_games?: number | null;
           popularity_rank?: number | null;
           popularity_score?: number | null;
+          preview_fen?: string | null;
           slug?: string;
           tags?: string[];
           updated_at?: string;
@@ -765,7 +813,29 @@ export type Database = {
       };
     };
     Views: {
-      [_ in never]: never;
+      opening_index: {
+        Row: {
+          anchor_fen: string | null;
+          anchor_sans: string[] | null;
+          course_color: Database['public']['Enums']['opening_color'] | null;
+          course_description: string | null;
+          course_difficulty: Database['public']['Enums']['opening_difficulty'] | null;
+          course_display_tier: string | null;
+          course_has_main_line: boolean | null;
+          course_is_featured: boolean | null;
+          course_preview_fen: string | null;
+          course_slug: string | null;
+          course_tags: string[] | null;
+          eco_code: string | null;
+          family_name: string | null;
+          fetched_at: string | null;
+          name: string | null;
+          popularity_games: number | null;
+          popularity_id: number | null;
+          variation_count: number | null;
+        };
+        Relationships: [];
+      };
     };
     Functions: {
       handle_new_user: {

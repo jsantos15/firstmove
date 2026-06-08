@@ -647,3 +647,11 @@ node scripts/run-opening-reference-pipeline.cjs --openings italian-game,caro-kan
 **Update:** Web Stockfish game review must request analysis for every imported move, not a fixed opening slice. The initial blocking route remains simple, but it should not silently cap normal games at 40 plies because category counts must cover the full game. If long games become too slow, the next fix should be chunked/background analysis with visible progress rather than hidden truncation.
 
 **Update:** Imported Chess.com PGNs may carry useful review metadata that should be preserved as calibration input instead of discarded. The PGN parser now maps provider NAGs that line up with Chess.com exports (`$1` Great, `$2` Mistake, `$3` Brilliant, `$4` Blunder, `$6` Inaccuracy) into `providerReviewCategory`, and derives Book plies from Chess.com `ECOUrl` move depth when available. These provider hints take precedence over FirstMove's engine threshold fallback for the visible review category, while unannotated moves still use FirstMove's deterministic classifier.
+
+---
+
+## 2026-06-08 - Use Lichess popularity as the opening backlog and display order
+
+**Decision:** Store Lichess Explorer game counts for the `lichess-org/chess-openings` dataset in `public.lichess_opening_popularity`, expose learner-facing opening candidates through `public.opening_index`, and use that view to order generated FirstMove courses by real popularity. Generated playable content remains in `openings_catalog`, `opening_lines`, and `opening_line_branch_metadata`.
+
+**Reason:** FirstMove needs to generate openings from most popular to least popular without mixing backlog metadata with playable course content. `opening_index` answers "what should we generate next?" and "how should complete courses be ordered?", while the course tables answer "what can the learner actually practice?" The app should expose only courses with both reference lines and practical punish branches, so partially generated openings can remain in the database for pipeline work without appearing as unfinished learner courses.

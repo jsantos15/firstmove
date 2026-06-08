@@ -3,11 +3,26 @@ import type { Database } from '../database.types';
 
 export type OpeningCatalogRow = Database['public']['Tables']['openings_catalog']['Row'];
 export type OpeningLineRow = Database['public']['Tables']['opening_lines']['Row'];
+export type OpeningIndexRow = Database['public']['Views']['opening_index']['Row'];
 export type OpeningLineBranchMetadataRow =
   Database['public']['Tables']['opening_line_branch_metadata']['Row'];
 export type CoachEventRow = Database['public']['Tables']['coach_events']['Row'];
 
 const PAGE_SIZE = 1000;
+
+export async function getOpeningIndex(): Promise<OpeningIndexRow[]> {
+  const { data, error } = await supabase
+    .from('opening_index')
+    .select('*')
+    .order('popularity_games', { ascending: false, nullsFirst: false })
+    .order('name', { ascending: true });
+
+  if (error) {
+    throw error;
+  }
+
+  return data;
+}
 
 export async function getOpeningsCatalog(): Promise<OpeningCatalogRow[]> {
   const { data, error } = await supabase

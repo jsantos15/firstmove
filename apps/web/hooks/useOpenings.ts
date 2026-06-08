@@ -1,12 +1,14 @@
 import { useQuery } from '@tanstack/react-query';
 import { Chess, type Opening, type OpeningMove, type OpeningVariation } from '@firstmove/core';
 import {
+  getOpeningIndex,
   getOpeningsCatalog,
   getOpeningCatalogBySlug,
   getOpeningLineBranchMetadataBySlug,
   getOpeningLines,
   getOpeningLinesBySlug,
   type OpeningCatalogRow,
+  type OpeningIndexRow,
   type OpeningLineBranchMetadataRow,
   type OpeningLineRow,
 } from '@firstmove/supabase';
@@ -149,6 +151,37 @@ function compareCatalogRows(left: OpeningCatalogRow, right: OpeningCatalogRow) {
   return left.name.localeCompare(right.name);
 }
 
+function compareCatalogRowsByIndex(
+  rankByCourseSlug: Map<string, number>,
+  left: OpeningCatalogRow,
+  right: OpeningCatalogRow
+) {
+  const leftRank = rankByCourseSlug.get(left.slug) ?? Number.POSITIVE_INFINITY;
+  const rightRank = rankByCourseSlug.get(right.slug) ?? Number.POSITIVE_INFINITY;
+  if (leftRank !== rightRank) return leftRank - rightRank;
+
+  return compareCatalogRows(left, right);
+}
+
+function hasCompleteCourseLines(lines: OpeningLineRow[]) {
+  let hasReference = false;
+  let hasPracticalBranch = false;
+
+  for (const line of lines) {
+    if (line.line_kind === 'practical_branch') {
+      hasPracticalBranch = true;
+    } else {
+      hasReference = true;
+    }
+
+    if (hasReference && hasPracticalBranch) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
 function compareLineRows(left: OpeningLineRow, right: OpeningLineRow) {
   const leftMain = left.is_main_line ? 1 : 0;
   const rightMain = right.is_main_line ? 1 : 0;
@@ -276,7 +309,8 @@ export function useOpenings() {
     queryKey: ['openings'],
     staleTime: Infinity,
     queryFn: async () => {
-      const [catalogRows, lineRows] = await Promise.all([
+      const [indexRows, catalogRows, lineRows] = await Promise.all([
+        getOpeningIndex(),
         getOpeningsCatalog(),
         getOpeningLines(),
       ]);
@@ -288,12 +322,22 @@ export function useOpenings() {
         linesByOpening.set(line.opening_slug, arr);
       }
 
-      return [...catalogRows].sort(compareCatalogRows).map(row =>
-        buildOpening(row, linesByOpening.get(row.slug) ?? [], {
-          includeBranchMoves: false,
-          includeVariationMoves: false,
-        })
-      );
+      const rankByCourseSlug = new Map<string, number>();
+      indexRows.forEach((row, index) => {
+        if (row.course_slug) {
+          rankByCourseSlug.set(row.course_slug, index);
+        }
+      });
+
+      return [...catalogRows]
+        .filter(row => hasCompleteCourseLines(linesByOpening.get(row.slug) ?? []))
+        .sort((left, right) => compareCatalogRowsByIndex(rankByCourseSlug, left, right))
+        .map(row =>
+          buildOpening(row, linesByOpening.get(row.slug) ?? [], {
+            includeBranchMoves: false,
+            includeVariationMoves: false,
+          })
+        );
     },
   });
 }

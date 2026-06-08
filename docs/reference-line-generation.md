@@ -69,6 +69,50 @@ replay only missing plies before writing output. The practice board uses this
 timeline first, with `opening_position_evals` only as a fallback for older or
 incomplete rows.
 
+## Popularity Index And Learner Exposure
+
+The popularity-ranked opening backlog is sourced from Lichess Explorer counts
+stored in `public.lichess_opening_popularity` and exposed through
+`public.opening_index`.
+
+Populate or refresh that index with:
+
+```powershell
+node scripts/fetch-lichess-popularity.cjs
+```
+
+Use narrower/resumable forms when needed:
+
+```powershell
+node scripts/fetch-lichess-popularity.cjs --populate-only
+node scripts/fetch-lichess-popularity.cjs --fetch-only
+node scripts/fetch-lichess-popularity.cjs --type opening
+node scripts/fetch-lichess-popularity.cjs --eco-volume c
+```
+
+The learner-facing Openings list should use `opening_index` for popularity
+ordering, but generated FirstMove course content remains in `openings_catalog`,
+`opening_lines`, and `opening_line_branch_metadata`.
+
+A course is complete for learner exposure only after both phases have run:
+
+1. Reference lines:
+
+```powershell
+node scripts/run-opening-reference-pipeline.cjs --openings <slug> --apply-sync
+```
+
+2. Punish/practical branches:
+
+```powershell
+node scripts/run-opening-branch-pipeline.cjs --openings <slug> --reset-branches
+```
+
+Run reference generation before branch generation. The reference sync stage is
+scoped to payload openings and prunes stale `opening_lines` for those openings,
+so running it after branches can remove practical branches that then need to be
+regenerated.
+
 ## Current Algorithm Summary
 
 Reference generation starts from Lichess-authoritative named opening anchors
