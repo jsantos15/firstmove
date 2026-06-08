@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import {
+  ActivityIndicator,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -10,10 +11,15 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
+import { useQuery } from '@tanstack/react-query';
+import { Chess } from '@firstmove/core';
 import { MiniBoard } from '../components/board/MiniBoard';
 import { COLORS, FONT, RADIUS } from '../lib/constants';
-import { findOpening } from '../lib/mockOpenings';
-import type { MockVariation } from '../lib/mockOpenings';
+import {
+  getOpeningCatalogBySlug,
+  getOpeningLinesBySlug,
+  type OpeningLineRow,
+} from '@firstmove/supabase';
 import type { OpeningsStackParamList } from '../navigation/types';
 
 type Props = NativeStackScreenProps<OpeningsStackParamList, 'OpeningDetail'>;
@@ -46,7 +52,29 @@ function MoveList({ moves }: { moves: string[] }) {
 
 // ─── Punish line card ──────────────────────────────────────────────────────────
 
-function PunishCard({ variation }: { variation: MockVariation }) {
+function isPunishLine(line: OpeningLineRow) {
+  const text = `${line.name} ${line.full_name ?? ''} ${line.primary_category ?? ''}`.toLowerCase();
+  return (
+    text.includes('punish') ||
+    text.includes('trap') ||
+    text.includes('tactical_payoff') ||
+    line.primary_category === 'tactical_payoff'
+  );
+}
+
+function lineFinalFen(line: OpeningLineRow) {
+  try {
+    const chess = new Chess();
+    for (const san of line.sans) chess.move(san);
+    return chess.fen();
+  } catch {
+    return undefined;
+  }
+}
+
+// ─── Punish line card ──────────────────────────────────────────────────────────
+
+function PunishCard({ variation }: { variation: OpeningLineRow }) {
   return (
     <View style={styles.punishCard}>
       <View style={styles.punishHeader}>
@@ -55,14 +83,14 @@ function PunishCard({ variation }: { variation: MockVariation }) {
         </View>
         <View style={{ flex: 1 }}>
           <Text style={styles.punishName} numberOfLines={2}>{variation.name}</Text>
-          {variation.badge && (
+          {variation.inclusion_outcome && (
             <View style={styles.punishBadge}>
-              <Text style={styles.punishBadgeText}>{variation.badge}</Text>
+              <Text style={styles.punishBadgeText}>{variation.inclusion_outcome}</Text>
             </View>
           )}
         </View>
       </View>
-      <MoveList moves={variation.moves} />
+      <MoveList moves={variation.sans} />
     </View>
   );
 }
@@ -71,27 +99,60 @@ function PunishCard({ variation }: { variation: MockVariation }) {
 
 export function OpeningDetailScreen({ route, navigation }: Props) {
   const { openingSlug } = route.params;
-  const opening = findOpening(openingSlug);
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const [activeTab, setActiveTab] = useState<ActiveTab>('reference');
 
-  if (!opening) {
+  const { data, isLoading, isError, error } = useQuery({
+    queryKey: ['openings', openingSlug],
+    queryFn: async () => {
+      const [opening, lines] = await Promise.all([
+        getOpeningCatalogBySlug(openingSlug),
+        getOpeningLinesBySlug(openingSlug),
+      ]);
+      return { opening, lines };
+    },
+    staleTime: 1000 * 60 * 10,
+  });
+
+  if (isLoading) {
     return (
       <View style={[styles.root, { paddingTop: insets.top }]}>
-        <Pressable style={styles.backButton} onPress={() => navigation.goBack()}>
-          <Ionicons name="arrow-back" size={22} color={COLORS.text} />
-        </Pressable>
-        <View style={styles.notFound}>
-          <Text style={styles.notFoundText}>Opening not found</Text>
+        <View style={styles.centered}>
+          <ActivityIndicator size="large" color={COLORS.accent} />
         </View>
       </View>
     );
   }
 
-  const referenceVariation = opening.variations.find(v => !v.isPunishLine);
-  const punishLines = opening.variations.filter(v => v.isPunishLine);
+  if (isError || !data?.opening) {
+    return (
+      <View style={[styles.root, { paddingTop: insets.top }]}>
+        <Pressable style={[styles.backButton, styles.floatingBackButton]} onPress={() => navigation.goBack()}>
+          <Ionicons name="arrow-back" size={22} color={COLORS.text} />
+        </Pressable>
+        <View style={styles.notFound}>
+          <Text style={styles.notFoundText}>
+            {isError ? 'Could not load opening' : 'Opening not found'}
+          </Text>
+          {isError && (
+            <Text style={styles.errorDetailText}>
+              {error instanceof Error ? error.message : 'Unknown opening detail error'}
+            </Text>
+          )}
+        </View>
+      </View>
+    );
+  }
+
+  const { opening, lines } = data;
+  const referenceLines = lines.filter(line => !isPunishLine(line));
+  const punishLines = lines.filter(isPunishLine);
+  const referenceVariation = referenceLines[0];
   const boardSize = width - 40;
+  const boardFen =
+    opening.preview_fen ??
+    (referenceVariation ? lineFinalFen(referenceVariation) : undefined);
 
   return (
     <View style={[styles.root, { paddingTop: insets.top }]}>
@@ -102,15 +163,15 @@ export function OpeningDetailScreen({ route, navigation }: Props) {
         </Pressable>
         <View style={styles.headerTitle}>
           <Text style={styles.headerName} numberOfLines={1}>{opening.name}</Text>
-          <Text style={styles.headerEco}>{opening.eco}</Text>
+          <Text style={styles.headerEco}>{opening.eco_code}</Text>
         </View>
         <Pressable
           style={styles.practiceButton}
           onPress={() =>
             referenceVariation &&
             navigation.navigate('Practice', {
-              openingSlug: opening.id,
-              variationId: referenceVariation.id,
+              openingSlug: opening.slug,
+              variationId: referenceVariation.slug,
               mode: 'learn',
             })
           }
@@ -123,7 +184,7 @@ export function OpeningDetailScreen({ route, navigation }: Props) {
         {/* Board */}
         <View style={styles.boardSection}>
           <MiniBoard
-            fen={opening.fen}
+            fen={boardFen}
             size={boardSize}
             orientation={opening.color === 'black' ? 'black' : 'white'}
           />
@@ -171,14 +232,18 @@ export function OpeningDetailScreen({ route, navigation }: Props) {
         {/* Tab content */}
         {activeTab === 'reference' ? (
           <View style={styles.section}>
-            {opening.variations
-              .filter(v => !v.isPunishLine)
-              .map(v => (
-                <View key={v.id} style={styles.variationBlock}>
+            {referenceLines.length === 0 ? (
+              <View style={styles.noPunish}>
+                <Text style={styles.noPunishText}>No reference lines yet for this opening.</Text>
+              </View>
+            ) : (
+              referenceLines.map(v => (
+                <View key={v.slug} style={styles.variationBlock}>
                   <Text style={styles.variationName}>{v.name}</Text>
-                  <MoveList moves={v.moves} />
+                  <MoveList moves={v.sans} />
                 </View>
-              ))}
+              ))
+            )}
           </View>
         ) : (
           <View style={styles.section}>
@@ -187,7 +252,7 @@ export function OpeningDetailScreen({ route, navigation }: Props) {
                 <Text style={styles.noPunishText}>No punish lines yet for this opening.</Text>
               </View>
             ) : (
-              punishLines.map(v => <PunishCard key={v.id} variation={v} />)
+              punishLines.map(v => <PunishCard key={v.slug} variation={v} />)
             )}
           </View>
         )}
@@ -221,6 +286,10 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.surface,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  floatingBackButton: {
+    marginLeft: 16,
+    marginTop: 12,
   },
   headerTitle: { flex: 1, gap: 1 },
   headerName: { fontSize: 15, fontWeight: FONT.bold, color: COLORS.text },
@@ -339,8 +408,17 @@ const styles = StyleSheet.create({
   punishBadgeText: { fontSize: 10, fontWeight: FONT.bold, color: COLORS.accent, letterSpacing: 0.2 },
 
   // Empty / not found
+  centered: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   noPunish: { paddingVertical: 32, alignItems: 'center' },
   noPunishText: { fontSize: 13, color: COLORS.textDim },
   notFound: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   notFoundText: { fontSize: 14, color: COLORS.textMuted },
+  errorDetailText: {
+    marginTop: 8,
+    fontSize: 11,
+    lineHeight: 16,
+    color: COLORS.textDim,
+    textAlign: 'center',
+    paddingHorizontal: 24,
+  },
 });

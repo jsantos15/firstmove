@@ -2,9 +2,7 @@
 
 interface Filters {
   search: string;
-  color: 'all' | 'white' | 'black';
-  difficulty: 'all' | 'beginner' | 'intermediate' | 'advanced';
-  inProgress: boolean;
+  availability: 'all' | 'available' | 'soon';
 }
 
 interface OpeningFiltersProps {
@@ -13,17 +11,10 @@ interface OpeningFiltersProps {
 }
 
 export function OpeningFilters({ filters, onChange }: OpeningFiltersProps) {
-  const colorOptions: { value: Filters['color']; label: string }[] = [
-    { value: 'all', label: 'All' },
-    { value: 'white', label: '♔ White' },
-    { value: 'black', label: '♚ Black' },
-  ];
-
-  const difficultyOptions: { value: Filters['difficulty']; label: string }[] = [
-    { value: 'all', label: 'All levels' },
-    { value: 'beginner', label: 'Beginner' },
-    { value: 'intermediate', label: 'Intermediate' },
-    { value: 'advanced', label: 'Advanced' },
+  const availabilityOptions: { value: Filters['availability']; label: string }[] = [
+    { value: 'all',       label: 'All openings' },
+    { value: 'available', label: 'Available' },
+    { value: 'soon',      label: 'Coming soon' },
   ];
 
   return (
@@ -48,14 +39,14 @@ export function OpeningFilters({ filters, onChange }: OpeningFiltersProps) {
         />
       </div>
 
-      {/* Color filter */}
+      {/* Availability filter */}
       <div className="flex rounded-lg border border-white/10 overflow-hidden">
-        {colorOptions.map(opt => (
+        {availabilityOptions.map(opt => (
           <button
             key={opt.value}
-            onClick={() => onChange({ ...filters, color: opt.value })}
+            onClick={() => onChange({ ...filters, availability: opt.value })}
             className={`px-3 py-1.5 text-xs font-medium transition-colors ${
-              filters.color === opt.value
+              filters.availability === opt.value
                 ? 'bg-amber-400/20 text-amber-400'
                 : 'text-gray-400 hover:text-white hover:bg-white/5'
             }`}
@@ -64,37 +55,7 @@ export function OpeningFilters({ filters, onChange }: OpeningFiltersProps) {
           </button>
         ))}
       </div>
-
-      {/* Difficulty filter */}
-      <div className="flex rounded-lg border border-white/10 overflow-hidden">
-        {difficultyOptions.map(opt => (
-          <button
-            key={opt.value}
-            onClick={() => onChange({ ...filters, difficulty: opt.value })}
-            className={`px-3 py-1.5 text-xs font-medium transition-colors ${
-              filters.difficulty === opt.value
-                ? 'bg-amber-400/20 text-amber-400'
-                : 'text-gray-400 hover:text-white hover:bg-white/5'
-            }`}
-          >
-            {opt.label}
-          </button>
-        ))}
-      </div>
-
-      {/* In Progress toggle */}
-      <button
-        onClick={() => onChange({ ...filters, inProgress: !filters.inProgress })}
-        className={`px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors ${
-          filters.inProgress
-            ? 'border-amber-400/50 bg-amber-400/20 text-amber-400'
-            : 'border-white/10 text-gray-400 hover:text-white hover:bg-white/5'
-        }`}
-      >
-        Progress
-      </button>
 
     </div>
   );
 }
-

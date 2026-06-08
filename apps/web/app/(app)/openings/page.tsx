@@ -3,53 +3,36 @@
 import { useState, useMemo } from 'react';
 import { OpeningCard } from '@/components/openings/OpeningCard';
 import { OpeningFilters } from '@/components/openings/OpeningFilters';
-import { useAllProgress, getOpeningProgress } from '@/hooks/useProgress';
-import { useOpenings } from '@/hooks/useOpenings';
-import type { Opening } from '@firstmove/core';
+import { useOpeningIndex } from '@/hooks/useOpenings';
 
 interface Filters {
   search: string;
-  color: 'all' | 'white' | 'black';
-  difficulty: 'all' | 'beginner' | 'intermediate' | 'advanced';
-  inProgress: boolean;
+  availability: 'all' | 'available' | 'soon';
 }
 
 export default function OpeningsPage() {
   const [filters, setFilters] = useState<Filters>({
     search: '',
-    color: 'all',
-    difficulty: 'all',
-    inProgress: false,
+    availability: 'all',
   });
 
-  const { data: openings = [], isLoading } = useOpenings();
-  const { data: progress } = useAllProgress();
+  const { data: openings = [], isLoading } = useOpeningIndex();
 
   const filtered = useMemo(() => {
-    const result = openings.filter(o => {
-      if (filters.color !== 'all' && o.color !== filters.color) return false;
-      if (filters.difficulty !== 'all' && o.difficulty !== filters.difficulty) return false;
+    return openings.filter(o => {
+      if (filters.availability === 'available' && !o.course_slug) return false;
+      if (filters.availability === 'soon' && o.course_slug) return false;
       if (filters.search) {
         const q = filters.search.toLowerCase();
         const match =
-          o.name.toLowerCase().includes(q) ||
-          o.ecoCode.toLowerCase().includes(q) ||
-          o.tags.some(t => t.includes(q));
+          (o.name ?? '').toLowerCase().includes(q) ||
+          (o.eco_code ?? '').toLowerCase().includes(q) ||
+          (o.family_name ?? '').toLowerCase().includes(q);
         if (!match) return false;
       }
       return true;
     });
-
-    if (filters.inProgress) {
-      const getProgressCount = (o: Opening) =>
-        o.variations.filter(v => (progress?.get(`${o.id}/${v.id}`)?.timesCompleted ?? 0) > 0).length;
-      return result
-        .filter(o => getProgressCount(o) > 0)
-        .sort((a, b) => getProgressCount(b) - getProgressCount(a));
-    }
-
-    return result;
-  }, [filters, openings, progress]);
+  }, [filters, openings]);
 
   return (
     <div className="h-full overflow-y-auto bg-[var(--bg-base)]">
@@ -78,7 +61,7 @@ export default function OpeningsPage() {
             <span className="text-5xl mb-4">♟</span>
             <p className="text-gray-400">No openings match your filters.</p>
             <button
-              onClick={() => setFilters({ search: '', color: 'all', difficulty: 'all', inProgress: false })}
+              onClick={() => setFilters({ search: '', availability: 'all' })}
               className="mt-4 text-sm text-amber-400 hover:underline"
             >
               Clear filters
@@ -86,21 +69,12 @@ export default function OpeningsPage() {
           </div>
         ) : (
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {filtered.map(opening => {
-              const { status, completedLines } = getOpeningProgress(
-                progress,
-                opening.id,
-                opening.variations.map(v => v.id)
-              );
-              return (
-                <OpeningCard
-                  key={opening.id}
-                  opening={opening}
-                  completedLines={completedLines}
-                  status={status}
-                />
-              );
-            })}
+            {filtered.map(opening => (
+              <OpeningCard
+                key={opening.popularity_id}
+                opening={opening}
+              />
+            ))}
           </div>
         )}
       </div>
@@ -108,4 +82,3 @@ export default function OpeningsPage() {
     </div>
   );
 }
-

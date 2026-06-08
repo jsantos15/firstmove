@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Chessboard } from 'react-chessboard';
 import Link from 'next/link';
-import type { Opening } from '@firstmove/core';
+import type { OpeningIndexRow } from '@firstmove/supabase';
 import { ColorBadge, DifficultyBadge } from '@/components/ui/Badge';
 import type { MasteryLevel } from '@/hooks/useProgress';
 import { useBoardSettings } from '@/hooks/useBoardSettings';
@@ -12,14 +12,13 @@ import { getCustomPieces } from '@/lib/piecesets';
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 interface OpeningCardProps {
-  opening: Opening;
+  opening: OpeningIndexRow;
   completedLines?: number;
   status?: MasteryLevel;
 }
 
-function getCharacteristicFen(opening: Opening): string {
-  const lastMove = opening.moves[opening.moves.length - 1];
-  return lastMove?.fen ?? 'start';
+function getCharacteristicFen(opening: OpeningIndexRow): string {
+  return opening.course_preview_fen ?? opening.anchor_fen ?? 'start';
 }
 
 // ─── Status chip config ───────────────────────────────────────────────────────
@@ -69,16 +68,17 @@ export function OpeningCard({ opening, completedLines = 0, status = 'new' }: Ope
   const previewRef = useRef<HTMLDivElement>(null);
   const [showBoard, setShowBoard] = useState(false);
   const fen = getCharacteristicFen(opening);
-  const totalLines = opening.variations.length;
+  const totalLines = opening.variation_count ?? 0;
   const chip = status !== 'new' ? STATUS_CHIP[status] : null;
   const { theme, settings } = useBoardSettings();
   const customPieces = getCustomPieces(settings.pieceSetId);
+  const hasCourse = Boolean(opening.course_slug);
   const boardOrientation =
     settings.flipBoard
-      ? opening.color === 'black'
+      ? opening.course_color === 'black'
         ? 'white'
         : 'black'
-      : opening.color === 'black'
+      : opening.course_color === 'black'
       ? 'black'
       : 'white';
 
@@ -103,9 +103,12 @@ export function OpeningCard({ opening, completedLines = 0, status = 'new' }: Ope
     return () => observer.disconnect();
   }, [showBoard]);
 
-  return (
-    <Link href={`/openings/${opening.id}`} className="block">
-      <div className="group rounded-xl border border-white/5 bg-[var(--bg-panel)] overflow-hidden transition-all duration-200 hover:border-amber-400/20 hover:-translate-y-0.5 hover:shadow-xl hover:shadow-black/40 cursor-pointer">
+  const card = (
+    <div className={`group rounded-xl border border-white/5 bg-[var(--bg-panel)] overflow-hidden transition-all duration-200 ${
+      hasCourse
+        ? 'hover:border-amber-400/20 hover:-translate-y-0.5 hover:shadow-xl hover:shadow-black/40 cursor-pointer'
+        : 'opacity-90'
+    }`}>
 
         {/* Board preview — sits in a darker panel so it floats */}
         <div ref={previewRef} className="flex items-center justify-center bg-[var(--bg-sidebar)] py-5 pointer-events-none">
@@ -130,10 +133,17 @@ export function OpeningCard({ opening, completedLines = 0, status = 'new' }: Ope
         {/* Info panel */}
         <div className="p-4">
 
-          {/* Color + difficulty */}
+          {/* Status + course metadata */}
           <div className="flex items-center gap-1.5 mb-2.5">
-            <ColorBadge color={opening.color} />
-            <DifficultyBadge difficulty={opening.difficulty} />
+            {opening.course_color && <ColorBadge color={opening.course_color} />}
+            {opening.course_difficulty && <DifficultyBadge difficulty={opening.course_difficulty} />}
+            <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-medium ${
+              hasCourse
+                ? 'border-green-400/20 bg-green-400/10 text-green-400'
+                : 'border-amber-400/20 bg-amber-400/10 text-amber-400'
+            }`}>
+              {hasCourse ? 'Available' : 'Coming soon'}
+            </span>
           </div>
 
           {/* Opening name */}
@@ -145,13 +155,13 @@ export function OpeningCard({ opening, completedLines = 0, status = 'new' }: Ope
           <div className="flex items-center justify-between gap-2">
             <LineDots completed={completedLines} total={totalLines} />
             <span className="text-[11px] text-gray-600 shrink-0">
-              {totalLines} {totalLines === 1 ? 'line' : 'lines'}
+              {totalLines} {totalLines === 1 ? 'variation' : 'variations'}
             </span>
           </div>
 
           <div className="mt-2 flex items-center justify-between gap-2">
-            <span className="text-[11px] text-gray-500">
-              {completedLines}/{totalLines} completed
+            <span className="text-[11px] text-gray-500 truncate">
+              {opening.popularity_games?.toLocaleString() ?? 'Unknown'} games
             </span>
             {chip ? (
               <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-medium shrink-0 ${chip.cls}`}>
@@ -159,13 +169,22 @@ export function OpeningCard({ opening, completedLines = 0, status = 'new' }: Ope
               </span>
             ) : (
               <span className="text-[11px] text-gray-600 shrink-0">
-                Not started
+                {opening.eco_code}
               </span>
             )}
           </div>
 
         </div>
       </div>
+  );
+
+  if (!opening.course_slug) {
+    return <div className="block">{card}</div>;
+  }
+
+  return (
+    <Link href={`/openings/${opening.course_slug}`} className="block">
+      {card}
     </Link>
   );
 }

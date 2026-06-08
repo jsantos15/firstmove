@@ -1,10 +1,13 @@
-import { Svg, Rect, Text as SvgText, G } from 'react-native-svg';
+import { StyleSheet, View } from 'react-native';
+import { Svg, Rect, SvgXml } from 'react-native-svg';
 import { COLORS } from '../../lib/constants';
+import { PIECE_SVGS } from './pieceSvgs';
 
 interface MiniBoardProps {
   fen?: string;
   size?: number;
   orientation?: 'white' | 'black';
+  showPieces?: boolean;
 }
 
 interface PieceInfo {
@@ -14,13 +17,7 @@ interface PieceInfo {
   file: number;
 }
 
-const PIECE_UNICODE: Record<string, string> = {
-  wk: '♔', wq: '♕', wr: '♖', wb: '♗', wn: '♘', wp: '♙',
-  bk: '♚', bq: '♛', br: '♜', bb: '♝', bn: '♞', bp: '♟',
-};
-
 const STARTING_FEN = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
-
 function parseFen(fen: string): PieceInfo[] {
   const boardPart = fen.split(' ')[0];
   const ranks = boardPart.split('/');
@@ -47,10 +44,14 @@ function parseFen(fen: string): PieceInfo[] {
   return pieces;
 }
 
-export function MiniBoard({ fen = STARTING_FEN, size = 160, orientation = 'white' }: MiniBoardProps) {
+export function MiniBoard({
+  fen = STARTING_FEN,
+  size = 160,
+  orientation = 'white',
+  showPieces = true,
+}: MiniBoardProps) {
   const sq = size / 8;
-  const pieces = parseFen(fen);
-  const fontSize = sq * 0.72;
+  const pieces = showPieces ? parseFen(fen) : [];
 
   const toX = (file: number) =>
     orientation === 'white' ? file * sq : (7 - file) * sq;
@@ -58,60 +59,46 @@ export function MiniBoard({ fen = STARTING_FEN, size = 160, orientation = 'white
     orientation === 'white' ? (7 - rank) * sq : rank * sq;
 
   return (
-    <Svg width={size} height={size}>
+    <View style={{ width: size, height: size, overflow: 'hidden' }}>
       {/* Board squares */}
-      {Array.from({ length: 8 }, (_, rank) =>
-        Array.from({ length: 8 }, (_, file) => {
-          const isLight = (rank + file) % 2 === 0;
-          return (
-            <Rect
-              key={`${rank}-${file}`}
-              x={toX(file)}
-              y={toY(rank)}
-              width={sq}
-              height={sq}
-              fill={isLight ? COLORS.boardLight : COLORS.boardDark}
-            />
-          );
-        })
-      )}
+      <Svg width={size} height={size} style={StyleSheet.absoluteFill}>
+        {Array.from({ length: 8 }, (_, rank) =>
+          Array.from({ length: 8 }, (_, file) => {
+            const isLight = (rank + file) % 2 === 0;
+            return (
+              <Rect
+                key={`${rank}-${file}`}
+                x={toX(file)}
+                y={toY(rank)}
+                width={sq}
+                height={sq}
+                fill={isLight ? COLORS.boardLight : COLORS.boardDark}
+              />
+            );
+          })
+        )}
+      </Svg>
 
-      {/* Pieces — render stroke layer first, then fill layer on top */}
+      {/* Pieces use bundled cburnett SVGs to avoid per-card remote fetches. */}
       {pieces.map((piece, i) => {
-        const char = PIECE_UNICODE[`${piece.color}${piece.type}`];
-        if (!char) return null;
-        const cx = toX(piece.file) + sq / 2;
-        const cy = toY(piece.rank) + sq / 2 + fontSize * 0.36;
-        const isWhite = piece.color === 'w';
+        const code = `${piece.color}${piece.type.toUpperCase()}`;
+        const xml = PIECE_SVGS[code];
+        if (!xml) return null;
 
         return (
-          <G key={i}>
-            {/* Outline layer */}
-            <SvgText
-              x={cx}
-              y={cy}
-              fontSize={fontSize}
-              textAnchor="middle"
-              fill="none"
-              stroke={isWhite ? '#5c3d1a' : 'rgba(255,255,255,0.7)'}
-              strokeWidth={isWhite ? 2 : 1.5}
-            >
-              {char}
-            </SvgText>
-            {/* Fill layer */}
-            <SvgText
-              x={cx}
-              y={cy}
-              fontSize={fontSize}
-              textAnchor="middle"
-              fill={isWhite ? '#ffffff' : '#1a0a00'}
-              stroke="none"
-            >
-              {char}
-            </SvgText>
-          </G>
+          <SvgXml
+            key={i}
+            xml={xml}
+            width={sq}
+            height={sq}
+            style={{
+              position: 'absolute',
+              left: toX(piece.file),
+              top: toY(piece.rank),
+            }}
+          />
         );
       })}
-    </Svg>
+    </View>
   );
 }

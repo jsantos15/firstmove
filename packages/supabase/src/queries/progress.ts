@@ -1,7 +1,7 @@
 import { supabase } from '../client';
 import type { Database } from '../database.types';
 
-type VariationProgress = Database['public']['Tables']['user_variation_progress']['Row'];
+export type VariationProgress = Database['public']['Tables']['user_variation_progress']['Row'];
 type VariationProgressInsert = Database['public']['Tables']['user_variation_progress']['Insert'];
 type VariationProgressUpdate = Database['public']['Tables']['user_variation_progress']['Update'];
 

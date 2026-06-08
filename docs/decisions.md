@@ -236,6 +236,46 @@
 
 ---
 
+## 2026-05-22 - Use Lichess Open Puzzle Database as the puzzle content source
+
+**Decision:** Source all puzzle content from the Lichess Open Puzzle Database (https://database.lichess.org/#puzzles), imported into the FirstMove Supabase `puzzles` table via `scripts/import-puzzles.cjs`. Do not use Chess.com puzzles (proprietary, no bulk API) or build a manual puzzle set.
+
+**Reason:** The Lichess database contains 5.9 million rated puzzles under CC0 (public domain), tagged with tactical themes and ECO opening codes. This gives FirstMove unlimited puzzle content, difficulty tiers derived from Lichess ratings, and the opening-tag data needed to power Opening Track screens without manual curation. The import script is idempotent (upsert on puzzle_id), filterable by rating/theme/opening, and mirrors the existing opening import pattern so no new infrastructure is needed.
+
+**Difficulty bands:** rating < 1200 = beginner, 1200–1599 = intermediate, 1600+ = advanced. These map to the existing `opening_difficulty` enum.
+
+**Import process:** Download CSV from database.lichess.org → decompress → run `node scripts/import-puzzles.cjs --input <path>` with any desired filters.
+
+---
+
+## 2026-06-01 - Drive opening popularity and track stages from Lichess Explorer
+
+**Decision:** Add a `scripts/fetch-opening-popularity.cjs` script that queries the Lichess Opening Explorer for each `opening_lines` row's final position, stores the game count as `popularity_games` on `opening_lines`, ranks lines within each opening as `popularity_rank`, and aggregates totals to `openings_catalog`. Also computes `preview_fen` from the main line for card thumbnails. The Learn screen and Opening Track screen now read from Supabase exclusively — all mock data removed from those screens.
+
+**Reason:** The Learn screen needed real ordering (most-played openings first, not a hardcoded list). The Opening Track screen needed a dynamic node count driven by how many popular variations each opening actually has in the DB, rather than a hardcoded 18-node Caro-Kann template. Lichess Explorer is already the sourcing authority for opening continuations; using it for popularity counts keeps the data consistent and avoids a separate analytics dependency.
+
+**How to run:** `node scripts/fetch-opening-popularity.cjs` (needs `scripts/.env` with `NEXT_PUBLIC_SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, and optionally `LICHESS_API_TOKEN`). Supports `--force` to re-fetch all lines and `--opening <slug>` to update a single opening.
+
+---
+
+## 2026-06-07 - Split opening index from generated course details
+
+**Decision:** Use `lichess_opening_popularity` as the lightweight opening-index source for web and mobile list screens, sorted by `popularity_games`. The index returns opening name, ECO, anchor FEN/SAN, game count, variation count, and nullable generated-course metadata from `openings_catalog`. Full `opening_lines` rows, reference lines, punish lines, and SAN arrays are loaded only after a generated course is selected.
+
+**Reason:** The Openings screen should list the complete popularity-ranked opening catalog without downloading every generated line. The Lichess popularity table now contains broad opening coverage even before FirstMove has generated lessons for every opening. Separating index data from course-detail data lets the apps show all openings immediately, mark unavailable courses as coming soon, and keep mobile/network payloads small.
+
+**Implementation note:** Migration `011_opening_index_view.sql` defines `public.opening_index` as the preferred one-query source. The shared `getOpeningIndex()` helper falls back to the base tables so the apps still work before the view is applied.
+
+---
+
+## 2026-06-07 - Hide broad opening bucket names from the learner index
+
+**Decision:** Exclude broad Lichess naming buckets such as `King's Pawn Game`, `Queen's Pawn Game`, `Zukertort Opening`, and `Indian Defense` from the learner-facing opening index. Dedupe repeated opening names by keeping the most popular anchor. Do not exclude all one-move openings: named openings such as English Opening, Bird Opening, Nimzo-Larsen Attack, and Polish Opening remain eligible.
+
+**Reason:** The excluded names are useful taxonomy containers, but they are too generic to present as opening courses. FirstMove should teach recognizable opening families and defenses rather than broad move-order buckets. An explicit denylist is safer than filtering by move depth, because some legitimate openings are defined by one move while some generic buckets are two moves.
+
+---
+
 ## 2026-04-28 - Store per-ply opening evals for practice navigation
 
 **Decision:** Store Stockfish centipawn evaluations for every ply in an opening line as `opening_lines.eval_cp_by_ply`, using White-perspective values regardless of whose turn it is. Keep `final_eval_cp` aligned to the last per-ply value.

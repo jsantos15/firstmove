@@ -106,6 +106,7 @@ export type Database = {
           popularity_games: number | null
           popularity_rank: number | null
           popularity_score: number | null
+          preview_fen: string | null
           slug: string
           tags: string[]
           updated_at: string
@@ -123,6 +124,7 @@ export type Database = {
           popularity_games?: number | null
           popularity_rank?: number | null
           popularity_score?: number | null
+          preview_fen?: string | null
           slug: string
           tags?: string[]
           updated_at?: string
@@ -140,9 +142,55 @@ export type Database = {
           popularity_games?: number | null
           popularity_rank?: number | null
           popularity_score?: number | null
+          preview_fen?: string | null
           slug?: string
           tags?: string[]
           updated_at?: string
+        }
+        Relationships: []
+      }
+      puzzles: {
+        Row: {
+          created_at: string
+          difficulty: Database["public"]["Enums"]["opening_difficulty"]
+          fen: string
+          game_url: string | null
+          moves: string[]
+          nb_plays: number
+          opening_tags: string[]
+          popularity: number
+          puzzle_id: string
+          rating: number
+          rating_deviation: number
+          themes: string[]
+        }
+        Insert: {
+          created_at?: string
+          difficulty: Database["public"]["Enums"]["opening_difficulty"]
+          fen: string
+          game_url?: string | null
+          moves: string[]
+          nb_plays?: number
+          opening_tags?: string[]
+          popularity?: number
+          puzzle_id: string
+          rating: number
+          rating_deviation?: number
+          themes?: string[]
+        }
+        Update: {
+          created_at?: string
+          difficulty?: Database["public"]["Enums"]["opening_difficulty"]
+          fen?: string
+          game_url?: string | null
+          moves?: string[]
+          nb_plays?: number
+          opening_tags?: string[]
+          popularity?: number
+          puzzle_id?: string
+          rating?: number
+          rating_deviation?: number
+          themes?: string[]
         }
         Relationships: []
       }
@@ -235,6 +283,48 @@ export type Database = {
         }
         Relationships: []
       }
+      user_puzzle_attempts: {
+        Row: {
+          attempted_at: string
+          id: string
+          puzzle_id: string
+          solved: boolean
+          time_ms: number | null
+          user_id: string
+        }
+        Insert: {
+          attempted_at?: string
+          id?: string
+          puzzle_id: string
+          solved: boolean
+          time_ms?: number | null
+          user_id: string
+        }
+        Update: {
+          attempted_at?: string
+          id?: string
+          puzzle_id?: string
+          solved?: boolean
+          time_ms?: number | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_puzzle_attempts_puzzle_id_fkey"
+            columns: ["puzzle_id"]
+            isOneToOne: false
+            referencedRelation: "puzzles"
+            referencedColumns: ["puzzle_id"]
+          },
+          {
+            foreignKeyName: "user_puzzle_attempts_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_repertoires: {
         Row: {
           created_at: string
@@ -300,7 +390,29 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      opening_index: {
+        Row: {
+          anchor_fen: string | null
+          anchor_sans: string[] | null
+          course_color: Database["public"]["Enums"]["opening_color"] | null
+          course_description: string | null
+          course_difficulty: Database["public"]["Enums"]["opening_difficulty"] | null
+          course_display_tier: string | null
+          course_has_main_line: boolean | null
+          course_is_featured: boolean | null
+          course_preview_fen: string | null
+          course_slug: string | null
+          course_tags: string[] | null
+          eco_code: string | null
+          family_name: string | null
+          fetched_at: string | null
+          name: string | null
+          popularity_games: number | null
+          popularity_id: number | null
+          variation_count: number | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
       handle_new_user: {

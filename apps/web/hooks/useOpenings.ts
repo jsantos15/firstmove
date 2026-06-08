@@ -1,10 +1,12 @@
 import { useQuery } from '@tanstack/react-query';
 import { Chess, type Opening, type OpeningMove, type OpeningVariation } from '@firstmove/core';
 import {
+  getOpeningIndex,
   getOpeningsCatalog,
   getOpeningCatalogBySlug,
   getOpeningLines,
   getOpeningLinesBySlug,
+  type OpeningIndexRow,
   type OpeningCatalogRow,
   type OpeningLineRow,
 } from '@firstmove/supabase';
@@ -165,6 +167,18 @@ function buildOpening(
 }
 
 // ─── Hooks ───────────────────────────────────────────────────────────────────
+
+/**
+ * Fetches the lightweight opening index. This powers list screens only: one row
+ * per named Lichess opening, plus counts and generated-course metadata.
+ */
+export function useOpeningIndex() {
+  return useQuery<OpeningIndexRow[]>({
+    queryKey: ['openings', 'index'],
+    staleTime: Infinity,
+    queryFn: () => getOpeningIndex(),
+  });
+}
 
 /**
  * Fetches all openings from Supabase. Results are cached indefinitely
