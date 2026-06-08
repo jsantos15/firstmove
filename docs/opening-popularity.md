@@ -112,6 +112,32 @@ Popularity should not control:
 - whether a line's name is authoritative
 - where a line stops
 
+## Learner-Facing Opening Candidates
+
+Raw opening popularity counts include pass-through anchors that many games
+visit before they become a meaningful opening course. These should stay in the
+source popularity table for auditability, but they should be excluded from the
+learner-facing `opening_index` backlog.
+
+Examples:
+
+- `King's Pawn Game`
+- `King's Knight Opening`
+- `Queen's Pawn Game`
+- `Horwitz Defense`
+- `Zukertort Opening`
+- `Indian Defense`
+
+These names are too broad or transpositional for a FirstMove course because the
+player has not yet reached a stable opening identity. For example, `King's
+Knight Opening` is mostly the natural gateway `1. e4 e5 2. Nf3`; it later
+becomes Italian Game, Ruy Lopez, Scotch Game, Petrov's Defense, Philidor
+Defense, and related courses.
+
+Do not exclude by suffix alone. `English Opening`, `Bird Opening`, and
+`Bishop's Opening` are legitimate course candidates even though their names end
+in `Opening`.
+
 ## Data Fields
 
 Each generated opening family should eventually support:

@@ -17,7 +17,9 @@ with learner_openings as (
   where lop.type = 'opening'
     and lop.full_name not in (
       'King''s Pawn Game',
+      'King''s Knight Opening',
       'Queen''s Pawn Game',
+      'Horwitz Defense',
       'Zukertort Opening',
       'Indian Defense'
     )
