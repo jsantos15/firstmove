@@ -13,22 +13,28 @@ Reference line algorithm:
 
 - `scripts/generate-opening-candidates.cjs`
 
-Full reference-line pipeline:
+Full opening course pipeline:
 
-- `scripts/run-opening-reference-pipeline.cjs`
+- `scripts/run-opening-course-pipeline.cjs`
 
-The orchestrator wraps the full flow:
+The orchestrator wraps the full reference and punish/practical branch flow:
 
 1. generate reference candidates
-2. deduplicate prefix duplicates
-3. prepare the DB payload
-4. import into Supabase
-5. prune stale rows for the selected openings
+2. deduplicate reference candidates
+3. prepare the reference DB payload
+4. import reference rows into Supabase
+5. prune stale reference rows for the selected openings
+6. generate punish/practical branches from the reference output
+7. deduplicate practical branches
+8. prepare the branch DB payload
+9. delete old practical branches for the selected course openings
+10. import practical branches and branch metadata
+11. restore catalog popularity order from `opening_index`
 
-Current command for Italian Game and Caro-Kann:
+Current command for the next two missing popularity-ranked openings:
 
 ```powershell
-node scripts/run-opening-reference-pipeline.cjs --openings italian-game,caro-kann --apply-sync
+node scripts/run-opening-course-pipeline.cjs --next-missing 2
 ```
 
 ## Runtime Data Written
@@ -94,24 +100,22 @@ The learner-facing Openings list should use `opening_index` for popularity
 ordering, but generated FirstMove course content remains in `openings_catalog`,
 `opening_lines`, and `opening_line_branch_metadata`.
 
-A course is complete for learner exposure only after both phases have run:
-
-1. Reference lines:
-
-```powershell
-node scripts/run-opening-reference-pipeline.cjs --openings <slug> --apply-sync
-```
-
-2. Punish/practical branches:
+A course is complete for learner exposure only after the full course pipeline
+has run:
 
 ```powershell
-node scripts/run-opening-branch-pipeline.cjs --openings <slug> --reset-branches
+node scripts/run-opening-course-pipeline.cjs --openings "<opening name>"
 ```
 
-Run reference generation before branch generation. The reference sync stage is
-scoped to payload openings and prunes stale `opening_lines` for those openings,
-so running it after branches can remove practical branches that then need to be
-regenerated.
+Or run the next N missing openings from the popularity-ranked backlog:
+
+```powershell
+node scripts/run-opening-course-pipeline.cjs --next-missing 2
+```
+
+The single orchestrator is the user-facing entrypoint. It runs reference
+generation before branch generation so reference sync cannot prune newly
+generated practical branches.
 
 ## Current Algorithm Summary
 

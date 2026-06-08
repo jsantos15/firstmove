@@ -466,22 +466,20 @@ node scripts/import-opening-db-payload.cjs --input ...
 node scripts/sync-opening-db-payload.cjs --input ... --scope-payload-openings --apply
 ```
 
-### Full pipeline orchestrator
+### Full course pipeline orchestrator
 
-For known opening reruns, `scripts/run-opening-reference-pipeline.cjs` wraps the five-stage flow without replacing any stage:
+`scripts/run-opening-course-pipeline.cjs` is the current user-facing wrapper for generating complete opening courses without replacing the underlying stages:
 
 ```
-node scripts/run-opening-reference-pipeline.cjs --openings italian-game,caro-kann --apply-sync
+node scripts/run-opening-course-pipeline.cjs --next-missing 2
 ```
 
 - Runs `generate → dedup → prepare → import → sync` for each selected opening.
-- Uses the known `--starts-with` and `--san-prefix` values from this decision log.
+- Selects openings by explicit name/slug or by `--next-missing <count>` from `opening_index`.
 - Overwrites generated JSON and prepared payload files for the selected openings.
 - Before overwriting a generated JSON file, snapshots the previous results and writes a diff report after dedup to `scripts/output/opening-reference-diff-<opening>.json`; terminal output lists changed/added/removed counts and the first changed lines to review.
-- Requires either `--openings <list>` or `--all` so imports are never started by an accidental no-arg run.
+- Requires either `--openings <list>` or `--next-missing <count>` so imports are never started by an accidental no-arg run.
 - Refuses to continue past generation unless the generated JSON status is `complete`.
-- Supports `--start-at generate|dedup|prepare|import|sync` for restarting after a failed later stage.
-- `--apply-sync` is required for stale-row pruning. Without it, sync runs as a dry-run.
 - `--resume` can be passed for interrupted generation runs, but fresh regeneration should omit it.
 
 ---
@@ -536,7 +534,7 @@ node scripts/run-opening-reference-pipeline.cjs --openings italian-game,caro-kan
 
 **Reason:** Reference lines teach best play from the named opening position, while branches teach the response to likely human deviations. Mixing those concerns back into reference generation would make reference endpoints harder to reason about and risk over-expanding every bad move. A separate branch step lets FirstMove prioritize moves that are common enough, distinct from the reference continuation, and engine-validated as practical punishments or strategic improvements.
 
-**Update:** Practical branch generation is now a separate additive pipeline: `generate-opening-branches.cjs` -> `dedup-opening-branches.cjs` -> `prepare-opening-db-payload.cjs` -> `import-opening-db-payload.cjs`, wrapped by `run-opening-branch-pipeline.cjs`. Branches are generated from any opponent-to-move position after the variation anchor, follow top human Explorer moves inside a cumulative popularity window that tightens as depth increases, and use the same trained-side engine ladder as reference generation: best-known cache, cached Lichess cloud, cached Chess-API, live cloud with cooldown, then local Stockfish fallback. The default cap is 10 practical branches per variation, with a best-available fallback branch when no preferred checkpoint is found.
+**Update:** Practical branch generation is now an additive phase in the full course pipeline: `generate-opening-branches.cjs` -> `dedup-opening-branches.cjs` -> `prepare-opening-db-payload.cjs` -> `import-opening-db-payload.cjs`, wrapped for user-facing runs by `run-opening-course-pipeline.cjs`. Branches are generated from any opponent-to-move position after the variation anchor, follow top human Explorer moves inside a cumulative popularity window that tightens as depth increases, and use the same trained-side engine ladder as reference generation: best-known cache, cached Lichess cloud, cached Chess-API, live cloud with cooldown, then local Stockfish fallback. The default cap is 10 practical branches per variation, with a best-available fallback branch when no preferred checkpoint is found.
 
 **Update:** Branch rows stay in `opening_lines` with `line_kind = 'practical_branch'` because they are practiceable lines. Branch-specific data lives in `opening_line_branch_metadata`: parent line, branch key, trigger move, reference move, node/move games, play rate, cumulative play rate, eval before/after, final trained-side eval, branch score, structured continuation trace, and selection metadata. Local JSON artifacts remain review/debug outputs before DB import; Supabase is the durable runtime source after import.
 
@@ -655,3 +653,5 @@ node scripts/run-opening-reference-pipeline.cjs --openings italian-game,caro-kan
 **Decision:** Store Lichess Explorer game counts for the `lichess-org/chess-openings` dataset in `public.lichess_opening_popularity`, expose learner-facing opening candidates through `public.opening_index`, and use that view to order generated FirstMove courses by real popularity. Generated playable content remains in `openings_catalog`, `opening_lines`, and `opening_line_branch_metadata`.
 
 **Reason:** FirstMove needs to generate openings from most popular to least popular without mixing backlog metadata with playable course content. `opening_index` answers "what should we generate next?" and "how should complete courses be ordered?", while the course tables answer "what can the learner actually practice?" The app should expose only courses with both reference lines and practical punish branches, so partially generated openings can remain in the database for pipeline work without appearing as unfinished learner courses.
+
+**Update:** `scripts/run-opening-course-pipeline.cjs` is the single user-facing orchestrator for generating a complete opening course. It selects openings from `opening_index` by explicit name/slug or by `--next-missing <count>`, then runs reference generation, reference dedup, reference payload prep/import/sync, branch generation, branch dedup, branch payload prep, branch reset, branch import, and catalog popularity restoration. The older separate reference and branch wrapper scripts were removed to avoid an incomplete two-command workflow.
