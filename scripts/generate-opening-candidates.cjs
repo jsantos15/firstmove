@@ -3002,7 +3002,6 @@ async function main() {
         status: "partial",
         processedSourceNames: Array.from(resumeState.processed),
       });
-      console.log(`Checkpoint saved at ${formatPercent(percent)}.`);
       continue;
     }
 
@@ -3019,7 +3018,6 @@ async function main() {
         status: "partial",
         processedSourceNames: Array.from(resumeState.processed),
       });
-      console.log(`Checkpoint saved at ${formatPercent(percent)}.`);
     }
   }
 

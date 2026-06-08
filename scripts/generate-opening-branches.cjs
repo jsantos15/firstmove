@@ -1869,16 +1869,6 @@ async function generateBranchVariantsFromTrigger({
     const now = Date.now();
     if (now - lastProgressAt < args.progressIntervalMs) return;
     lastProgressAt = now;
-    const elapsedSeconds = Math.round((now - searchStartedAt) / 1000);
-    const finalMove = generatedSans.at(-1) ?? triggerMove.san;
-    const evalText = Number.isFinite(latestState?.trainedEvalCp)
-      ? `${latestState.trainedEvalCp}cp`
-      : "n/a";
-    console.log(
-      `  [search] ${parent.fullName}: ${triggerMove.san} ` +
-        `${visitedNodes}/${args.maxContinuationSearchNodes} nodes, ` +
-        `${checkpoints.length} checkpoint(s), eval ${evalText}, last ${finalMove}, ${elapsedSeconds}s`
-    );
   }
 
   function pushCheckpoint({
@@ -2445,10 +2435,6 @@ async function generateBranchesForParent({ parent, args, caches, existingKeys, r
   let discoveryCutoffPly = null;
   for (const [candidateIndex, candidate] of candidates.entries()) {
     if (Number.isFinite(discoveryCutoffPly) && candidate.stemPly > discoveryCutoffPly) break;
-    console.log(
-      `  [candidate ${candidateIndex + 1}/${candidates.length}] ${parent.fullName}: ` +
-        `${candidate.san ?? candidate.uci} at ply ${candidate.stemPly + 1}`
-    );
     const trainedCandidates = await firstTrainedCandidatesForTrigger({
       parent,
       stemSans: candidate.stemSans,
@@ -2495,10 +2481,6 @@ async function generateBranchesForParent({ parent, args, caches, existingKeys, r
         );
       }
       discoveryCutoffPly = candidate.stemPly;
-      console.log(
-        `  [candidate ${candidateIndex + 1}/${candidates.length}] ${parent.fullName}: ` +
-          `${opportunityBranches.length} opportunity branch(es)`
-      );
       continue;
     }
 
@@ -2531,10 +2513,6 @@ async function generateBranchesForParent({ parent, args, caches, existingKeys, r
     )) {
       discoveryCutoffPly = candidate.stemPly;
     }
-    console.log(
-      `  [candidate ${candidateIndex + 1}/${candidates.length}] ${parent.fullName}: ` +
-        `${branchVariants.length} variant(s)`
-    );
   }
 
   if (branches.length === 0 && candidates.length > 0) {
@@ -2827,6 +2805,9 @@ async function main() {
         ? Math.min(args.maxNewBranchesPerVariation, neededCount)
         : neededCount,
     };
+    console.log(
+      `[${index + 1}/${selectedReferences.length}] ${parent.fullName}: in progress`
+    );
     const branches = await generateBranchesForParent({
       parent,
       args: generationArgs,
@@ -2843,7 +2824,7 @@ async function main() {
     writeBranchCheckpoint({ args, scopeKey, generatedBranches, completedParentIds });
     console.log(
       `[${index + 1}/${selectedReferences.length}] ${parent.fullName}: ` +
-        `${branches.length} new branch(es), ${existingCount} existing`
+        `complete (${branches.length} new branch(es), ${existingCount} existing)`
     );
   }
 
