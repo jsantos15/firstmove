@@ -27,8 +27,7 @@ export function useAuth() {
 const PUBLIC_AUTH_SKIP_PATHS = ['/', '/openings', '/auth/callback'];
 
 function pathMatches(pathname: string, path: string) {
-  if (path === '/') return pathname === '/';
-  return pathname === path || pathname.startsWith(`${path}/`);
+  return pathname === path;
 }
 
 function AuthProvider({ children }: { children: React.ReactNode }) {

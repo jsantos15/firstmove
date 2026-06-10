@@ -5,12 +5,18 @@ const PUBLIC_PATHS = ['/', '/auth/callback', '/openings'];
 const AUTH_ONLY_PATHS = ['/login', '/signup'];
 
 function pathMatches(pathname: string, path: string) {
-  if (path === '/') return pathname === '/';
-  return pathname === path || pathname.startsWith(`${path}/`);
+  return pathname === path;
+}
+
+function publicPathMatches(pathname: string, path: string) {
+  if (path === '/openings') {
+    return pathname === path || pathname.startsWith(`${path}/`);
+  }
+  return pathMatches(pathname, path);
 }
 
 function isPublicPath(pathname: string) {
-  return PUBLIC_PATHS.some(path => pathMatches(pathname, path));
+  return PUBLIC_PATHS.some(path => publicPathMatches(pathname, path));
 }
 
 function isAuthPath(pathname: string) {
