@@ -8,28 +8,11 @@ export type OpeningLineBranchMetadataRow =
   Database['public']['Tables']['opening_line_branch_metadata']['Row'];
 export type CoachEventRow = Database['public']['Tables']['coach_events']['Row'];
 
-const PAGE_SIZE = 1000;
-
 export async function getOpeningIndex(): Promise<OpeningIndexRow[]> {
   const { data, error } = await supabase
     .from('opening_index')
     .select('*')
     .order('popularity_games', { ascending: false, nullsFirst: false })
-    .order('name', { ascending: true });
-
-  if (error) {
-    throw error;
-  }
-
-  return data;
-}
-
-export async function getOpeningsCatalog(): Promise<OpeningCatalogRow[]> {
-  const { data, error } = await supabase
-    .from('openings_catalog')
-    .select('*')
-    .order('display_tier', { ascending: true, nullsFirst: false })
-    .order('popularity_rank', { ascending: true, nullsFirst: false })
     .order('name', { ascending: true });
 
   if (error) {
@@ -51,35 +34,6 @@ export async function getOpeningCatalogBySlug(slug: string): Promise<OpeningCata
   }
 
   return data;
-}
-
-export async function getOpeningLines(): Promise<OpeningLineRow[]> {
-  const rows: OpeningLineRow[] = [];
-  let from = 0;
-  let hasMore = true;
-
-  while (hasMore) {
-    const to = from + PAGE_SIZE - 1;
-    const { data, error } = await supabase
-      .from('opening_lines')
-      .select('*')
-      .order('opening_slug', { ascending: true })
-      .order('is_main_line', { ascending: false })
-      .order('popularity_rank', { ascending: true, nullsFirst: false })
-      .order('sort_order', { ascending: true })
-      .range(from, to);
-
-    if (error) {
-      throw error;
-    }
-
-    rows.push(...data);
-
-    hasMore = data.length === PAGE_SIZE;
-    from += PAGE_SIZE;
-  }
-
-  return rows;
 }
 
 export async function getOpeningLinesBySlug(openingSlug: string): Promise<OpeningLineRow[]> {

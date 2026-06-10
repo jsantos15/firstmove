@@ -11,14 +11,22 @@ import { getCustomPieces } from '@/lib/piecesets';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
+type OpeningCardOpening = Opening & {
+  previewFen?: string;
+  referenceLineCount?: number;
+};
+
 interface OpeningCardProps {
-  opening: Opening;
+  opening: OpeningCardOpening;
   completedLines?: number;
   status?: MasteryLevel;
   matchedVariations?: { id: string; name: string }[];
 }
 
-function getCharacteristicFen(opening: Opening): string {
+function getCharacteristicFen(opening: OpeningCardOpening): string {
+  if (opening.previewFen) {
+    return opening.previewFen;
+  }
   const lastMove = opening.moves[opening.moves.length - 1];
   return lastMove?.fen ?? 'start';
 }
@@ -70,7 +78,7 @@ export function OpeningCard({ opening, completedLines = 0, status = 'new', match
   const previewRef = useRef<HTMLDivElement>(null);
   const [showBoard, setShowBoard] = useState(false);
   const fen = getCharacteristicFen(opening);
-  const totalLines = opening.variations.length;
+  const totalLines = opening.referenceLineCount ?? opening.variations.length;
   const chip = status !== 'new' ? STATUS_CHIP[status] : null;
   const { theme, settings } = useBoardSettings();
   const customPieces = getCustomPieces(settings.pieceSetId);

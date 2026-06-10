@@ -2,10 +2,8 @@ import { useQuery } from '@tanstack/react-query';
 import { Chess, type Opening, type OpeningMove, type OpeningVariation } from '@firstmove/core';
 import {
   getOpeningIndex,
-  getOpeningsCatalog,
   getOpeningCatalogBySlug,
   getOpeningLineBranchMetadataBySlug,
-  getOpeningLines,
   getOpeningLinesBySlug,
   type OpeningCatalogRow,
   type OpeningIndexRow,
@@ -39,6 +37,10 @@ export type AppOpening = Omit<Opening, 'variations'> & {
   popularityScore?: OpeningCatalogRow['popularity_score'];
   popularityGames?: OpeningCatalogRow['popularity_games'];
   hasMainLine?: OpeningCatalogRow['has_main_line'];
+  previewFen?: string;
+  lineCount?: number;
+  referenceLineCount?: number;
+  practicalBranchCount?: number;
   practicalBranches: AppVariation[];
 };
 
@@ -72,19 +74,23 @@ const OPENING_INTRO_COPY: Record<string, string> = {
     'The Caro-Kann Defense is a solid answer to 1.e4 where Black supports ...d5 with ...c6. It teaches sturdy pawn structures, patient development, and clean counterplay without weakening the king.',
 };
 
-function normalizeOpeningDescription(catalog: OpeningCatalogRow) {
-  const curated = OPENING_INTRO_COPY[catalog.slug];
+function normalizeOpeningDescriptionFields(slug: string, name: string, description: string) {
+  const curated = OPENING_INTRO_COPY[slug];
   if (curated) return curated;
 
-  const description = catalog.description.trim();
+  const normalizedDescription = description.trim();
   if (
-    description.includes('regenerated from authoritative naming') ||
-    description.includes('staged for study')
+    normalizedDescription.includes('regenerated from authoritative naming') ||
+    normalizedDescription.includes('staged for study')
   ) {
-    return `${catalog.name} is part of your opening study plan. Focus on the main ideas first, then use each line to learn the typical plans and tactical moments.`;
+    return `${name} is part of your opening study plan. Focus on the main ideas first, then use each line to learn the typical plans and tactical moments.`;
   }
 
-  return description;
+  return normalizedDescription;
+}
+
+function normalizeOpeningDescription(catalog: OpeningCatalogRow) {
+  return normalizeOpeningDescriptionFields(catalog.slug, catalog.name, catalog.description);
 }
 
 function buildVariationStub(
@@ -120,67 +126,6 @@ function buildVariationStub(
 }
 
 // ─── Builder ──────────────────────────────────────────────────────────────────
-
-function compareCatalogRows(left: OpeningCatalogRow, right: OpeningCatalogRow) {
-  const tierRank = { core: 1, extended: 2, other: 3 } as const;
-  const leftTier =
-    left.display_tier && left.display_tier in tierRank
-      ? tierRank[left.display_tier as keyof typeof tierRank]
-      : 99;
-  const rightTier =
-    right.display_tier && right.display_tier in tierRank
-      ? tierRank[right.display_tier as keyof typeof tierRank]
-      : 99;
-
-  if (leftTier !== rightTier) {
-    return leftTier - rightTier;
-  }
-
-  const leftFeatured = left.is_featured ? 1 : 0;
-  const rightFeatured = right.is_featured ? 1 : 0;
-  if (leftFeatured !== rightFeatured) {
-    return rightFeatured - leftFeatured;
-  }
-
-  const leftPopularity = left.popularity_rank ?? Number.POSITIVE_INFINITY;
-  const rightPopularity = right.popularity_rank ?? Number.POSITIVE_INFINITY;
-  if (leftPopularity !== rightPopularity) {
-    return leftPopularity - rightPopularity;
-  }
-
-  return left.name.localeCompare(right.name);
-}
-
-function compareCatalogRowsByIndex(
-  rankByCourseSlug: Map<string, number>,
-  left: OpeningCatalogRow,
-  right: OpeningCatalogRow
-) {
-  const leftRank = rankByCourseSlug.get(left.slug) ?? Number.POSITIVE_INFINITY;
-  const rightRank = rankByCourseSlug.get(right.slug) ?? Number.POSITIVE_INFINITY;
-  if (leftRank !== rightRank) return leftRank - rightRank;
-
-  return compareCatalogRows(left, right);
-}
-
-function hasCompleteCourseLines(lines: OpeningLineRow[]) {
-  let hasReference = false;
-  let hasPracticalBranch = false;
-
-  for (const line of lines) {
-    if (line.line_kind === 'practical_branch') {
-      hasPracticalBranch = true;
-    } else {
-      hasReference = true;
-    }
-
-    if (hasReference && hasPracticalBranch) {
-      return true;
-    }
-  }
-
-  return false;
-}
 
 function compareLineRows(left: OpeningLineRow, right: OpeningLineRow) {
   const leftMain = left.is_main_line ? 1 : 0;
@@ -295,10 +240,65 @@ function buildOpening(
     popularityScore: catalog.popularity_score ?? undefined,
     popularityGames: catalog.popularity_games ?? undefined,
     hasMainLine: catalog.has_main_line,
+    previewFen: catalog.preview_fen ?? undefined,
+    lineCount: lines.length,
+    referenceLineCount: referenceLines.length,
+    practicalBranchCount: branchLines.length,
   };
 }
 
 // ─── Hooks ───────────────────────────────────────────────────────────────────
+
+function buildOpeningIndexCard(row: OpeningIndexRow): AppOpening | null {
+  if (
+    !row.course_slug ||
+    !row.course_color ||
+    !row.course_difficulty ||
+    !row.course_description ||
+    !row.name
+  ) {
+    return null;
+  }
+
+  const referenceLineCount = row.reference_line_count ?? 0;
+  const practicalBranchCount = row.practical_branch_count ?? 0;
+  if (referenceLineCount === 0 || practicalBranchCount === 0) {
+    return null;
+  }
+
+  const referenceSlugs = row.reference_line_slugs ?? [];
+  const referenceNames = row.reference_line_names ?? [];
+  const variations = referenceSlugs.map((slug, index): AppVariation => ({
+    id: slug,
+    name: referenceNames[index] ?? slug,
+    moves: [],
+  }));
+
+  return {
+    id: row.course_slug,
+    ecoCode: row.eco_code ?? '',
+    name: row.name,
+    color: row.course_color,
+    difficulty: row.course_difficulty,
+    description: normalizeOpeningDescriptionFields(
+      row.course_slug,
+      row.name,
+      row.course_description
+    ),
+    moves: [],
+    variations,
+    tags: row.course_tags ?? [],
+    practicalBranches: [],
+    displayTier: row.course_display_tier ?? undefined,
+    isFeatured: row.course_is_featured ?? undefined,
+    popularityGames: row.popularity_games ?? undefined,
+    hasMainLine: row.course_has_main_line ?? undefined,
+    previewFen: row.course_preview_fen ?? row.anchor_fen ?? undefined,
+    lineCount: row.course_line_count ?? referenceLineCount + practicalBranchCount,
+    referenceLineCount,
+    practicalBranchCount,
+  };
+}
 
 /**
  * Fetches all openings from Supabase. Results are cached indefinitely
@@ -309,35 +309,11 @@ export function useOpenings() {
     queryKey: ['openings'],
     staleTime: Infinity,
     queryFn: async () => {
-      const [indexRows, catalogRows, lineRows] = await Promise.all([
-        getOpeningIndex(),
-        getOpeningsCatalog(),
-        getOpeningLines(),
-      ]);
-
-      const linesByOpening = new Map<string, OpeningLineRow[]>();
-      for (const line of lineRows) {
-        const arr = linesByOpening.get(line.opening_slug) ?? [];
-        arr.push(line);
-        linesByOpening.set(line.opening_slug, arr);
-      }
-
-      const rankByCourseSlug = new Map<string, number>();
-      indexRows.forEach((row, index) => {
-        if (row.course_slug) {
-          rankByCourseSlug.set(row.course_slug, index);
-        }
+      const indexRows = await getOpeningIndex();
+      return indexRows.flatMap(row => {
+        const opening = buildOpeningIndexCard(row);
+        return opening ? [opening] : [];
       });
-
-      return [...catalogRows]
-        .filter(row => hasCompleteCourseLines(linesByOpening.get(row.slug) ?? []))
-        .sort((left, right) => compareCatalogRowsByIndex(rankByCourseSlug, left, right))
-        .map(row =>
-          buildOpening(row, linesByOpening.get(row.slug) ?? [], {
-            includeBranchMoves: false,
-            includeVariationMoves: false,
-          })
-        );
     },
   });
 }

@@ -823,6 +823,7 @@ export type Database = {
           course_display_tier: string | null;
           course_has_main_line: boolean | null;
           course_is_featured: boolean | null;
+          course_line_count: number | null;
           course_preview_fen: string | null;
           course_slug: string | null;
           course_tags: string[] | null;
@@ -832,6 +833,10 @@ export type Database = {
           name: string | null;
           popularity_games: number | null;
           popularity_id: number | null;
+          practical_branch_count: number | null;
+          reference_line_count: number | null;
+          reference_line_names: string[] | null;
+          reference_line_slugs: string[] | null;
           variation_count: number | null;
         };
         Relationships: [];
