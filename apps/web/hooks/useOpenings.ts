@@ -73,6 +73,43 @@ const OPENING_INTRO_COPY: Record<string, string> = {
   'caro-kann-defense':
     'The Caro-Kann Defense is a solid answer to 1.e4 where Black supports ...d5 with ...c6. It teaches sturdy pawn structures, patient development, and clean counterplay without weakening the king.',
 };
+const OPENING_LIST_CACHE_KEY = 'firstmove:opening-list:v1';
+const OPENING_LIST_STALE_TIME_MS = 5 * 60 * 1000;
+const OPENING_LIST_GC_TIME_MS = 24 * 60 * 60 * 1000;
+
+function readCachedOpeningList(): AppOpening[] | undefined {
+  if (typeof window === 'undefined') return undefined;
+
+  try {
+    const raw = window.localStorage.getItem(OPENING_LIST_CACHE_KEY);
+    if (!raw) return undefined;
+
+    const parsed = JSON.parse(raw) as unknown;
+    if (!Array.isArray(parsed)) return undefined;
+
+    return parsed.filter((item): item is AppOpening => {
+      if (!item || typeof item !== 'object') return false;
+      const opening = item as Partial<AppOpening>;
+      return (
+        typeof opening.id === 'string' &&
+        typeof opening.name === 'string' &&
+        Array.isArray(opening.variations)
+      );
+    });
+  } catch {
+    return undefined;
+  }
+}
+
+function writeCachedOpeningList(openings: AppOpening[]) {
+  if (typeof window === 'undefined') return;
+
+  try {
+    window.localStorage.setItem(OPENING_LIST_CACHE_KEY, JSON.stringify(openings));
+  } catch {
+    // Storage can be unavailable in private browsing or quota-constrained devices.
+  }
+}
 
 function normalizeOpeningDescriptionFields(slug: string, name: string, description: string) {
   const curated = OPENING_INTRO_COPY[slug];
@@ -307,13 +344,17 @@ function buildOpeningIndexCard(row: OpeningIndexRow): AppOpening | null {
 export function useOpenings() {
   return useQuery<AppOpening[]>({
     queryKey: ['openings'],
-    staleTime: Infinity,
+    staleTime: OPENING_LIST_STALE_TIME_MS,
+    gcTime: OPENING_LIST_GC_TIME_MS,
+    placeholderData: readCachedOpeningList,
     queryFn: async () => {
       const indexRows = await getOpeningIndex();
-      return indexRows.flatMap(row => {
+      const openings = indexRows.flatMap(row => {
         const opening = buildOpeningIndexCard(row);
         return opening ? [opening] : [];
       });
+      writeCachedOpeningList(openings);
+      return openings;
     },
   });
 }
