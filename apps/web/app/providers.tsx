@@ -24,7 +24,7 @@ export function useAuth() {
   return useContext(AuthContext);
 }
 
-const PUBLIC_AUTH_SKIP_PATHS = ['/', '/openings', '/auth/callback'];
+const PUBLIC_AUTH_SKIP_PATHS = ['/', '/openings', '/analysis', '/auth/callback'];
 
 function pathMatches(pathname: string, path: string) {
   return pathname === path;

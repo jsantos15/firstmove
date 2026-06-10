@@ -1,7 +1,7 @@
 import { createServerClient } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
 
-const PUBLIC_PATHS = ['/', '/auth/callback', '/openings'];
+const PUBLIC_PATHS = ['/', '/auth/callback', '/openings', '/analysis'];
 const AUTH_ONLY_PATHS = ['/login', '/signup'];
 
 function pathMatches(pathname: string, path: string) {
