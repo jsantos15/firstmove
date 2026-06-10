@@ -7,6 +7,8 @@ const { loadEnvFile, loadScriptEnv } = require("./lib/local-env.cjs");
 
 const OUTPUT_DIR = path.resolve(__dirname, "output");
 const DEFAULT_CLOUD_EVAL_MODE = "authoritative";
+const REST_RETRY_ATTEMPTS = 5;
+const REST_RETRY_BASE_DELAY_MS = 750;
 
 function slugify(value) {
   return String(value ?? "")
@@ -26,6 +28,7 @@ function parseArgs(argv) {
     dryRunImport: false,
     skipReferenceSync: false,
     skipBranchReset: false,
+    syncPopularityOnly: false,
     cloudEvalMode: DEFAULT_CLOUD_EVAL_MODE,
     generateArgs: [],
     branchArgs: [],
@@ -50,6 +53,8 @@ function parseArgs(argv) {
       args.skipReferenceSync = true;
     } else if (token === "--skip-branch-reset") {
       args.skipBranchReset = true;
+    } else if (token === "--sync-popularity-only") {
+      args.syncPopularityOnly = true;
     } else if (token === "--cloud-eval-mode") {
       args.cloudEvalMode = String(argv[++index]);
     } else if (token === "--generate-arg") {
@@ -60,6 +65,7 @@ function parseArgs(argv) {
   }
 
   if (args.help) return args;
+  if (args.syncPopularityOnly) return args;
   if (args.openings?.length && args.nextMissing != null) {
     throw new Error("Pass either --openings or --next-missing, not both.");
   }
@@ -86,6 +92,7 @@ Options:
   --dry-run-import           Prepare payloads but dry-run the branch import
   --skip-reference-sync      Do not prune stale reference rows after reference import
   --skip-branch-reset        Do not delete existing practical branches before branch import
+  --sync-popularity-only     Repair openings_catalog popularity fields from opening_index, then exit
   --cloud-eval-mode <mode>   Passed to reference generation (default: ${DEFAULT_CLOUD_EVAL_MODE})
   --generate-arg <value>     Pass one raw extra argument to generate-opening-candidates.cjs
   --branch-arg <value>       Pass one raw extra argument to generate-opening-branches.cjs
@@ -112,6 +119,40 @@ function getEnv() {
   };
 }
 
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function isRetryableStatus(status) {
+  return status === 408 || status === 425 || status === 429 || status >= 500;
+}
+
+async function fetchWithRetry(url, options, label) {
+  let lastError = null;
+
+  for (let attempt = 1; attempt <= REST_RETRY_ATTEMPTS; attempt += 1) {
+    try {
+      const response = await fetch(url, options);
+      if (response.ok || !isRetryableStatus(response.status) || attempt === REST_RETRY_ATTEMPTS) {
+        return response;
+      }
+
+      lastError = new Error(`${label} failed with retryable status ${response.status}: ${await response.text()}`);
+    } catch (error) {
+      lastError = error;
+      if (attempt === REST_RETRY_ATTEMPTS) {
+        throw error;
+      }
+    }
+
+    const delay = REST_RETRY_BASE_DELAY_MS * 2 ** (attempt - 1);
+    console.warn(`${label} failed; retrying in ${delay}ms (${attempt}/${REST_RETRY_ATTEMPTS})`);
+    await sleep(delay);
+  }
+
+  throw lastError ?? new Error(`${label} failed.`);
+}
+
 async function fetchAll(table, params, env) {
   const rows = [];
   const pageSize = 1000;
@@ -125,7 +166,7 @@ async function fetchAll(table, params, env) {
     url.searchParams.set("limit", String(pageSize));
     url.searchParams.set("offset", String(offset));
 
-    const response = await fetch(url, { headers: env.headers });
+    const response = await fetchWithRetry(url, { headers: env.headers }, `Fetch ${table}`);
     if (!response.ok) {
       throw new Error(`Fetch ${table} failed (${response.status}): ${await response.text()}`);
     }
@@ -246,17 +287,21 @@ async function patchCatalogPopularityFromIndex(env) {
 
     const url = new URL(`${env.supabaseUrl}/rest/v1/openings_catalog`);
     url.searchParams.set("slug", `eq.${row.course_slug}`);
-    const response = await fetch(url, {
-      method: "PATCH",
-      headers: {
-        ...env.headers,
-        Prefer: "return=minimal",
+    const response = await fetchWithRetry(
+      url,
+      {
+        method: "PATCH",
+        headers: {
+          ...env.headers,
+          Prefer: "return=minimal",
+        },
+        body: JSON.stringify({
+          popularity_games: row.popularity_games,
+          popularity_rank: rank,
+        }),
       },
-      body: JSON.stringify({
-        popularity_games: row.popularity_games,
-        popularity_rank: rank,
-      }),
-    });
+      `Patch popularity for ${row.course_slug}`
+    );
 
     if (!response.ok) {
       throw new Error(`Patch popularity for ${row.course_slug} failed (${response.status}): ${await response.text()}`);
@@ -393,6 +438,12 @@ async function main() {
   }
 
   const env = getEnv();
+  if (args.syncPopularityOnly) {
+    await patchCatalogPopularityFromIndex(env);
+    console.log("SUCCESS: catalog popularity fields synced from opening_index.");
+    return;
+  }
+
   const indexRows = await getOpeningIndex(env);
   const selected = resolveSelectedOpenings(indexRows, args);
 
