@@ -3,6 +3,7 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { createContext, useContext, useEffect, useState } from 'react';
 import type { Session, User } from '@supabase/supabase-js';
+import { usePathname } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 
 // ─── Auth Context ─────────────────────────────────────────────────────────────
@@ -23,12 +24,23 @@ export function useAuth() {
   return useContext(AuthContext);
 }
 
+const PUBLIC_AUTH_SKIP_PATHS = ['/', '/openings', '/auth/callback'];
+
+function pathMatches(pathname: string, path: string) {
+  if (path === '/') return pathname === '/';
+  return pathname === path || pathname.startsWith(`${path}/`);
+}
+
 function AuthProvider({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname();
+  const skipAuth = PUBLIC_AUTH_SKIP_PATHS.some(path => pathMatches(pathname, path));
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    if (skipAuth) return;
+
     const supabase = createClient();
 
     // Load existing session on mount
@@ -57,10 +69,14 @@ function AuthProvider({ children }: { children: React.ReactNode }) {
     });
 
     return () => subscription.unsubscribe();
-  }, []);
+  }, [skipAuth]);
+
+  const value = skipAuth
+    ? { user: null, session: null, loading: false }
+    : { user, session, loading };
 
   return (
-    <AuthContext.Provider value={{ user, session, loading }}>
+    <AuthContext.Provider value={value}>
       {children}
     </AuthContext.Provider>
   );
