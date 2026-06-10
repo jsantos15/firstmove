@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useMemo, useState, useSyncExternalStore } from 'react';
 import { OpeningCard } from '@/components/openings/OpeningCard';
 import { OpeningFilters } from '@/components/openings/OpeningFilters';
 import { useAllProgress, getOpeningProgress } from '@/hooks/useProgress';
@@ -22,7 +22,16 @@ function normalizeQuery(text: string): string {
     .trim();
 }
 
+function subscribeHydration() {
+  return () => {};
+}
+
 export default function OpeningsPage() {
+  const hydrated = useSyncExternalStore(
+    subscribeHydration,
+    () => true,
+    () => false
+  );
   const [filters, setFilters] = useState<Filters>({
     search: '',
     color: 'all',
@@ -32,6 +41,7 @@ export default function OpeningsPage() {
 
   const { data: openings = [], isLoading } = useOpenings();
   const { data: progress } = useAllProgress();
+  const showLoading = !hydrated || isLoading;
 
   const filtered = useMemo(() => {
     const result = openings.filter(o => {
@@ -78,7 +88,7 @@ export default function OpeningsPage() {
 
       {/* Grid */}
       <div className="mx-auto max-w-6xl px-6 pb-16">
-        {isLoading ? (
+        {showLoading ? (
           <div className="flex items-center justify-center py-24">
             <div className="w-6 h-6 border-2 border-amber-400/30 border-t-amber-400 rounded-full animate-spin" />
           </div>

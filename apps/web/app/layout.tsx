@@ -2,7 +2,6 @@ import type { Metadata } from 'next';
 import { Geist } from 'next/font/google';
 import './globals.css';
 import { Providers } from './providers';
-import { ThemeScript } from './ThemeScript';
 
 const geist = Geist({ subsets: ['latin'], variable: '--font-geist' });
 
@@ -20,9 +19,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       data-scroll-behavior="smooth"
       suppressHydrationWarning
     >
-      <head>
-        <ThemeScript />
-      </head>
       <body className="min-h-full text-white antialiased">
         <Providers>{children}</Providers>
       </body>

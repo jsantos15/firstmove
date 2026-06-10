@@ -1,4 +1,5 @@
-import { useQuery } from '@tanstack/react-query';
+import { useEffect } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Chess, type Opening, type OpeningMove, type OpeningVariation } from '@firstmove/core';
 import {
   getOpeningIndex,
@@ -342,11 +343,11 @@ function buildOpeningIndexCard(row: OpeningIndexRow): AppOpening | null {
  * for the session — opening catalog data doesn't change at runtime.
  */
 export function useOpenings() {
-  return useQuery<AppOpening[]>({
+  const queryClient = useQueryClient();
+  const query = useQuery<AppOpening[]>({
     queryKey: ['openings'],
     staleTime: OPENING_LIST_STALE_TIME_MS,
     gcTime: OPENING_LIST_GC_TIME_MS,
-    placeholderData: readCachedOpeningList,
     queryFn: async () => {
       const indexRows = await getOpeningIndex();
       const openings = indexRows.flatMap(row => {
@@ -357,6 +358,15 @@ export function useOpenings() {
       return openings;
     },
   });
+
+  useEffect(() => {
+    const cached = readCachedOpeningList();
+    if (!cached?.length) return;
+
+    queryClient.setQueryData<AppOpening[]>(['openings'], current => current ?? cached);
+  }, [queryClient]);
+
+  return query;
 }
 
 /**
