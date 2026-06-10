@@ -32,11 +32,22 @@ function AuthProvider({ children }: { children: React.ReactNode }) {
     const supabase = createClient();
 
     // Load existing session on mount
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      setLoading(false);
-    });
+    supabase.auth
+      .getSession()
+      .then(({ data: { session } }) => {
+        setSession(session);
+        setUser(session?.user ?? null);
+      })
+      .catch(error => {
+        console.warn(
+          `Supabase session load failed: ${error instanceof Error ? error.message : String(error)}`
+        );
+        setSession(null);
+        setUser(null);
+      })
+      .finally(() => {
+        setLoading(false);
+      });
 
     // Keep state in sync when auth changes (sign in, sign out, token refresh)
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
