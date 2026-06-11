@@ -5,7 +5,7 @@ import { useState, useEffect, useRef } from 'react';
 const WORKER_SCRIPT = '/stockfish/stockfish-17.1-lite-single-03e3232.js';
 const MIN_DISPLAY_DEPTH = 8;
 
-export const ENGINE_DISPLAY_NAME = 'SF 17.1 lite ST';
+export const ENGINE_DISPLAY_NAME = 'SF 17.1 lite';
 
 export interface EngineLine {
   bestMoveUci: string | null;
