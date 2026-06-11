@@ -834,6 +834,63 @@ export default function AnalysisPage() {
   const totalMoves = analyzedGame?.moves.length ?? 0;
   const canGoBack = analyzedGame !== null && currentPlyIndex >= 0;
   const canGoForward = analyzedGame !== null && currentPlyIndex < totalMoves - 1;
+
+  // Navigation helpers — Explore tab navigates free-play history; other tabs navigate the analyzed game.
+  const navCanGoBack = activeTab === 'explore' && exploreHistory.length > 0
+    ? exploreHistoryIndex >= 0
+    : canGoBack;
+  const navCanGoForward = activeTab === 'explore' && exploreHistory.length > 0
+    ? exploreHistoryIndex < exploreHistory.length - 1
+    : canGoForward;
+
+  function navGoFirst() {
+    if (exploreHistory.length > 0) {
+      setExploreHistory([]);
+      setExploreHistoryIndex(-1);
+      setLastMoveSquares(null);
+    }
+    if (analyzedGame !== null) goTo(-1);
+  }
+
+  function navGoBack() {
+    if (activeTab === 'explore' && exploreHistory.length > 0) {
+      const newIdx = exploreHistoryIndex - 1;
+      setExploreHistoryIndex(newIdx);
+      if (newIdx >= 0) {
+        const entry = exploreHistory[newIdx];
+        if (entry) setLastMoveSquares({ from: entry.from, to: entry.to });
+      } else {
+        setLastMoveSquares(null);
+      }
+    } else {
+      goTo(currentPlyIndex - 1);
+    }
+  }
+
+  function navGoForward() {
+    if (activeTab === 'explore' && exploreHistory.length > 0) {
+      const newIdx = exploreHistoryIndex + 1;
+      if (newIdx < exploreHistory.length) {
+        setExploreHistoryIndex(newIdx);
+        const entry = exploreHistory[newIdx];
+        if (entry) setLastMoveSquares({ from: entry.from, to: entry.to });
+      }
+    } else {
+      goTo(currentPlyIndex + 1);
+    }
+  }
+
+  function navGoLast() {
+    if (activeTab === 'explore' && exploreHistory.length > 0) {
+      const lastIdx = exploreHistory.length - 1;
+      setExploreHistoryIndex(lastIdx);
+      const entry = exploreHistory[lastIdx];
+      if (entry) setLastMoveSquares({ from: entry.from, to: entry.to });
+    } else {
+      goTo(totalMoves - 1);
+    }
+  }
+
   // boardFen is the FEN actually shown and analyzed — follows game navigation unless the
   // user has played a move freely, in which case freeExploreFen takes over.
   const boardFen = freeExploreFen ?? currentFen;
@@ -1041,29 +1098,7 @@ export default function AnalysisPage() {
             onBoardSizeChange={setBoardSize}
             maxWidth={maxBoardWidth}
             overlay={knightArrowOverlay}
-            topBar={
-              <div className="flex h-full items-center justify-end gap-2 pr-3">
-                {depth !== null && (
-                  <>
-                    <button
-                      type="button"
-                      onClick={() => setExtendKey(k => k + 1)}
-                      disabled={!isDone}
-                      title="Think 20 seconds deeper"
-                      className="flex h-6 w-6 items-center justify-center rounded text-sm font-bold text-gray-500 transition-colors hover:bg-white/5 hover:text-white disabled:cursor-not-allowed disabled:opacity-25"
-                    >
-                      +
-                    </button>
-                    <span className="text-[11px] text-gray-400">
-                      Depth <span className={isAnalyzing ? 'text-emerald-400' : 'text-gray-200'}>{depth}</span>
-                    </span>
-                    {isAnalyzing && (
-                      <span className="h-1.5 w-1.5 shrink-0 animate-pulse rounded-full bg-emerald-400" />
-                    )}
-                  </>
-                )}
-              </div>
-            }
+            topBar={<div className="h-full" />}
             bottomBar={
               <div className="flex items-center justify-end py-2.5">
                 <BoardSettingsPopover />
@@ -1095,22 +1130,22 @@ export default function AnalysisPage() {
 
           <SidePanel
             bottomBar={
-              <div className="flex items-center justify-center gap-1.5 py-2 px-2">
-                <NavBtn onClick={() => goTo(-1)} disabled={!canGoBack} title="First position"
-                  className="flex h-12 w-12 items-center justify-center rounded-xl bg-white/[0.07] text-gray-300 transition-colors hover:bg-white/[0.13] hover:text-white disabled:cursor-default disabled:opacity-30">
-                  <svg viewBox="0 0 16 16" fill="currentColor" className="w-5 h-5"><path d="M3.5 3a.5.5 0 0 1 .5.5v3.793l6.146-4.439A.5.5 0 0 1 11 3.5v9a.5.5 0 0 1-.854.354L4 8.707V12.5a.5.5 0 0 1-1 0v-9a.5.5 0 0 1 .5-.5z" /></svg>
+              <div className="flex items-stretch gap-2 px-3 py-2.5">
+                <NavBtn onClick={navGoFirst} disabled={!navCanGoBack} title="First position"
+                  className="flex h-14 flex-1 items-center justify-center rounded-xl border border-white/8 bg-white/[0.04] text-gray-500 transition-all hover:border-amber-400/40 hover:bg-amber-400/8 hover:text-amber-300 disabled:pointer-events-none disabled:opacity-30">
+                  <svg viewBox="0 0 16 16" fill="currentColor" className="h-5 w-5"><path d="M3.5 3a.5.5 0 0 1 .5.5v3.793l6.146-4.439A.5.5 0 0 1 11 3.5v9a.5.5 0 0 1-.854.354L4 8.707V12.5a.5.5 0 0 1-1 0v-9a.5.5 0 0 1 .5-.5z" /></svg>
                 </NavBtn>
-                <NavBtn onClick={() => goTo(currentPlyIndex - 1)} disabled={!canGoBack} title="Previous (←)"
-                  className="flex h-12 w-12 items-center justify-center rounded-xl bg-white/[0.07] text-gray-300 transition-colors hover:bg-white/[0.13] hover:text-white disabled:cursor-default disabled:opacity-30">
-                  <svg viewBox="0 0 16 16" fill="currentColor" className="w-5 h-5"><path d="M11.354 3.646a.5.5 0 0 1 0 .708L6.707 9l4.647 4.646a.5.5 0 0 1-.708.708l-5-5a.5.5 0 0 1 0-.708l5-5a.5.5 0 0 1 .708 0z" /></svg>
+                <NavBtn onClick={navGoBack} disabled={!navCanGoBack} title="Previous (←)"
+                  className="flex h-14 flex-[1.5] items-center justify-center rounded-xl border border-white/10 bg-white/[0.06] text-gray-300 transition-all hover:border-amber-400/50 hover:bg-amber-400/10 hover:text-amber-300 disabled:pointer-events-none disabled:opacity-30">
+                  <svg viewBox="0 0 16 16" fill="currentColor" className="h-5 w-5"><path d="M11.354 3.646a.5.5 0 0 1 0 .708L6.707 9l4.647 4.646a.5.5 0 0 1-.708.708l-5-5a.5.5 0 0 1 0-.708l5-5a.5.5 0 0 1 .708 0z" /></svg>
                 </NavBtn>
-                <NavBtn onClick={() => goTo(currentPlyIndex + 1)} disabled={!canGoForward} title="Next (→)"
-                  className="flex h-12 w-12 items-center justify-center rounded-xl bg-white/[0.07] text-gray-300 transition-colors hover:bg-white/[0.13] hover:text-white disabled:cursor-default disabled:opacity-30">
-                  <svg viewBox="0 0 16 16" fill="currentColor" className="w-5 h-5"><path d="M4.646 3.646a.5.5 0 0 1 .708 0l5 5a.5.5 0 0 1 0 .708l-5 5a.5.5 0 0 1-.708-.708L9.293 9 4.646 4.354a.5.5 0 0 1 0-.708z" /></svg>
+                <NavBtn onClick={navGoForward} disabled={!navCanGoForward} title="Next (→)"
+                  className="flex h-14 flex-[1.5] items-center justify-center rounded-xl border border-white/10 bg-white/[0.06] text-gray-300 transition-all hover:border-amber-400/50 hover:bg-amber-400/10 hover:text-amber-300 disabled:pointer-events-none disabled:opacity-30">
+                  <svg viewBox="0 0 16 16" fill="currentColor" className="h-5 w-5"><path d="M4.646 3.646a.5.5 0 0 1 .708 0l5 5a.5.5 0 0 1 0 .708l-5 5a.5.5 0 0 1-.708-.708L9.293 9 4.646 4.354a.5.5 0 0 1 0-.708z" /></svg>
                 </NavBtn>
-                <NavBtn onClick={() => goTo(totalMoves - 1)} disabled={!canGoForward} title="Last position"
-                  className="flex h-12 w-12 items-center justify-center rounded-xl bg-white/[0.07] text-gray-300 transition-colors hover:bg-white/[0.13] hover:text-white disabled:cursor-default disabled:opacity-30">
-                  <svg viewBox="0 0 16 16" fill="currentColor" className="w-5 h-5"><path d="M12.5 3a.5.5 0 0 0-.5.5v3.793L5.854 2.854A.5.5 0 0 0 5 3.5v9a.5.5 0 0 0 .854.354L12 8.207V12.5a.5.5 0 0 0 1 0v-9a.5.5 0 0 0-.5-.5z" /></svg>
+                <NavBtn onClick={navGoLast} disabled={!navCanGoForward} title="Last position"
+                  className="flex h-14 flex-1 items-center justify-center rounded-xl border border-white/8 bg-white/[0.04] text-gray-500 transition-all hover:border-amber-400/40 hover:bg-amber-400/8 hover:text-amber-300 disabled:pointer-events-none disabled:opacity-30">
+                  <svg viewBox="0 0 16 16" fill="currentColor" className="h-5 w-5"><path d="M12.5 3a.5.5 0 0 0-.5.5v3.793L5.854 2.854A.5.5 0 0 0 5 3.5v9a.5.5 0 0 0 .854.354L12 8.207V12.5a.5.5 0 0 0 1 0v-9a.5.5 0 0 0-.5-.5z" /></svg>
                 </NavBtn>
               </div>
             }
@@ -1174,19 +1209,35 @@ export default function AnalysisPage() {
                       />
                     </button>
 
-                    {/* Label + engine name + depth */}
-                    <div className="flex flex-1 items-center gap-1.5 min-w-0">
-                      <span className="text-xs font-medium text-white">Evaluate</span>
-                      <span className="text-[10px] text-gray-500 truncate">{ENGINE_DISPLAY_NAME}</span>
-                      {settings.engineEnabled && isAnalyzing && (
-                        <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-400 animate-pulse" />
-                      )}
-                      {settings.engineEnabled && depth !== null && (
-                        <span className={`shrink-0 text-[10px] ${isAnalyzing ? 'text-emerald-400' : 'text-gray-500'}`}>
-                          d{depth}
+                    {/* Engine label */}
+                    <span className="shrink-0 text-xs font-medium text-white">Engine</span>
+
+                    {/* Engine version — centered */}
+                    <span className="flex-1 truncate px-1 text-center text-[10px] text-gray-500">
+                      {ENGINE_DISPLAY_NAME}
+                    </span>
+
+                    {/* Depth + analyzing indicator + extend button */}
+                    {settings.engineEnabled && depth !== null && (
+                      <div className="flex shrink-0 items-center gap-1">
+                        {isAnalyzing && (
+                          <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                        )}
+                        <span className="text-[11px] text-gray-400">
+                          Depth{' '}
+                          <span className={isAnalyzing ? 'text-emerald-400' : 'text-gray-200'}>{depth}</span>
                         </span>
-                      )}
-                    </div>
+                        <button
+                          type="button"
+                          onClick={() => setExtendKey(k => k + 1)}
+                          disabled={!isDone}
+                          title="Think 20 seconds deeper"
+                          className="flex h-5 w-5 items-center justify-center rounded text-sm font-bold text-gray-500 transition-colors hover:bg-white/5 hover:text-white disabled:cursor-not-allowed disabled:opacity-25"
+                        >
+                          +
+                        </button>
+                      </div>
+                    )}
 
                     {/* Gear icon */}
                     <button
