@@ -55,18 +55,31 @@ const CLASSIFICATION_DOT: Record<GameReviewCategory, string> = {
   blunder: 'bg-red-500',
 };
 
-function pvToSan(startFen: string, pvUci: string[]): string[] {
+function formatPvLine(startFen: string, pvUci: string[], maxMoves = 6): string {
   try {
+    const parts = startFen.split(' ');
+    const startSide = parts[1] ?? 'w';
+    const startMoveNum = parseInt(parts[5] ?? '1', 10);
+    if (pvUci.length === 0) return '...';
     const chess = new Chess(startFen);
-    const sans: string[] = [];
-    for (const uci of pvUci) {
+    const tokens: string[] = [];
+    let currentMoveNum = startMoveNum;
+    let currentSide = startSide;
+    for (let i = 0; i < pvUci.length && i < maxMoves; i++) {
+      const uci = pvUci[i]!;
+      if (i === 0 && currentSide === 'b') {
+        tokens.push(`${currentMoveNum}...`);
+      } else if (currentSide === 'w') {
+        tokens.push(`${currentMoveNum}.`);
+      }
       const move = chess.move({ from: uci.slice(0, 2), to: uci.slice(2, 4), promotion: (uci[4] ?? 'q') as 'q' | 'r' | 'b' | 'n' });
       if (!move) break;
-      sans.push(move.san);
+      tokens.push(move.san);
+      if (currentSide === 'b') { currentMoveNum++; currentSide = 'w'; } else { currentSide = 'b'; }
     }
-    return sans;
+    return tokens.join(' ') || '...';
   } catch {
-    return [];
+    return '...';
   }
 }
 
@@ -844,12 +857,13 @@ export default function AnalysisPage() {
     : canGoForward;
 
   function navGoFirst() {
-    if (exploreHistory.length > 0) {
-      setExploreHistory([]);
+    if (activeTab === 'explore' && exploreHistory.length > 0) {
+      // Reset to the base position without erasing the history so forward nav still works.
       setExploreHistoryIndex(-1);
       setLastMoveSquares(null);
+    } else if (analyzedGame !== null) {
+      goTo(-1);
     }
-    if (analyzedGame !== null) goTo(-1);
   }
 
   function navGoBack() {
@@ -1209,24 +1223,16 @@ export default function AnalysisPage() {
                       />
                     </button>
 
-                    {/* Engine label */}
+                    {/* Engine label + version inline */}
                     <span className="shrink-0 text-xs font-medium text-white">Engine</span>
+                    <span className="shrink-0 text-[10px] text-gray-500">{ENGINE_DISPLAY_NAME}</span>
 
-                    {/* Engine version — centered */}
-                    <span className="flex-1 truncate px-1 text-center text-[10px] text-gray-500">
-                      {ENGINE_DISPLAY_NAME}
-                    </span>
+                    {/* Push depth section to right */}
+                    <div className="flex-1 min-w-0" />
 
-                    {/* Depth + analyzing indicator + extend button */}
+                    {/* Extend button + Depth label + analyzing dot */}
                     {settings.engineEnabled && depth !== null && (
                       <div className="flex shrink-0 items-center gap-1">
-                        {isAnalyzing && (
-                          <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                        )}
-                        <span className="text-[11px] text-gray-400">
-                          Depth{' '}
-                          <span className={isAnalyzing ? 'text-emerald-400' : 'text-gray-200'}>{depth}</span>
-                        </span>
                         <button
                           type="button"
                           onClick={() => setExtendKey(k => k + 1)}
@@ -1236,6 +1242,13 @@ export default function AnalysisPage() {
                         >
                           +
                         </button>
+                        <span className="text-[11px] text-gray-400">
+                          Depth{' '}
+                          <span className={isAnalyzing ? 'text-emerald-400' : 'text-gray-200'}>{depth}</span>
+                        </span>
+                        {isAnalyzing && (
+                          <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                        )}
                       </div>
                     )}
 
@@ -1261,7 +1274,7 @@ export default function AnalysisPage() {
                 {settings.engineEnabled && !settings.hideEngineInfo && (
                   <div className="shrink-0 px-3 pb-2 flex flex-col gap-1">
                     {lines.slice(0, settings.engineLines).map((engineLine, li) => {
-                      const pv = pvToSan(boardFen, engineLine.pvUci);
+                      const pvFormatted = formatPvLine(boardFen, engineLine.pvUci);
                       const evalStr = formatEval(engineLine.evalCp);
                       const positive = (engineLine.evalCp ?? 0) >= 0;
                       return (
@@ -1270,7 +1283,7 @@ export default function AnalysisPage() {
                             {evalStr}
                           </span>
                           <span className="flex-1 truncate font-mono text-xs text-gray-300">
-                            {pv.length > 0 ? pv.slice(0, 6).join(' ') : '...'}
+                            {pvFormatted}
                           </span>
                         </div>
                       );

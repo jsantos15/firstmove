@@ -54,9 +54,12 @@ export function usePositionAnalysis(fen: string, extendKey = 0, numLines = 1, mo
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isDone, setIsDone] = useState(false);
 
-  // Keep a ref so the message handler closure captures it without going stale.
+  // Keep refs so closures capture them without going stale.
   const numLinesRef = useRef(numLines);
   numLinesRef.current = numLines;
+  // movetime is read via ref so the slider change doesn't restart the current analysis.
+  const movetimeRef = useRef(movetime);
+  movetimeRef.current = movetime;
 
   useEffect(() => {
     if (!enabled) {
@@ -67,7 +70,7 @@ export function usePositionAnalysis(fen: string, extendKey = 0, numLines = 1, mo
       return;
     }
     const isExtension = extendKey > 0;
-    const mt = isExtension ? 20000 : movetime;
+    const mt = isExtension ? 20000 : movetimeRef.current;
 
     if (!isExtension) {
       // Keep line 0's evalCp so the bar doesn't jump while the new search ramps up.
@@ -161,7 +164,7 @@ export function usePositionAnalysis(fen: string, extendKey = 0, numLines = 1, mo
       sharedWorker?.postMessage('stop');
       setIsAnalyzing(false);
     };
-  }, [fen, extendKey, numLines, movetime, enabled]);
+  }, [fen, extendKey, numLines, enabled]);
 
   const line0 = lines[0];
   return {
