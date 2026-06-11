@@ -32,6 +32,10 @@ export interface BoardSettings {
   animationSpeed: AnimationSpeed;
   moveSound: boolean;
   engineLines: 1 | 2 | 3;
+  engineEnabled: boolean;
+  engineMoveTime: number;
+  hideEngineInfo: boolean;
+  hideArrows: boolean;
 }
 
 export const ANIMATION_MS: Record<AnimationSpeed, number> = {
@@ -51,6 +55,10 @@ const DEFAULTS: BoardSettings = {
   animationSpeed: 'normal',
   moveSound: true,
   engineLines: 1,
+  engineEnabled: true,
+  engineMoveTime: 8,
+  hideEngineInfo: false,
+  hideArrows: false,
 };
 
 const STORAGE_KEY = 'firstmove_board_settings';

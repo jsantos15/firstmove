@@ -187,18 +187,6 @@ export function BoardSettingsPopover() {
               />
             </SettingRow>
 
-            <SettingRow label="Engine lines">
-              <SettingSelect
-                value={String(settings.engineLines)}
-                onChange={v => setSettings({ engineLines: Number(v) as 1 | 2 | 3 })}
-                options={[
-                  { value: '1', label: '1 line' },
-                  { value: '2', label: '2 lines' },
-                  { value: '3', label: '3 lines' },
-                ]}
-              />
-            </SettingRow>
-
             <SettingRow label="Coach">
               <SettingSelect
                 value={coachSettings.persona}

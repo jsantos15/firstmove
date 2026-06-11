@@ -5,6 +5,8 @@ import { useState, useEffect, useRef } from 'react';
 const WORKER_SCRIPT = '/stockfish/stockfish-17.1-lite-single-03e3232.js';
 const MIN_DISPLAY_DEPTH = 8;
 
+export const ENGINE_DISPLAY_NAME = 'SF 17.1 lite ST';
+
 export interface EngineLine {
   bestMoveUci: string | null;
   evalCp: number | null;
@@ -47,7 +49,7 @@ function emptyLine(preserveEvalCp?: number | null): EngineLine {
   return { bestMoveUci: null, evalCp: preserveEvalCp ?? null, pvUci: [], depth: null };
 }
 
-export function usePositionAnalysis(fen: string, extendKey = 0, numLines = 1): PositionAnalysis {
+export function usePositionAnalysis(fen: string, extendKey = 0, numLines = 1, movetime = 8000, enabled = true): PositionAnalysis {
   const [lines, setLines] = useState<EngineLine[]>(() => [emptyLine()]);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isDone, setIsDone] = useState(false);
@@ -57,8 +59,15 @@ export function usePositionAnalysis(fen: string, extendKey = 0, numLines = 1): P
   numLinesRef.current = numLines;
 
   useEffect(() => {
+    if (!enabled) {
+      sharedWorker?.postMessage('stop');
+      setLines(Array.from({ length: numLines }, () => emptyLine()));
+      setIsAnalyzing(false);
+      setIsDone(false);
+      return;
+    }
     const isExtension = extendKey > 0;
-    const movetime = isExtension ? 20000 : 8000;
+    const mt = isExtension ? 20000 : movetime;
 
     if (!isExtension) {
       // Keep line 0's evalCp so the bar doesn't jump while the new search ramps up.
@@ -142,7 +151,7 @@ export function usePositionAnalysis(fen: string, extendKey = 0, numLines = 1): P
       sharedWorker!.addEventListener('message', onMessage);
       sharedWorker!.postMessage(`setoption name MultiPV value ${numLines}`);
       sharedWorker!.postMessage(`position fen ${fen}`);
-      sharedWorker!.postMessage(`go movetime ${movetime}`);
+      sharedWorker!.postMessage(`go movetime ${mt}`);
     }, isExtension ? 0 : 150);
 
     return () => {
@@ -152,7 +161,7 @@ export function usePositionAnalysis(fen: string, extendKey = 0, numLines = 1): P
       sharedWorker?.postMessage('stop');
       setIsAnalyzing(false);
     };
-  }, [fen, extendKey, numLines]);
+  }, [fen, extendKey, numLines, movetime, enabled]);
 
   const line0 = lines[0];
   return {

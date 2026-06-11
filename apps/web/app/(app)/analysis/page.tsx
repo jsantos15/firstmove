@@ -8,7 +8,7 @@ import { BoardPanel } from '@/components/board/BoardPanel';
 import { SidePanel } from '@/components/board/SidePanel';
 import { NavBtn } from '@/components/board/NavBtn';
 import { useBoardSettings } from '@/hooks/useBoardSettings';
-import { usePositionAnalysis } from '@/hooks/usePositionAnalysis';
+import { usePositionAnalysis, ENGINE_DISPLAY_NAME } from '@/hooks/usePositionAnalysis';
 import { useCoachSettings } from '@/hooks/useCoachSettings';
 import { getCustomPieces } from '@/lib/piecesets';
 import { BoardSettingsPopover } from '@/components/board/BoardSettingsPopover';
@@ -612,6 +612,8 @@ export default function AnalysisPage() {
   const [boardSize, setBoardSize] = useState(480);
   const [maxBoardWidth, setMaxBoardWidth] = useState<number | undefined>(undefined);
   const boardContainerRef = useRef<HTMLDivElement>(null);
+  const [engineSettingsOpen, setEngineSettingsOpen] = useState(false);
+  const engineSettingsRef = useRef<HTMLDivElement>(null);
   const [exploreHistory, setExploreHistory] = useState<ExploreEntry[]>([]);
   const [exploreHistoryIndex, setExploreHistoryIndex] = useState(-1);
   const [selectedSquare, setSelectedSquare] = useState<string | null>(null);
@@ -689,6 +691,17 @@ export default function AnalysisPage() {
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [goTo]);
+
+  useEffect(() => {
+    if (!engineSettingsOpen) return;
+    function handleClickOutside(e: MouseEvent) {
+      if (engineSettingsRef.current && !engineSettingsRef.current.contains(e.target as Node)) {
+        setEngineSettingsOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [engineSettingsOpen]);
 
   const currentMove = analyzedGame?.moves[currentPlyIndex] ?? null;
 
@@ -865,7 +878,13 @@ export default function AnalysisPage() {
     return styles;
   }, [lastMoveSquares, selectedSquare, legalTargets]);
 
-  const { lines, bestMoveUci, evalCp: liveEvalCp, depth, isAnalyzing, isDone } = usePositionAnalysis(boardFen, extendKey, settings.engineLines);
+  const { lines, bestMoveUci, evalCp: liveEvalCp, depth, isAnalyzing, isDone } = usePositionAnalysis(
+    boardFen,
+    extendKey,
+    settings.engineLines,
+    settings.engineMoveTime * 1000,
+    settings.engineEnabled,
+  );
 
   // Priority: analyzed game data → live Stockfish eval → INITIAL_EVAL_CP at start position.
   const displayEvalCp = currentEvalCp ?? liveEvalCp ?? (currentPlyIndex <= -1 ? INITIAL_EVAL_CP : undefined);
@@ -911,14 +930,14 @@ export default function AnalysisPage() {
 
   const bestMoveArrow = useMemo(
     () =>
-      bestMoveUci && bestMoveUci.length >= 4 && !isKnightMove(bestMoveUci)
+      !settings.hideArrows && bestMoveUci && bestMoveUci.length >= 4 && !isKnightMove(bestMoveUci)
         ? [[bestMoveUci.slice(0, 2), bestMoveUci.slice(2, 4), 'rgb(22, 163, 74)']]
         : [],
-    [bestMoveUci]
+    [bestMoveUci, settings.hideArrows]
   );
 
   const knightArrowOverlay = useMemo(() => {
-    if (!bestMoveUci || !isKnightMove(bestMoveUci)) return null;
+    if (settings.hideArrows || !bestMoveUci || !isKnightMove(bestMoveUci)) return null;
     return (
       <KnightArrow
         from={bestMoveUci.slice(0, 2)}
@@ -928,7 +947,7 @@ export default function AnalysisPage() {
         flipped={settings.flipBoard}
       />
     );
-  }, [bestMoveUci, boardSize, settings.flipBoard]);
+  }, [bestMoveUci, boardSize, settings.flipBoard, settings.hideArrows]);
 
   const tryMove = (from: string, to: string): boolean => {
     try {
@@ -1136,21 +1155,60 @@ export default function AnalysisPage() {
           >
             {/* ── EXPLORE TAB ─────────────────────────────────────────────── */}
             {activeTab === 'explore' && (
-              <div className="flex flex-1 min-h-0 flex-col divide-y divide-white/5">
-                {/* Engine lines */}
-                <div className="shrink-0 px-3 py-3">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-[11px] font-medium uppercase tracking-wider text-gray-500">Engine</span>
-                    <div className="flex items-center gap-1.5">
-                      {isAnalyzing && <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />}
-                      {depth !== null && (
-                        <span className="text-[10px] text-gray-500">
-                          d<span className={isAnalyzing ? 'text-emerald-400' : 'text-gray-400'}>{depth}</span>
+              <div className="relative flex flex-1 min-h-0 flex-col">
+                {/* Engine header */}
+                <div className="shrink-0 px-3 pt-2.5 pb-2">
+                  <div className="flex items-center gap-2">
+                    {/* Enable / disable toggle */}
+                    <button
+                      type="button"
+                      onClick={() => setSettings({ engineEnabled: !settings.engineEnabled })}
+                      className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer items-center rounded-full transition-colors duration-200 ${
+                        settings.engineEnabled ? 'bg-violet-600' : 'bg-white/15'
+                      }`}
+                    >
+                      <span
+                        className={`inline-block h-3.5 w-3.5 rounded-full bg-white shadow transition-transform duration-200 ${
+                          settings.engineEnabled ? 'translate-x-[18px]' : 'translate-x-0.5'
+                        }`}
+                      />
+                    </button>
+
+                    {/* Label + engine name + depth */}
+                    <div className="flex flex-1 items-center gap-1.5 min-w-0">
+                      <span className="text-xs font-medium text-white">Evaluate</span>
+                      <span className="text-[10px] text-gray-500 truncate">{ENGINE_DISPLAY_NAME}</span>
+                      {settings.engineEnabled && isAnalyzing && (
+                        <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-400 animate-pulse" />
+                      )}
+                      {settings.engineEnabled && depth !== null && (
+                        <span className={`shrink-0 text-[10px] ${isAnalyzing ? 'text-emerald-400' : 'text-gray-500'}`}>
+                          d{depth}
                         </span>
                       )}
                     </div>
+
+                    {/* Gear icon */}
+                    <button
+                      type="button"
+                      onClick={() => setEngineSettingsOpen(o => !o)}
+                      className={`flex h-7 w-7 items-center justify-center rounded-lg transition-colors ${
+                        engineSettingsOpen
+                          ? 'bg-white/10 text-white'
+                          : 'text-gray-500 hover:bg-white/5 hover:text-gray-300'
+                      }`}
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" className="h-3.5 w-3.5">
+                        <path d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z" />
+                        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z" />
+                      </svg>
+                    </button>
                   </div>
-                  <div className="flex flex-col gap-1">
+                </div>
+
+                {/* Engine lines */}
+                {settings.engineEnabled && !settings.hideEngineInfo && (
+                  <div className="shrink-0 px-3 pb-2 flex flex-col gap-1">
                     {lines.slice(0, settings.engineLines).map((engineLine, li) => {
                       const pv = pvToSan(boardFen, engineLine.pvUci);
                       const evalStr = formatEval(engineLine.evalCp);
@@ -1167,10 +1225,10 @@ export default function AnalysisPage() {
                       );
                     })}
                   </div>
-                </div>
+                )}
 
-                {/* Explore moves */}
-                <div className="flex-1 min-h-0 overflow-y-auto">
+                {/* Explore moves — fills all remaining space */}
+                <div className="flex-1 min-h-0 overflow-y-auto border-t border-white/5">
                   {exploreHistory.length === 0 ? (
                     <p className="px-3 pt-4 text-center text-xs text-gray-600">
                       Move pieces on the board to explore.
@@ -1224,6 +1282,117 @@ export default function AnalysisPage() {
                     </div>
                   )}
                 </div>
+
+                {/* Engine settings overlay */}
+                {engineSettingsOpen && (
+                  <div
+                    ref={engineSettingsRef}
+                    className="absolute inset-x-0 top-0 z-20 m-2 rounded-xl border border-white/10 bg-[#14161f] p-4 shadow-2xl"
+                  >
+                    <div className="mb-4 flex items-center justify-between">
+                      <span className="text-[10px] font-medium uppercase tracking-wider text-gray-500">Engine settings</span>
+                      <button
+                        type="button"
+                        onClick={() => setEngineSettingsOpen(false)}
+                        className="flex h-6 w-6 items-center justify-center rounded text-gray-500 transition-colors hover:bg-white/5 hover:text-white"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="h-3.5 w-3.5">
+                          <path d="M18 6 6 18M6 6l12 12" />
+                        </svg>
+                      </button>
+                    </div>
+
+                    {/* Engine selector (static — only one version available) */}
+                    <div className="mb-4">
+                      <div className="flex items-center justify-between rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2">
+                        <span className="text-sm font-medium text-white">{ENGINE_DISPLAY_NAME}</span>
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="h-3.5 w-3.5 text-gray-600">
+                          <path d="M6 9l6 6 6-6" />
+                        </svg>
+                      </div>
+                    </div>
+
+                    <div className="flex flex-col gap-4">
+                      {/* Lines */}
+                      <div>
+                        <div className="mb-1.5 flex items-center justify-between">
+                          <span className="text-xs text-gray-400">Lines</span>
+                          <span className="text-xs font-semibold tabular-nums text-gray-300">{settings.engineLines}</span>
+                        </div>
+                        <input
+                          type="range"
+                          min={1}
+                          max={3}
+                          step={1}
+                          value={settings.engineLines}
+                          onChange={e => setSettings({ engineLines: Number(e.target.value) as 1 | 2 | 3 })}
+                          className="w-full cursor-pointer accent-violet-500"
+                        />
+                      </div>
+
+                      {/* Time */}
+                      <div>
+                        <div className="mb-1.5 flex items-center justify-between">
+                          <span className="text-xs text-gray-400">Time</span>
+                          <span className="text-xs font-semibold tabular-nums text-gray-300">{settings.engineMoveTime}s</span>
+                        </div>
+                        <input
+                          type="range"
+                          min={1}
+                          max={30}
+                          step={1}
+                          value={settings.engineMoveTime}
+                          onChange={e => setSettings({ engineMoveTime: Number(e.target.value) })}
+                          className="w-full cursor-pointer accent-violet-500"
+                        />
+                      </div>
+
+                      {/* Hide lines info */}
+                      <label className="flex cursor-pointer items-center gap-2.5">
+                        <span
+                          className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border transition-colors ${
+                            settings.hideEngineInfo ? 'border-violet-600 bg-violet-600' : 'border-white/20 bg-transparent'
+                          }`}
+                        >
+                          {settings.hideEngineInfo && (
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={3} strokeLinecap="round" strokeLinejoin="round" className="h-2.5 w-2.5 text-white">
+                              <path d="M20 6 9 17l-5-5" />
+                            </svg>
+                          )}
+                        </span>
+                        <input
+                          type="checkbox"
+                          checked={settings.hideEngineInfo}
+                          onChange={e => setSettings({ hideEngineInfo: e.target.checked })}
+                          className="sr-only"
+                        />
+                        <span className="text-xs text-gray-300">Hide lines info</span>
+                      </label>
+
+                      {/* Hide arrows */}
+                      <label className="flex cursor-pointer items-center gap-2.5">
+                        <span
+                          className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border transition-colors ${
+                            settings.hideArrows ? 'border-violet-600 bg-violet-600' : 'border-white/20 bg-transparent'
+                          }`}
+                        >
+                          {settings.hideArrows && (
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={3} strokeLinecap="round" strokeLinejoin="round" className="h-2.5 w-2.5 text-white">
+                              <path d="M20 6 9 17l-5-5" />
+                            </svg>
+                          )}
+                        </span>
+                        <input
+                          type="checkbox"
+                          checked={settings.hideArrows}
+                          onChange={e => setSettings({ hideArrows: e.target.checked })}
+                          className="sr-only"
+                        />
+                        <span className="text-xs text-gray-300">Hide arrows</span>
+                      </label>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 
