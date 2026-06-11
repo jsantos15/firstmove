@@ -68,7 +68,7 @@ function formatPvLine(startFen: string, pvUci: string[], maxMoves = 6): string {
     for (let i = 0; i < pvUci.length && i < maxMoves; i++) {
       const uci = pvUci[i]!;
       if (i === 0 && currentSide === 'b') {
-        tokens.push(`${currentMoveNum}...`);
+        tokens.push(`${currentMoveNum}…`);
       } else if (currentSide === 'w') {
         tokens.push(`${currentMoveNum}.`);
       }
@@ -1232,7 +1232,7 @@ export default function AnalysisPage() {
 
                     {/* Extend button + Depth label + analyzing dot */}
                     {settings.engineEnabled && depth !== null && (
-                      <div className="flex shrink-0 items-center gap-1">
+                      <div className="flex shrink-0 items-center gap-1 mr-2">
                         <button
                           type="button"
                           onClick={() => setExtendKey(k => k + 1)}
