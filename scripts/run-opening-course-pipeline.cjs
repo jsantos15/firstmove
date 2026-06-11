@@ -127,8 +127,20 @@ function isRetryableStatus(status) {
   return status === 408 || status === 425 || status === 429 || status >= 500;
 }
 
+function describeFetchError(error) {
+  const parts = [];
+  if (error?.message) parts.push(error.message);
+  if (error?.cause?.code) parts.push(`code=${error.cause.code}`);
+  if (error?.cause?.message && error.cause.message !== error.message) {
+    parts.push(`cause=${error.cause.message}`);
+  }
+  if (error?.cause?.hostname) parts.push(`host=${error.cause.hostname}`);
+  return parts.length ? parts.join("; ") : String(error);
+}
+
 async function fetchWithRetry(url, options, label) {
   let lastError = null;
+  const urlForLog = `${url.origin}${url.pathname}`;
 
   for (let attempt = 1; attempt <= REST_RETRY_ATTEMPTS; attempt += 1) {
     try {
@@ -141,12 +153,19 @@ async function fetchWithRetry(url, options, label) {
     } catch (error) {
       lastError = error;
       if (attempt === REST_RETRY_ATTEMPTS) {
-        throw error;
+        throw new Error(
+          `${label} failed after ${REST_RETRY_ATTEMPTS} attempts (${urlForLog}): ${describeFetchError(error)}`,
+          { cause: error }
+        );
       }
     }
 
     const delay = REST_RETRY_BASE_DELAY_MS * 2 ** (attempt - 1);
-    console.warn(`${label} failed; retrying in ${delay}ms (${attempt}/${REST_RETRY_ATTEMPTS})`);
+    const reason =
+      lastError instanceof Error ? `: ${describeFetchError(lastError)}` : "";
+    console.warn(
+      `${label} failed${reason}; retrying in ${delay}ms (${attempt}/${REST_RETRY_ATTEMPTS})`
+    );
     await sleep(delay);
   }
 
