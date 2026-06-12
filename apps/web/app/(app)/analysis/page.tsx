@@ -1443,7 +1443,7 @@ export default function AnalysisPage() {
 
                 {/* Position — FEN / PGN input strip */}
                 <div className="shrink-0 border-t border-white/5">
-                  <div className="flex items-center gap-2 px-3 pt-2 pb-1.5">
+                  <div className="flex items-center gap-2 px-3 pt-2 pb-0.5">
                     <button
                       type="button"
                       onClick={() => { setParseError(null); setShowImportModal(true); }}
@@ -1737,7 +1737,7 @@ export default function AnalysisPage() {
 
                 {/* Position — FEN / PGN input strip */}
                 <div className="shrink-0 border-t border-white/5">
-                  <div className="flex items-center gap-2 px-3 pt-2 pb-1.5">
+                  <div className="flex items-center gap-2 px-3 pt-2 pb-0.5">
                     <div className="flex overflow-hidden rounded border border-white/8 text-[10px] font-medium">
                       {(['pgn', 'fen'] as const).map((m, i) => (
                         <button
