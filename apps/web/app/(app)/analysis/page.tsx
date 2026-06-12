@@ -1391,7 +1391,13 @@ export default function AnalysisPage() {
 
                 {/* Explore moves — fills all remaining space */}
                 <div className="flex-1 min-h-0 overflow-y-auto border-t border-white/5">
-                  {exploreHistory.length === 0 ? (
+                  {exploreHistory.length === 0 && analyzedGame && analyzedGame.moves.length > 0 ? (
+                    <AnalysisMoveList
+                      game={analyzedGame}
+                      currentPlyIndex={currentPlyIndex}
+                      onNavigate={goTo}
+                    />
+                  ) : exploreHistory.length === 0 ? (
                     <p className="px-3 pt-4 text-center text-xs text-gray-600">
                       Move pieces on the board to explore.
                     </p>
