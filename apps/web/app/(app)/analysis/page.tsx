@@ -635,6 +635,7 @@ export default function AnalysisPage() {
   const [positionText, setPositionText] = useState('');
   const [positionDirty, setPositionDirty] = useState(false);
   const [positionError, setPositionError] = useState<string | null>(null);
+  const positionTextareaRef = useRef<HTMLTextAreaElement>(null);
   const { theme, animationDuration, settings, setSettings } = useBoardSettings();
   const { settings: coachSettings } = useCoachSettings();
   const customPieces = useMemo(() => getCustomPieces(settings.pieceSetId), [settings.pieceSetId]);
@@ -950,6 +951,11 @@ export default function AnalysisPage() {
     setPositionDirty(false);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [freeExploreFen, currentFen, positionMode, exploreHistory, analyzedGame]);
+
+  useEffect(() => {
+    const el = positionTextareaRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, [positionText]);
 
   function handlePositionLoad() {
     const text = positionText.trim();
@@ -1491,6 +1497,7 @@ export default function AnalysisPage() {
                   <div className="px-3 pb-2.5">
                     <div className="relative">
                       <textarea
+                        ref={positionTextareaRef}
                         value={positionText}
                         onChange={e => { setPositionText(e.target.value); setPositionDirty(true); setPositionError(null); }}
                         rows={3}
@@ -1786,6 +1793,7 @@ export default function AnalysisPage() {
                   <div className="px-3 pb-2.5">
                     <div className="relative">
                       <textarea
+                        ref={positionTextareaRef}
                         value={positionText}
                         onChange={e => { setPositionText(e.target.value); setPositionDirty(true); setPositionError(null); }}
                         rows={3}
