@@ -1443,7 +1443,7 @@ export default function AnalysisPage() {
 
                 {/* Position — FEN / PGN input strip */}
                 <div className="shrink-0 border-t border-white/5">
-                  <div className="flex items-center gap-2 px-3 pt-2 pb-0.5">
+                  <div className="flex items-end gap-2 px-3 pt-2 pb-0">
                     <button
                       type="button"
                       onClick={() => { setParseError(null); setShowImportModal(true); }}
@@ -1457,10 +1457,9 @@ export default function AnalysisPage() {
                     {positionError && (
                       <span className="text-[10px] text-red-400 leading-none">{positionError}</span>
                     )}
-                  </div>
-                  <div className="px-3 pb-2.5">
-                    {/* Mode toggle — tab style, flush above textarea, right-aligned */}
-                    <div className="flex justify-end text-[10px] font-medium">
+                    <div className="flex-1" />
+                    {/* Mode toggle — tab style, flush against textarea top */}
+                    <div className="flex text-[10px] font-medium">
                       {(['pgn', 'fen'] as const).map((m, i) => (
                         <button
                           key={m}
@@ -1478,6 +1477,8 @@ export default function AnalysisPage() {
                         </button>
                       ))}
                     </div>
+                  </div>
+                  <div className="px-3 pb-2.5">
                     <div className="relative">
                       <textarea
                         value={positionText}
