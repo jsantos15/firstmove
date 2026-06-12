@@ -65,14 +65,14 @@ async function fetchLichessExplorer(fen, options = {}) {
 }
 
 async function fetchWithRetry(fen, options = {}) {
-  const retries = options.retries ?? 3;
+  const retries = options.retries ?? 6;
   const delayMs = options.delayMs ?? 500;
   let lastError = null;
 
   for (let attempt = 1; attempt <= retries; attempt += 1) {
     try {
       if (attempt > 1) {
-        await sleep(delayMs * attempt);
+        await sleep(delayMs * 2 ** (attempt - 2));
       }
 
       return await fetchLichessExplorer(fen, options);
@@ -80,11 +80,19 @@ async function fetchWithRetry(fen, options = {}) {
       lastError = error;
       if (attempt === retries) {
         const message = error instanceof Error ? error.message : String(error);
+        const cause = error?.cause;
+        const details = [
+          cause?.code ? `code=${cause.code}` : null,
+          cause?.message ? `cause=${cause.message}` : null,
+          cause?.hostname ? `host=${cause.hostname}` : null,
+        ].filter(Boolean);
+        const suffix = details.length ? ` (${details.join("; ")})` : "";
         if (message.includes(fen)) {
-          throw error;
+          throw new Error(`${message}${suffix}`, { cause: error });
         }
         throw new Error(
-          `Lichess Explorer fetch failed after ${retries} attempt(s) for FEN: ${fen}: ${message}`
+          `Lichess Explorer fetch failed after ${retries} attempt(s) for FEN: ${fen}: ${message}${suffix}`,
+          { cause: error }
         );
       }
     }
