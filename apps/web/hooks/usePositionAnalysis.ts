@@ -70,7 +70,7 @@ export function usePositionAnalysis(fen: string, extendKey = 0, numLines = 1, mo
       return;
     }
     const isExtension = extendKey > 0;
-    const mt = isExtension ? 20000 : movetimeRef.current;
+    const mt = movetimeRef.current;
 
     if (!isExtension) {
       // Keep line 0's evalCp so the bar doesn't jump while the new search ramps up.
