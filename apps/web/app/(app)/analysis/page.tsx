@@ -1401,7 +1401,7 @@ export default function AnalysisPage() {
                             {bestSan && bestIdx !== -1 ? (
                               <>
                                 <span className="text-gray-500">{pvFormatted.slice(0, bestIdx)}</span>
-                                <span className="text-amber-300 font-semibold">{bestSan}</span>
+                                <span className="rounded bg-amber-400/20 px-1 py-px text-amber-200">{bestSan}</span>
                                 <span className="text-gray-400">{pvFormatted.slice(bestIdx + bestSan.length)}</span>
                               </>
                             ) : (
