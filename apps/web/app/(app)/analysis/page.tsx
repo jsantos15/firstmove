@@ -993,8 +993,6 @@ export default function AnalysisPage() {
         setExploreHistoryIndex(-1);
         setCoachByPly(new Map());
         setPositionError(null);
-        setActiveTab('review');
-        setReviewSubTab('moves');
       } catch {
         setPositionError('Invalid PGN');
       }
@@ -1448,7 +1446,7 @@ export default function AnalysisPage() {
                   <div className="flex items-center gap-2 px-3 pt-2 pb-1.5">
                     {/* Mode toggle */}
                     <div className="flex overflow-hidden rounded border border-white/8 text-[10px] font-medium">
-                      {(['fen', 'pgn'] as const).map((m, i) => (
+                      {(['pgn', 'fen'] as const).map((m, i) => (
                         <button
                           key={m}
                           type="button"
@@ -1485,7 +1483,7 @@ export default function AnalysisPage() {
                     <textarea
                       value={positionText}
                       onChange={e => { setPositionText(e.target.value); setPositionError(null); }}
-                      rows={positionMode === 'fen' ? 1 : 3}
+                      rows={3}
                       spellCheck={false}
                       className={`w-full resize-none rounded-lg border bg-white/[0.03] px-2.5 py-1.5 font-mono text-[10px] leading-relaxed text-gray-300 placeholder-gray-600 focus:outline-none transition-colors ${
                         positionError
@@ -1741,6 +1739,59 @@ export default function AnalysisPage() {
                     )}
                   </>
                 )}
+
+                {/* Position — FEN / PGN input strip */}
+                <div className="shrink-0 border-t border-white/5">
+                  <div className="flex items-center gap-2 px-3 pt-2 pb-1.5">
+                    <div className="flex overflow-hidden rounded border border-white/8 text-[10px] font-medium">
+                      {(['pgn', 'fen'] as const).map((m, i) => (
+                        <button
+                          key={m}
+                          type="button"
+                          onClick={() => setPositionMode(m)}
+                          className={`px-2 py-0.5 uppercase tracking-wide transition-colors ${
+                            i > 0 ? 'border-l border-white/8' : ''
+                          } ${
+                            positionMode === m
+                              ? 'bg-white/10 text-white'
+                              : 'text-gray-500 hover:text-gray-300'
+                          }`}
+                        >
+                          {m}
+                        </button>
+                      ))}
+                    </div>
+                    {positionError && (
+                      <span className="text-[10px] text-red-400 leading-none">{positionError}</span>
+                    )}
+                    <div className="flex-1" />
+                    <button
+                      type="button"
+                      onClick={handlePositionLoad}
+                      className="flex items-center gap-1 rounded border border-white/8 bg-white/[0.04] px-2.5 py-0.5 text-[10px] font-medium text-gray-400 transition-colors hover:bg-white/8 hover:text-white"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="h-3 w-3">
+                        <path d="M8.75 2.75a.75.75 0 0 0-1.5 0v5.69L5.03 6.22a.75.75 0 0 0-1.06 1.06l3.5 3.5a.75.75 0 0 0 1.06 0l3.5-3.5a.75.75 0 0 0-1.06-1.06L8.75 8.44V2.75Z" />
+                        <path d="M3.5 9.75a.75.75 0 0 0-1.5 0v1.5A2.75 2.75 0 0 0 4.75 14h6.5A2.75 2.75 0 0 0 14 11.25v-1.5a.75.75 0 0 0-1.5 0v1.5c0 .69-.56 1.25-1.25 1.25h-6.5c-.69 0-1.25-.56-1.25-1.25v-1.5Z" />
+                      </svg>
+                      Load
+                    </button>
+                  </div>
+                  <div className="px-3 pb-2.5">
+                    <textarea
+                      value={positionText}
+                      onChange={e => { setPositionText(e.target.value); setPositionError(null); }}
+                      rows={3}
+                      spellCheck={false}
+                      className={`w-full resize-none rounded-lg border bg-white/[0.03] px-2.5 py-1.5 font-mono text-[10px] leading-relaxed text-gray-300 placeholder-gray-600 focus:outline-none transition-colors ${
+                        positionError
+                          ? 'border-red-500/40 focus:border-red-500/60'
+                          : 'border-white/8 focus:border-white/20'
+                      }`}
+                      placeholder={positionMode === 'fen' ? 'Paste a FEN string…' : 'Paste PGN here…'}
+                    />
+                  </div>
+                </div>
 
               </div>
             )}
