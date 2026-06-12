@@ -924,7 +924,7 @@ export default function AnalysisPage() {
       if (exploreHistory.length > 0) {
         const chess = new Chess(currentFen);
         for (const entry of exploreHistory) chess.move(entry.san);
-        const movesOnly = chess.pgn().replace(/^\[.*?\]\r?\n?/gm, '').trim();
+        const movesOnly = chess.pgn().replace(/^\[.*?\]\r?\n?/gm, '').replace(/\s*\*\s*$/, '').trim();
         setPositionText(
           currentFen !== INITIAL_FEN
             ? `[FEN "${currentFen}"]\n\n${movesOnly}`
@@ -934,7 +934,7 @@ export default function AnalysisPage() {
         const initFen = analyzedGame.initialFen;
         const chess = initFen ? new Chess(initFen) : new Chess();
         for (const move of analyzedGame.moves) chess.move(move.san);
-        const movesOnly = chess.pgn().replace(/^\[.*?\]\r?\n?/gm, '').trim();
+        const movesOnly = chess.pgn().replace(/^\[.*?\]\r?\n?/gm, '').replace(/\s*\*\s*$/, '').trim();
         setPositionText(
           initFen && initFen !== INITIAL_FEN
             ? `[FEN "${initFen}"]\n\n${movesOnly}`
