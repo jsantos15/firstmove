@@ -918,26 +918,26 @@ export default function AnalysisPage() {
       setPositionError(null);
       return;
     }
-    // PGN mode — reconstruct a PGN from current state
+    // PGN mode — reconstruct a PGN from current state (moves only, no auto-generated headers)
     try {
       if (exploreHistory.length > 0) {
         const chess = new Chess(currentFen);
         for (const entry of exploreHistory) chess.move(entry.san);
-        const pgn = chess.pgn();
+        const movesOnly = chess.pgn().replace(/^\[.*?\]\r?\n?/gm, '').trim();
         setPositionText(
           currentFen !== INITIAL_FEN
-            ? `[Variant "From Position"]\n[FEN "${currentFen}"]\n\n${pgn}`.trim()
-            : pgn
+            ? `[FEN "${currentFen}"]\n\n${movesOnly}`
+            : movesOnly
         );
       } else if (analyzedGame && analyzedGame.moves.length > 0) {
         const initFen = analyzedGame.initialFen;
         const chess = initFen ? new Chess(initFen) : new Chess();
         for (const move of analyzedGame.moves) chess.move(move.san);
-        const pgn = chess.pgn();
+        const movesOnly = chess.pgn().replace(/^\[.*?\]\r?\n?/gm, '').trim();
         setPositionText(
           initFen && initFen !== INITIAL_FEN
-            ? `[Variant "From Position"]\n[FEN "${initFen}"]\n\n${pgn}`.trim()
-            : pgn
+            ? `[FEN "${initFen}"]\n\n${movesOnly}`
+            : movesOnly
         );
       } else {
         setPositionText('');
