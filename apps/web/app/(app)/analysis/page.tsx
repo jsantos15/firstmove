@@ -1447,7 +1447,7 @@ export default function AnalysisPage() {
                     <button
                       type="button"
                       onClick={() => { setParseError(null); setShowImportModal(true); }}
-                      className="flex items-center gap-2 rounded border border-amber-400/45 bg-amber-400/8 px-5 py-2 text-sm font-medium text-amber-300 transition-colors hover:border-amber-400/65 hover:bg-amber-400/15 hover:text-amber-200"
+                      className="flex items-center gap-2 rounded border border-amber-400/45 bg-amber-400/8 px-5 py-2 mb-1.5 text-sm font-medium text-amber-300 transition-colors hover:border-amber-400/65 hover:bg-amber-400/15 hover:text-amber-200"
                     >
                       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="h-4 w-4">
                         <path d="M1 3.5A1.5 1.5 0 0 1 2.5 2h2.764c.958 0 1.76.56 2.311 1.184C7.985 3.648 8.48 4 9 4h4.5A1.5 1.5 0 0 1 15 5.5v.64c.57.265.94.876.856 1.546l-.64 5.124A2.5 2.5 0 0 1 12.733 15H3.266a2.5 2.5 0 0 1-2.481-2.19l-.64-5.124A1.5 1.5 0 0 1 1 6.14V3.5ZM2 6h12v-.5a.5.5 0 0 0-.5-.5H9c-.964 0-1.71-.629-2.174-1.154C6.374 3.334 5.82 3 5.264 3H2.5a.5.5 0 0 0-.5.5V6Zm-.367 1a.5.5 0 0 0-.496.562l.64 5.124A1.5 1.5 0 0 0 3.266 14h9.468a1.5 1.5 0 0 0 1.489-1.314l.64-5.124A.5.5 0 0 0 14.367 7H1.633Z"/>
