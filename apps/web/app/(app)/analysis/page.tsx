@@ -630,6 +630,10 @@ export default function AnalysisPage() {
   const [exploreHistory, setExploreHistory] = useState<ExploreEntry[]>([]);
   const [exploreHistoryIndex, setExploreHistoryIndex] = useState(-1);
   const [selectedSquare, setSelectedSquare] = useState<string | null>(null);
+  const [baseFen, setBaseFen] = useState<string | null>(null);
+  const [positionMode, setPositionMode] = useState<'fen' | 'pgn'>('fen');
+  const [positionText, setPositionText] = useState(INITIAL_FEN);
+  const [positionError, setPositionError] = useState<string | null>(null);
   const { theme, animationDuration, settings, setSettings } = useBoardSettings();
   const { settings: coachSettings } = useCoachSettings();
   const customPieces = useMemo(() => getCustomPieces(settings.pieceSetId), [settings.pieceSetId]);
@@ -719,10 +723,10 @@ export default function AnalysisPage() {
   const currentMove = analyzedGame?.moves[currentPlyIndex] ?? null;
 
   const currentFen = useMemo(() => {
-    if (!analyzedGame) return INITIAL_FEN;
+    if (!analyzedGame) return baseFen ?? INITIAL_FEN;
     if (currentPlyIndex < 0) return analyzedGame.initialFen ?? INITIAL_FEN;
     return analyzedGame.moves[currentPlyIndex]?.afterFen ?? INITIAL_FEN;
-  }, [analyzedGame, currentPlyIndex]);
+  }, [analyzedGame, currentPlyIndex, baseFen]);
 
   // Derived from exploreHistory — placed here because they depend on currentFen.
   const freeExploreFen = exploreHistoryIndex >= 0 ? (exploreHistory[exploreHistoryIndex]?.fen ?? null) : null;
@@ -767,6 +771,7 @@ export default function AnalysisPage() {
         initialFen: fen.trim() || undefined,
       });
       setAnalyzedGame(game);
+      setBaseFen(null);
       setCurrentPlyIndex(-1);
       setLastMoveSquares(null);
       setParseError(null);
@@ -902,6 +907,97 @@ export default function AnalysisPage() {
       if (entry) setLastMoveSquares({ from: entry.from, to: entry.to });
     } else {
       goTo(totalMoves - 1);
+    }
+  }
+
+  // Keep positionText in sync with the board. Board changes always win over user-typed text —
+  // the user's draft is only "committed" via the Load button.
+  useEffect(() => {
+    if (positionMode === 'fen') {
+      setPositionText(freeExploreFen ?? currentFen);
+      setPositionError(null);
+      return;
+    }
+    // PGN mode — reconstruct a PGN from current state
+    try {
+      if (exploreHistory.length > 0) {
+        const chess = new Chess(currentFen);
+        for (const entry of exploreHistory) chess.move(entry.san);
+        const pgn = chess.pgn();
+        setPositionText(
+          currentFen !== INITIAL_FEN
+            ? `[Variant "From Position"]\n[FEN "${currentFen}"]\n\n${pgn}`.trim()
+            : pgn
+        );
+      } else if (analyzedGame && analyzedGame.moves.length > 0) {
+        const initFen = analyzedGame.initialFen;
+        const chess = initFen ? new Chess(initFen) : new Chess();
+        for (const move of analyzedGame.moves) chess.move(move.san);
+        const pgn = chess.pgn();
+        setPositionText(
+          initFen && initFen !== INITIAL_FEN
+            ? `[Variant "From Position"]\n[FEN "${initFen}"]\n\n${pgn}`.trim()
+            : pgn
+        );
+      } else {
+        setPositionText('');
+      }
+    } catch {
+      setPositionText(freeExploreFen ?? currentFen);
+    }
+    setPositionError(null);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [freeExploreFen, currentFen, positionMode, exploreHistory, analyzedGame]);
+
+  function handlePositionLoad() {
+    const text = positionText.trim();
+    if (!text) return;
+
+    if (positionMode === 'fen') {
+      try {
+        new Chess(text);
+        setBaseFen(text);
+        setAnalyzedGame(null);
+        setCurrentPlyIndex(-1);
+        setExploreHistory([]);
+        setExploreHistoryIndex(-1);
+        setLastMoveSquares(null);
+        setCoachByPly(new Map());
+        setPositionError(null);
+      } catch {
+        setPositionError('Invalid FEN');
+      }
+    } else {
+      try {
+        const fenMatch = text.match(/\[FEN\s+"([^"]+)"\]/);
+        const extractedFen = fenMatch?.[1];
+        const game = buildAnalyzedGameFromPgn({
+          id: `game-${Date.now()}`,
+          pgn: text,
+          initialFen: extractedFen,
+        });
+        setAnalyzedGame(game);
+        setBaseFen(null);
+        setCurrentPlyIndex(game.moves.length - 1);
+        if (game.moves.length > 0) {
+          const lastMove = game.moves[game.moves.length - 1]!;
+          try {
+            const c = new Chess(lastMove.beforeFen);
+            const result = c.move(lastMove.san);
+            setLastMoveSquares(result ? { from: result.from, to: result.to } : null);
+          } catch { setLastMoveSquares(null); }
+        } else {
+          setLastMoveSquares(null);
+        }
+        setExploreHistory([]);
+        setExploreHistoryIndex(-1);
+        setCoachByPly(new Map());
+        setPositionError(null);
+        setActiveTab('review');
+        setReviewSubTab('moves');
+      } catch {
+        setPositionError('Invalid PGN');
+      }
     }
   }
 
@@ -1345,6 +1441,60 @@ export default function AnalysisPage() {
                       })}
                     </div>
                   )}
+                </div>
+
+                {/* Position — FEN / PGN input strip */}
+                <div className="shrink-0 border-t border-white/5">
+                  <div className="flex items-center gap-2 px-3 pt-2 pb-1.5">
+                    {/* Mode toggle */}
+                    <div className="flex overflow-hidden rounded border border-white/8 text-[10px] font-medium">
+                      {(['fen', 'pgn'] as const).map((m, i) => (
+                        <button
+                          key={m}
+                          type="button"
+                          onClick={() => setPositionMode(m)}
+                          className={`px-2 py-0.5 uppercase tracking-wide transition-colors ${
+                            i > 0 ? 'border-l border-white/8' : ''
+                          } ${
+                            positionMode === m
+                              ? 'bg-white/10 text-white'
+                              : 'text-gray-500 hover:text-gray-300'
+                          }`}
+                        >
+                          {m}
+                        </button>
+                      ))}
+                    </div>
+                    {positionError && (
+                      <span className="text-[10px] text-red-400 leading-none">{positionError}</span>
+                    )}
+                    <div className="flex-1" />
+                    <button
+                      type="button"
+                      onClick={handlePositionLoad}
+                      className="flex items-center gap-1 rounded border border-white/8 bg-white/[0.04] px-2.5 py-0.5 text-[10px] font-medium text-gray-400 transition-colors hover:bg-white/8 hover:text-white"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="h-3 w-3">
+                        <path d="M8.75 2.75a.75.75 0 0 0-1.5 0v5.69L5.03 6.22a.75.75 0 0 0-1.06 1.06l3.5 3.5a.75.75 0 0 0 1.06 0l3.5-3.5a.75.75 0 0 0-1.06-1.06L8.75 8.44V2.75Z" />
+                        <path d="M3.5 9.75a.75.75 0 0 0-1.5 0v1.5A2.75 2.75 0 0 0 4.75 14h6.5A2.75 2.75 0 0 0 14 11.25v-1.5a.75.75 0 0 0-1.5 0v1.5c0 .69-.56 1.25-1.25 1.25h-6.5c-.69 0-1.25-.56-1.25-1.25v-1.5Z" />
+                      </svg>
+                      Load
+                    </button>
+                  </div>
+                  <div className="px-3 pb-2.5">
+                    <textarea
+                      value={positionText}
+                      onChange={e => { setPositionText(e.target.value); setPositionError(null); }}
+                      rows={positionMode === 'fen' ? 1 : 3}
+                      spellCheck={false}
+                      className={`w-full resize-none rounded-lg border bg-white/[0.03] px-2.5 py-1.5 font-mono text-[10px] leading-relaxed text-gray-300 placeholder-gray-600 focus:outline-none transition-colors ${
+                        positionError
+                          ? 'border-red-500/40 focus:border-red-500/60'
+                          : 'border-white/8 focus:border-white/20'
+                      }`}
+                      placeholder={positionMode === 'fen' ? 'Paste a FEN string…' : 'Paste PGN here…'}
+                    />
+                  </div>
                 </div>
 
                 {/* Engine settings overlay */}
