@@ -1478,28 +1478,31 @@ export default function AnalysisPage() {
                       Import Game
                     </button>
                   </div>
-                  <div className="px-3 pt-0 pb-1">
-                    <textarea
-                      value={positionText}
-                      onChange={e => { setPositionText(e.target.value); setPositionError(null); }}
-                      rows={3}
-                      spellCheck={false}
-                      className={`w-full resize-none rounded-lg border bg-white/3 px-2.5 py-1.5 font-mono text-[10px] leading-relaxed text-gray-300 placeholder-gray-600 focus:outline-none transition-colors ${
-                        positionError
-                          ? 'border-red-500/40 focus:border-red-500/60'
-                          : 'border-white/8 focus:border-white/20'
-                      }`}
-                      placeholder={positionMode === 'fen' ? 'Paste a FEN string…' : 'Paste PGN here…'}
-                    />
-                  </div>
-                  <div className="flex justify-end px-3 pb-2.5">
-                    <button
-                      type="button"
-                      onClick={handlePositionLoad}
-                      className="text-[10px] text-gray-600 transition-colors hover:text-gray-300"
-                    >
-                      Load ↵
-                    </button>
+                  <div className="px-3 pb-2.5">
+                    <div className="relative">
+                      <textarea
+                        value={positionText}
+                        onChange={e => { setPositionText(e.target.value); setPositionError(null); }}
+                        rows={3}
+                        spellCheck={false}
+                        className={`w-full resize-none rounded-lg border bg-white/3 px-2.5 py-1.5 pr-8 font-mono text-[10px] leading-relaxed text-gray-300 placeholder-gray-600 focus:outline-none transition-colors ${
+                          positionError
+                            ? 'border-red-500/40 focus:border-red-500/60'
+                            : 'border-white/8 focus:border-white/20'
+                        }`}
+                        placeholder={positionMode === 'fen' ? 'Paste a FEN string…' : 'Paste PGN here…'}
+                      />
+                      <button
+                        type="button"
+                        onClick={handlePositionLoad}
+                        title="Load position"
+                        className="absolute bottom-1.5 right-1.5 flex h-5 w-5 items-center justify-center rounded border border-white/10 bg-[#14161f] text-gray-500 transition-colors hover:border-white/20 hover:text-gray-200"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="h-3 w-3">
+                          <path fillRule="evenodd" d="M8.22 2.97a.75.75 0 0 1 1.06 0l4.25 4.25a.75.75 0 0 1 0 1.06l-4.25 4.25a.75.75 0 0 1-1.042-1.06l2.97-2.97H3.75a.75.75 0 0 1 0-1.5h7.44L8.22 4.03a.75.75 0 0 1 0-1.06Z" clipRule="evenodd" />
+                        </svg>
+                      </button>
+                    </div>
                   </div>
                 </div>
 
@@ -1769,28 +1772,31 @@ export default function AnalysisPage() {
                       Import Game
                     </button>
                   </div>
-                  <div className="px-3 pt-0 pb-1">
-                    <textarea
-                      value={positionText}
-                      onChange={e => { setPositionText(e.target.value); setPositionError(null); }}
-                      rows={3}
-                      spellCheck={false}
-                      className={`w-full resize-none rounded-lg border bg-white/3 px-2.5 py-1.5 font-mono text-[10px] leading-relaxed text-gray-300 placeholder-gray-600 focus:outline-none transition-colors ${
-                        positionError
-                          ? 'border-red-500/40 focus:border-red-500/60'
-                          : 'border-white/8 focus:border-white/20'
-                      }`}
-                      placeholder={positionMode === 'fen' ? 'Paste a FEN string…' : 'Paste PGN here…'}
-                    />
-                  </div>
-                  <div className="flex justify-end px-3 pb-2.5">
-                    <button
-                      type="button"
-                      onClick={handlePositionLoad}
-                      className="text-[10px] text-gray-600 transition-colors hover:text-gray-300"
-                    >
-                      Load ↵
-                    </button>
+                  <div className="px-3 pb-2.5">
+                    <div className="relative">
+                      <textarea
+                        value={positionText}
+                        onChange={e => { setPositionText(e.target.value); setPositionError(null); }}
+                        rows={3}
+                        spellCheck={false}
+                        className={`w-full resize-none rounded-lg border bg-white/3 px-2.5 py-1.5 pr-8 font-mono text-[10px] leading-relaxed text-gray-300 placeholder-gray-600 focus:outline-none transition-colors ${
+                          positionError
+                            ? 'border-red-500/40 focus:border-red-500/60'
+                            : 'border-white/8 focus:border-white/20'
+                        }`}
+                        placeholder={positionMode === 'fen' ? 'Paste a FEN string…' : 'Paste PGN here…'}
+                      />
+                      <button
+                        type="button"
+                        onClick={handlePositionLoad}
+                        title="Load position"
+                        className="absolute bottom-1.5 right-1.5 flex h-5 w-5 items-center justify-center rounded border border-white/10 bg-[#14161f] text-gray-500 transition-colors hover:border-white/20 hover:text-gray-200"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="h-3 w-3">
+                          <path fillRule="evenodd" d="M8.22 2.97a.75.75 0 0 1 1.06 0l4.25 4.25a.75.75 0 0 1 0 1.06l-4.25 4.25a.75.75 0 0 1-1.042-1.06l2.97-2.97H3.75a.75.75 0 0 1 0-1.5h7.44L8.22 4.03a.75.75 0 0 1 0-1.06Z" clipRule="evenodd" />
+                        </svg>
+                      </button>
+                    </div>
                   </div>
                 </div>
 
