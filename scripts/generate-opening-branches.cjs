@@ -558,6 +558,10 @@ function shouldUseBestKnownAnalysis(analysis, args) {
   return false;
 }
 
+function hasUsableBestKnownAnalysis(analysis) {
+  return Boolean(analysis?.bestMove && analysis.bestMove !== "(none)");
+}
+
 async function fetchCloudAnalysis(fen, args) {
   const engineOptions = {
     lichess: {
@@ -576,14 +580,18 @@ async function fetchCloudAnalysis(fen, args) {
     },
   };
 
-  const cachedLichess = readCachedLichessCloudEval(fen, engineOptions.lichess);
-  if (analysisMatchesFen(cachedLichess, fen)) return cachedLichess;
-  const cachedChessApi = readCachedChessApiEval(fen, engineOptions.chessApi);
-  if (analysisMatchesFen(cachedChessApi, fen)) return cachedChessApi;
-
   const allEngines = args.router.engineIds;
   const startIdx = allEngines.indexOf(args.lockedEngineId);
   const orderedEngines = startIdx >= 0 ? allEngines.slice(startIdx) : allEngines;
+
+  const cachedLichess = readCachedLichessCloudEval(fen, engineOptions.lichess);
+  if (analysisMatchesFen(cachedLichess, fen)) return cachedLichess;
+
+  const cachedChessApi = readCachedChessApiEval(fen, engineOptions.chessApi);
+  const canTryLichess =
+    orderedEngines.includes("lichess") && !args.router.isCoolingDown("lichess");
+  if (!canTryLichess && analysisMatchesFen(cachedChessApi, fen)) return cachedChessApi;
+
   for (const engineId of orderedEngines) {
     if (args.router.isCoolingDown(engineId)) continue;
     const result = await args.router.fetch(engineId, fen, engineOptions);
@@ -625,6 +633,10 @@ async function analyzePosition(fen, args, cache) {
       }
     } catch (error) {
       if (error instanceof EngineRateLimitedError || error?.code === "ENGINE_RATE_LIMITED") {
+        if (hasUsableBestKnownAnalysis(bestKnown)) {
+          cache.analysis.set(key, bestKnown);
+          return bestKnown;
+        }
         throw error;
       }
       console.warn(
@@ -633,6 +645,11 @@ async function analyzePosition(fen, args, cache) {
         }`
       );
     }
+  }
+
+  if (hasUsableBestKnownAnalysis(bestKnown)) {
+    cache.analysis.set(key, bestKnown);
+    return bestKnown;
   }
 
   const localResult = await analyzeFenCached(fen, args);

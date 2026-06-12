@@ -1723,6 +1723,10 @@ function shouldUseBestKnownAnalysis(analysis, args) {
   return false;
 }
 
+function hasUsableBestKnownAnalysis(analysis) {
+  return Boolean(analysis?.bestMove && analysis.bestMove !== "(none)");
+}
+
 function analysisSourceToMoveSource(source) {
   if (source === "lichess-cloud-eval") {
     return "lichess-cloud-best-move";
@@ -1858,20 +1862,22 @@ async function fetchCloudAnalysis(fen, args) {
     },
   };
 
+  const allEngines = args.router.engineIds;
+  const startIdx = allEngines.indexOf(lockedId);
+  const orderedEngines =
+    startIdx >= 0 ? allEngines.slice(startIdx) : allEngines;
+
   const cachedLichess = readCachedLichessCloudEval(fen, engineOptions.lichess);
   if (analysisMatchesFen(cachedLichess, fen)) {
     return cachedLichess;
   }
 
   const cachedChessApi = readCachedChessApiEval(fen, engineOptions.chessApi);
-  if (analysisMatchesFen(cachedChessApi, fen)) {
+  const canTryLichess =
+    orderedEngines.includes("lichess") && !args.router.isCoolingDown("lichess");
+  if (!canTryLichess && analysisMatchesFen(cachedChessApi, fen)) {
     return cachedChessApi;
   }
-
-  const allEngines = args.router.engineIds;
-  const startIdx = allEngines.indexOf(lockedId);
-  const orderedEngines =
-    startIdx >= 0 ? allEngines.slice(startIdx) : allEngines;
 
   for (const engineId of orderedEngines) {
     if (args.router.isCoolingDown(engineId)) continue;
@@ -1937,6 +1943,10 @@ async function analyzePosition(fen, args, cache) {
       }
     } catch (error) {
       if (error?.code === "ENGINE_RATE_LIMITED") {
+        if (hasUsableBestKnownAnalysis(bestKnown)) {
+          analysisCache?.set(key, bestKnown);
+          return bestKnown;
+        }
         throw error;
       }
 
@@ -1953,12 +1963,32 @@ async function analyzePosition(fen, args, cache) {
   }
 
   if (args.cloudEvalMode === "full") {
-    const cloudResult = await fetchCloudAnalysis(fen, args);
-    if (analysisMatchesFen(cloudResult, fen)) {
-      const bestResult = writeBestKnownAnalysis(fen, cloudResult, args, bestEvalCache);
-      analysisCache?.set(key, bestResult);
-      return bestResult;
+    try {
+      const cloudResult = await fetchCloudAnalysis(fen, args);
+      if (analysisMatchesFen(cloudResult, fen)) {
+        const bestResult = writeBestKnownAnalysis(fen, cloudResult, args, bestEvalCache);
+        analysisCache?.set(key, bestResult);
+        return bestResult;
+      }
+    } catch (error) {
+      if (error?.code === "ENGINE_RATE_LIMITED") {
+        if (hasUsableBestKnownAnalysis(bestKnown)) {
+          analysisCache?.set(key, bestKnown);
+          return bestKnown;
+        }
+        throw error;
+      }
+      console.warn(
+        `Cloud eval (${engineProvider}) unavailable for ${fen}; falling back to cached/local Stockfish depth ${args.stockfishDepth}: ${
+          error instanceof Error ? error.message : String(error)
+        }`
+      );
     }
+  }
+
+  if (hasUsableBestKnownAnalysis(bestKnown)) {
+    analysisCache?.set(key, bestKnown);
+    return bestKnown;
   }
 
   const result = await analyzeFenCached(fen, args);
