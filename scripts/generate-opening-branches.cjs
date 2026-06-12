@@ -9,6 +9,7 @@ const { createStockfishEngine, parseInfoLine } = require("./lib/stockfish.cjs");
 const { CloudEvalRouter, EngineRateLimitedError } = require("./lib/cloud-eval-router.cjs");
 const { readCachedLichessCloudEval } = require("./lib/lichess-cloud-eval.cjs");
 const { readCachedChessApiEval } = require("./lib/chess-api-eval.cjs");
+const { writeJsonObjectFileSync } = require("./lib/json-object-file.cjs");
 
 const DEFAULT_INPUT = path.resolve(
   __dirname,
@@ -246,9 +247,8 @@ function loadJsonObject(filePath) {
 
 function writeJsonObject(filePath, value) {
   try {
-    fs.mkdirSync(path.dirname(filePath), { recursive: true });
     withFileRetry(
-      () => fs.writeFileSync(filePath, `${JSON.stringify(value, null, 2)}\n`, "utf8"),
+      () => writeJsonObjectFileSync(filePath, value),
       `Could not write cache ${filePath}`
     );
   } catch (error) {

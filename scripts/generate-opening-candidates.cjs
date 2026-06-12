@@ -19,6 +19,7 @@ const {
 const { CloudEvalRouter, EngineRateLimitedError } = require("./lib/cloud-eval-router.cjs");
 const { readCachedLichessCloudEval } = require("./lib/lichess-cloud-eval.cjs");
 const { readCachedChessApiEval } = require("./lib/chess-api-eval.cjs");
+const { writeJsonObjectFileSync } = require("./lib/json-object-file.cjs");
 
 const DEFAULT_OUTPUT = path.resolve(
   __dirname,
@@ -1515,8 +1516,7 @@ function loadJsonObject(filePath) {
 }
 
 function writeJsonObject(filePath, value) {
-  fs.mkdirSync(path.dirname(filePath), { recursive: true });
-  fs.writeFileSync(filePath, `${JSON.stringify(value, null, 2)}\n`, "utf8");
+  writeJsonObjectFileSync(filePath, value);
 }
 
 function stockfishCacheKey(fen, args) {
