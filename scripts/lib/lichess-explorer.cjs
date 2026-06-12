@@ -65,7 +65,7 @@ async function fetchLichessExplorer(fen, options = {}) {
 }
 
 async function fetchWithRetry(fen, options = {}) {
-  const retries = options.retries ?? 6;
+  const retries = options.retries ?? 3;
   const delayMs = options.delayMs ?? 500;
   let lastError = null;
 
