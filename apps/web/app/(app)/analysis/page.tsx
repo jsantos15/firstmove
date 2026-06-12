@@ -238,7 +238,7 @@ function AnalysisMoveList({
               ref={isActiveRow ? activeRowRef : undefined}
               className="flex items-center gap-1 py-1"
             >
-              <span className="w-7 shrink-0 select-none pr-1 text-right font-mono text-xs text-gray-600">
+              <span className="w-7 shrink-0 select-none pr-1 text-right font-mono text-base text-gray-600">
                 {pair.moveNumber}.
               </span>
               {pair.white ? (
@@ -1436,7 +1436,7 @@ export default function AnalysisPage() {
                         };
                         return (
                           <div key={pair.moveNumber} className="flex items-center gap-1 py-0.5">
-                            <span className="w-7 shrink-0 text-right font-mono text-xs text-gray-600">{pair.moveNumber}.</span>
+                            <span className="w-7 shrink-0 text-right font-mono text-base text-gray-600">{pair.moveNumber}.</span>
                             <div className="flex flex-1 gap-1">
                               {pair.white ? (
                                 <button
