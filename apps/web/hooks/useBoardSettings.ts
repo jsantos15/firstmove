@@ -54,7 +54,7 @@ const DEFAULTS: BoardSettings = {
   flipBoard: false,
   animationSpeed: 'normal',
   moveSound: true,
-  engineLines: 1,
+  engineLines: 2,
   engineEnabled: true,
   engineMoveTime: 8,
   hideEngineInfo: false,

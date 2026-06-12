@@ -1391,7 +1391,7 @@ export default function AnalysisPage() {
                           bestSan = m?.san ?? null;
                         } catch {}
                       }
-                      const bestIdx = bestSan ? pvFormatted.indexOf(bestSan) : -1;
+                      const bestIdx = li === 0 && bestSan ? pvFormatted.indexOf(bestSan) : -1;
                       return (
                         <div key={li} className="flex items-center gap-2 rounded-lg bg-white/4 px-2.5 py-1.5 min-w-0">
                           <span className={`shrink-0 text-xs font-bold tabular-nums w-10 ${positive ? 'text-gray-100' : 'text-red-400'}`}>
@@ -1401,7 +1401,7 @@ export default function AnalysisPage() {
                             {bestSan && bestIdx !== -1 ? (
                               <>
                                 <span className="text-gray-500">{pvFormatted.slice(0, bestIdx)}</span>
-                                <span className="rounded bg-amber-400/20 px-1 py-px text-amber-200">{bestSan}</span>
+                                <span className="rounded bg-white/15 px-1 py-px text-white">{bestSan}</span>
                                 <span className="text-gray-400">{pvFormatted.slice(bestIdx + bestSan.length)}</span>
                               </>
                             ) : (
