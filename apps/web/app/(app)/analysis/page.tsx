@@ -305,7 +305,7 @@ function GameRecapPanel({
           <p className="mt-1 text-xs leading-5 text-gray-400">{gameSummary.message}</p>
           <div className="mt-2 grid grid-cols-2 gap-1.5">
             {typeof gameSummary.variables.bestMoveSan === 'string' && (
-              <div className="rounded border border-white/5 bg-white/[0.03] px-2 py-1.5">
+              <div className="rounded border border-white/5 bg-white/3 px-2 py-1.5">
                 <span className="block text-[10px] uppercase tracking-wider text-gray-600">
                   Best move
                 </span>
@@ -315,7 +315,7 @@ function GameRecapPanel({
               </div>
             )}
             {typeof gameSummary.variables.worstMoveSan === 'string' && (
-              <div className="rounded border border-white/5 bg-white/[0.03] px-2 py-1.5">
+              <div className="rounded border border-white/5 bg-white/3 px-2 py-1.5">
                 <span className="block text-[10px] uppercase tracking-wider text-gray-600">
                   Key mistake
                 </span>
@@ -1240,7 +1240,7 @@ export default function AnalysisPage() {
             bottomBar={
               <div className="flex items-stretch gap-2 px-3 py-2.5">
                 <NavBtn onClick={navGoFirst} disabled={!navCanGoBack} title="First position"
-                  className="flex h-14 flex-1 items-center justify-center rounded-xl border border-white/8 bg-white/[0.04] text-gray-500 transition-all hover:border-amber-400/40 hover:bg-amber-400/8 hover:text-amber-300 disabled:pointer-events-none disabled:opacity-30">
+                  className="flex h-14 flex-1 items-center justify-center rounded-xl border border-white/8 bg-white/4 text-gray-500 transition-all hover:border-amber-400/40 hover:bg-amber-400/8 hover:text-amber-300 disabled:pointer-events-none disabled:opacity-30">
                   <svg viewBox="0 0 16 16" fill="currentColor" className="h-5 w-5"><path d="M3.5 3a.5.5 0 0 1 .5.5v3.793l6.146-4.439A.5.5 0 0 1 11 3.5v9a.5.5 0 0 1-.854.354L4 8.707V12.5a.5.5 0 0 1-1 0v-9a.5.5 0 0 1 .5-.5z" /></svg>
                 </NavBtn>
                 <NavBtn onClick={navGoBack} disabled={!navCanGoBack} title="Previous (←)"
@@ -1252,7 +1252,7 @@ export default function AnalysisPage() {
                   <svg viewBox="0 0 16 16" fill="currentColor" className="h-5 w-5"><path d="M4.646 3.646a.5.5 0 0 1 .708 0l5 5a.5.5 0 0 1 0 .708l-5 5a.5.5 0 0 1-.708-.708L9.293 9 4.646 4.354a.5.5 0 0 1 0-.708z" /></svg>
                 </NavBtn>
                 <NavBtn onClick={navGoLast} disabled={!navCanGoForward} title="Last position"
-                  className="flex h-14 flex-1 items-center justify-center rounded-xl border border-white/8 bg-white/[0.04] text-gray-500 transition-all hover:border-amber-400/40 hover:bg-amber-400/8 hover:text-amber-300 disabled:pointer-events-none disabled:opacity-30">
+                  className="flex h-14 flex-1 items-center justify-center rounded-xl border border-white/8 bg-white/4 text-gray-500 transition-all hover:border-amber-400/40 hover:bg-amber-400/8 hover:text-amber-300 disabled:pointer-events-none disabled:opacity-30">
                   <svg viewBox="0 0 16 16" fill="currentColor" className="h-5 w-5"><path d="M12.5 3a.5.5 0 0 0-.5.5v3.793L5.854 2.854A.5.5 0 0 0 5 3.5v9a.5.5 0 0 0 .854.354L12 8.207V12.5a.5.5 0 0 0 1 0v-9a.5.5 0 0 0-.5-.5z" /></svg>
                 </NavBtn>
               </div>
@@ -1372,7 +1372,7 @@ export default function AnalysisPage() {
                       const evalStr = formatEval(engineLine.evalCp);
                       const positive = (engineLine.evalCp ?? 0) >= 0;
                       return (
-                        <div key={li} className="flex items-center gap-2 rounded-lg bg-white/[0.04] px-2.5 py-1.5 min-w-0">
+                        <div key={li} className="flex items-center gap-2 rounded-lg bg-white/4 px-2.5 py-1.5 min-w-0">
                           <span className={`shrink-0 text-xs font-bold tabular-nums w-10 ${positive ? 'text-gray-100' : 'text-red-400'}`}>
                             {evalStr}
                           </span>
@@ -1441,6 +1441,17 @@ export default function AnalysisPage() {
                   )}
                 </div>
 
+                {/* Import Game — full-width CTA */}
+                <div className="shrink-0 px-3 pt-2 pb-1">
+                  <button
+                    type="button"
+                    onClick={() => { setParseError(null); setShowImportModal(true); }}
+                    className="w-full rounded-xl bg-amber-400 py-2.5 text-xs font-semibold text-[#0f1117] transition-colors hover:bg-amber-300"
+                  >
+                    Import Game
+                  </button>
+                </div>
+
                 {/* Position — FEN / PGN input strip */}
                 <div className="shrink-0 border-t border-white/5">
                   <div className="flex items-center gap-2 px-3 pt-2 pb-1.5">
@@ -1469,18 +1480,8 @@ export default function AnalysisPage() {
                     <div className="flex-1" />
                     <button
                       type="button"
-                      onClick={() => { setParseError(null); setShowImportModal(true); }}
-                      className="flex items-center gap-1 rounded border border-white/8 bg-white/[0.04] px-2.5 py-0.5 text-[10px] font-medium text-gray-400 transition-colors hover:bg-white/8 hover:text-white"
-                    >
-                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="h-3 w-3">
-                        <path d="M1 3.5A1.5 1.5 0 0 1 2.5 2h2.764c.958 0 1.76.56 2.311 1.184C7.985 3.648 8.48 4 9 4h4.5A1.5 1.5 0 0 1 15 5.5v.64c.57.265.94.876.856 1.546l-.64 5.124A2.5 2.5 0 0 1 12.733 15H3.266a2.5 2.5 0 0 1-2.481-2.19l-.64-5.124A1.5 1.5 0 0 1 1 6.14V3.5ZM2 6h12v-.5a.5.5 0 0 0-.5-.5H9c-.964 0-1.71-.629-2.174-1.154C6.374 3.334 5.82 3 5.264 3H2.5a.5.5 0 0 0-.5.5V6Zm-.367 1a.5.5 0 0 0-.496.562l.64 5.124A1.5 1.5 0 0 0 3.266 14h9.468a1.5 1.5 0 0 0 1.489-1.314l.64-5.124A.5.5 0 0 0 14.367 7H1.633Z"/>
-                      </svg>
-                      Import
-                    </button>
-                    <button
-                      type="button"
                       onClick={handlePositionLoad}
-                      className="flex items-center gap-1 rounded border border-white/8 bg-white/[0.04] px-2.5 py-0.5 text-[10px] font-medium text-gray-400 transition-colors hover:bg-white/8 hover:text-white"
+                      className="flex items-center gap-1 rounded border border-white/8 bg-white/4 px-2.5 py-0.5 text-[10px] font-medium text-gray-400 transition-colors hover:bg-white/8 hover:text-white"
                     >
                       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="h-3 w-3">
                         <path d="M8.75 2.75a.75.75 0 0 0-1.5 0v5.69L5.03 6.22a.75.75 0 0 0-1.06 1.06l3.5 3.5a.75.75 0 0 0 1.06 0l3.5-3.5a.75.75 0 0 0-1.06-1.06L8.75 8.44V2.75Z" />
@@ -1495,7 +1496,7 @@ export default function AnalysisPage() {
                       onChange={e => { setPositionText(e.target.value); setPositionError(null); }}
                       rows={3}
                       spellCheck={false}
-                      className={`w-full resize-none rounded-lg border bg-white/[0.03] px-2.5 py-1.5 font-mono text-[10px] leading-relaxed text-gray-300 placeholder-gray-600 focus:outline-none transition-colors ${
+                      className={`w-full resize-none rounded-lg border bg-white/3 px-2.5 py-1.5 font-mono text-[10px] leading-relaxed text-gray-300 placeholder-gray-600 focus:outline-none transition-colors ${
                         positionError
                           ? 'border-red-500/40 focus:border-red-500/60'
                           : 'border-white/8 focus:border-white/20'
@@ -1526,7 +1527,7 @@ export default function AnalysisPage() {
 
                     {/* Engine selector (static — only one version available) */}
                     <div className="mb-4">
-                      <div className="flex items-center justify-between rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2">
+                      <div className="flex items-center justify-between rounded-lg border border-white/10 bg-white/4 px-3 py-2">
                         <span className="text-sm font-medium text-white">{ENGINE_DISPLAY_NAME}</span>
                         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="h-3.5 w-3.5 text-gray-600">
                           <path d="M6 9l6 6 6-6" />
@@ -1637,7 +1638,7 @@ export default function AnalysisPage() {
                     {/* Engine progress overlay */}
                     {isEngineRunning && (
                       <div className="flex flex-1 min-h-0 flex-col items-center justify-center gap-5 px-6 py-8">
-                        <div className="w-full max-w-[160px]">
+                        <div className="w-full max-w-40">
                           <div className="mb-2 flex items-center justify-between">
                             <p className="text-xs font-medium text-gray-300">Analyzing</p>
                             <span className="text-xs tabular-nums text-gray-500">
@@ -1735,6 +1736,17 @@ export default function AnalysisPage() {
                   </>
                 )}
 
+                {/* Import Game — full-width CTA */}
+                <div className="shrink-0 px-3 pt-2 pb-1">
+                  <button
+                    type="button"
+                    onClick={() => { setParseError(null); setShowImportModal(true); }}
+                    className="w-full rounded-xl bg-amber-400 py-2.5 text-xs font-semibold text-[#0f1117] transition-colors hover:bg-amber-300"
+                  >
+                    Import Game
+                  </button>
+                </div>
+
                 {/* Position — FEN / PGN input strip */}
                 <div className="shrink-0 border-t border-white/5">
                   <div className="flex items-center gap-2 px-3 pt-2 pb-1.5">
@@ -1762,18 +1774,8 @@ export default function AnalysisPage() {
                     <div className="flex-1" />
                     <button
                       type="button"
-                      onClick={() => { setParseError(null); setShowImportModal(true); }}
-                      className="flex items-center gap-1 rounded border border-white/8 bg-white/[0.04] px-2.5 py-0.5 text-[10px] font-medium text-gray-400 transition-colors hover:bg-white/8 hover:text-white"
-                    >
-                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="h-3 w-3">
-                        <path d="M1 3.5A1.5 1.5 0 0 1 2.5 2h2.764c.958 0 1.76.56 2.311 1.184C7.985 3.648 8.48 4 9 4h4.5A1.5 1.5 0 0 1 15 5.5v.64c.57.265.94.876.856 1.546l-.64 5.124A2.5 2.5 0 0 1 12.733 15H3.266a2.5 2.5 0 0 1-2.481-2.19l-.64-5.124A1.5 1.5 0 0 1 1 6.14V3.5ZM2 6h12v-.5a.5.5 0 0 0-.5-.5H9c-.964 0-1.71-.629-2.174-1.154C6.374 3.334 5.82 3 5.264 3H2.5a.5.5 0 0 0-.5.5V6Zm-.367 1a.5.5 0 0 0-.496.562l.64 5.124A1.5 1.5 0 0 0 3.266 14h9.468a1.5 1.5 0 0 0 1.489-1.314l.64-5.124A.5.5 0 0 0 14.367 7H1.633Z"/>
-                      </svg>
-                      Import
-                    </button>
-                    <button
-                      type="button"
                       onClick={handlePositionLoad}
-                      className="flex items-center gap-1 rounded border border-white/8 bg-white/[0.04] px-2.5 py-0.5 text-[10px] font-medium text-gray-400 transition-colors hover:bg-white/8 hover:text-white"
+                      className="flex items-center gap-1 rounded border border-white/8 bg-white/4 px-2.5 py-0.5 text-[10px] font-medium text-gray-400 transition-colors hover:bg-white/8 hover:text-white"
                     >
                       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="h-3 w-3">
                         <path d="M8.75 2.75a.75.75 0 0 0-1.5 0v5.69L5.03 6.22a.75.75 0 0 0-1.06 1.06l3.5 3.5a.75.75 0 0 0 1.06 0l3.5-3.5a.75.75 0 0 0-1.06-1.06L8.75 8.44V2.75Z" />
@@ -1788,7 +1790,7 @@ export default function AnalysisPage() {
                       onChange={e => { setPositionText(e.target.value); setPositionError(null); }}
                       rows={3}
                       spellCheck={false}
-                      className={`w-full resize-none rounded-lg border bg-white/[0.03] px-2.5 py-1.5 font-mono text-[10px] leading-relaxed text-gray-300 placeholder-gray-600 focus:outline-none transition-colors ${
+                      className={`w-full resize-none rounded-lg border bg-white/3 px-2.5 py-1.5 font-mono text-[10px] leading-relaxed text-gray-300 placeholder-gray-600 focus:outline-none transition-colors ${
                         positionError
                           ? 'border-red-500/40 focus:border-red-500/60'
                           : 'border-white/8 focus:border-white/20'
