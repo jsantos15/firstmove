@@ -1459,15 +1459,15 @@ export default function AnalysisPage() {
                     )}
                   </div>
                   <div className="px-3 pb-2.5">
-                    {/* Mode toggle — tab style, flush above textarea */}
-                    <div className="flex text-[10px] font-medium">
+                    {/* Mode toggle — tab style, flush above textarea, right-aligned */}
+                    <div className="flex justify-end text-[10px] font-medium">
                       {(['pgn', 'fen'] as const).map((m, i) => (
                         <button
                           key={m}
                           type="button"
                           onClick={() => setPositionMode(m)}
                           className={`px-2.5 py-0.5 uppercase tracking-wide border-t border-b-0 transition-colors ${
-                            i === 0 ? 'rounded-tl-lg border-l' : 'rounded-tr-lg border-l border-r'
+                            i === 0 ? 'rounded-tl-lg border-l' : 'border-l border-r'
                           } ${
                             positionMode === m
                               ? 'bg-white/8 text-white border-white/15'
@@ -1484,7 +1484,7 @@ export default function AnalysisPage() {
                         onChange={e => { setPositionText(e.target.value); setPositionError(null); }}
                         rows={3}
                         spellCheck={false}
-                        className={`w-full resize-none rounded-tl-none rounded-tr-lg rounded-b-lg border bg-white/3 px-2.5 py-1.5 pr-8 font-mono text-[10px] leading-relaxed text-gray-300 placeholder-gray-600 focus:outline-none transition-colors ${
+                        className={`w-full resize-none rounded-tl-lg rounded-tr-none rounded-b-lg border bg-white/3 px-2.5 py-1.5 pr-8 font-mono text-[10px] leading-relaxed text-gray-300 placeholder-gray-600 focus:outline-none transition-colors ${
                           positionError
                             ? 'border-red-500/40 focus:border-red-500/60'
                             : 'border-white/8 focus:border-white/20'
