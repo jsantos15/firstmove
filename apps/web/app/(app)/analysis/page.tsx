@@ -1443,11 +1443,11 @@ export default function AnalysisPage() {
 
                 {/* Position — FEN / PGN input strip */}
                 <div className="shrink-0 border-t border-white/5">
-                  <div className="flex items-center gap-2 px-3 pt-2 pb-2">
+                  <div className="flex items-center gap-2 px-3 pt-2 pb-1.5">
                     <button
                       type="button"
                       onClick={() => { setParseError(null); setShowImportModal(true); }}
-                      className="flex flex-1 items-center justify-center gap-1.5 rounded border border-amber-400/35 bg-amber-400/8 px-3 py-1.5 text-xs font-medium text-amber-300 transition-colors hover:border-amber-400/55 hover:bg-amber-400/15 hover:text-amber-200"
+                      className="flex items-center gap-1.5 rounded border border-amber-400/35 bg-amber-400/8 px-3 py-1.5 text-xs font-medium text-amber-300 transition-colors hover:border-amber-400/55 hover:bg-amber-400/15 hover:text-amber-200"
                     >
                       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="h-3.5 w-3.5">
                         <path d="M1 3.5A1.5 1.5 0 0 1 2.5 2h2.764c.958 0 1.76.56 2.311 1.184C7.985 3.648 8.48 4 9 4h4.5A1.5 1.5 0 0 1 15 5.5v.64c.57.265.94.876.856 1.546l-.64 5.124A2.5 2.5 0 0 1 12.733 15H3.266a2.5 2.5 0 0 1-2.481-2.19l-.64-5.124A1.5 1.5 0 0 1 1 6.14V3.5ZM2 6h12v-.5a.5.5 0 0 0-.5-.5H9c-.964 0-1.71-.629-2.174-1.154C6.374 3.334 5.82 3 5.264 3H2.5a.5.5 0 0 0-.5.5V6Zm-.367 1a.5.5 0 0 0-.496.562l.64 5.124A1.5 1.5 0 0 0 3.266 14h9.468a1.5 1.5 0 0 0 1.489-1.314l.64-5.124A.5.5 0 0 0 14.367 7H1.633Z"/>
@@ -1457,34 +1457,34 @@ export default function AnalysisPage() {
                     {positionError && (
                       <span className="text-[10px] text-red-400 leading-none">{positionError}</span>
                     )}
-                  </div>
-                  <div className="px-3 pb-2.5">
-                    {/* Mode toggle — tab style, flush above textarea, right-aligned */}
-                    <div className="flex justify-end text-[10px] font-medium">
+                    <div className="flex-1" />
+                    <div className="flex overflow-hidden rounded border border-white/8 text-[10px] font-medium">
                       {(['pgn', 'fen'] as const).map((m, i) => (
                         <button
                           key={m}
                           type="button"
                           onClick={() => setPositionMode(m)}
-                          className={`px-2.5 py-0.5 uppercase tracking-wide border-t border-b-0 transition-colors ${
-                            i === 0 ? 'rounded-tl-lg border-l' : 'border-l border-r'
+                          className={`px-2 py-0.5 uppercase tracking-wide transition-colors ${
+                            i > 0 ? 'border-l border-white/8' : ''
                           } ${
                             positionMode === m
-                              ? 'bg-white/8 text-white border-white/15'
-                              : 'bg-transparent text-gray-500 border-white/8 hover:text-gray-300'
+                              ? 'bg-white/10 text-white'
+                              : 'text-gray-500 hover:text-gray-300'
                           }`}
                         >
                           {m}
                         </button>
                       ))}
                     </div>
+                  </div>
+                  <div className="px-3 pb-2.5">
                     <div className="relative">
                       <textarea
                         value={positionText}
                         onChange={e => { setPositionText(e.target.value); setPositionError(null); }}
                         rows={3}
                         spellCheck={false}
-                        className={`w-full resize-none rounded-tl-lg rounded-tr-none rounded-b-lg border bg-white/3 px-2.5 py-1.5 pr-8 font-mono text-[10px] leading-relaxed text-gray-300 placeholder-gray-600 focus:outline-none transition-colors ${
+                        className={`w-full resize-none rounded-lg border bg-white/3 px-2.5 py-1.5 pr-8 font-mono text-[10px] leading-relaxed text-gray-300 placeholder-gray-600 focus:outline-none transition-colors ${
                           positionError
                             ? 'border-red-500/40 focus:border-red-500/60'
                             : 'border-white/8 focus:border-white/20'
