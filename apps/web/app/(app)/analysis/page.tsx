@@ -1469,6 +1469,16 @@ export default function AnalysisPage() {
                     <div className="flex-1" />
                     <button
                       type="button"
+                      onClick={() => { setParseError(null); setShowImportModal(true); }}
+                      className="flex items-center gap-1 rounded border border-white/8 bg-white/[0.04] px-2.5 py-0.5 text-[10px] font-medium text-gray-400 transition-colors hover:bg-white/8 hover:text-white"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="h-3 w-3">
+                        <path d="M1 3.5A1.5 1.5 0 0 1 2.5 2h2.764c.958 0 1.76.56 2.311 1.184C7.985 3.648 8.48 4 9 4h4.5A1.5 1.5 0 0 1 15 5.5v.64c.57.265.94.876.856 1.546l-.64 5.124A2.5 2.5 0 0 1 12.733 15H3.266a2.5 2.5 0 0 1-2.481-2.19l-.64-5.124A1.5 1.5 0 0 1 1 6.14V3.5ZM2 6h12v-.5a.5.5 0 0 0-.5-.5H9c-.964 0-1.71-.629-2.174-1.154C6.374 3.334 5.82 3 5.264 3H2.5a.5.5 0 0 0-.5.5V6Zm-.367 1a.5.5 0 0 0-.496.562l.64 5.124A1.5 1.5 0 0 0 3.266 14h9.468a1.5 1.5 0 0 0 1.489-1.314l.64-5.124A.5.5 0 0 0 14.367 7H1.633Z"/>
+                      </svg>
+                      Import
+                    </button>
+                    <button
+                      type="button"
                       onClick={handlePositionLoad}
                       className="flex items-center gap-1 rounded border border-white/8 bg-white/[0.04] px-2.5 py-0.5 text-[10px] font-medium text-gray-400 transition-colors hover:bg-white/8 hover:text-white"
                     >
@@ -1614,25 +1624,10 @@ export default function AnalysisPage() {
 
                 {/* ── No game loaded ── */}
                 {!analyzedGame && (
-                  <div className="flex flex-1 min-h-0 flex-col items-center justify-center gap-4 px-6 py-8 text-center">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/10">
-                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5 text-gray-600">
-                        <path d="M9 12h6m-3-3v6m-7 4h14a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2Z" />
-                      </svg>
-                    </div>
-                    <div>
-                      <p className="text-sm font-medium text-gray-400">No game loaded</p>
-                      <p className="mt-1 text-xs leading-5 text-gray-600">
-                        Import a PGN to review moves, run the engine, and get coach feedback on every position.
-                      </p>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => { setParseError(null); setShowImportModal(true); }}
-                      className="rounded-lg bg-amber-400 px-5 py-2 text-xs font-semibold text-[#0f1117] transition-colors hover:bg-amber-300"
-                    >
-                      Import game
-                    </button>
+                  <div className="flex-1 min-h-0 flex items-start justify-center pt-6">
+                    <p className="text-xs text-gray-600 text-center px-6 leading-5">
+                      Paste a PGN below and click Load, or use Import to open the full import dialog.
+                    </p>
                   </div>
                 )}
 
@@ -1765,6 +1760,16 @@ export default function AnalysisPage() {
                       <span className="text-[10px] text-red-400 leading-none">{positionError}</span>
                     )}
                     <div className="flex-1" />
+                    <button
+                      type="button"
+                      onClick={() => { setParseError(null); setShowImportModal(true); }}
+                      className="flex items-center gap-1 rounded border border-white/8 bg-white/[0.04] px-2.5 py-0.5 text-[10px] font-medium text-gray-400 transition-colors hover:bg-white/8 hover:text-white"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="h-3 w-3">
+                        <path d="M1 3.5A1.5 1.5 0 0 1 2.5 2h2.764c.958 0 1.76.56 2.311 1.184C7.985 3.648 8.48 4 9 4h4.5A1.5 1.5 0 0 1 15 5.5v.64c.57.265.94.876.856 1.546l-.64 5.124A2.5 2.5 0 0 1 12.733 15H3.266a2.5 2.5 0 0 1-2.481-2.19l-.64-5.124A1.5 1.5 0 0 1 1 6.14V3.5ZM2 6h12v-.5a.5.5 0 0 0-.5-.5H9c-.964 0-1.71-.629-2.174-1.154C6.374 3.334 5.82 3 5.264 3H2.5a.5.5 0 0 0-.5.5V6Zm-.367 1a.5.5 0 0 0-.496.562l.64 5.124A1.5 1.5 0 0 0 3.266 14h9.468a1.5 1.5 0 0 0 1.489-1.314l.64-5.124A.5.5 0 0 0 14.367 7H1.633Z"/>
+                      </svg>
+                      Import
+                    </button>
                     <button
                       type="button"
                       onClick={handlePositionLoad}
