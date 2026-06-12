@@ -28,6 +28,39 @@ import {
 } from '@/lib/coachFeedback';
 import type { AnalyzedGame, AnalyzedGameMove } from '@firstmove/core';
 
+interface GameDetails {
+  white: string; whiteElo: string;
+  black: string; blackElo: string;
+  result: string; event: string;
+  timeControl: string; termination: string;
+  location: string; round: string;
+  eco: string; date: string;
+}
+
+const EMPTY_GAME_DETAILS: GameDetails = {
+  white: '', whiteElo: '', black: '', blackElo: '',
+  result: '*', event: '', timeControl: '', termination: '',
+  location: '', round: '', eco: '', date: '',
+};
+
+function parsePgnHeaders(pgn: string): GameDetails {
+  const get = (key: string) => pgn.match(new RegExp(`\\[${key}\\s+"([^"]*)"\\]`))?.[1] ?? '';
+  return {
+    white: get('White').replace(/\?/g, ''),
+    whiteElo: get('WhiteElo').replace(/\?/g, ''),
+    black: get('Black').replace(/\?/g, ''),
+    blackElo: get('BlackElo').replace(/\?/g, ''),
+    result: get('Result') || '*',
+    event: get('Event').replace(/\?/g, ''),
+    timeControl: get('TimeControl').replace(/\?/g, ''),
+    termination: get('Termination'),
+    location: get('Site').replace(/\?/g, ''),
+    round: get('Round').replace(/\?/g, ''),
+    eco: get('ECO'),
+    date: get('Date').replace(/\?/g, ''),
+  };
+}
+
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const INITIAL_FEN = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
@@ -636,6 +669,9 @@ export default function AnalysisPage() {
   const [positionDirty, setPositionDirty] = useState(false);
   const [positionError, setPositionError] = useState<string | null>(null);
   const positionTextareaRef = useRef<HTMLTextAreaElement>(null);
+  const [gameDetails, setGameDetails] = useState<GameDetails>(EMPTY_GAME_DETAILS);
+  const [showGameDetailsModal, setShowGameDetailsModal] = useState(false);
+  const [gameDetailsDraft, setGameDetailsDraft] = useState<GameDetails>(EMPTY_GAME_DETAILS);
   const { theme, animationDuration, settings, setSettings } = useBoardSettings();
   const { settings: coachSettings } = useCoachSettings();
   const customPieces = useMemo(() => getCustomPieces(settings.pieceSetId), [settings.pieceSetId]);
@@ -973,6 +1009,7 @@ export default function AnalysisPage() {
         setCoachByPly(new Map());
         setPositionError(null);
         setPositionDirty(false);
+        setGameDetails(EMPTY_GAME_DETAILS);
       } catch {
         setPositionError('Invalid FEN');
       }
@@ -1003,6 +1040,7 @@ export default function AnalysisPage() {
         setCoachByPly(new Map());
         setPositionError(null);
         setPositionDirty(false);
+        setGameDetails(parsePgnHeaders(text));
       } catch {
         setPositionError('Invalid PGN');
       }
@@ -1416,6 +1454,29 @@ export default function AnalysisPage() {
 
                 {/* Explore moves — fills all remaining space */}
                 <div className="flex-1 min-h-0 overflow-y-auto border-t border-white/5">
+                  {/* Players header row — shown whenever there is a game or free-play moves */}
+                  {(analyzedGame || exploreHistory.length > 0) && (
+                    <div className="flex items-center gap-2 border-b border-white/5 px-3 py-2">
+                      <span className="flex-1 truncate text-sm font-medium text-gray-300">
+                        {gameDetails.white || 'White'}
+                        {gameDetails.whiteElo ? ` (${gameDetails.whiteElo})` : ''}
+                        {' – '}
+                        {gameDetails.black || 'Black'}
+                        {gameDetails.blackElo ? ` (${gameDetails.blackElo})` : ''}
+                      </span>
+                      <button
+                        type="button"
+                        title="Edit game details"
+                        onClick={() => { setGameDetailsDraft(gameDetails); setShowGameDetailsModal(true); }}
+                        className="shrink-0 text-gray-600 transition-colors hover:text-gray-300"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4">
+                          <path d="M5.433 13.917l1.262-3.155A4 4 0 0 1 7.58 9.42l6.92-6.918a2.121 2.121 0 0 1 3 3l-6.92 6.918c-.383.383-.84.685-1.343.886l-3.154 1.262a.5.5 0 0 1-.65-.65Z" />
+                          <path d="M3.5 5.75c0-.69.56-1.25 1.25-1.25H10A.75.75 0 0 0 10 3H4.75A2.75 2.75 0 0 0 2 5.75v9.5A2.75 2.75 0 0 0 4.75 18h9.5A2.75 2.75 0 0 0 17 15.25V10a.75.75 0 0 0-1.5 0v5.25c0 .69-.56 1.25-1.25 1.25h-9.5c-.69 0-1.25-.56-1.25-1.25v-9.5Z" />
+                        </svg>
+                      </button>
+                    </div>
+                  )}
                   {exploreHistory.length === 0 && analyzedGame && analyzedGame.moves.length > 0 ? (
                     <AnalysisMoveList
                       game={analyzedGame}
@@ -1760,11 +1821,33 @@ export default function AnalysisPage() {
                               )}
                             </div>
                           ) : (
-                            <AnalysisMoveList
-                              game={analyzedGame}
-                              currentPlyIndex={currentPlyIndex}
-                              onNavigate={goTo}
-                            />
+                            <div className="flex flex-1 min-h-0 flex-col">
+                              <div className="flex items-center gap-2 border-b border-white/5 px-3 py-2 shrink-0">
+                                <span className="flex-1 truncate text-sm font-medium text-gray-300">
+                                  {gameDetails.white || 'White'}
+                                  {gameDetails.whiteElo ? ` (${gameDetails.whiteElo})` : ''}
+                                  {' – '}
+                                  {gameDetails.black || 'Black'}
+                                  {gameDetails.blackElo ? ` (${gameDetails.blackElo})` : ''}
+                                </span>
+                                <button
+                                  type="button"
+                                  title="Edit game details"
+                                  onClick={() => { setGameDetailsDraft(gameDetails); setShowGameDetailsModal(true); }}
+                                  className="shrink-0 text-gray-600 transition-colors hover:text-gray-300"
+                                >
+                                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4">
+                                    <path d="M5.433 13.917l1.262-3.155A4 4 0 0 1 7.58 9.42l6.92-6.918a2.121 2.121 0 0 1 3 3l-6.92 6.918c-.383.383-.84.685-1.343.886l-3.154 1.262a.5.5 0 0 1-.65-.65Z" />
+                                    <path d="M3.5 5.75c0-.69.56-1.25 1.25-1.25H10A.75.75 0 0 0 10 3H4.75A2.75 2.75 0 0 0 2 5.75v9.5A2.75 2.75 0 0 0 4.75 18h9.5A2.75 2.75 0 0 0 17 15.25V10a.75.75 0 0 0-1.5 0v5.25c0 .69-.56 1.25-1.25 1.25h-9.5c-.69 0-1.25-.56-1.25-1.25v-9.5Z" />
+                                  </svg>
+                                </button>
+                              </div>
+                              <AnalysisMoveList
+                                game={analyzedGame}
+                                currentPlyIndex={currentPlyIndex}
+                                onNavigate={goTo}
+                              />
+                            </div>
                           )}
                         </div>
 
@@ -1853,6 +1936,87 @@ export default function AnalysisPage() {
           onImport={handleImport}
           error={parseError}
         />
+      )}
+
+      {/* Game Details modal */}
+      {showGameDetailsModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="w-full max-w-sm rounded-2xl border border-white/10 bg-[#1a1a2e] shadow-2xl">
+            <div className="flex items-center justify-between border-b border-white/8 px-5 py-4">
+              <h2 className="text-base font-semibold text-white">Game Details</h2>
+              <button type="button" onClick={() => setShowGameDetailsModal(false)} className="text-gray-500 hover:text-white transition-colors">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="h-5 w-5">
+                  <path d="M6.28 5.22a.75.75 0 0 0-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 1 0 1.06 1.06L10 11.06l3.72 3.72a.75.75 0 1 0 1.06-1.06L11.06 10l3.72-3.72a.75.75 0 0 0-1.06-1.06L10 8.94 6.28 5.22Z" />
+                </svg>
+              </button>
+            </div>
+            <div className="space-y-2.5 px-5 py-4">
+              {/* White / Black rows */}
+              {(['white', 'black'] as const).map(color => (
+                <div key={color} className="flex gap-2">
+                  <input
+                    type="text"
+                    placeholder={color === 'white' ? 'White Player' : 'Black Player'}
+                    value={gameDetailsDraft[color]}
+                    onChange={e => setGameDetailsDraft(d => ({ ...d, [color]: e.target.value }))}
+                    className="flex-1 rounded-lg border border-white/8 bg-white/5 px-3 py-2 text-sm text-gray-200 placeholder-gray-600 focus:border-white/20 focus:outline-none"
+                  />
+                  <input
+                    type="text"
+                    placeholder="Rating"
+                    value={gameDetailsDraft[color === 'white' ? 'whiteElo' : 'blackElo']}
+                    onChange={e => setGameDetailsDraft(d => ({ ...d, [color === 'white' ? 'whiteElo' : 'blackElo']: e.target.value }))}
+                    className="w-20 rounded-lg border border-white/8 bg-white/5 px-3 py-2 text-sm text-gray-200 placeholder-gray-600 focus:border-white/20 focus:outline-none"
+                  />
+                </div>
+              ))}
+              {/* Result */}
+              <select
+                value={gameDetailsDraft.result}
+                onChange={e => setGameDetailsDraft(d => ({ ...d, result: e.target.value }))}
+                className="w-full rounded-lg border border-white/8 bg-white/5 px-3 py-2 text-sm text-gray-200 focus:border-white/20 focus:outline-none"
+              >
+                {[['*', 'No Result (*)'], ['1-0', 'White wins (1-0)'], ['0-1', 'Black wins (0-1)'], ['1/2-1/2', 'Draw (½-½)']].map(([v, l]) => (
+                  <option key={v} value={v} className="bg-[#1a1a2e]">{l}</option>
+                ))}
+              </select>
+              {/* Single-line fields */}
+              {(['event', 'timeControl', 'termination', 'location'] as const).map(field => (
+                <input
+                  key={field}
+                  type="text"
+                  placeholder={{ event: 'Event', timeControl: 'Time Control', termination: 'Termination', location: 'Location' }[field]}
+                  value={gameDetailsDraft[field]}
+                  onChange={e => setGameDetailsDraft(d => ({ ...d, [field]: e.target.value }))}
+                  className="w-full rounded-lg border border-white/8 bg-white/5 px-3 py-2 text-sm text-gray-200 placeholder-gray-600 focus:border-white/20 focus:outline-none"
+                />
+              ))}
+              {/* Round / ECO / Date row */}
+              <div className="flex gap-2">
+                {(['round', 'eco', 'date'] as const).map(field => (
+                  <input
+                    key={field}
+                    type="text"
+                    placeholder={{ round: 'Round', eco: 'ECO', date: 'Date' }[field]}
+                    value={gameDetailsDraft[field]}
+                    onChange={e => setGameDetailsDraft(d => ({ ...d, [field]: e.target.value }))}
+                    className="flex-1 rounded-lg border border-white/8 bg-white/5 px-3 py-2 text-sm text-gray-200 placeholder-gray-600 focus:border-white/20 focus:outline-none"
+                  />
+                ))}
+              </div>
+            </div>
+            <div className="flex gap-2 border-t border-white/8 px-5 py-4">
+              <button type="button" onClick={() => setShowGameDetailsModal(false)}
+                className="flex-1 rounded-lg border border-white/10 py-2 text-sm font-medium text-gray-300 transition-colors hover:border-white/20 hover:text-white">
+                Cancel
+              </button>
+              <button type="button" onClick={() => { setGameDetails(gameDetailsDraft); setShowGameDetailsModal(false); }}
+                className="flex-1 rounded-lg bg-amber-500 py-2 text-sm font-semibold text-black transition-colors hover:bg-amber-400">
+                Save
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
