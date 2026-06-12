@@ -88,7 +88,7 @@ function printUsage() {
 Options:
   --openings <list>          Comma-separated opening names or slugified names from opening_index
   --next-missing <count>     Run the next N opening_index rows where course_slug is null
-  --resume                   Pass --resume to reference generation
+  --resume                   Resume reference generation and branch generation checkpoints
   --dry-run-import           Prepare payloads but dry-run the branch import
   --skip-reference-sync      Do not prune stale reference rows after reference import
   --skip-branch-reset        Do not delete existing practical branches before branch import
@@ -237,6 +237,7 @@ function fileSet(row) {
     referenceOutput: path.join(OUTPUT_DIR, `generated-opening-candidates-${slug}-cloud-reference.json`),
     referencePayload: path.join(OUTPUT_DIR, `opening-db-payload-${slug}-cloud-reference.json`),
     branchOutput: path.join(OUTPUT_DIR, `generated-opening-branches-${slug}.json`),
+    branchCheckpoint: path.join(OUTPUT_DIR, `generated-opening-branches-${slug}.json.checkpoint.json`),
     branchPayload: path.join(OUTPUT_DIR, `opening-db-payload-${slug}-branches.json`),
   };
 }
@@ -285,6 +286,23 @@ function assertDbPayload(filePath, label) {
 function branchOpeningSlugs(branchPayloadPath) {
   const { openings } = assertDbPayload(branchPayloadPath, "branch");
   return openings.map((row) => row.slug).filter(Boolean);
+}
+
+function canResumeBranchGeneration(files, label) {
+  if (!fs.existsSync(files.branchCheckpoint)) return false;
+
+  try {
+    assertReferencePayload(files.referenceOutput, label);
+    assertDbPayload(files.referencePayload, `${label} reference`);
+    return true;
+  } catch (error) {
+    console.warn(
+      `${label} branch checkpoint exists, but reference artifacts are not reusable: ${
+        error instanceof Error ? error.message : String(error)
+      }`
+    );
+    return false;
+  }
 }
 
 async function patchCatalogPopularityFromIndex(env) {
@@ -350,45 +368,49 @@ async function runCourse(row, args, env) {
   console.log(`Variation count: ${row.variation_count ?? "unknown"}`);
   console.log(`SAN prefix: ${sanPrefix}`);
 
-  runStep(`${label} reference generate`, "generate-opening-candidates.cjs", [
-    "--starts-with",
-    label,
-    "--san-prefix",
-    sanPrefix,
-    "--output",
-    files.referenceOutput,
-    "--cloud-eval-mode",
-    args.cloudEvalMode,
-    ...(args.resume ? ["--resume"] : []),
-    ...args.generateArgs,
-  ]);
-  const reference = assertReferencePayload(files.referenceOutput, label);
+  if (args.resume && canResumeBranchGeneration(files, label)) {
+    console.log(`${label}: branch checkpoint found; skipping completed reference phase.`);
+  } else {
+    runStep(`${label} reference generate`, "generate-opening-candidates.cjs", [
+      "--starts-with",
+      label,
+      "--san-prefix",
+      sanPrefix,
+      "--output",
+      files.referenceOutput,
+      "--cloud-eval-mode",
+      args.cloudEvalMode,
+      ...(args.resume ? ["--resume"] : []),
+      ...args.generateArgs,
+    ]);
+    assertReferencePayload(files.referenceOutput, label);
 
-  runStep(`${label} reference dedup`, "dedup-opening-candidates.cjs", [
-    "--input",
-    files.referenceOutput,
-  ]);
+    runStep(`${label} reference dedup`, "dedup-opening-candidates.cjs", [
+      "--input",
+      files.referenceOutput,
+    ]);
 
-  runStep(`${label} reference prepare`, "prepare-opening-db-payload.cjs", [
-    "--input",
-    files.referenceOutput,
-    "--output",
-    files.referencePayload,
-  ]);
-  const referencePayload = assertDbPayload(files.referencePayload, `${label} reference`);
+    runStep(`${label} reference prepare`, "prepare-opening-db-payload.cjs", [
+      "--input",
+      files.referenceOutput,
+      "--output",
+      files.referencePayload,
+    ]);
+    assertDbPayload(files.referencePayload, `${label} reference`);
 
-  runStep(`${label} reference import`, "import-opening-db-payload.cjs", [
-    "--input",
-    files.referencePayload,
-  ]);
-
-  if (!args.skipReferenceSync) {
-    runStep(`${label} reference sync`, "sync-opening-db-payload.cjs", [
+    runStep(`${label} reference import`, "import-opening-db-payload.cjs", [
       "--input",
       files.referencePayload,
-      "--scope-payload-openings",
-      "--apply",
     ]);
+
+    if (!args.skipReferenceSync) {
+      runStep(`${label} reference sync`, "sync-opening-db-payload.cjs", [
+        "--input",
+        files.referencePayload,
+        "--scope-payload-openings",
+        "--apply",
+      ]);
+    }
   }
 
   runStep(`${label} branch generate`, "generate-opening-branches.cjs", [
@@ -396,6 +418,9 @@ async function runCourse(row, args, env) {
     files.referenceOutput,
     "--output",
     files.branchOutput,
+    "--checkpoint",
+    files.branchCheckpoint,
+    ...(args.resume ? [] : ["--no-resume"]),
     ...args.branchArgs,
   ]);
   const branchOutput = readJson(files.branchOutput, `${label} branch output`);
