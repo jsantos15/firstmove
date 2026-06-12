@@ -1381,13 +1381,32 @@ export default function AnalysisPage() {
                       const pvFormatted = formatPvLine(boardFen, engineLine.pvUci);
                       const evalStr = formatEval(engineLine.evalCp);
                       const positive = (engineLine.evalCp ?? 0) >= 0;
+                      // Compute the best move SAN for highlighting
+                      let bestSan: string | null = null;
+                      const firstUci = engineLine.pvUci[0];
+                      if (firstUci) {
+                        try {
+                          const c = new Chess(boardFen);
+                          const m = c.move({ from: firstUci.slice(0, 2), to: firstUci.slice(2, 4), promotion: (firstUci[4] ?? 'q') as 'q' | 'r' | 'b' | 'n' });
+                          bestSan = m?.san ?? null;
+                        } catch {}
+                      }
+                      const bestIdx = bestSan ? pvFormatted.indexOf(bestSan) : -1;
                       return (
                         <div key={li} className="flex items-center gap-2 rounded-lg bg-white/4 px-2.5 py-1.5 min-w-0">
                           <span className={`shrink-0 text-xs font-bold tabular-nums w-10 ${positive ? 'text-gray-100' : 'text-red-400'}`}>
                             {evalStr}
                           </span>
-                          <span className="flex-1 truncate font-mono text-xs text-gray-300">
-                            {pvFormatted}
+                          <span className="flex-1 truncate font-mono text-xs">
+                            {bestSan && bestIdx !== -1 ? (
+                              <>
+                                <span className="text-gray-500">{pvFormatted.slice(0, bestIdx)}</span>
+                                <span className="text-amber-300 font-semibold">{bestSan}</span>
+                                <span className="text-gray-400">{pvFormatted.slice(bestIdx + bestSan.length)}</span>
+                              </>
+                            ) : (
+                              <span className="text-gray-300">{pvFormatted}</span>
+                            )}
                           </span>
                         </div>
                       );
