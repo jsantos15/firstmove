@@ -631,8 +631,8 @@ export default function AnalysisPage() {
   const [exploreHistoryIndex, setExploreHistoryIndex] = useState(-1);
   const [selectedSquare, setSelectedSquare] = useState<string | null>(null);
   const [baseFen, setBaseFen] = useState<string | null>(null);
-  const [positionMode, setPositionMode] = useState<'fen' | 'pgn'>('fen');
-  const [positionText, setPositionText] = useState(INITIAL_FEN);
+  const [positionMode, setPositionMode] = useState<'fen' | 'pgn'>('pgn');
+  const [positionText, setPositionText] = useState('');
   const [positionError, setPositionError] = useState<string | null>(null);
   const { theme, animationDuration, settings, setSettings } = useBoardSettings();
   const { settings: coachSettings } = useCoachSettings();
