@@ -2,7 +2,7 @@ import { useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Chess, type Opening, type OpeningMove, type OpeningVariation } from '@firstmove/core';
 import {
-  getOpeningIndex,
+  getReadyOpeningIndex,
   getOpeningCatalogBySlug,
   getOpeningLineBranchMetadataBySlug,
   getOpeningLinesBySlug,
@@ -74,7 +74,7 @@ const OPENING_INTRO_COPY: Record<string, string> = {
   'caro-kann-defense':
     'The Caro-Kann Defense is a solid answer to 1.e4 where Black supports ...d5 with ...c6. It teaches sturdy pawn structures, patient development, and clean counterplay without weakening the king.',
 };
-const OPENING_LIST_CACHE_KEY = 'firstmove:opening-list:v1';
+const OPENING_LIST_CACHE_KEY = 'firstmove:opening-list:v2';
 const OPENING_LIST_STALE_TIME_MS = 5 * 60 * 1000;
 const OPENING_LIST_GC_TIME_MS = 24 * 60 * 60 * 1000;
 
@@ -349,7 +349,7 @@ export function useOpenings() {
     staleTime: OPENING_LIST_STALE_TIME_MS,
     gcTime: OPENING_LIST_GC_TIME_MS,
     queryFn: async () => {
-      const indexRows = await getOpeningIndex();
+      const indexRows = await getReadyOpeningIndex();
       const openings = indexRows.flatMap(row => {
         const opening = buildOpeningIndexCard(row);
         return opening ? [opening] : [];

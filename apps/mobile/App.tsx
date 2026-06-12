@@ -12,20 +12,14 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { getOpeningIndex, type OpeningIndexRow } from '@firstmove/supabase';
+import { getReadyOpeningIndex, type OpeningIndexRow } from '@firstmove/supabase';
 
 type OpeningCardModel = {
   id: string;
-  ecoCode: string;
   name: string;
   color: NonNullable<OpeningIndexRow['course_color']>;
   difficulty: NonNullable<OpeningIndexRow['course_difficulty']>;
-  description: string;
-  tags: string[];
-  popularityGames?: number;
   lineCount: number;
-  referenceLineCount: number;
-  practicalBranchCount: number;
 };
 
 const queryClient = new QueryClient({
@@ -39,82 +33,41 @@ const queryClient = new QueryClient({
 });
 
 function buildOpeningCard(row: OpeningIndexRow): OpeningCardModel | null {
-  if (
-    !row.course_slug ||
-    !row.course_color ||
-    !row.course_difficulty ||
-    !row.course_description ||
-    !row.name
-  ) {
-    return null;
-  }
-
-  const referenceLineCount = row.reference_line_count ?? 0;
-  const practicalBranchCount = row.practical_branch_count ?? 0;
-  if (referenceLineCount === 0 || practicalBranchCount === 0) {
+  if (!row.course_slug || !row.course_color || !row.course_difficulty || !row.name) {
     return null;
   }
 
   return {
     id: row.course_slug,
-    ecoCode: row.eco_code ?? '',
     name: row.name,
     color: row.course_color,
     difficulty: row.course_difficulty,
-    description: row.course_description,
-    tags: row.course_tags ?? [],
-    popularityGames: row.popularity_games ?? undefined,
-    lineCount: row.course_line_count ?? referenceLineCount + practicalBranchCount,
-    referenceLineCount,
-    practicalBranchCount,
+    lineCount: row.reference_line_count ?? 0,
   };
 }
 
-function formatGames(games?: number) {
-  if (!games) return null;
-  if (games >= 1_000_000) return `${(games / 1_000_000).toFixed(1)}M games`;
-  if (games >= 1_000) return `${Math.round(games / 1_000)}K games`;
-  return `${games.toLocaleString()} games`;
-}
-
 function OpeningCard({ opening }: { opening: OpeningCardModel }) {
-  const games = formatGames(opening.popularityGames);
-
   return (
     <Pressable style={styles.card}>
-      <View style={styles.cardHeader}>
-        <View style={styles.titleGroup}>
-          <Text style={styles.eco}>{opening.ecoCode || 'ECO'}</Text>
-          <Text style={styles.name}>{opening.name}</Text>
-        </View>
+      <View style={styles.badgeRow}>
         <Text style={styles.colorBadge}>{opening.color}</Text>
+        <Text style={styles.difficultyBadge}>{opening.difficulty}</Text>
       </View>
 
-      <Text style={styles.description} numberOfLines={3}>
-        {opening.description}
+      <Text style={styles.name} numberOfLines={2}>
+        {opening.name}
       </Text>
 
-      <View style={styles.metaRow}>
-        <Text style={styles.metaText}>{opening.difficulty}</Text>
-        <Text style={styles.dot}>•</Text>
+      <View style={styles.progressRow}>
+        <View style={styles.progressTrack}>
+          <View style={styles.progressFill} />
+        </View>
         <Text style={styles.metaText}>{opening.lineCount} lines</Text>
-        {games ? (
-          <>
-            <Text style={styles.dot}>•</Text>
-            <Text style={styles.metaText}>{games}</Text>
-          </>
-        ) : null}
       </View>
 
-      <View style={styles.countRow}>
-        <View style={styles.countPill}>
-          <Text style={styles.countValue}>{opening.referenceLineCount}</Text>
-          <Text style={styles.countLabel}>Reference</Text>
-        </View>
-        <View style={styles.countPill}>
-          <Text style={styles.countValue}>{opening.practicalBranchCount}</Text>
-          <Text style={styles.countLabel}>Punish</Text>
-        </View>
+      <View style={styles.statusRow}>
+        <Text style={styles.statusText}>0/{opening.lineCount} completed</Text>
+        <Text style={styles.statusText}>Not started</Text>
       </View>
     </Pressable>
   );
@@ -123,7 +76,7 @@ function OpeningCard({ opening }: { opening: OpeningCardModel }) {
 function OpeningsScreen() {
   const { data, error, isLoading, isRefetching, refetch } = useQuery({
     queryKey: ['openings'],
-    queryFn: getOpeningIndex,
+    queryFn: getReadyOpeningIndex,
   });
 
   const openings = useMemo(
@@ -242,20 +195,11 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     padding: 16,
   },
-  cardHeader: {
-    alignItems: 'flex-start',
+  badgeRow: {
+    alignItems: 'center',
     flexDirection: 'row',
-    gap: 12,
-    justifyContent: 'space-between',
-  },
-  titleGroup: {
-    flex: 1,
-  },
-  eco: {
-    color: '#2563eb',
-    fontSize: 12,
-    fontWeight: '800',
-    marginBottom: 3,
+    gap: 6,
+    marginBottom: 10,
   },
   name: {
     color: '#111827',
@@ -274,51 +218,50 @@ const styles = StyleSheet.create({
     paddingVertical: 5,
     textTransform: 'capitalize',
   },
-  description: {
-    color: '#374151',
-    fontSize: 14,
-    lineHeight: 20,
-    marginTop: 12,
+  difficultyBadge: {
+    backgroundColor: '#fef3c7',
+    borderRadius: 6,
+    color: '#92400e',
+    fontSize: 12,
+    fontWeight: '800',
+    overflow: 'hidden',
+    paddingHorizontal: 9,
+    paddingVertical: 5,
+    textTransform: 'capitalize',
   },
-  metaRow: {
+  progressRow: {
     alignItems: 'center',
     flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 6,
-    marginTop: 12,
+    gap: 8,
+    marginTop: 14,
+  },
+  progressTrack: {
+    backgroundColor: '#e5e7eb',
+    borderRadius: 999,
+    flex: 1,
+    height: 4,
+    overflow: 'hidden',
+  },
+  progressFill: {
+    backgroundColor: '#f59e0b',
+    height: 4,
+    width: 0,
   },
   metaText: {
     color: '#6b7280',
     fontSize: 13,
     fontWeight: '600',
-    textTransform: 'capitalize',
   },
-  dot: {
-    color: '#9ca3af',
-    fontSize: 13,
-  },
-  countRow: {
+  statusRow: {
+    alignItems: 'center',
     flexDirection: 'row',
-    gap: 10,
-    marginTop: 14,
+    justifyContent: 'space-between',
+    marginTop: 8,
   },
-  countPill: {
-    backgroundColor: '#f3f4f6',
-    borderRadius: 8,
-    flex: 1,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-  },
-  countValue: {
-    color: '#111827',
-    fontSize: 18,
-    fontWeight: '800',
-  },
-  countLabel: {
-    color: '#6b7280',
+  statusText: {
+    color: '#9ca3af',
     fontSize: 12,
-    fontWeight: '700',
-    marginTop: 2,
+    fontWeight: '600',
   },
   centerPane: {
     alignItems: 'center',

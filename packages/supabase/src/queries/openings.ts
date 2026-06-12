@@ -22,6 +22,26 @@ export async function getOpeningIndex(): Promise<OpeningIndexRow[]> {
   return data;
 }
 
+export async function getReadyOpeningIndex(): Promise<OpeningIndexRow[]> {
+  const { data, error } = await supabase
+    .from('opening_index')
+    .select('*')
+    .not('course_slug', 'is', null)
+    .not('course_color', 'is', null)
+    .not('course_difficulty', 'is', null)
+    .not('course_description', 'is', null)
+    .gt('reference_line_count', 0)
+    .gt('practical_branch_count', 0)
+    .order('popularity_games', { ascending: false, nullsFirst: false })
+    .order('name', { ascending: true });
+
+  if (error) {
+    throw error;
+  }
+
+  return data;
+}
+
 export async function getOpeningCatalogBySlug(slug: string): Promise<OpeningCatalogRow | null> {
   const { data, error } = await supabase
     .from('openings_catalog')
