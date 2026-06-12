@@ -1457,34 +1457,34 @@ export default function AnalysisPage() {
                     {positionError && (
                       <span className="text-[10px] text-red-400 leading-none">{positionError}</span>
                     )}
-                    <div className="flex-1" />
-                    <div className="flex overflow-hidden rounded border border-white/8 text-[10px] font-medium">
+                  </div>
+                  <div className="px-3 pb-2.5">
+                    {/* Mode toggle — tab style, flush above textarea, right-aligned */}
+                    <div className="flex justify-end text-[10px] font-medium">
                       {(['pgn', 'fen'] as const).map((m, i) => (
                         <button
                           key={m}
                           type="button"
                           onClick={() => setPositionMode(m)}
-                          className={`px-2 py-0.5 uppercase tracking-wide transition-colors ${
-                            i > 0 ? 'border-l border-white/8' : ''
+                          className={`px-2.5 py-0.5 uppercase tracking-wide border-t border-b-0 transition-colors ${
+                            i === 0 ? 'rounded-tl-lg border-l' : 'border-l border-r'
                           } ${
                             positionMode === m
-                              ? 'bg-white/10 text-white'
-                              : 'text-gray-500 hover:text-gray-300'
+                              ? 'bg-white/8 text-white border-white/15'
+                              : 'bg-transparent text-gray-500 border-white/8 hover:text-gray-300'
                           }`}
                         >
                           {m}
                         </button>
                       ))}
                     </div>
-                  </div>
-                  <div className="px-3 pb-2.5">
                     <div className="relative">
                       <textarea
                         value={positionText}
                         onChange={e => { setPositionText(e.target.value); setPositionError(null); }}
                         rows={3}
                         spellCheck={false}
-                        className={`w-full resize-none rounded-lg border bg-white/3 px-2.5 py-1.5 pr-8 font-mono text-[10px] leading-relaxed text-gray-300 placeholder-gray-600 focus:outline-none transition-colors ${
+                        className={`w-full resize-none rounded-tl-lg rounded-tr-none rounded-b-lg border bg-white/3 px-2.5 py-1.5 pr-8 font-mono text-[10px] leading-relaxed text-gray-300 placeholder-gray-600 focus:outline-none transition-colors ${
                           positionError
                             ? 'border-red-500/40 focus:border-red-500/60'
                             : 'border-white/8 focus:border-white/20'
