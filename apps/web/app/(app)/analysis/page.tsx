@@ -633,6 +633,7 @@ export default function AnalysisPage() {
   const [baseFen, setBaseFen] = useState<string | null>(null);
   const [positionMode, setPositionMode] = useState<'fen' | 'pgn'>('pgn');
   const [positionText, setPositionText] = useState('');
+  const [positionDirty, setPositionDirty] = useState(false);
   const [positionError, setPositionError] = useState<string | null>(null);
   const { theme, animationDuration, settings, setSettings } = useBoardSettings();
   const { settings: coachSettings } = useCoachSettings();
@@ -946,6 +947,7 @@ export default function AnalysisPage() {
       setPositionText(freeExploreFen ?? currentFen);
     }
     setPositionError(null);
+    setPositionDirty(false);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [freeExploreFen, currentFen, positionMode, exploreHistory, analyzedGame]);
 
@@ -964,6 +966,7 @@ export default function AnalysisPage() {
         setLastMoveSquares(null);
         setCoachByPly(new Map());
         setPositionError(null);
+        setPositionDirty(false);
       } catch {
         setPositionError('Invalid FEN');
       }
@@ -993,6 +996,7 @@ export default function AnalysisPage() {
         setExploreHistoryIndex(-1);
         setCoachByPly(new Map());
         setPositionError(null);
+        setPositionDirty(false);
       } catch {
         setPositionError('Invalid PGN');
       }
@@ -1482,7 +1486,7 @@ export default function AnalysisPage() {
                     <div className="relative">
                       <textarea
                         value={positionText}
-                        onChange={e => { setPositionText(e.target.value); setPositionError(null); }}
+                        onChange={e => { setPositionText(e.target.value); setPositionDirty(true); setPositionError(null); }}
                         rows={3}
                         spellCheck={false}
                         className={`w-full resize-none rounded-tl-lg rounded-tr-none rounded-b-lg border bg-white/3 px-2.5 py-1.5 pr-8 font-mono text-[10px] leading-relaxed text-gray-300 placeholder-gray-600 focus:outline-none transition-colors ${
@@ -1496,7 +1500,8 @@ export default function AnalysisPage() {
                         type="button"
                         onClick={handlePositionLoad}
                         title="Load position"
-                        className="absolute bottom-1.5 right-1.5 flex h-5 w-5 items-center justify-center rounded border border-white/10 bg-[#14161f] text-gray-500 transition-colors hover:border-white/20 hover:text-gray-200"
+                        disabled={!positionDirty}
+                        className={`absolute bottom-1.5 right-1.5 flex h-5 w-5 items-center justify-center rounded border bg-[#14161f] transition-colors ${positionDirty ? 'border-white/20 text-gray-300 hover:border-white/35 hover:text-white cursor-pointer' : 'border-white/6 text-gray-700 cursor-default'}`}
                       >
                         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="h-3 w-3">
                           <path fillRule="evenodd" d="M8.22 2.97a.75.75 0 0 1 1.06 0l4.25 4.25a.75.75 0 0 1 0 1.06l-4.25 4.25a.75.75 0 0 1-1.042-1.06l2.97-2.97H3.75a.75.75 0 0 1 0-1.5h7.44L8.22 4.03a.75.75 0 0 1 0-1.06Z" clipRule="evenodd" />
@@ -1776,7 +1781,7 @@ export default function AnalysisPage() {
                     <div className="relative">
                       <textarea
                         value={positionText}
-                        onChange={e => { setPositionText(e.target.value); setPositionError(null); }}
+                        onChange={e => { setPositionText(e.target.value); setPositionDirty(true); setPositionError(null); }}
                         rows={3}
                         spellCheck={false}
                         className={`w-full resize-none rounded-lg border bg-white/3 px-2.5 py-1.5 pr-8 font-mono text-[10px] leading-relaxed text-gray-300 placeholder-gray-600 focus:outline-none transition-colors ${
@@ -1790,7 +1795,8 @@ export default function AnalysisPage() {
                         type="button"
                         onClick={handlePositionLoad}
                         title="Load position"
-                        className="absolute bottom-1.5 right-1.5 flex h-5 w-5 items-center justify-center rounded border border-white/10 bg-[#14161f] text-gray-500 transition-colors hover:border-white/20 hover:text-gray-200"
+                        disabled={!positionDirty}
+                        className={`absolute bottom-1.5 right-1.5 flex h-5 w-5 items-center justify-center rounded border bg-[#14161f] transition-colors ${positionDirty ? 'border-white/20 text-gray-300 hover:border-white/35 hover:text-white cursor-pointer' : 'border-white/6 text-gray-700 cursor-default'}`}
                       >
                         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="h-3 w-3">
                           <path fillRule="evenodd" d="M8.22 2.97a.75.75 0 0 1 1.06 0l4.25 4.25a.75.75 0 0 1 0 1.06l-4.25 4.25a.75.75 0 0 1-1.042-1.06l2.97-2.97H3.75a.75.75 0 0 1 0-1.5h7.44L8.22 4.03a.75.75 0 0 1 0-1.06Z" clipRule="evenodd" />
