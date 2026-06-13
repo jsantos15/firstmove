@@ -6,17 +6,20 @@ export type AppTheme = 'light' | 'dark' | 'dusk';
 
 const STORAGE_KEY = 'firstmove_app_theme';
 const DEFAULT: AppTheme = 'dark';
+const THEMES = new Set<AppTheme>(['light', 'dark', 'dusk']);
+
+function readStoredTheme(): AppTheme {
+  if (typeof window === 'undefined') return DEFAULT;
+  const stored = localStorage.getItem(STORAGE_KEY);
+  return THEMES.has(stored as AppTheme) ? (stored as AppTheme) : DEFAULT;
+}
 
 export function useAppTheme() {
-  const [theme, setThemeState] = useState<AppTheme>(DEFAULT);
+  const [theme, setThemeState] = useState<AppTheme>(readStoredTheme);
 
   useEffect(() => {
-    const stored = localStorage.getItem(STORAGE_KEY) as AppTheme | null;
-    if (stored) {
-      setThemeState(stored);
-      document.documentElement.setAttribute('data-theme', stored);
-    }
-  }, []);
+    document.documentElement.setAttribute('data-theme', theme);
+  }, [theme]);
 
   function setTheme(t: AppTheme) {
     setThemeState(t);

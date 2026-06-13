@@ -1,62 +1,31 @@
-import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import { createClient } from '@supabase/supabase-js';
 import type { Database } from './database.types';
 
 // ─── Environment Variables ────────────────────────────────────────────────────
 // These are read from the environment at runtime.
 // Web: set in apps/web/.env.local
-// Mobile: call configureSupabase from application code with EXPO_PUBLIC_* values.
+// Mobile: set via Expo's environment variable system (app.config.ts extra field)
 
-export interface SupabaseConfig {
-  url: string;
-  anonKey: string;
-}
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL ?? process.env.EXPO_PUBLIC_SUPABASE_URL;
+const supabaseAnonKey =
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
 
-let runtimeConfig: SupabaseConfig | null = null;
-let client: SupabaseClient<Database> | null = null;
-
-export function configureSupabase(config: SupabaseConfig) {
-  runtimeConfig = config;
-  client = null;
+if (!supabaseUrl || !supabaseAnonKey) {
+  throw new Error(
+    'Missing Supabase environment variables. Check your .env.local or app.config.ts.'
+  );
 }
 
 // ─── Supabase Client ──────────────────────────────────────────────────────────
-// Single shared client instance. Import this in both web and mobile apps. The
-// proxy keeps existing query/auth imports lazy so mobile can configure first.
+// Single shared client instance. Import this in both web and mobile apps.
 
-const isWebBrowser =
-  'window' in globalThis && Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL);
+const isWebBrowser = 'window' in globalThis && Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL);
 
-function getConfig(): SupabaseConfig {
-  const url = runtimeConfig?.url ?? process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const anonKey = runtimeConfig?.anonKey ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-
-  if (!url || !anonKey) {
-    throw new Error(
-      'Missing Supabase environment variables. Check your .env.local or configureSupabase call.'
-    );
-  }
-
-  return { url, anonKey };
-}
-
-export function getSupabaseClient(): SupabaseClient<Database> {
-  if (!client) {
-    const { url, anonKey } = getConfig();
-
-    client = createClient<Database>(url, anonKey, {
-      auth: {
-        persistSession: !isWebBrowser,
-        autoRefreshToken: !isWebBrowser,
-        detectSessionInUrl: !isWebBrowser,
-      },
-    });
-  }
-
-  return client;
-}
-
-export const supabase = new Proxy({} as SupabaseClient<Database>, {
-  get(_target, prop, receiver) {
-    return Reflect.get(getSupabaseClient(), prop, receiver);
+export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey, {
+  auth: {
+    storageKey: isWebBrowser ? 'firstmove-shared-query-client' : undefined,
+    persistSession: !isWebBrowser,
+    autoRefreshToken: !isWebBrowser,
+    detectSessionInUrl: !isWebBrowser,
   },
 });

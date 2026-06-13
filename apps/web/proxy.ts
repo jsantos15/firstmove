@@ -1,14 +1,37 @@
 import { createServerClient } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
 
-// Routes that don't require authentication
-const PUBLIC_PATHS = ['/', '/login', '/signup', '/auth/callback', '/openings'];
-
-// Auth pages that authenticated users should be bounced away from
+const PUBLIC_PATHS = ['/', '/auth/callback', '/openings', '/analysis'];
 const AUTH_ONLY_PATHS = ['/login', '/signup'];
 
+function pathMatches(pathname: string, path: string) {
+  return pathname === path;
+}
+
+function publicPathMatches(pathname: string, path: string) {
+  if (path === '/openings') {
+    return pathname === path || pathname.startsWith(`${path}/`);
+  }
+  return pathMatches(pathname, path);
+}
+
+function isPublicPath(pathname: string) {
+  return PUBLIC_PATHS.some(path => publicPathMatches(pathname, path));
+}
+
+function isAuthPath(pathname: string) {
+  return AUTH_ONLY_PATHS.some(path => pathMatches(pathname, path));
+}
+
 export async function proxy(request: NextRequest) {
-  // Start with a pass-through response that carries the request cookies
+  const { pathname } = request.nextUrl;
+  const publicPath = isPublicPath(pathname);
+  const authPath = isAuthPath(pathname);
+
+  if (publicPath && !authPath) {
+    return NextResponse.next({ request });
+  }
+
   let supabaseResponse = NextResponse.next({ request });
 
   const supabase = createServerClient(
@@ -20,8 +43,6 @@ export async function proxy(request: NextRequest) {
           return request.cookies.getAll();
         },
         setAll(cookiesToSet) {
-          // Write updated cookies to both the request and the response so the
-          // session refresh is visible to both server and client.
           cookiesToSet.forEach(({ name, value }) =>
             request.cookies.set(name, value)
           );
@@ -34,23 +55,23 @@ export async function proxy(request: NextRequest) {
     }
   );
 
-  // IMPORTANT: always call getUser() — never getSession() — in middleware.
-  // getUser() validates the token with the Supabase server and refreshes it
-  // if expired. getSession() only reads the local cookie and can be stale.
-  const { data: { user } } = await supabase.auth.getUser();
+  let user = null;
+  try {
+    const result = await supabase.auth.getUser();
+    user = result.data.user;
+  } catch (error) {
+    console.warn(
+      `Supabase auth check failed in proxy: ${error instanceof Error ? error.message : String(error)}`
+    );
+  }
 
-  const { pathname } = request.nextUrl;
-  const isPublic = PUBLIC_PATHS.some(p => pathname.startsWith(p));
-
-  // Unauthenticated user hitting a protected route → send to login
-  if (!user && !isPublic) {
+  if (!user && !publicPath && !authPath) {
     const url = request.nextUrl.clone();
     url.pathname = '/login';
     return NextResponse.redirect(url);
   }
 
-  // Authenticated user hitting a login/signup page → send to app
-  if (user && AUTH_ONLY_PATHS.some(p => pathname.startsWith(p))) {
+  if (user && authPath) {
     const url = request.nextUrl.clone();
     url.pathname = '/openings';
     return NextResponse.redirect(url);
@@ -61,7 +82,6 @@ export async function proxy(request: NextRequest) {
 
 export const config = {
   matcher: [
-    // Run on all routes except Next.js internals and static assets
-    '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
+    '/((?!_next/static|_next/image|favicon.ico|stockfish/|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
   ],
 };

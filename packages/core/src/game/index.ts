@@ -14,6 +14,15 @@ export function isValidFen(fen: string): boolean {
   }
 }
 
+/**
+ * Returns a stable opening lookup key from FEN. Opening names depend on the
+ * position, side to move, castling rights, and legal en passant state; clocks
+ * are excluded because they are move-history counters, not board identity.
+ */
+export function normalizeFenForOpeningPosition(fen: string): string {
+  return fen.split(/\s+/).slice(0, 4).join(' ');
+}
+
 // ─── Move Sequence Helpers ────────────────────────────────────────────────────
 
 /**

@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Chessboard } from 'react-chessboard';
 import Link from 'next/link';
-import type { OpeningIndexRow } from '@firstmove/supabase';
+import type { Opening } from '@firstmove/core';
 import { ColorBadge, DifficultyBadge } from '@/components/ui/Badge';
 import type { MasteryLevel } from '@/hooks/useProgress';
 import { useBoardSettings } from '@/hooks/useBoardSettings';
@@ -11,14 +11,24 @@ import { getCustomPieces } from '@/lib/piecesets';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
+type OpeningCardOpening = Opening & {
+  previewFen?: string;
+  referenceLineCount?: number;
+};
+
 interface OpeningCardProps {
-  opening: OpeningIndexRow;
+  opening: OpeningCardOpening;
   completedLines?: number;
   status?: MasteryLevel;
+  matchedVariations?: { id: string; name: string }[];
 }
 
-function getCharacteristicFen(opening: OpeningIndexRow): string {
-  return opening.course_preview_fen ?? opening.anchor_fen ?? 'start';
+function getCharacteristicFen(opening: OpeningCardOpening): string {
+  if (opening.previewFen) {
+    return opening.previewFen;
+  }
+  const lastMove = opening.moves[opening.moves.length - 1];
+  return lastMove?.fen ?? 'start';
 }
 
 // ─── Status chip config ───────────────────────────────────────────────────────
@@ -64,21 +74,20 @@ function LineDots({ completed, total }: { completed: number; total: number }) {
 
 // ─── Card ─────────────────────────────────────────────────────────────────────
 
-export function OpeningCard({ opening, completedLines = 0, status = 'new' }: OpeningCardProps) {
+export function OpeningCard({ opening, completedLines = 0, status = 'new', matchedVariations }: OpeningCardProps) {
   const previewRef = useRef<HTMLDivElement>(null);
   const [showBoard, setShowBoard] = useState(false);
   const fen = getCharacteristicFen(opening);
-  const totalLines = opening.variation_count ?? 0;
+  const totalLines = opening.referenceLineCount ?? opening.variations.length;
   const chip = status !== 'new' ? STATUS_CHIP[status] : null;
   const { theme, settings } = useBoardSettings();
   const customPieces = getCustomPieces(settings.pieceSetId);
-  const hasCourse = Boolean(opening.course_slug);
   const boardOrientation =
     settings.flipBoard
-      ? opening.course_color === 'black'
+      ? opening.color === 'black'
         ? 'white'
         : 'black'
-      : opening.course_color === 'black'
+      : opening.color === 'black'
       ? 'black'
       : 'white';
 
@@ -103,13 +112,10 @@ export function OpeningCard({ opening, completedLines = 0, status = 'new' }: Ope
     return () => observer.disconnect();
   }, [showBoard]);
 
-  const card = (
-    <div className={`group rounded-xl border border-white/5 bg-[var(--bg-panel)] overflow-hidden transition-all duration-200 ${
-      hasCourse
-        ? 'hover:border-amber-400/20 hover:-translate-y-0.5 hover:shadow-xl hover:shadow-black/40 cursor-pointer'
-        : 'opacity-90'
-    }`}>
+  return (
+    <div className="group rounded-xl border border-white/5 bg-[var(--bg-panel)] overflow-hidden transition-all duration-200 hover:border-amber-400/20 hover:-translate-y-0.5 hover:shadow-xl hover:shadow-black/40">
 
+      <Link href={`/openings/${opening.id}`} className="block cursor-pointer">
         {/* Board preview — sits in a darker panel so it floats */}
         <div ref={previewRef} className="flex items-center justify-center bg-[var(--bg-sidebar)] py-5 pointer-events-none">
           <div className="rounded-lg overflow-hidden ring-1 ring-white/8">
@@ -133,17 +139,10 @@ export function OpeningCard({ opening, completedLines = 0, status = 'new' }: Ope
         {/* Info panel */}
         <div className="p-4">
 
-          {/* Status + course metadata */}
+          {/* Color + difficulty */}
           <div className="flex items-center gap-1.5 mb-2.5">
-            {opening.course_color && <ColorBadge color={opening.course_color} />}
-            {opening.course_difficulty && <DifficultyBadge difficulty={opening.course_difficulty} />}
-            <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-medium ${
-              hasCourse
-                ? 'border-green-400/20 bg-green-400/10 text-green-400'
-                : 'border-amber-400/20 bg-amber-400/10 text-amber-400'
-            }`}>
-              {hasCourse ? 'Available' : 'Coming soon'}
-            </span>
+            <ColorBadge color={opening.color} />
+            <DifficultyBadge difficulty={opening.difficulty} />
           </div>
 
           {/* Opening name */}
@@ -155,13 +154,13 @@ export function OpeningCard({ opening, completedLines = 0, status = 'new' }: Ope
           <div className="flex items-center justify-between gap-2">
             <LineDots completed={completedLines} total={totalLines} />
             <span className="text-[11px] text-gray-600 shrink-0">
-              {totalLines} {totalLines === 1 ? 'variation' : 'variations'}
+              {totalLines} {totalLines === 1 ? 'line' : 'lines'}
             </span>
           </div>
 
           <div className="mt-2 flex items-center justify-between gap-2">
-            <span className="text-[11px] text-gray-500 truncate">
-              {opening.popularity_games?.toLocaleString() ?? 'Unknown'} games
+            <span className="text-[11px] text-gray-500">
+              {completedLines}/{totalLines} completed
             </span>
             {chip ? (
               <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-medium shrink-0 ${chip.cls}`}>
@@ -169,22 +168,37 @@ export function OpeningCard({ opening, completedLines = 0, status = 'new' }: Ope
               </span>
             ) : (
               <span className="text-[11px] text-gray-600 shrink-0">
-                {opening.eco_code}
+                Not started
               </span>
             )}
           </div>
 
         </div>
-      </div>
-  );
+      </Link>
 
-  if (!opening.course_slug) {
-    return <div className="block">{card}</div>;
-  }
+      {/* Matched variation pills — only shown during search */}
+      {matchedVariations && matchedVariations.length > 0 && (
+        <div className="border-t border-white/5 px-3 py-2 flex flex-col gap-0.5">
+          {matchedVariations.slice(0, 5).map(v => (
+            <Link
+              key={v.id}
+              href={`/openings/${opening.id}?variation=${v.id}`}
+              className="flex items-center gap-2 rounded-md px-2 py-1.5 text-[11px] text-gray-400 transition-colors hover:bg-white/5 hover:text-amber-300"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="h-2.5 w-2.5 shrink-0 text-amber-400/50">
+                <path d="m9 18 6-6-6-6" />
+              </svg>
+              <span className="truncate">{v.name}</span>
+            </Link>
+          ))}
+          {matchedVariations.length > 5 && (
+            <span className="px-2 py-1 text-[11px] text-gray-600">
+              +{matchedVariations.length - 5} more
+            </span>
+          )}
+        </div>
+      )}
 
-  return (
-    <Link href={`/openings/${opening.course_slug}`} className="block">
-      {card}
-    </Link>
+    </div>
   );
 }

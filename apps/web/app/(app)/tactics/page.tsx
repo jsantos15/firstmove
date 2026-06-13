@@ -1,19 +1,34 @@
 export default function TacticsPage() {
   const motifs = [
-    { name: 'Fork',              description: 'Attack two pieces simultaneously with one move.',           icon: '⚔️' },
-    { name: 'Pin',               description: 'Immobilize a piece that shields a more valuable target.',   icon: '📌' },
-    { name: 'Skewer',            description: 'Force a valuable piece to move, exposing one behind it.',   icon: '🗡️' },
-    { name: 'Discovered Attack', description: 'Uncover a hidden attack by moving another piece.',          icon: '👁️' },
-    { name: 'Double Check',      description: 'Check with two pieces at once — the king must move.',       icon: '⚡' },
-    { name: 'Back Rank Mate',    description: 'Exploit an undefended first or eighth rank.',               icon: '🏰' },
-    { name: 'Deflection',        description: 'Force a defender away from its key square or file.',        icon: '↗️' },
-    { name: 'Interference',      description: 'Cut communication between two enemy pieces.',               icon: '🚧' },
-    { name: 'Zwischenzug',       description: 'An in-between move that changes the evaluation.',           icon: '↩️' },
-    { name: 'Desperado',         description: 'A piece about to be captured goes down fighting.',          icon: '💥' },
+    // Foundational — every player at every level encounters these
+    { name: 'Fork',                  lichessTheme: 'fork',                description: 'Attack two pieces simultaneously with one move.',                          icon: '⚔️' },
+    { name: 'Pin',                   lichessTheme: 'pin',                 description: 'Immobilize a piece that shields a more valuable target.',                  icon: '📌' },
+    { name: 'Skewer',                lichessTheme: 'skewer',              description: 'Force a valuable piece to move, exposing one behind it.',                  icon: '🗡️' },
+    { name: 'Discovered Attack',     lichessTheme: 'discoveredAttack',    description: 'Uncover a hidden attack by moving another piece.',                         icon: '👁️' },
+    { name: 'Double Check',          lichessTheme: 'doubleCheck',         description: 'Check with two pieces at once — the king must move.',                      icon: '⚡' },
+    { name: 'Overloading',           lichessTheme: 'overloading',         description: 'Exploit a piece defending two things at once — it cannot handle both.',    icon: '⚖️' },
+    { name: 'Removing the Defender', lichessTheme: 'removingTheDefender', description: 'Capture or chase away the piece protecting a key square or target.',       icon: '🛡️' },
+    { name: 'Trapped Piece',         lichessTheme: 'trappedPiece',        description: 'Surround an enemy piece until it has no escape and can be won for free.',  icon: '🪤' },
+
+    // Common attacking patterns
+    { name: 'Deflection',            lichessTheme: 'deflection',          description: 'Force a defender away from its key square or file.',                       icon: '↗️' },
+    { name: 'Attraction',            lichessTheme: 'attraction',          description: 'Lure an enemy piece to a square where it can be exploited.',                icon: '🎣' },
+    { name: 'Clearance',             lichessTheme: 'clearance',           description: 'Sacrifice a piece to open a line or square for a stronger follow-up.',     icon: '🧹' },
+    { name: 'Interference',          lichessTheme: 'interference',        description: 'Cut communication between two enemy pieces.',                              icon: '🚧' },
+    { name: 'X-Ray Attack',          lichessTheme: 'xRayAttack',          description: 'A piece exerts pressure through an enemy piece on the same line.',         icon: '🔍' },
+    { name: 'Zwischenzug',           lichessTheme: 'zwischenzug',         description: 'An in-between move that changes the evaluation before completing a sequence.', icon: '↩️' },
+
+    // Mating patterns
+    { name: 'Back Rank Mate',        lichessTheme: 'backRankMate',        description: 'Exploit an undefended first or eighth rank to deliver checkmate.',         icon: '🏰' },
+    { name: 'Smothered Mate',        lichessTheme: 'smotheredMate',       description: 'A knight delivers checkmate to a king suffocated by its own pieces.',      icon: '🕸️' },
+
+    // Advanced / Rare
+    { name: 'Desperado',             lichessTheme: 'desperado',           description: 'A piece about to be captured goes down fighting, taking maximum material.', icon: '💥' },
+    { name: 'Windmill',              lichessTheme: 'windmill',            description: 'A cycle of alternating discovered checks and direct checks that wins material.', icon: '🌀' },
   ];
 
   return (
-    <div className="h-full overflow-y-auto bg-[var(--bg-base)]">
+    <div className="h-full overflow-y-auto bg-(--bg-base)">
 
       {/* Hero */}
       <div className="mx-auto max-w-5xl px-6 pt-10 pb-6">
@@ -29,7 +44,7 @@ export default function TacticsPage() {
           <span className="text-amber-400 text-lg">⚡</span>
           <p className="text-sm text-amber-300">
             <span className="font-semibold">Coming soon.</span>{' '}
-            Each motif will have guided examples, drills, and a timed challenge mode.
+            Each motif will have guided examples, drills sourced from the Lichess puzzle database, and a timed challenge mode.
           </p>
         </div>
       </div>
@@ -40,7 +55,7 @@ export default function TacticsPage() {
           {motifs.map(motif => (
             <div
               key={motif.name}
-              className="rounded-xl border border-white/5 bg-[var(--bg-panel)] p-5 opacity-60 cursor-not-allowed select-none"
+              className="rounded-xl border border-white/5 bg-(--bg-panel) p-5 opacity-60 cursor-not-allowed select-none"
             >
               <div className="flex items-center gap-3 mb-2">
                 <span className="text-2xl">{motif.icon}</span>

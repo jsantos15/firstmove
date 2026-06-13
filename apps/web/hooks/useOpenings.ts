@@ -1,13 +1,14 @@
-import { useQuery } from '@tanstack/react-query';
+import { useEffect } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Chess, type Opening, type OpeningMove, type OpeningVariation } from '@firstmove/core';
 import {
-  getOpeningIndex,
-  getOpeningsCatalog,
+  getReadyOpeningIndex,
   getOpeningCatalogBySlug,
-  getOpeningLines,
+  getOpeningLineBranchMetadataBySlug,
   getOpeningLinesBySlug,
-  type OpeningIndexRow,
   type OpeningCatalogRow,
+  type OpeningIndexRow,
+  type OpeningLineBranchMetadataRow,
   type OpeningLineRow,
 } from '@firstmove/supabase';
 
@@ -29,33 +30,111 @@ function buildMoves(sans: string[]): OpeningMove[] {
 
 // ─── DB row types ─────────────────────────────────────────────────────────────
 
-type AppOpening = Opening & {
+export type AppOpening = Omit<Opening, 'variations'> & {
+  variations: AppVariation[];
   displayTier?: OpeningCatalogRow['display_tier'];
   isFeatured?: OpeningCatalogRow['is_featured'];
   popularityRank?: OpeningCatalogRow['popularity_rank'];
   popularityScore?: OpeningCatalogRow['popularity_score'];
   popularityGames?: OpeningCatalogRow['popularity_games'];
   hasMainLine?: OpeningCatalogRow['has_main_line'];
+  previewFen?: string;
+  lineCount?: number;
+  referenceLineCount?: number;
+  practicalBranchCount?: number;
+  practicalBranches: AppVariation[];
 };
 
-type AppVariation = OpeningVariation & {
-  engineChecked?: OpeningLineRow['engine_checked'];
-  evalCpByPly?: OpeningLineRow['eval_cp_by_ply'];
-  finalEvalCp?: OpeningLineRow['final_eval_cp'];
-  finalEvalPerspective?: OpeningLineRow['final_eval_perspective'];
-  fullName?: OpeningLineRow['full_name'];
-  primaryCategory?: OpeningLineRow['primary_category'];
-  inclusionOutcome?: OpeningLineRow['inclusion_outcome'];
-  lineDifficulty?: OpeningLineRow['line_difficulty'];
-  isMainLine?: OpeningLineRow['is_main_line'];
-  popularityRank?: OpeningLineRow['popularity_rank'];
-  popularityScore?: OpeningLineRow['popularity_score'];
-  popularityGames?: OpeningLineRow['popularity_games'];
-  sourceName?: OpeningLineRow['source_name'];
-  sourceConfidence?: OpeningLineRow['source_confidence'];
+export type AppVariation = OpeningVariation & {
+  engineChecked?: NonNullable<OpeningLineRow['engine_checked']>;
+  evalCpByPly?: NonNullable<OpeningLineRow['eval_cp_by_ply']>;
+  finalEvalCp?: NonNullable<OpeningLineRow['final_eval_cp']>;
+  finalEvalPerspective?: NonNullable<OpeningLineRow['final_eval_perspective']>;
+  fullName?: NonNullable<OpeningLineRow['full_name']>;
+  primaryCategory?: NonNullable<OpeningLineRow['primary_category']>;
+  inclusionOutcome?: NonNullable<OpeningLineRow['inclusion_outcome']>;
+  lineDifficulty?: NonNullable<OpeningLineRow['line_difficulty']>;
+  isMainLine?: NonNullable<OpeningLineRow['is_main_line']>;
+  popularityRank?: NonNullable<OpeningLineRow['popularity_rank']>;
+  popularityScore?: NonNullable<OpeningLineRow['popularity_score']>;
+  popularityGames?: NonNullable<OpeningLineRow['popularity_games']>;
+  sourceName?: NonNullable<OpeningLineRow['source_name']>;
+  sourceConfidence?: NonNullable<OpeningLineRow['source_confidence']>;
+  variationAnchorSans?: NonNullable<OpeningLineRow['variation_anchor_sans']>;
+  variationAnchorPly?: NonNullable<OpeningLineRow['variation_anchor_ply']>;
+  variationAnchorName?: NonNullable<OpeningLineRow['variation_anchor_name']>;
+  variationAnchorFen?: NonNullable<OpeningLineRow['variation_anchor_fen']>;
+  lineKind?: NonNullable<OpeningLineRow['line_kind']>;
+  branchMetadata?: OpeningLineBranchMetadataRow;
 };
 
-function buildVariationStub(line: OpeningLineRow): AppVariation {
+const OPENING_INTRO_COPY: Record<string, string> = {
+  'italian-game':
+    "The Italian Game develops quickly with Bc4, aiming at Black's f7 square while building a strong center and preparing to castle. It teaches active piece play, early pressure, and when to turn development into tactics.",
+  'caro-kann-defense':
+    'The Caro-Kann Defense is a solid answer to 1.e4 where Black supports ...d5 with ...c6. It teaches sturdy pawn structures, patient development, and clean counterplay without weakening the king.',
+};
+const OPENING_LIST_CACHE_KEY = 'firstmove:opening-list:v2';
+const OPENING_LIST_STALE_TIME_MS = 5 * 60 * 1000;
+const OPENING_LIST_GC_TIME_MS = 24 * 60 * 60 * 1000;
+
+function readCachedOpeningList(): AppOpening[] | undefined {
+  if (typeof window === 'undefined') return undefined;
+
+  try {
+    const raw = window.localStorage.getItem(OPENING_LIST_CACHE_KEY);
+    if (!raw) return undefined;
+
+    const parsed = JSON.parse(raw) as unknown;
+    if (!Array.isArray(parsed)) return undefined;
+
+    return parsed.filter((item): item is AppOpening => {
+      if (!item || typeof item !== 'object') return false;
+      const opening = item as Partial<AppOpening>;
+      return (
+        typeof opening.id === 'string' &&
+        typeof opening.name === 'string' &&
+        Array.isArray(opening.variations)
+      );
+    });
+  } catch {
+    return undefined;
+  }
+}
+
+function writeCachedOpeningList(openings: AppOpening[]) {
+  if (typeof window === 'undefined') return;
+
+  try {
+    window.localStorage.setItem(OPENING_LIST_CACHE_KEY, JSON.stringify(openings));
+  } catch {
+    // Storage can be unavailable in private browsing or quota-constrained devices.
+  }
+}
+
+function normalizeOpeningDescriptionFields(slug: string, name: string, description: string) {
+  const curated = OPENING_INTRO_COPY[slug];
+  if (curated) return curated;
+
+  const normalizedDescription = description.trim();
+  if (
+    normalizedDescription.includes('regenerated from authoritative naming') ||
+    normalizedDescription.includes('staged for study')
+  ) {
+    return `${name} is part of your opening study plan. Focus on the main ideas first, then use each line to learn the typical plans and tactical moments.`;
+  }
+
+  return normalizedDescription;
+}
+
+function normalizeOpeningDescription(catalog: OpeningCatalogRow) {
+  return normalizeOpeningDescriptionFields(catalog.slug, catalog.name, catalog.description);
+}
+
+function buildVariationStub(
+  line: OpeningLineRow,
+  branchMetadata?: OpeningLineBranchMetadataRow
+): AppVariation {
   return {
     id: line.slug,
     name: line.name,
@@ -75,40 +154,16 @@ function buildVariationStub(line: OpeningLineRow): AppVariation {
     popularityGames: line.popularity_games ?? undefined,
     sourceName: line.source_name ?? undefined,
     sourceConfidence: line.source_confidence ?? undefined,
+    variationAnchorSans: line.variation_anchor_sans ?? undefined,
+    variationAnchorPly: line.variation_anchor_ply ?? undefined,
+    variationAnchorName: line.variation_anchor_name ?? undefined,
+    variationAnchorFen: line.variation_anchor_fen ?? undefined,
+    lineKind: line.line_kind,
+    branchMetadata,
   };
 }
 
 // ─── Builder ──────────────────────────────────────────────────────────────────
-
-function compareCatalogRows(left: OpeningCatalogRow, right: OpeningCatalogRow) {
-  const tierRank = { core: 1, extended: 2, other: 3 } as const;
-  const leftTier =
-    left.display_tier && left.display_tier in tierRank
-      ? tierRank[left.display_tier as keyof typeof tierRank]
-      : 99;
-  const rightTier =
-    right.display_tier && right.display_tier in tierRank
-      ? tierRank[right.display_tier as keyof typeof tierRank]
-      : 99;
-
-  if (leftTier !== rightTier) {
-    return leftTier - rightTier;
-  }
-
-  const leftFeatured = left.is_featured ? 1 : 0;
-  const rightFeatured = right.is_featured ? 1 : 0;
-  if (leftFeatured !== rightFeatured) {
-    return rightFeatured - leftFeatured;
-  }
-
-  const leftPopularity = left.popularity_rank ?? Number.POSITIVE_INFINITY;
-  const rightPopularity = right.popularity_rank ?? Number.POSITIVE_INFINITY;
-  if (leftPopularity !== rightPopularity) {
-    return leftPopularity - rightPopularity;
-  }
-
-  return left.name.localeCompare(right.name);
-}
 
 function compareLineRows(left: OpeningLineRow, right: OpeningLineRow) {
   const leftMain = left.is_main_line ? 1 : 0;
@@ -117,10 +172,10 @@ function compareLineRows(left: OpeningLineRow, right: OpeningLineRow) {
     return rightMain - leftMain;
   }
 
-  const leftPopularity = left.popularity_rank ?? Number.POSITIVE_INFINITY;
-  const rightPopularity = right.popularity_rank ?? Number.POSITIVE_INFINITY;
-  if (leftPopularity !== rightPopularity) {
-    return leftPopularity - rightPopularity;
+  const leftRank = left.popularity_rank ?? Number.POSITIVE_INFINITY;
+  const rightRank = right.popularity_rank ?? Number.POSITIVE_INFINITY;
+  if (leftRank !== rightRank) {
+    return leftRank - rightRank;
   }
 
   if (left.sort_order !== right.sort_order) {
@@ -130,20 +185,79 @@ function compareLineRows(left: OpeningLineRow, right: OpeningLineRow) {
   return left.name.localeCompare(right.name);
 }
 
+function metadataTrainedEvalCp(metadata?: OpeningLineBranchMetadataRow) {
+  const finalState =
+    metadata?.selection_metadata &&
+    typeof metadata.selection_metadata === 'object' &&
+    !Array.isArray(metadata.selection_metadata)
+      ? metadata.selection_metadata.finalState
+      : null;
+  if (!finalState || typeof finalState !== 'object' || Array.isArray(finalState)) return null;
+
+  const trainedEvalCp = finalState.trainedEvalCp;
+  return typeof trainedEvalCp === 'number' && Number.isFinite(trainedEvalCp)
+    ? trainedEvalCp
+    : null;
+}
+
+function lineEvalFromTrainedPerspective(line: OpeningLineRow, openingColor: 'white' | 'black') {
+  if (typeof line.final_eval_cp !== 'number' || !Number.isFinite(line.final_eval_cp)) {
+    return Number.NEGATIVE_INFINITY;
+  }
+  const evalPerspective = line.final_eval_perspective ?? openingColor;
+  const whiteEvalCp = evalPerspective === 'white' ? line.final_eval_cp : -line.final_eval_cp;
+  return openingColor === 'white' ? whiteEvalCp : -whiteEvalCp;
+}
+
+function branchEvalForSort(
+  line: OpeningLineRow,
+  metadata: OpeningLineBranchMetadataRow | undefined,
+  openingColor: 'white' | 'black'
+) {
+  return metadataTrainedEvalCp(metadata) ?? lineEvalFromTrainedPerspective(line, openingColor);
+}
+
 function buildOpening(
   catalog: OpeningCatalogRow,
   lines: OpeningLineRow[],
-  options?: { includeVariationMoves?: boolean }
+  options?: {
+    branchMetadataRows?: OpeningLineBranchMetadataRow[];
+    includeBranchMoves?: boolean;
+    includeVariationMoves?: boolean;
+  }
 ): AppOpening {
-  const sorted = [...lines].sort(compareLineRows);
+  const branchMetadataByLineSlug = new Map(
+    (options?.branchMetadataRows ?? []).map(row => [row.line_slug, row])
+  );
+  const referenceLines = lines.filter(line => line.line_kind !== 'practical_branch');
+  const branchLines = lines.filter(line => line.line_kind === 'practical_branch');
+  const sorted = [...referenceLines].sort(compareLineRows);
+  const sortedBranches = [...branchLines].sort((left, right) => {
+    const leftMeta = branchMetadataByLineSlug.get(left.slug);
+    const rightMeta = branchMetadataByLineSlug.get(right.slug);
+    const leftEval = branchEvalForSort(left, leftMeta, catalog.color);
+    const rightEval = branchEvalForSort(right, rightMeta, catalog.color);
+    if (leftEval !== rightEval) return rightEval - leftEval;
+    const leftScore = leftMeta?.branch_score ?? Number.NEGATIVE_INFINITY;
+    const rightScore = rightMeta?.branch_score ?? Number.NEGATIVE_INFINITY;
+    if (leftScore !== rightScore) return rightScore - leftScore;
+    if (left.sort_order !== right.sort_order) return left.sort_order - right.sort_order;
+    return left.name.localeCompare(right.name);
+  });
   const includeVariationMoves = options?.includeVariationMoves ?? true;
+  const includeBranchMoves = options?.includeBranchMoves ?? includeVariationMoves;
   const variations: AppVariation[] = sorted.map(line =>
     includeVariationMoves
+      ? { ...buildVariationStub(line), moves: buildMoves(line.sans) }
+      : buildVariationStub(line)
+  );
+  const practicalBranches: AppVariation[] = sortedBranches.map(line =>
+    includeBranchMoves
       ? {
-          ...buildVariationStub(line),
+          ...buildVariationStub(line, branchMetadataByLineSlug.get(line.slug)),
           moves: buildMoves(line.sans),
         }
-      : buildVariationStub(line)
+      : buildVariationStub(line, branchMetadataByLineSlug.get(line.slug))
   );
   const mainLine = sorted[0];
 
@@ -153,31 +267,75 @@ function buildOpening(
     name: catalog.name,
     color: catalog.color,
     difficulty: catalog.difficulty,
-    description: catalog.description,
+    description: normalizeOpeningDescription(catalog),
     tags: catalog.tags,
     moves: mainLine ? buildMoves(mainLine.sans) : [],
     variations,
+    practicalBranches,
     displayTier: catalog.display_tier ?? undefined,
     isFeatured: catalog.is_featured ?? undefined,
     popularityRank: catalog.popularity_rank ?? undefined,
     popularityScore: catalog.popularity_score ?? undefined,
     popularityGames: catalog.popularity_games ?? undefined,
     hasMainLine: catalog.has_main_line,
+    previewFen: catalog.preview_fen ?? undefined,
+    lineCount: lines.length,
+    referenceLineCount: referenceLines.length,
+    practicalBranchCount: branchLines.length,
   };
 }
 
 // ─── Hooks ───────────────────────────────────────────────────────────────────
 
-/**
- * Fetches the lightweight opening index. This powers list screens only: one row
- * per named Lichess opening, plus counts and generated-course metadata.
- */
-export function useOpeningIndex() {
-  return useQuery<OpeningIndexRow[]>({
-    queryKey: ['openings', 'index'],
-    staleTime: Infinity,
-    queryFn: () => getOpeningIndex(),
-  });
+function buildOpeningIndexCard(row: OpeningIndexRow): AppOpening | null {
+  if (
+    !row.course_slug ||
+    !row.course_color ||
+    !row.course_difficulty ||
+    !row.course_description ||
+    !row.name
+  ) {
+    return null;
+  }
+
+  const referenceLineCount = row.reference_line_count ?? 0;
+  const practicalBranchCount = row.practical_branch_count ?? 0;
+  if (referenceLineCount === 0 || practicalBranchCount === 0) {
+    return null;
+  }
+
+  const referenceSlugs = row.reference_line_slugs ?? [];
+  const referenceNames = row.reference_line_names ?? [];
+  const variations = referenceSlugs.map((slug, index): AppVariation => ({
+    id: slug,
+    name: referenceNames[index] ?? slug,
+    moves: [],
+  }));
+
+  return {
+    id: row.course_slug,
+    ecoCode: row.eco_code ?? '',
+    name: row.name,
+    color: row.course_color,
+    difficulty: row.course_difficulty,
+    description: normalizeOpeningDescriptionFields(
+      row.course_slug,
+      row.name,
+      row.course_description
+    ),
+    moves: [],
+    variations,
+    tags: row.course_tags ?? [],
+    practicalBranches: [],
+    displayTier: row.course_display_tier ?? undefined,
+    isFeatured: row.course_is_featured ?? undefined,
+    popularityGames: row.popularity_games ?? undefined,
+    hasMainLine: row.course_has_main_line ?? undefined,
+    previewFen: row.course_preview_fen ?? row.anchor_fen ?? undefined,
+    lineCount: row.course_line_count ?? referenceLineCount + practicalBranchCount,
+    referenceLineCount,
+    practicalBranchCount,
+  };
 }
 
 /**
@@ -185,29 +343,30 @@ export function useOpeningIndex() {
  * for the session — opening catalog data doesn't change at runtime.
  */
 export function useOpenings() {
-  return useQuery<AppOpening[]>({
+  const queryClient = useQueryClient();
+  const query = useQuery<AppOpening[]>({
     queryKey: ['openings'],
-    staleTime: Infinity,
+    staleTime: OPENING_LIST_STALE_TIME_MS,
+    gcTime: OPENING_LIST_GC_TIME_MS,
     queryFn: async () => {
-      const [catalogRows, lineRows] = await Promise.all([
-        getOpeningsCatalog(),
-        getOpeningLines(),
-      ]);
-
-      const linesByOpening = new Map<string, OpeningLineRow[]>();
-      for (const line of lineRows) {
-        const arr = linesByOpening.get(line.opening_slug) ?? [];
-        arr.push(line);
-        linesByOpening.set(line.opening_slug, arr);
-      }
-
-      return [...catalogRows].sort(compareCatalogRows).map(row =>
-        buildOpening(row, linesByOpening.get(row.slug) ?? [], {
-          includeVariationMoves: false,
-        })
-      );
+      const indexRows = await getReadyOpeningIndex();
+      const openings = indexRows.flatMap(row => {
+        const opening = buildOpeningIndexCard(row);
+        return opening ? [opening] : [];
+      });
+      writeCachedOpeningList(openings);
+      return openings;
     },
   });
+
+  useEffect(() => {
+    const cached = readCachedOpeningList();
+    if (!cached?.length) return;
+
+    queryClient.setQueryData<AppOpening[]>(['openings'], current => current ?? cached);
+  }, [queryClient]);
+
+  return query;
 }
 
 /**
@@ -219,9 +378,10 @@ export function useOpening(slug: string) {
     queryKey: ['openings', slug],
     staleTime: Infinity,
     queryFn: async () => {
-      const [catalogRow, lineRows] = await Promise.all([
+      const [catalogRow, lineRows, branchMetadataRows] = await Promise.all([
         getOpeningCatalogBySlug(slug),
         getOpeningLinesBySlug(slug),
+        getOpeningLineBranchMetadataBySlug(slug),
       ]);
 
       if (!catalogRow) {
@@ -229,6 +389,8 @@ export function useOpening(slug: string) {
       }
 
       return buildOpening(catalogRow, lineRows, {
+        branchMetadataRows,
+        includeBranchMoves: true,
         includeVariationMoves: true,
       });
     },
