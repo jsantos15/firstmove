@@ -656,29 +656,32 @@ const selectedReferenceVariation =
                           onClick={() => handleGroupClick(group)}
                         />
                         {isExpanded && group.lines.length > 0 && (
-                          <div className="mb-1">
-                            {group.lines.map((line, idx) => {
-                              const globalIndex = opening.variations.findIndex(
-                                v => v.id === line.id
-                              );
-                              const vProgress = progress?.get(`${opening.id}/${line.id}`);
-                              return (
-                                <BranchRow
-                                  key={line.id}
-                                  line={line}
-                                  globalIndex={globalIndex}
-                                  isActive={line.id === activeReferenceLineId}
-                                  user={user}
-                                  mastery={vProgress?.mastery}
-                                  completions={vProgress?.timesCompleted}
-                                  onClick={() => handleLineClick(line.id, globalIndex)}
-                                  buttonRef={
-                                    line.id === activeReferenceLineId ? activeLineRef : undefined
-                                  }
-                                  rowIndex={idx}
-                                />
-                              );
-                            })}
+                          <div className="relative mb-1">
+                            <div className="absolute left-4 top-0 bottom-2 w-px bg-white/[0.08]" />
+                            <div className="pl-8">
+                              {group.lines.map((line, idx) => {
+                                const globalIndex = opening.variations.findIndex(
+                                  v => v.id === line.id
+                                );
+                                const vProgress = progress?.get(`${opening.id}/${line.id}`);
+                                return (
+                                  <BranchRow
+                                    key={line.id}
+                                    line={line}
+                                    globalIndex={globalIndex}
+                                    isActive={line.id === activeReferenceLineId}
+                                    user={user}
+                                    mastery={vProgress?.mastery}
+                                    completions={vProgress?.timesCompleted}
+                                    onClick={() => handleLineClick(line.id, globalIndex)}
+                                    buttonRef={
+                                      line.id === activeReferenceLineId ? activeLineRef : undefined
+                                    }
+                                    rowIndex={idx}
+                                  />
+                                );
+                              })}
+                            </div>
                           </div>
                         )}
                       </div>
