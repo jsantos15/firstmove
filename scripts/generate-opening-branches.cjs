@@ -409,8 +409,8 @@ async function analyzeFen({ fen, depth, multipvCount, engineFlavor }) {
   });
 }
 
-async function analyzeFenCached(fen, args) {
-  const cache = loadJsonObject(args.stockfishEvalCache);
+async function analyzeFenCached(fen, args, cache) {
+  cache = cache ?? loadJsonObject(args.stockfishEvalCache);
   const key = stockfishCacheKey(fen, args);
   if (cache[key]?.result) return cache[key].result;
   const result = await analyzeFen({
@@ -656,7 +656,7 @@ async function analyzePosition(fen, args, cache) {
     return bestKnown;
   }
 
-  const localResult = await analyzeFenCached(fen, args);
+  const localResult = await analyzeFenCached(fen, args, cache.stockfishEval);
   if (!analysisMatchesFen(localResult, fen)) {
     throw new Error(`Stockfish returned illegal best move "${localResult?.bestMove ?? "none"}" for ${fen}`);
   }
@@ -1048,11 +1048,11 @@ function payoffFallbackAccepts({ state, chess, trace, openingColor, args, minPli
   return true;
 }
 
-async function analysisForTrainedCandidates(fen, analysis, args) {
+async function analysisForTrainedCandidates(fen, analysis, args, cache) {
   const desiredLineCount = Math.max(2, Math.min(args.trainedCandidateMoves, args.multipvCount));
   if (analysisLineCount(analysis) >= desiredLineCount) return analysis;
 
-  const localAnalysis = await analyzeFenCached(fen, args);
+  const localAnalysis = await analyzeFenCached(fen, args, cache);
   if (
     analysisMatchesFen(localAnalysis, fen) &&
     analysisLineCount(localAnalysis) > analysisLineCount(analysis)
@@ -1890,6 +1890,14 @@ async function generateBranchVariantsFromTrigger({
     const now = Date.now();
     if (now - lastProgressAt < args.progressIntervalMs) return;
     lastProgressAt = now;
+    const elapsedMin = ((now - searchStartedAt) / 60000).toFixed(1);
+    const evalText = Number.isFinite(latestState?.trainedEvalCp)
+      ? `${Math.round(latestState.trainedEvalCp)}cp`
+      : "n/a";
+    console.log(
+      `  branch search: ${visitedNodes}/${args.maxContinuationSearchNodes} nodes, ` +
+        `${generatedSans.length} plies, eval ${evalText}, ${elapsedMin}m elapsed`
+    );
   }
 
   function pushCheckpoint({
@@ -1980,7 +1988,12 @@ async function generateBranchVariantsFromTrigger({
         generatedSans.length,
         whiteEvalCpFromAnalysis(analysis)
       );
-      const candidateAnalysis = await analysisForTrainedCandidates(chess.fen(), analysis, args);
+      const candidateAnalysis = await analysisForTrainedCandidates(
+        chess.fen(),
+        analysis,
+        args,
+        caches.stockfishEval
+      );
       const currentEvalCp = latestState?.trainedEvalCp;
       const settledAdvantage =
         advantageLock ||
@@ -2332,7 +2345,12 @@ async function firstTrainedCandidatesForTrigger({ parent, stemSans, trigger, arg
   const sideToMove = chess.turn() === "w" ? "white" : "black";
   if (sideToMove !== parent.openingColor) return [];
   const analysis = await analyzeWithRouter(chess.fen(), args, caches);
-  const candidateAnalysis = await analysisForTrainedCandidates(chess.fen(), analysis, args);
+  const candidateAnalysis = await analysisForTrainedCandidates(
+    chess.fen(),
+    analysis,
+    args,
+    caches.stockfishEval
+  );
   return trainedMoveCandidates({
     chess,
     analysis: candidateAnalysis,
@@ -2782,6 +2800,7 @@ async function main() {
   const caches = {
     analysis: new Map(),
     explorer: new Map(),
+    stockfishEval: loadJsonObject(args.stockfishEvalCache),
     bestEval: loadJsonObject(args.bestEvalCache),
   };
   const scopeKey = checkpointScopeKey({ args, selectedReferences });

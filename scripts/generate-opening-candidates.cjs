@@ -1527,10 +1527,10 @@ function normalizedPositionKey(fen) {
   return String(fen).split(/\s+/).slice(0, 4).join(" ");
 }
 
-async function analyzeFenCached(fen, args) {
+async function analyzeFenCached(fen, args, cache) {
   const cachePath = args.stockfishEvalCache;
   const key = stockfishCacheKey(fen, args);
-  const cache = loadJsonObject(cachePath);
+  cache = cache ?? loadJsonObject(cachePath);
 
   if (cache[key]?.result) {
     return cache[key].result;
@@ -1997,7 +1997,7 @@ async function analyzePosition(fen, args, cache) {
     return bestKnown;
   }
 
-  const result = await analyzeFenCached(fen, args);
+  const result = await analyzeFenCached(fen, args, cache?.stockfishEval);
   if (!analysisMatchesFen(result, fen)) {
     throw new Error(`Stockfish returned illegal best move "${result?.bestMove ?? "none"}" for ${fen}`);
   }
@@ -2945,6 +2945,7 @@ async function main() {
   const caches = {
     analysis: new Map(),
     explorer: new Map(),
+    stockfishEval: loadJsonObject(args.stockfishEvalCache),
     bestEval: loadJsonObject(args.bestEvalCache),
   };
 
