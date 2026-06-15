@@ -1949,6 +1949,9 @@ async function analyzePosition(fen, args, cache) {
         }
         throw error;
       }
+      if (args.lockedEngineId && args.lockedEngineId !== "stockfish") {
+        args.router.markCoolingDown(args.lockedEngineId);
+      }
 
       console.warn(
         `Cloud eval (${engineProvider}) unavailable for ${fen}; falling back to local Stockfish depth ${args.stockfishDepth}: ${
@@ -1977,6 +1980,9 @@ async function analyzePosition(fen, args, cache) {
           return bestKnown;
         }
         throw error;
+      }
+      if (args.lockedEngineId && args.lockedEngineId !== "stockfish") {
+        args.router.markCoolingDown(args.lockedEngineId);
       }
       console.warn(
         `Cloud eval (${engineProvider}) unavailable for ${fen}; falling back to cached/local Stockfish depth ${args.stockfishDepth}: ${

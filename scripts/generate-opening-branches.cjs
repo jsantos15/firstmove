@@ -639,6 +639,9 @@ async function analyzePosition(fen, args, cache) {
         }
         throw error;
       }
+      if (args.lockedEngineId && args.lockedEngineId !== "stockfish") {
+        args.router.markCoolingDown(args.lockedEngineId);
+      }
       console.warn(
         `Cloud eval unavailable for branch position; falling back to Stockfish: ${
           error instanceof Error ? error.message : String(error)
