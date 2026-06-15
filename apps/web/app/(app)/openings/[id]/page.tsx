@@ -95,28 +95,20 @@ function GroupHeader({
   group,
   childCount,
   isOpen,
-  hasActiveChild,
   onClick,
 }: {
   group: VariationGroup;
   childCount: number;
   isOpen: boolean;
-  hasActiveChild: boolean;
   onClick: () => void;
 }) {
   return (
     <button
       type="button"
       onClick={onClick}
-      className={`w-full flex items-center transition-colors ${
-        hasActiveChild ? 'bg-amber-400/10' : 'hover:bg-white/3'
-      }`}
+      className="w-full flex items-center transition-colors hover:bg-white/3"
     >
-      <span
-        className={`h-9 w-8 flex shrink-0 items-center justify-center ${
-          hasActiveChild ? 'text-amber-400' : 'text-gray-600'
-        }`}
-      >
+      <span className="h-9 w-8 flex shrink-0 items-center justify-center text-gray-600">
         <svg
           xmlns="http://www.w3.org/2000/svg"
           viewBox="0 0 24 24"
@@ -131,9 +123,7 @@ function GroupHeader({
         </svg>
       </span>
       <span
-        className={`flex-1 flex items-center justify-between gap-2 py-2.5 pr-4 min-w-0 text-left text-sm font-medium transition-colors ${
-          hasActiveChild ? 'text-amber-300' : 'text-gray-400'
-        }`}
+        className="flex-1 flex items-center justify-between gap-2 py-2.5 pr-4 min-w-0 text-left text-sm font-medium text-gray-400"
       >
         <span className="truncate">{group.displayName}</span>
         {childCount > 0 && (
@@ -494,19 +484,6 @@ const selectedReferenceVariation =
   function handleGroupClick(group: VariationGroup) {
     const isExpanded = expandedGroupId === group.id;
     setExpandedGroupId(isExpanded ? '' : group.id);
-    // Auto-select the first child line when opening a group that has no active selection
-    if (!isExpanded) {
-      const hasActiveChild = group.lines.some(l => l.id === activeReferenceLineId);
-      if (!hasActiveChild) {
-        const firstLine = group.lines[0];
-        if (firstLine) {
-          setSelectedLineId(firstLine.id);
-          setSelectedReferenceLineId(firstLine.id);
-          setCoachFeedback(null);
-          setShowAuthPrompt(false);
-        }
-      }
-    }
   }
 
   function handleLineClick(lineId: string, globalIndex: number) {
@@ -669,7 +646,6 @@ const selectedReferenceVariation =
                 <div className="flex-1 min-h-0 overflow-y-auto">
                   {groups.map(group => {
                     const isExpanded = expandedGroupId === group.id;
-                    const hasActiveChild = group.lines.some(l => l.id === activeReferenceLineId);
 
                     return (
                       <div key={group.id}>
@@ -677,7 +653,6 @@ const selectedReferenceVariation =
                           group={group}
                           childCount={group.lines.length}
                           isOpen={isExpanded}
-                          hasActiveChild={hasActiveChild}
                           onClick={() => handleGroupClick(group)}
                         />
                         {isExpanded && group.lines.length > 0 && (
