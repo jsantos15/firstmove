@@ -108,7 +108,7 @@ function GroupHeader({
       onClick={onClick}
       className="w-full flex items-center transition-colors hover:bg-white/3"
     >
-      <span className="h-9 w-8 flex shrink-0 items-center justify-center text-gray-600">
+      <span className="h-7 w-8 flex shrink-0 items-center justify-center text-gray-700">
         <svg
           xmlns="http://www.w3.org/2000/svg"
           viewBox="0 0 24 24"
@@ -117,17 +117,15 @@ function GroupHeader({
           strokeWidth={2}
           strokeLinecap="round"
           strokeLinejoin="round"
-          className={`h-3 w-3 transition-transform duration-150 ${isOpen ? 'rotate-90' : ''}`}
+          className={`h-2.5 w-2.5 transition-transform duration-150 ${isOpen ? 'rotate-90' : ''}`}
         >
           <path d="m9 18 6-6-6-6" />
         </svg>
       </span>
-      <span
-        className="flex-1 flex items-center justify-between gap-2 py-2.5 pr-4 min-w-0 text-left text-sm font-medium text-gray-400"
-      >
-        <span className="truncate">{group.displayName}</span>
+      <span className="flex-1 flex items-center justify-between gap-2 py-1.5 pr-4 min-w-0 text-left">
+        <span className="truncate text-xs font-normal text-gray-500">{group.displayName}</span>
         {childCount > 0 && (
-          <span className="shrink-0 rounded-full bg-white/5 px-2 py-0.5 text-[11px] text-gray-500">
+          <span className="shrink-0 rounded-full bg-white/[0.04] px-1.5 py-0.5 text-[10px] text-gray-600">
             {childCount}
           </span>
         )}
@@ -159,35 +157,41 @@ function BranchRow({
   rowIndex?: number;
 }) {
   const locked = globalIndex > 0 && !user;
-  const zebraClass = rowIndex % 2 === 0 ? 'bg-white/2' : '';
+  const zebraClass = rowIndex % 2 === 0 ? 'bg-white/[0.015]' : '';
+  const anchorMove = line.variationAnchorPly != null ? Math.ceil(line.variationAnchorPly / 2) : null;
 
   return (
     <button
       ref={buttonRef}
       type="button"
       onClick={onClick}
-      className={`group relative w-full flex items-center gap-2.5 px-4 py-2.5 text-left text-xs transition-all ${
+      className={`group relative w-full flex items-center gap-2 px-4 py-1.5 text-left transition-all ${
         isActive
-          ? 'bg-amber-400/10 text-amber-300'
+          ? 'bg-amber-400/10'
           : locked
-            ? `${zebraClass} text-gray-600`
-            : `${zebraClass} text-gray-400 hover:bg-white/5 hover:text-white`
+            ? `${zebraClass}`
+            : `${zebraClass} hover:bg-white/5`
       }`}
     >
       <span
-        className={`absolute inset-y-2 left-0 w-0.5 rounded-full transition-colors ${
+        className={`absolute inset-y-1.5 left-0 w-0.5 rounded-full transition-colors ${
           isActive ? 'bg-amber-400' : 'bg-transparent group-hover:bg-white/15'
         }`}
       />
       <div className="min-w-0 flex-1">
-        <div className="flex items-center gap-2">
-          <span className="min-w-0 flex-1 truncate font-medium leading-tight">{line.name}</span>
-          <div className="flex shrink-0 items-center gap-1.5">
+        <div className="flex items-center gap-1.5">
+          <span className={`min-w-0 flex-1 truncate text-[11px] font-normal leading-tight ${
+            isActive ? 'text-amber-300' : locked ? 'text-gray-700' : 'text-gray-500 group-hover:text-gray-300'
+          }`}>{line.name}</span>
+          <div className="flex shrink-0 items-center gap-1">
+            {anchorMove != null && !isActive && (
+              <span className="text-[10px] text-gray-700">move {anchorMove}</span>
+            )}
             {completions != null && completions > 0 && (
               <span className="text-[10px] text-gray-600">{completions}×</span>
             )}
             {locked ? (
-              <span className="text-[11px]">🔒</span>
+              <span className="text-[10px]">🔒</span>
             ) : mastery && mastery !== 'new' ? (
               <span
                 className={`h-1.5 w-1.5 rounded-full ${MASTERY_COLORS[mastery as keyof typeof MASTERY_COLORS]}`}
@@ -636,10 +640,10 @@ const selectedReferenceVariation =
             {/* Variations + Lines — each a bordered card */}
             <div className="flex-1 min-h-0 flex flex-col gap-4">
 
-              {/* Variations card */}
-              <div className="min-h-0 flex flex-col rounded-lg border border-white/10 overflow-hidden" style={{ flex: 44 }}>
-                <div className="shrink-0 flex items-center px-4 py-3 border-b border-white/8">
-                  <h3 className="text-[11px] font-semibold uppercase tracking-widest text-gray-500">{opening.name} Variations</h3>
+              {/* Variations card — position picker / navigation */}
+              <div className="min-h-0 flex flex-col rounded-lg border border-white/[0.07] overflow-hidden" style={{ flex: 44 }}>
+                <div className="shrink-0 flex items-center px-4 py-2 border-b border-white/[0.06]">
+                  <h3 className="text-[10px] font-medium uppercase tracking-widest text-gray-600">Key Positions</h3>
                 </div>
 
                 {/* Accordion */}
@@ -702,12 +706,15 @@ const selectedReferenceVariation =
                 )}
               </div>
 
-              {/* Lines card */}
-              <div className="min-h-0 flex flex-col rounded-lg border border-white/10 overflow-hidden" style={{ flex: 34 }}>
+              {/* Lines card — primary learning content */}
+              <div className="min-h-0 flex flex-col rounded-lg border border-white/[0.14] overflow-hidden" style={{ flex: 34 }}>
+                <div className="shrink-0 flex items-center px-4 py-2.5 border-b border-white/10">
+                  <h3 className="text-[11px] font-semibold uppercase tracking-widest text-gray-400">Study this position</h3>
+                </div>
                 <div className="flex-1 min-h-0 overflow-y-auto">
                   {/* Reference */}
                   <div className="px-4 pt-2.5 pb-1">
-                    <p className="text-[10px] font-medium uppercase tracking-wider text-gray-600">Reference (engine continuation)</p>
+                    <p className="text-[10px] font-medium uppercase tracking-wider text-gray-600">Reference line</p>
                   </div>
                   {selectedReferenceVariation ? (
                     <button
