@@ -1882,23 +1882,6 @@ async function generateBranchVariantsFromTrigger({
   const payoffFallbacksByLine = new Map();
   const responseCategory = branchCategory(parent, triggerMove.san, "");
   let visitedNodes = 0;
-  const searchStartedAt = Date.now();
-  let lastProgressAt = searchStartedAt;
-
-  function maybeLogSearchProgress({ generatedSans, latestState }) {
-    if (!Number.isFinite(args.progressIntervalMs) || args.progressIntervalMs <= 0) return;
-    const now = Date.now();
-    if (now - lastProgressAt < args.progressIntervalMs) return;
-    lastProgressAt = now;
-    const elapsedMin = ((now - searchStartedAt) / 60000).toFixed(1);
-    const evalText = Number.isFinite(latestState?.trainedEvalCp)
-      ? `${Math.round(latestState.trainedEvalCp)}cp`
-      : "n/a";
-    console.log(
-      `  branch search: ${visitedNodes}/${args.maxContinuationSearchNodes} nodes, ` +
-        `${generatedSans.length} plies, eval ${evalText}, ${elapsedMin}m elapsed`
-    );
-  }
 
   function pushCheckpoint({
     state,
@@ -1971,7 +1954,6 @@ async function generateBranchVariantsFromTrigger({
   }) {
     visitedNodes += 1;
     if (visitedNodes > args.maxContinuationSearchNodes) return;
-    maybeLogSearchProgress({ generatedSans, latestState });
 
     const addedFromAnchor = generatedSans.length - (parent.variationAnchorSans?.length ?? 0);
     const needsResolution = checkpointNeedsResolution(latestState);
