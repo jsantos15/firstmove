@@ -68,11 +68,24 @@ function groupVariations(variations: AppVariation[], openingName: string): Varia
       map.set(key, { id: key, displayName, lines: [v] });
     }
   }
-  return Array.from(map.values()).sort((a, b) => {
-    const aMain = a.lines.some(l => l.isMainLine) ? -1 : 1;
-    const bMain = b.lines.some(l => l.isMainLine) ? -1 : 1;
-    if (aMain !== bMain) return aMain - bMain;
-    return a.displayName.localeCompare(b.displayName);
+  const prefix = `${openingName}: `;
+  const groups = Array.from(map.values());
+  // Sort lines within each group: parent (exact name match) first, then by popularity desc
+  for (const group of groups) {
+    group.lines.sort((a, b) => {
+      const aRem = (a.fullName?.startsWith(prefix) ? a.fullName.slice(prefix.length) : a.fullName) ?? '';
+      const bRem = (b.fullName?.startsWith(prefix) ? b.fullName.slice(prefix.length) : b.fullName) ?? '';
+      const aIsParent = aRem === group.displayName;
+      const bIsParent = bRem === group.displayName;
+      if (aIsParent !== bIsParent) return aIsParent ? -1 : 1;
+      return (b.popularityGames ?? 0) - (a.popularityGames ?? 0);
+    });
+  }
+  // Sort groups by their most popular line desc
+  return groups.sort((a, b) => {
+    const aMax = Math.max(...a.lines.map(l => l.popularityGames ?? 0));
+    const bMax = Math.max(...b.lines.map(l => l.popularityGames ?? 0));
+    return bMax - aMax;
   });
 }
 
