@@ -56,10 +56,20 @@ export async function getOpeningCatalogBySlug(slug: string): Promise<OpeningCata
   return data;
 }
 
+const OPENING_LINE_FIELDS = [
+  'slug', 'name', 'full_name', 'description',
+  'line_kind', 'is_main_line', 'sort_order', 'sans',
+  'engine_checked', 'eval_cp_by_ply', 'final_eval_cp', 'final_eval_perspective',
+  'primary_category', 'inclusion_outcome', 'line_difficulty',
+  'popularity_rank', 'popularity_score', 'popularity_games',
+  'source_name', 'source_confidence',
+  'variation_anchor_sans', 'variation_anchor_ply', 'variation_anchor_name', 'variation_anchor_fen',
+].join(', ');
+
 export async function getOpeningLinesBySlug(openingSlug: string): Promise<OpeningLineRow[]> {
   const { data, error } = await supabase
     .from('opening_lines')
-    .select('*')
+    .select(OPENING_LINE_FIELDS)
     .eq('opening_slug', openingSlug)
     .order('is_main_line', { ascending: false })
     .order('popularity_rank', { ascending: true, nullsFirst: false })
@@ -69,7 +79,7 @@ export async function getOpeningLinesBySlug(openingSlug: string): Promise<Openin
     throw error;
   }
 
-  return data;
+  return data as unknown as OpeningLineRow[];
 }
 
 export async function getOpeningLineBranchMetadataBySlug(
