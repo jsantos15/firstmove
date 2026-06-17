@@ -11,6 +11,7 @@ interface MoveListProps {
   onNavigate?: (index: number) => void;
   milestones?: OpeningPositionMilestone[];
   mode?: 'learn' | 'practice';
+  anchorPly?: number;
 }
 
 interface MovePair {
@@ -44,6 +45,7 @@ function MoveCell({
   selectedMoveIndex,
   onNavigate,
   mode,
+  isAnchor,
 }: {
   san: string;
   index: number;
@@ -51,6 +53,7 @@ function MoveCell({
   selectedMoveIndex?: number;
   onNavigate?: (index: number) => void;
   mode?: 'learn' | 'practice';
+  isAnchor?: boolean;
 }) {
   const isSelected = index === (selectedMoveIndex ?? currentMoveIndex);
   const isPlayed = index <= currentMoveIndex;
@@ -62,9 +65,11 @@ function MoveCell({
       className={`w-full px-2 py-1.5 text-left font-mono text-sm transition-colors ${
         isSelected
           ? 'bg-white/20 text-white font-semibold'
-          : isPlayed || mode === 'learn'
-            ? 'text-gray-300 hover:bg-white/10 hover:text-white'
-            : 'text-gray-500 hover:bg-white/5 hover:text-gray-300'
+          : isAnchor
+            ? 'text-gray-600 hover:bg-white/5 hover:text-gray-400'
+            : isPlayed || mode === 'learn'
+              ? 'text-gray-300 hover:bg-white/10 hover:text-white'
+              : 'text-gray-500 hover:bg-white/5 hover:text-gray-300'
       }`}
     >
       {san}
@@ -101,7 +106,7 @@ function getActiveMilestone(
   return active;
 }
 
-export function MoveList({ variation, currentMoveIndex, selectedMoveIndex, onNavigate, milestones = [], mode }: MoveListProps) {
+export function MoveList({ variation, currentMoveIndex, selectedMoveIndex, onNavigate, milestones = [], mode, anchorPly }: MoveListProps) {
   const pairs = toPairs(variation);
   const activeMilestone = getActiveMilestone(milestones, currentMoveIndex);
   const [copied, setCopied] = useState(false);
@@ -120,6 +125,11 @@ export function MoveList({ variation, currentMoveIndex, selectedMoveIndex, onNav
   }, [variation, currentMoveIndex]);
 
   const activeIndex = selectedMoveIndex ?? currentMoveIndex;
+
+  // Index of the first pair that contains at least one continuation move
+  const firstContinuationPairIdx = anchorPly != null
+    ? pairs.findIndex(p => p.whiteIndex >= anchorPly || (p.blackIndex != null && p.blackIndex >= anchorPly))
+    : -1;
 
   return (
     <div className="flex h-78 shrink-0 flex-col">
@@ -163,11 +173,22 @@ export function MoveList({ variation, currentMoveIndex, selectedMoveIndex, onNav
       {/* Move rows */}
       <div className="min-h-0 flex-1 overflow-y-auto">
         <div className="grid grid-cols-[2.5rem_1fr_1fr] text-sm">
-          {pairs.map(pair => {
+          {pairs.map((pair, i) => {
             const isSelectedRow =
               pair.whiteIndex === activeIndex || pair.blackIndex === activeIndex;
+            const whiteIsAnchor = anchorPly != null && pair.whiteIndex < anchorPly;
+            const blackIsAnchor = anchorPly != null && pair.blackIndex != null && pair.blackIndex < anchorPly;
+            const showDivider = firstContinuationPairIdx !== -1 && i === firstContinuationPairIdx;
+
             return (
               <div key={pair.moveNumber} className="contents">
+                {showDivider && (
+                  <div className="col-span-3 flex items-center gap-2 px-3 py-1.5">
+                    <div className="h-px flex-1 bg-white/[0.07]" />
+                    <span className="text-[9px] uppercase tracking-widest text-gray-700">Continuation</span>
+                    <div className="h-px flex-1 bg-white/[0.07]" />
+                  </div>
+                )}
                 <span ref={isSelectedRow ? selectedRowRef : undefined} className="flex items-center justify-center text-[11px] text-gray-600 select-none font-mono">
                   {pair.moveNumber}
                 </span>
@@ -178,6 +199,7 @@ export function MoveList({ variation, currentMoveIndex, selectedMoveIndex, onNav
                   selectedMoveIndex={selectedMoveIndex}
                   onNavigate={onNavigate}
                   mode={mode}
+                  isAnchor={whiteIsAnchor}
                 />
                 {pair.black !== null && pair.blackIndex !== null ? (
                   <MoveCell
@@ -187,6 +209,7 @@ export function MoveList({ variation, currentMoveIndex, selectedMoveIndex, onNav
                     selectedMoveIndex={selectedMoveIndex}
                     onNavigate={onNavigate}
                     mode={mode}
+                    isAnchor={blackIsAnchor}
                   />
                 ) : (
                   <span />
