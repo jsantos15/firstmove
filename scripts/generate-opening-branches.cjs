@@ -1037,10 +1037,18 @@ function checkpointNeedsResolution(state) {
   return Boolean(state?.unresolvedForcing || state?.materialConversionPending);
 }
 
-function payoffFallbackAccepts({ state, chess, trace, openingColor, args, minPliesAfterTrigger = 4 }) {
+function payoffFallbackAccepts({
+  state,
+  chess,
+  trace,
+  openingColor,
+  args,
+  minPliesAfterTrigger = 4,
+  allowPendingCheck = false,
+}) {
   if (!Number.isFinite(state?.trainedEvalCp)) return false;
   if (state.trainedEvalCp < args.trainedOpportunityMinEvalCp) return false;
-  if (state.pendingCheckReply) return false;
+  if (state.pendingCheckReply && !allowPendingCheck) return false;
   const sideToMove = chess.turn() === "w" ? "white" : "black";
   if (chess.inCheck() && sideToMove === openingColor) return false;
   const pliesAfterTrigger = Math.max(0, trace.length - 1);
@@ -1880,6 +1888,7 @@ async function generateBranchVariantsFromTrigger({
   }
   const checkpoints = [];
   const payoffFallbacksByLine = new Map();
+  let pendingCheckFallback = null;
   const responseCategory = branchCategory(parent, triggerMove.san, "");
   let visitedNodes = 0;
 
@@ -1939,6 +1948,53 @@ async function generateBranchVariantsFromTrigger({
         endpointSide,
         fallbackReason: reason,
       });
+    }
+  }
+
+  function considerPendingCheckFallback({
+    state,
+    generatedSans,
+    trace,
+    evalCpByPly,
+    fen,
+    analysis,
+    chess,
+    endpointSide,
+    reason,
+  }) {
+    if (!state?.pendingCheckReply) return;
+    if (
+      !payoffFallbackAccepts({
+        state,
+        chess,
+        trace,
+        openingColor,
+        args,
+        minPliesAfterTrigger: 1,
+        allowPendingCheck: true,
+      })
+    ) {
+      return;
+    }
+    const currentEval = Number.isFinite(pendingCheckFallback?.state?.trainedEvalCp)
+      ? pendingCheckFallback.state.trainedEvalCp
+      : Number.NEGATIVE_INFINITY;
+    if (
+      !pendingCheckFallback ||
+      state.trainedEvalCp > currentEval ||
+      (state.trainedEvalCp === currentEval && state.score > pendingCheckFallback.state.score)
+    ) {
+      pendingCheckFallback = {
+        state,
+        generatedSans: [...generatedSans],
+        trace: trace.map((step) => ({ ...step })),
+        evalCpByPly: [...evalCpByPly],
+        fen,
+        analysis,
+        fallback: "pending_check_payoff",
+        endpointSide,
+        fallbackReason: reason,
+      };
     }
   }
 
@@ -2085,6 +2141,17 @@ async function generateBranchVariantsFromTrigger({
           reason: "best_high_eval_trained_payoff",
           minPliesAfterTrigger: forcedFirstTrainedCandidate ? 1 : 4,
         });
+        considerPendingCheckFallback({
+          state,
+          generatedSans: nextGeneratedSans,
+          trace: nextTrace,
+          evalCpByPly: nextEvalCpByPly,
+          fen: nextChess.fen(),
+          analysis: nextFinalAnalysis,
+          chess: nextChess,
+          endpointSide: "trained",
+          reason: "best_high_eval_pending_check_payoff",
+        });
 
         const nextAddedFromAnchor =
           nextGeneratedSans.length - (parent.variationAnchorSans?.length ?? 0);
@@ -2147,6 +2214,8 @@ async function generateBranchVariantsFromTrigger({
         continue;
       }
       let nextEvalCpByPly = currentEvalCpByPly;
+      let nextLatestState = latestState;
+      let nextFinalAnalysis = finalAnalysis;
       if (
         checkpointNeedsResolution(latestState) ||
         (Number.isFinite(latestState?.trainedEvalCp) &&
@@ -2169,6 +2238,11 @@ async function generateBranchVariantsFromTrigger({
           args,
           advantageStartPly: advantageLock?.startPly ?? null,
         });
+        nextLatestState = opponentEndpointState;
+        nextFinalAnalysis = opponentEndpointAnalysis;
+        const resolvedPendingCheck = Boolean(
+          latestState?.pendingCheckReply && !opponentEndpointState.pendingCheckReply
+        );
         considerPayoffFallback({
           state: opponentEndpointState,
           generatedSans: nextGeneratedSans,
@@ -2179,6 +2253,7 @@ async function generateBranchVariantsFromTrigger({
           chess: nextChess,
           endpointSide: "opponent",
           reason: "best_high_eval_opponent_payoff",
+          minPliesAfterTrigger: resolvedPendingCheck ? 0 : 4,
         });
       }
       await search({
@@ -2186,8 +2261,8 @@ async function generateBranchVariantsFromTrigger({
         generatedSans: nextGeneratedSans,
         trace: nextTrace,
         evalCpByPly: nextEvalCpByPly,
-        latestState,
-        finalAnalysis,
+        latestState: nextLatestState,
+        finalAnalysis: nextFinalAnalysis,
         advantageLock,
         usedForcedFirstTrainedCandidate,
       });
@@ -2239,6 +2314,10 @@ async function generateBranchVariantsFromTrigger({
       (checkpoint) => checkpoint.generatedSans.join(" ") === payoffFallback.generatedSans.join(" ")
     );
     if (!hasSameLine) checkpoints.push(payoffFallback);
+  }
+
+  if (checkpoints.length === 0 && payoffFallbacksByLine.size === 0 && pendingCheckFallback) {
+    checkpoints.push(pendingCheckFallback);
   }
 
   const variantsByLine = new Map();
@@ -2346,6 +2425,7 @@ async function forcedResolutionMove({ chess, explorer, args, caches }) {
   const legalUcis = new Set(legalMoves.map(moveToUci));
   const total = explorer.totalGamesAtNode;
   const onlyLegalMove = legalMoves.length === 1;
+  const resolvingCheck = chess.inCheck();
   const explorerMove = explorer.topMoves.find((move) => legalUcis.has(move.uci));
   if (explorerMove) {
     const playRate = total > 0 ? explorerMove.totalGames / total : null;
@@ -2353,20 +2433,21 @@ async function forcedResolutionMove({ chess, explorer, args, caches }) {
       !onlyLegalMove &&
       (total < args.minResolutionNodeGames || explorerMove.totalGames < args.minResolutionMoveGames)
     ) {
-      return null;
+      if (!resolvingCheck) return null;
+    } else {
+      return {
+        ...explorerMove,
+        playRate,
+        cumulativePlayRate: playRate,
+        nodeGames: total,
+        source: resolvingCheck
+          ? "lichess-explorer-forced-check-reply"
+          : "lichess-explorer-forced-resolution",
+      };
     }
-    return {
-      ...explorerMove,
-      playRate,
-      cumulativePlayRate: playRate,
-      nodeGames: total,
-      source: chess.inCheck()
-        ? "lichess-explorer-forced-check-reply"
-        : "lichess-explorer-forced-resolution",
-    };
   }
 
-  if (!onlyLegalMove) return null;
+  if (!onlyLegalMove && !resolvingCheck) return null;
   const analysis = await analyzeWithRouter(chess.fen(), args, caches);
   if (!analysis.bestMove || !legalUcis.has(analysis.bestMove)) return null;
   return {
@@ -2376,7 +2457,7 @@ async function forcedResolutionMove({ chess, explorer, args, caches }) {
     playRate: null,
     cumulativePlayRate: null,
     nodeGames: total,
-    source: chess.inCheck() ? "engine-forced-check-reply" : "engine-forced-resolution",
+    source: resolvingCheck ? "engine-forced-check-reply" : "engine-forced-resolution",
   };
 }
 
