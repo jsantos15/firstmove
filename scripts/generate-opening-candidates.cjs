@@ -374,13 +374,31 @@ function inferOpeningColor(openingName) {
   return "white";
 }
 
+function courseFamilyForEntry(entry) {
+  const family = String(entry.family ?? "").trim();
+  if (
+    family === "Queen's Gambit Accepted" ||
+    family === "Queen's Gambit Declined"
+  ) {
+    return "Queen's Gambit";
+  }
+
+  return family;
+}
+
 function splitVariationSegments(entry) {
+  const courseFamily = courseFamilyForEntry(entry);
+  const family = String(entry.family ?? "").trim();
   const segments = String(entry.variation ?? "")
-    .split(":")
+    .split(/[:,]/u)
     .map((part) => part.trim())
     .filter(Boolean);
 
-  return [entry.family, ...segments];
+  if (family && family !== courseFamily) {
+    return [courseFamily, family, ...segments];
+  }
+
+  return [courseFamily, ...segments];
 }
 
 function inferPrimaryCategory(entry) {
@@ -512,8 +530,9 @@ function deriveOpeningDifficulty(lines) {
 }
 
 function buildOpeningIds(entry) {
+  const courseFamily = courseFamilyForEntry(entry);
   return {
-    openingId: slugify(entry.family),
+    openingId: slugify(courseFamily),
     variationId: slugify(entry.name),
     lineId: slugify(entry.name),
   };
@@ -2303,7 +2322,7 @@ async function extendMainVariationLine(entry, args, caches) {
   const generatedSans = [...entry.sans];
   const variationAnchorFen = chess.fen();
   const continuationSteps = [];
-  const openingColor = inferOpeningColor(entry.family);
+  const openingColor = inferOpeningColor(courseFamilyForEntry(entry));
   const category = inferPrimaryCategory(entry);
   const evalHistory = [];
   let evalCpByPly = [0];
@@ -2608,6 +2627,7 @@ async function extendMainVariationLine(entry, args, caches) {
 
 function buildCandidateRecord(entry, generated) {
   const ids = buildOpeningIds(entry);
+  const courseFamily = courseFamilyForEntry(entry);
   const mainLine = inferMainLineStatus(entry);
   const variationPath = splitVariationSegments(entry);
   const sourceMainLine = isSourceMainLineEntry(entry);
@@ -2655,7 +2675,7 @@ function buildCandidateRecord(entry, generated) {
     openingId: ids.openingId,
     variationId: ids.variationId,
     lineId: ids.lineId,
-    openingName: entry.family,
+    openingName: courseFamily,
     lineName: entry.variation || entry.family,
     fullName: entry.name,
     lineDisplayName: entry.name,

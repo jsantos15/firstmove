@@ -41,6 +41,26 @@ function extractGroupName(fullName: string | undefined, openingName: string): st
   return commaIdx === -1 ? remainder : remainder.slice(0, commaIdx).trim();
 }
 
+function groupNameForVariation(variation: AppVariation, openingName: string): string {
+  const path = variation.variationPath;
+  if (path?.length) {
+    const openingIndex = path.findIndex(part => part === openingName);
+    const group = openingIndex >= 0 ? path[openingIndex + 1] : path[1] ?? path[0];
+    if (group) return group;
+  }
+
+  return extractGroupName(variation.fullName ?? undefined, openingName);
+}
+
+function lineDepthInGroup(line: AppVariation, openingName: string) {
+  const path = line.variationPath;
+  if (!path?.length) return 0;
+
+  const openingIndex = path.findIndex(part => part === openingName);
+  const depth = openingIndex >= 0 ? path.length - openingIndex - 2 : path.length - 2;
+  return Math.max(0, Math.min(depth, 4));
+}
+
 function slugifyGroup(value: string) {
   return value
     .toLowerCase()
@@ -59,7 +79,7 @@ function normalizeOpeningLabel(value: string) {
 function groupVariations(variations: AppVariation[], openingName: string): VariationGroup[] {
   const map = new Map<string, VariationGroup>();
   for (const v of variations) {
-    const displayName = extractGroupName(v.fullName ?? undefined, openingName);
+    const displayName = groupNameForVariation(v, openingName);
     const key = slugifyGroup(displayName) || v.id;
     const group = map.get(key);
     if (group) {
@@ -146,6 +166,7 @@ function BranchRow({
   onClick,
   buttonRef,
   rowIndex = 0,
+  openingName,
 }: {
   line: VariationGroup['lines'][number];
   globalIndex: number;
@@ -157,6 +178,7 @@ function BranchRow({
   onClick: () => void;
   buttonRef?: React.RefObject<HTMLButtonElement | null>;
   rowIndex?: number;
+  openingName: string;
 }) {
   const locked = globalIndex > 0 && !user;
   const zebraClass = rowIndex % 2 === 0 ? 'bg-white/[0.015]' : '';
@@ -165,12 +187,14 @@ function BranchRow({
   const activeBg = highlightVariant === 'navigate' ? 'bg-white/[0.07]' : 'bg-amber-400/10';
   const activeBar = highlightVariant === 'navigate' ? 'bg-white/25' : 'bg-amber-400';
   const activeText = highlightVariant === 'navigate' ? 'text-gray-300' : 'text-amber-300';
+  const depth = lineDepthInGroup(line, openingName);
 
   return (
     <button
       ref={buttonRef}
       type="button"
       onClick={onClick}
+      style={{ paddingLeft: `${16 + depth * 12}px` }}
       className={`group relative w-full flex items-center gap-2 px-4 py-1.5 text-left transition-all ${
         isActive
           ? activeBg
@@ -684,6 +708,7 @@ const selectedReferenceVariation =
                                       line.id === activeReferenceLineId ? activeLineRef : undefined
                                     }
                                     rowIndex={idx}
+                                    openingName={opening.name}
                                   />
                                 );
                               })}

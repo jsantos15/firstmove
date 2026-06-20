@@ -471,6 +471,8 @@ function buildLineMetadata(line) {
     stopReason: line.stopReason,
     sourceName: line.sourceName,
     sourceConfidence: line.sourceConfidence,
+    variationPath: line.variationPath ?? null,
+    variationDepth: line.variationDepth ?? null,
     variationAnchorPly: line.variationAnchorSans?.length ?? null,
     variationAnchorName: line.variationName ?? line.lineName ?? null,
     variationAnchorFen: line.variationAnchorFen ?? null,

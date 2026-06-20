@@ -63,6 +63,7 @@ const OPENING_LINE_FIELDS = [
   'primary_category', 'inclusion_outcome', 'line_difficulty',
   'popularity_rank', 'popularity_score', 'popularity_games',
   'source_name', 'source_confidence',
+  'variation_path', 'variation_depth',
   'variation_anchor_sans', 'variation_anchor_ply', 'variation_anchor_name', 'variation_anchor_fen',
 ].join(', ');
 

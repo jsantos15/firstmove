@@ -64,6 +64,8 @@ export type AppVariation = OpeningVariation & {
   variationAnchorPly?: NonNullable<OpeningLineRow['variation_anchor_ply']>;
   variationAnchorName?: NonNullable<OpeningLineRow['variation_anchor_name']>;
   variationAnchorFen?: NonNullable<OpeningLineRow['variation_anchor_fen']>;
+  variationPath?: NonNullable<OpeningLineRow['variation_path']>;
+  variationDepth?: NonNullable<OpeningLineRow['variation_depth']>;
   lineKind?: NonNullable<OpeningLineRow['line_kind']>;
   branchMetadata?: OpeningLineBranchMetadataRow;
 };
@@ -158,6 +160,8 @@ function buildVariationStub(
     variationAnchorPly: line.variation_anchor_ply ?? undefined,
     variationAnchorName: line.variation_anchor_name ?? undefined,
     variationAnchorFen: line.variation_anchor_fen ?? undefined,
+    variationPath: line.variation_path ?? undefined,
+    variationDepth: line.variation_depth ?? undefined,
     lineKind: line.line_kind,
     branchMetadata,
   };

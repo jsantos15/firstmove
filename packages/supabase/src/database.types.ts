@@ -79,10 +79,12 @@ export type Database = {
           sort_order: number;
           source_confidence: string | null;
           source_name: string | null;
+          variation_depth: number | null;
           variation_anchor_fen: string | null;
           variation_anchor_name: string | null;
           variation_anchor_ply: number | null;
           variation_anchor_sans: string[] | null;
+          variation_path: string[] | null;
         };
         Insert: {
           created_at?: string;
@@ -111,10 +113,12 @@ export type Database = {
           sort_order?: number;
           source_confidence?: string | null;
           source_name?: string | null;
+          variation_depth?: number | null;
           variation_anchor_fen?: string | null;
           variation_anchor_name?: string | null;
           variation_anchor_ply?: number | null;
           variation_anchor_sans?: string[] | null;
+          variation_path?: string[] | null;
         };
         Update: {
           created_at?: string;
@@ -143,10 +147,12 @@ export type Database = {
           sort_order?: number;
           source_confidence?: string | null;
           source_name?: string | null;
+          variation_depth?: number | null;
           variation_anchor_fen?: string | null;
           variation_anchor_name?: string | null;
           variation_anchor_ply?: number | null;
           variation_anchor_sans?: string[] | null;
+          variation_path?: string[] | null;
         };
         Relationships: [
           {

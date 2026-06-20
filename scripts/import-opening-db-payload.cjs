@@ -107,6 +107,8 @@ function buildLineRows(payload, options = {}) {
       popularity_games: metadata?.popularityGames ?? null,
       source_name: metadata?.sourceName ?? null,
       source_confidence: metadata?.sourceConfidence ?? null,
+      variation_path: metadata?.variationPath ?? null,
+      variation_depth: metadata?.variationDepth ?? null,
       variation_anchor_ply: metadata?.variationAnchorPly ?? null,
       variation_anchor_name: metadata?.variationAnchorName ?? null,
       variation_anchor_fen: metadata?.variationAnchorFen ?? null,
