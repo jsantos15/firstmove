@@ -347,6 +347,19 @@ async function patchCatalogPopularityFromIndex(env) {
   }
 }
 
+async function patchCatalogPopularityFromIndexBestEffort(env) {
+  try {
+    await patchCatalogPopularityFromIndex(env);
+  } catch (error) {
+    console.warn(
+      `WARNING: catalog popularity sync skipped after import: ${
+        error instanceof Error ? error.message : String(error)
+      }`
+    );
+    console.warn("Run `node scripts/run-opening-course-pipeline.cjs --sync-popularity-only` to retry it.");
+  }
+}
+
 function formatSanPrefix(anchorSans) {
   if (!Array.isArray(anchorSans) || anchorSans.length === 0) {
     return null;
@@ -412,6 +425,7 @@ async function runCourse(row, args, env) {
       ]);
     }
   }
+  const referencePayload = assertDbPayload(files.referencePayload, `${label} reference`);
 
   runStep(`${label} branch generate`, "generate-opening-branches.cjs", [
     "--input",
@@ -459,7 +473,7 @@ async function runCourse(row, args, env) {
   ]);
 
   if (!args.dryRunImport) {
-    await patchCatalogPopularityFromIndex(env);
+    await patchCatalogPopularityFromIndexBestEffort(env);
   }
 
   return {
