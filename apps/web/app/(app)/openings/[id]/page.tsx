@@ -665,7 +665,7 @@ const selectedReferenceVariation =
               {/* Variations card — position picker / navigation */}
               <div className="min-h-0 flex flex-col rounded-lg border border-white/[0.07] overflow-hidden" style={{ flex: 1 }}>
                 <div className="shrink-0 flex items-center px-4 py-2 border-b border-white/[0.06]">
-                  <h3 className="text-[10px] font-medium uppercase tracking-widest text-gray-600">Variations</h3>
+                  <h3 className="text-[10px] font-medium uppercase tracking-widest text-gray-400">Variations</h3>
                 </div>
 
                 {/* Accordion */}
