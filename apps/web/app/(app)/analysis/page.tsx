@@ -116,6 +116,36 @@ function formatPvLine(startFen: string, pvUci: string[], maxMoves = 6): string {
   }
 }
 
+type PvToken = { type: 'num'; text: string } | { type: 'move'; san: string; uciIdx: number };
+
+function pvToTokens(startFen: string, pvUci: string[], maxMoves = 6): PvToken[] {
+  try {
+    const parts = startFen.split(' ');
+    const startSide = parts[1] ?? 'w';
+    const startMoveNum = parseInt(parts[5] ?? '1', 10);
+    if (pvUci.length === 0) return [];
+    const chess = new Chess(startFen);
+    const tokens: PvToken[] = [];
+    let currentMoveNum = startMoveNum;
+    let currentSide = startSide;
+    for (let i = 0; i < pvUci.length && i < maxMoves; i++) {
+      const uci = pvUci[i]!;
+      if (i === 0 && currentSide === 'b') {
+        tokens.push({ type: 'num', text: `${currentMoveNum}…` });
+      } else if (currentSide === 'w') {
+        tokens.push({ type: 'num', text: `${currentMoveNum}.` });
+      }
+      const move = chess.move({ from: uci.slice(0, 2), to: uci.slice(2, 4), promotion: (uci[4] ?? 'q') as 'q' | 'r' | 'b' | 'n' });
+      if (!move) break;
+      tokens.push({ type: 'move', san: move.san, uciIdx: i });
+      if (currentSide === 'b') { currentMoveNum++; currentSide = 'w'; } else { currentSide = 'b'; }
+    }
+    return tokens;
+  } catch {
+    return [];
+  }
+}
+
 function formatEval(cp: number | null): string {
   if (cp === null) return '...';
   if (cp >= 9000) return '+M';
@@ -1179,6 +1209,28 @@ export default function AnalysisPage() {
     }
   };
 
+  const handlePvClick = (pvUci: string[], clickedIdx: number) => {
+    try {
+      const chess = new Chess(boardFen);
+      const newEntries: ExploreEntry[] = [];
+      for (let i = 0; i <= clickedIdx; i++) {
+        const uci = pvUci[i]!;
+        const move = chess.move({ from: uci.slice(0, 2), to: uci.slice(2, 4), promotion: (uci[4] ?? 'q') as 'q' | 'r' | 'b' | 'n' });
+        if (!move) break;
+        newEntries.push({ san: move.san, fen: chess.fen(), from: move.from, to: move.to });
+      }
+      if (newEntries.length === 0) return;
+      // Prepend any existing explore moves so the history stays coherent
+      const baseHistory = exploreHistoryIndex >= 0 ? exploreHistory.slice(0, exploreHistoryIndex + 1) : [];
+      const combined = [...baseHistory, ...newEntries];
+      setExploreHistory(combined);
+      setExploreHistoryIndex(combined.length - 1);
+      const last = newEntries[newEntries.length - 1]!;
+      setLastMoveSquares({ from: last.from, to: last.to });
+      setSelectedSquare(null);
+    } catch {}
+  };
+
   const onPieceClick = (_piece: string, square: string) => {
     setSelectedSquare(sq => sq === square ? null : square);
   };
@@ -1416,33 +1468,33 @@ export default function AnalysisPage() {
                 {settings.engineEnabled && !settings.hideEngineInfo && (
                   <div className="shrink-0 px-3 pb-2 flex flex-col gap-1">
                     {lines.slice(0, settings.engineLines).map((engineLine, li) => {
-                      const pvFormatted = formatPvLine(boardFen, engineLine.pvUci);
+                      const tokens = pvToTokens(boardFen, engineLine.pvUci);
                       const evalStr = formatEval(engineLine.evalCp);
                       const positive = (engineLine.evalCp ?? 0) >= 0;
-                      // Compute the best move SAN for highlighting
-                      let bestSan: string | null = null;
-                      const firstUci = engineLine.pvUci[0];
-                      if (firstUci) {
-                        try {
-                          const c = new Chess(boardFen);
-                          const m = c.move({ from: firstUci.slice(0, 2), to: firstUci.slice(2, 4), promotion: (firstUci[4] ?? 'q') as 'q' | 'r' | 'b' | 'n' });
-                          bestSan = m?.san ?? null;
-                        } catch {}
-                      }
-                      const bestIdx = li === 0 && bestSan ? pvFormatted.indexOf(bestSan) : -1;
                       return (
-                        <div key={li} className="flex items-center gap-2 rounded-lg bg-white/4 px-2.5 py-2.5 min-w-0">
-                          <span className="flex-1 truncate font-mono text-sm">
-                            {bestSan && bestIdx !== -1 ? (
-                              <>
-                                <span className="text-gray-500">{pvFormatted.slice(0, bestIdx)}</span>
-                                <span className="rounded bg-white/15 px-1 py-px text-white">{bestSan}</span>
-                                <span className="text-gray-400">{pvFormatted.slice(bestIdx + bestSan.length)}</span>
-                              </>
-                            ) : (
-                              <span className="text-gray-300">{pvFormatted}</span>
+                        <div key={li} className="flex items-center gap-2 rounded-lg bg-white/4 px-2.5 py-2 min-w-0">
+                          <div className="flex-1 flex flex-wrap items-baseline gap-x-0.5 gap-y-0.5 font-mono text-sm min-w-0">
+                            {tokens.length === 0 ? (
+                              <span className="text-gray-500">...</span>
+                            ) : tokens.map((token, ti) =>
+                              token.type === 'num' ? (
+                                <span key={ti} className="text-gray-600">{token.text}</span>
+                              ) : (
+                                <button
+                                  key={ti}
+                                  type="button"
+                                  onClick={() => handlePvClick(engineLine.pvUci, token.uciIdx)}
+                                  className={`rounded px-1 py-px transition-colors hover:bg-white/20 hover:text-white ${
+                                    li === 0 && token.uciIdx === 0
+                                      ? 'bg-white/15 text-white'
+                                      : 'text-gray-400'
+                                  }`}
+                                >
+                                  {token.san}
+                                </button>
+                              )
                             )}
-                          </span>
+                          </div>
                           <span className={`shrink-0 text-sm font-bold tabular-nums ${positive ? 'text-gray-100' : 'text-red-400'}`}>
                             {evalStr}
                           </span>
