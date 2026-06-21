@@ -56,11 +56,24 @@ const sbHeaders = {
 };
 
 async function sbGet(table, params = {}) {
-  const url = new URL(`${SUPABASE_URL}/rest/v1/${table}`);
-  for (const [k, v] of Object.entries(params)) url.searchParams.set(k, v);
-  const res = await fetch(url.toString(), { headers: sbHeaders });
-  if (!res.ok) throw new Error(`GET ${table}: ${res.status} ${await res.text()}`);
-  return res.json();
+  const rows = [];
+  const pageSize = 1000;
+  let offset = 0;
+
+  while (true) {
+    const url = new URL(`${SUPABASE_URL}/rest/v1/${table}`);
+    for (const [k, v] of Object.entries(params)) url.searchParams.set(k, v);
+    url.searchParams.set("limit", String(pageSize));
+    url.searchParams.set("offset", String(offset));
+    const res = await fetch(url.toString(), { headers: sbHeaders });
+    if (!res.ok) throw new Error(`GET ${table}: ${res.status} ${await res.text()}`);
+    const page = await res.json();
+    rows.push(...page);
+    if (page.length < pageSize) break;
+    offset += pageSize;
+  }
+
+  return rows;
 }
 
 async function sbPatch(table, col, val, body) {
@@ -72,6 +85,18 @@ async function sbPatch(table, col, val, body) {
     body: JSON.stringify(body),
   });
   if (!res.ok) throw new Error(`PATCH ${table}: ${res.status} ${await res.text()}`);
+}
+
+async function sbPatchOpeningLine(openingSlug, lineSlug, body) {
+  const url = new URL(`${SUPABASE_URL}/rest/v1/opening_lines`);
+  url.searchParams.set("opening_slug", `eq.${openingSlug}`);
+  url.searchParams.set("slug", `eq.${lineSlug}`);
+  const res = await fetch(url.toString(), {
+    method: "PATCH",
+    headers: { ...sbHeaders, Prefer: "return=minimal" },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throw new Error(`PATCH opening_lines: ${res.status} ${await res.text()}`);
 }
 
 // ─── Lichess fetch (custom retry loop) ───────────────────────────────────────
@@ -198,7 +223,7 @@ async function main() {
         gamesMap[line.slug] = games;
         console.log(`  ✓ ${line.slug}: ${games.toLocaleString()} games`);
         // Save immediately — progress survives a stop
-        await sbPatch("opening_lines", "slug", line.slug, { popularity_games: games });
+        await sbPatchOpeningLine(line.opening_slug, line.slug, { popularity_games: games });
       } catch (err) {
         if (err instanceof LichessStopError) {
           console.error(`\n⛔ ${err.message}\n`);
@@ -220,7 +245,10 @@ async function main() {
       .sort(([, a], [, b]) => b - a);
 
     for (let i = 0; i < ranked.length; i++) {
-      await sbPatch("opening_lines", "slug", ranked[i][0], { popularity_rank: i + 1 });
+      const line = openingLines.find((candidate) => candidate.slug === ranked[i][0]);
+      if (line) {
+        await sbPatchOpeningLine(line.opening_slug, line.slug, { popularity_rank: i + 1 });
+      }
     }
 
     const totalGamesSum = Object.values(gamesMap).reduce((s, g) => s + (g ?? 0), 0);

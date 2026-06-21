@@ -1,4 +1,4 @@
-const DEFAULT_BASE_URL = "https://explorer.lichess.ovh/lichess";
+const DEFAULT_BASE_URL = "https://explorer.lichess.org/lichess";
 const { loadScriptEnv } = require("./local-env.cjs");
 
 function buildExplorerHeaders(options = {}) {
@@ -67,22 +67,42 @@ async function fetchLichessExplorer(fen, options = {}) {
 async function fetchWithRetry(fen, options = {}) {
   const retries = options.retries ?? 3;
   const delayMs = options.delayMs ?? 500;
+  let lastError = null;
 
   for (let attempt = 1; attempt <= retries; attempt += 1) {
     try {
       if (attempt > 1) {
-        await sleep(delayMs * attempt);
+        await sleep(delayMs * 2 ** (attempt - 2));
       }
 
       return await fetchLichessExplorer(fen, options);
     } catch (error) {
+      lastError = error;
       if (attempt === retries) {
-        throw error;
+        const message = error instanceof Error ? error.message : String(error);
+        const cause = error?.cause;
+        const details = [
+          cause?.code ? `code=${cause.code}` : null,
+          cause?.message ? `cause=${cause.message}` : null,
+          cause?.hostname ? `host=${cause.hostname}` : null,
+        ].filter(Boolean);
+        const suffix = details.length ? ` (${details.join("; ")})` : "";
+        if (message.includes(fen)) {
+          throw new Error(`${message}${suffix}`, { cause: error });
+        }
+        throw new Error(
+          `Lichess Explorer fetch failed after ${retries} attempt(s) for FEN: ${fen}: ${message}${suffix}`,
+          { cause: error }
+        );
       }
     }
   }
 
-  throw new Error("Unreachable Lichess retry state.");
+  throw new Error(
+    `Unreachable Lichess retry state for FEN: ${fen}: ${
+      lastError instanceof Error ? lastError.message : String(lastError)
+    }`
+  );
 }
 
 module.exports = {

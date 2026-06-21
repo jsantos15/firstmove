@@ -41,6 +41,26 @@ function extractGroupName(fullName: string | undefined, openingName: string): st
   return commaIdx === -1 ? remainder : remainder.slice(0, commaIdx).trim();
 }
 
+function groupNameForVariation(variation: AppVariation, openingName: string): string {
+  const path = variation.variationPath;
+  if (path?.length) {
+    const openingIndex = path.findIndex(part => part === openingName);
+    const group = openingIndex >= 0 ? path[openingIndex + 1] : path[1] ?? path[0];
+    if (group) return group;
+  }
+
+  return extractGroupName(variation.fullName ?? undefined, openingName);
+}
+
+function lineDepthInGroup(line: AppVariation, openingName: string) {
+  const path = line.variationPath;
+  if (!path?.length) return 0;
+
+  const openingIndex = path.findIndex(part => part === openingName);
+  const depth = openingIndex >= 0 ? path.length - openingIndex - 2 : path.length - 2;
+  return Math.max(0, Math.min(depth, 4));
+}
+
 function slugifyGroup(value: string) {
   return value
     .toLowerCase()
@@ -59,7 +79,7 @@ function normalizeOpeningLabel(value: string) {
 function groupVariations(variations: AppVariation[], openingName: string): VariationGroup[] {
   const map = new Map<string, VariationGroup>();
   for (const v of variations) {
-    const displayName = extractGroupName(v.fullName ?? undefined, openingName);
+    const displayName = groupNameForVariation(v, openingName);
     const key = slugifyGroup(displayName) || v.id;
     const group = map.get(key);
     if (group) {
@@ -68,11 +88,24 @@ function groupVariations(variations: AppVariation[], openingName: string): Varia
       map.set(key, { id: key, displayName, lines: [v] });
     }
   }
-  return Array.from(map.values()).sort((a, b) => {
-    const aMain = a.lines.some(l => l.isMainLine) ? -1 : 1;
-    const bMain = b.lines.some(l => l.isMainLine) ? -1 : 1;
-    if (aMain !== bMain) return aMain - bMain;
-    return a.displayName.localeCompare(b.displayName);
+  const prefix = `${openingName}: `;
+  const groups = Array.from(map.values());
+  // Sort lines within each group: parent (exact name match) first, then by popularity desc
+  for (const group of groups) {
+    group.lines.sort((a, b) => {
+      const aRem = (a.fullName?.startsWith(prefix) ? a.fullName.slice(prefix.length) : a.fullName) ?? '';
+      const bRem = (b.fullName?.startsWith(prefix) ? b.fullName.slice(prefix.length) : b.fullName) ?? '';
+      const aIsParent = aRem === group.displayName;
+      const bIsParent = bRem === group.displayName;
+      if (aIsParent !== bIsParent) return aIsParent ? -1 : 1;
+      return (b.popularityGames ?? 0) - (a.popularityGames ?? 0);
+    });
+  }
+  // Sort groups by their most popular line desc
+  return groups.sort((a, b) => {
+    const aMax = Math.max(...a.lines.map(l => l.popularityGames ?? 0));
+    const bMax = Math.max(...b.lines.map(l => l.popularityGames ?? 0));
+    return bMax - aMax;
   });
 }
 
@@ -82,28 +115,20 @@ function GroupHeader({
   group,
   childCount,
   isOpen,
-  hasActiveChild,
   onClick,
 }: {
   group: VariationGroup;
   childCount: number;
   isOpen: boolean;
-  hasActiveChild: boolean;
   onClick: () => void;
 }) {
   return (
     <button
       type="button"
       onClick={onClick}
-      className={`w-full flex items-center transition-colors ${
-        hasActiveChild ? 'bg-amber-400/10' : 'hover:bg-white/3'
-      }`}
+      className="w-full flex items-center transition-colors hover:bg-white/3"
     >
-      <span
-        className={`h-9 w-8 flex shrink-0 items-center justify-center ${
-          hasActiveChild ? 'text-amber-400' : 'text-gray-600'
-        }`}
-      >
+      <span className="h-7 w-8 flex shrink-0 items-center justify-center text-gray-700">
         <svg
           xmlns="http://www.w3.org/2000/svg"
           viewBox="0 0 24 24"
@@ -112,19 +137,15 @@ function GroupHeader({
           strokeWidth={2}
           strokeLinecap="round"
           strokeLinejoin="round"
-          className={`h-3 w-3 transition-transform duration-150 ${isOpen ? 'rotate-90' : ''}`}
+          className={`h-2.5 w-2.5 transition-transform duration-150 ${isOpen ? 'rotate-90' : ''}`}
         >
           <path d="m9 18 6-6-6-6" />
         </svg>
       </span>
-      <span
-        className={`flex-1 flex items-center justify-between gap-2 py-2.5 pr-4 min-w-0 text-left text-sm font-medium transition-colors ${
-          hasActiveChild ? 'text-amber-300' : 'text-gray-400'
-        }`}
-      >
-        <span className="truncate">{group.displayName}</span>
+      <span className="flex-1 flex items-center justify-between gap-2 py-1.5 pr-4 min-w-0 text-left">
+        <span className="truncate text-xs font-normal text-gray-500">{group.displayName}</span>
         {childCount > 0 && (
-          <span className="shrink-0 rounded-full bg-white/5 px-2 py-0.5 text-[11px] text-gray-500">
+          <span className="shrink-0 rounded-full bg-white/[0.04] px-1.5 py-0.5 text-[10px] text-gray-600">
             {childCount}
           </span>
         )}
@@ -138,53 +159,69 @@ function BranchRow({
   line,
   globalIndex,
   isActive,
+  highlightVariant = 'amber',
   user,
   mastery,
   completions,
   onClick,
   buttonRef,
   rowIndex = 0,
+  openingName,
 }: {
   line: VariationGroup['lines'][number];
   globalIndex: number;
   isActive: boolean;
+  highlightVariant?: 'amber' | 'navigate';
   user: unknown;
   mastery?: string;
   completions?: number;
   onClick: () => void;
   buttonRef?: React.RefObject<HTMLButtonElement | null>;
   rowIndex?: number;
+  openingName: string;
 }) {
   const locked = globalIndex > 0 && !user;
-  const zebraClass = rowIndex % 2 === 0 ? 'bg-white/2' : '';
+  const zebraClass = rowIndex % 2 === 0 ? 'bg-white/[0.015]' : '';
+  const anchorMove = line.variationAnchorPly != null ? Math.ceil(line.variationAnchorPly / 2) : null;
+
+  const activeBg = highlightVariant === 'navigate' ? 'bg-white/[0.07]' : 'bg-amber-400/10';
+  const activeBar = highlightVariant === 'navigate' ? 'bg-white/25' : 'bg-amber-400';
+  const activeText = highlightVariant === 'navigate' ? 'text-gray-300' : 'text-amber-300';
+  const depth = lineDepthInGroup(line, openingName);
 
   return (
     <button
       ref={buttonRef}
       type="button"
       onClick={onClick}
-      className={`group relative w-full flex items-center gap-2.5 px-4 py-2.5 text-left text-xs transition-all ${
+      style={{ paddingLeft: `${16 + depth * 12}px` }}
+      className={`group relative w-full flex items-center gap-2 px-4 py-1.5 text-left transition-all ${
         isActive
-          ? 'bg-amber-400/10 text-amber-300'
+          ? activeBg
           : locked
-            ? `${zebraClass} text-gray-600`
-            : `${zebraClass} text-gray-400 hover:bg-white/5 hover:text-white`
+            ? zebraClass
+            : `${zebraClass} hover:bg-white/5`
       }`}
     >
       <span
-        className={`absolute inset-y-2 left-0 w-0.5 rounded-full transition-colors ${
-          isActive ? 'bg-amber-400' : 'bg-transparent group-hover:bg-white/15'
+        className={`absolute inset-y-1.5 left-0 w-0.5 rounded-full transition-colors ${
+          isActive ? activeBar : 'bg-transparent group-hover:bg-white/15'
         }`}
       />
       <div className="min-w-0 flex-1">
-        <div className="flex items-center gap-2">
-          <span className="min-w-0 flex-1 truncate font-medium leading-tight">{line.name}</span>
-          <div className="flex shrink-0 items-center gap-1.5">
+        <div className="flex items-center gap-1.5">
+          <span className={`min-w-0 flex-1 truncate text-xs font-normal leading-tight ${
+            isActive ? activeText : locked ? 'text-gray-700' : 'text-gray-500 group-hover:text-gray-300'
+          }`}>{line.name}</span>
+          <div className="flex shrink-0 items-center gap-1">
+            {anchorMove != null && !isActive && (
+              <span className="text-[10px] text-gray-700">move {anchorMove}</span>
+            )}
             {completions != null && completions > 0 && (
               <span className="text-[10px] text-gray-600">{completions}×</span>
             )}
             {locked ? (
-              <span className="text-[11px]">🔒</span>
+              <span className="text-[10px]">🔒</span>
             ) : mastery && mastery !== 'new' ? (
               <span
                 className={`h-1.5 w-1.5 rounded-full ${MASTERY_COLORS[mastery as keyof typeof MASTERY_COLORS]}`}
@@ -339,7 +376,7 @@ export default function PracticePage({ params, searchParams }: PageProps) {
   const [selectedLineId, setSelectedLineId] = useState<string | null>(null);
   const [selectedReferenceLineId, setSelectedReferenceLineId] = useState<string | null>(null);
   const [showAuthPrompt, setShowAuthPrompt] = useState(false);
-  const [viewingFullLine, setViewingFullLine] = useState(false);
+  const [viewingFullLine, setViewingFullLine] = useState(true);
   const activeLineRef = useRef<HTMLButtonElement>(null);
   const [currentMoveIndex, setCurrentMoveIndex] = useState(-1);
   const [displayMoveIndex, setDisplayMoveIndex] = useState(-1);
@@ -481,19 +518,6 @@ const selectedReferenceVariation =
   function handleGroupClick(group: VariationGroup) {
     const isExpanded = expandedGroupId === group.id;
     setExpandedGroupId(isExpanded ? '' : group.id);
-    // Auto-select the first child line when opening a group that has no active selection
-    if (!isExpanded) {
-      const hasActiveChild = group.lines.some(l => l.id === activeReferenceLineId);
-      if (!hasActiveChild) {
-        const firstLine = group.lines[0];
-        if (firstLine) {
-          setSelectedLineId(firstLine.id);
-          setSelectedReferenceLineId(firstLine.id);
-          setCoachFeedback(null);
-          setShowAuthPrompt(false);
-        }
-      }
-    }
   }
 
   function handleLineClick(lineId: string, globalIndex: number) {
@@ -504,7 +528,7 @@ const selectedReferenceVariation =
     setShowAuthPrompt(false);
     setSelectedLineId(lineId);
     setSelectedReferenceLineId(lineId);
-    setViewingFullLine(false);
+    setViewingFullLine(true);
     setCoachFeedback(null);
   }
 
@@ -623,17 +647,12 @@ const selectedReferenceVariation =
           >
             <div className="flex-1 min-h-0 flex flex-col gap-4 px-2 pb-2">
 
-            {/* Move list — anchor moves only until user explicitly views full line */}
+            {/* Move list — full sequence; anchor moves dimmed, continuation moves normal */}
             {mode === 'learn' && selectedVariation && (
               <div className="shrink-0 rounded-lg border border-white/10 overflow-hidden">
                 <MoveList
-                  variation={{
-                    ...selectedVariation,
-                    moves:
-                      !viewingFullLine && selectedVariationAnchorPly != null
-                        ? selectedVariation.moves.slice(0, selectedVariationAnchorPly)
-                        : selectedVariation.moves,
-                  }}
+                  variation={selectedVariation}
+                  anchorPly={selectedVariation.variationAnchorPly ?? undefined}
                   currentMoveIndex={currentMoveIndex}
                   selectedMoveIndex={displayMoveIndex}
                   onNavigate={(idx) => practiceBoardRef.current?.navigateTo(idx + 1)}
@@ -646,17 +665,16 @@ const selectedReferenceVariation =
             {/* Variations + Lines — each a bordered card */}
             <div className="flex-1 min-h-0 flex flex-col gap-4">
 
-              {/* Variations card */}
-              <div className="min-h-0 flex flex-col rounded-lg border border-white/10 overflow-hidden" style={{ flex: 44 }}>
-                <div className="shrink-0 flex items-center px-4 py-3 border-b border-white/8">
-                  <h3 className="text-[11px] font-semibold uppercase tracking-widest text-gray-500">{opening.name} Variations</h3>
+              {/* Variations card — position picker / navigation */}
+              <div className="min-h-0 flex flex-col rounded-lg border border-white/[0.07] overflow-hidden" style={{ flex: 44 }}>
+                <div className="shrink-0 flex items-center px-4 py-2 border-b border-white/[0.06]">
+                  <h3 className="text-[10px] font-medium uppercase tracking-widest text-gray-600">Variations</h3>
                 </div>
 
                 {/* Accordion */}
                 <div className="flex-1 min-h-0 overflow-y-auto">
                   {groups.map(group => {
                     const isExpanded = expandedGroupId === group.id;
-                    const hasActiveChild = group.lines.some(l => l.id === activeReferenceLineId);
 
                     return (
                       <div key={group.id}>
@@ -664,33 +682,37 @@ const selectedReferenceVariation =
                           group={group}
                           childCount={group.lines.length}
                           isOpen={isExpanded}
-                          hasActiveChild={hasActiveChild}
                           onClick={() => handleGroupClick(group)}
                         />
                         {isExpanded && group.lines.length > 0 && (
-                          <div className="mb-1">
-                            {group.lines.map((line, idx) => {
-                              const globalIndex = opening.variations.findIndex(
-                                v => v.id === line.id
-                              );
-                              const vProgress = progress?.get(`${opening.id}/${line.id}`);
-                              return (
-                                <BranchRow
-                                  key={line.id}
-                                  line={line}
-                                  globalIndex={globalIndex}
-                                  isActive={line.id === activeReferenceLineId}
-                                  user={user}
-                                  mastery={vProgress?.mastery}
-                                  completions={vProgress?.timesCompleted}
-                                  onClick={() => handleLineClick(line.id, globalIndex)}
-                                  buttonRef={
-                                    line.id === activeReferenceLineId ? activeLineRef : undefined
-                                  }
-                                  rowIndex={idx}
-                                />
-                              );
-                            })}
+                          <div className="relative mb-1">
+                            <div className="absolute left-4 top-0 bottom-2 w-px bg-white/[0.08]" />
+                            <div className="pl-8">
+                              {group.lines.map((line, idx) => {
+                                const globalIndex = opening.variations.findIndex(
+                                  v => v.id === line.id
+                                );
+                                const vProgress = progress?.get(`${opening.id}/${line.id}`);
+                                return (
+                                  <BranchRow
+                                    key={line.id}
+                                    line={line}
+                                    globalIndex={globalIndex}
+                                    isActive={line.id === activeReferenceLineId}
+                                    highlightVariant="navigate"
+                                    user={user}
+                                    mastery={vProgress?.mastery}
+                                    completions={vProgress?.timesCompleted}
+                                    onClick={() => handleLineClick(line.id, globalIndex)}
+                                    buttonRef={
+                                      line.id === activeReferenceLineId ? activeLineRef : undefined
+                                    }
+                                    rowIndex={idx}
+                                    openingName={opening.name}
+                                  />
+                                );
+                              })}
+                            </div>
                           </div>
                         )}
                       </div>
@@ -711,12 +733,15 @@ const selectedReferenceVariation =
                 )}
               </div>
 
-              {/* Lines card */}
-              <div className="min-h-0 flex flex-col rounded-lg border border-white/10 overflow-hidden" style={{ flex: 34 }}>
+              {/* Lines card — primary learning content */}
+              <div className="min-h-0 flex flex-col rounded-lg border border-white/[0.14] overflow-hidden" style={{ flex: 34 }}>
+                <div className="shrink-0 flex items-center px-4 py-2.5 border-b border-white/10">
+                  <h3 className="text-[11px] font-semibold uppercase tracking-widest text-gray-400">Practice Lines</h3>
+                </div>
                 <div className="flex-1 min-h-0 overflow-y-auto">
                   {/* Reference */}
                   <div className="px-4 pt-2.5 pb-1">
-                    <p className="text-[10px] font-medium uppercase tracking-wider text-gray-600">Reference (engine continuation)</p>
+                    <p className="text-[10px] font-medium uppercase tracking-wider text-gray-600">Engine Continuation</p>
                   </div>
                   {selectedReferenceVariation ? (
                     <button
@@ -745,7 +770,7 @@ const selectedReferenceVariation =
                   <div className="border-t border-white/8" />
                   {/* Punish */}
                   <div className="px-4 pt-3 pb-1">
-                    <p className="text-[10px] font-medium uppercase tracking-wider text-gray-600">Punish</p>
+                    <p className="text-[10px] font-medium uppercase tracking-wider text-gray-600">Punish Opponent Mistakes</p>
                   </div>
                   {selectedReferenceBranches.length > 0 ? (
                     <>

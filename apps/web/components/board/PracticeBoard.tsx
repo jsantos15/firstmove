@@ -510,6 +510,13 @@ export const PracticeBoard = forwardRef<PracticeBoardHandle, PracticeBoardProps>
 
 
   const getEvalAtPly = (ply: number) => {
+    // Ply 0 is always the initial board position — use the well-known constant rather than
+    // whatever the line's evalCpByPly[0] says (practical branches index that array from their
+    // anchor position, so [0] reflects the anchor eval, not the initial position).
+    if (ply === 0) {
+      return INITIAL_POSITION_EVAL_CP;
+    }
+
     const evalByPly = variation.evalCpByPly;
     if (Array.isArray(evalByPly) && typeof evalByPly[ply] === 'number') {
       return evalByPly[ply];
@@ -521,10 +528,6 @@ export const PracticeBoard = forwardRef<PracticeBoardHandle, PracticeBoardProps>
           return evalByPly[index];
         }
       }
-    }
-
-    if (ply === 0) {
-      return INITIAL_POSITION_EVAL_CP;
     }
 
     if (ply === moves.length) {

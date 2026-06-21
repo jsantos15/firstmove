@@ -15,6 +15,7 @@ function parseArgs(argv) {
     input: DEFAULT_INPUT,
     dryRun: false,
     apply: false,
+    scopePayloadOpenings: false,
   };
 
   for (let index = 0; index < argv.length; index += 1) {
@@ -33,6 +34,11 @@ function parseArgs(argv) {
 
     if (token === "--apply") {
       args.apply = true;
+      continue;
+    }
+
+    if (token === "--scope-payload-openings") {
+      args.scopePayloadOpenings = true;
       continue;
     }
   }
@@ -137,7 +143,7 @@ function escapeFilterValue(value) {
   return String(value).replace(/"/g, '\\"');
 }
 
-function buildStaleRows(payload, remoteOpenings, remoteLines) {
+function buildStaleRows(payload, remoteOpenings, remoteLines, options = {}) {
   const desiredOpeningSlugs = new Set(
     (payload.currentSchema?.openingsCatalogRows ?? []).map((row) => row.slug)
   );
@@ -147,12 +153,19 @@ function buildStaleRows(payload, remoteOpenings, remoteLines) {
     )
   );
 
-  const staleOpenings = remoteOpenings.filter(
-    (row) => !desiredOpeningSlugs.has(row.slug)
-  );
-  const staleLines = remoteLines.filter(
-    (row) => !desiredLineKeys.has(`${row.opening_slug}::${row.slug}`)
-  );
+  const staleOpenings = options.scopePayloadOpenings
+    ? []
+    : remoteOpenings.filter((row) => !desiredOpeningSlugs.has(row.slug));
+  const staleLines = remoteLines.filter((row) => {
+    if (
+      options.scopePayloadOpenings &&
+      !desiredOpeningSlugs.has(row.opening_slug)
+    ) {
+      return false;
+    }
+
+    return !desiredLineKeys.has(`${row.opening_slug}::${row.slug}`);
+  });
 
   return {
     staleOpenings,
@@ -173,7 +186,8 @@ async function main() {
   const { staleOpenings, staleLines } = buildStaleRows(
     payload,
     remoteOpenings,
-    remoteLines
+    remoteLines,
+    { scopePayloadOpenings: args.scopePayloadOpenings }
   );
 
   if (args.dryRun) {
@@ -187,6 +201,7 @@ async function main() {
           remoteLines: remoteLines.length,
           staleOpeningCount: staleOpenings.length,
           staleLineCount: staleLines.length,
+          scopePayloadOpenings: args.scopePayloadOpenings,
           staleOpeningSample: staleOpenings.slice(0, 20),
           staleLineSample: staleLines.slice(0, 20),
         },

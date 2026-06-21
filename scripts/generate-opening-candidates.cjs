@@ -16,6 +16,10 @@ const {
   createStockfishEngine,
   parseInfoLine,
 } = require("./lib/stockfish.cjs");
+const { CloudEvalRouter, EngineRateLimitedError } = require("./lib/cloud-eval-router.cjs");
+const { readCachedLichessCloudEval } = require("./lib/lichess-cloud-eval.cjs");
+const { readCachedChessApiEval } = require("./lib/chess-api-eval.cjs");
+const { writeJsonObjectFileSync } = require("./lib/json-object-file.cjs");
 
 const DEFAULT_OUTPUT = path.resolve(
   __dirname,
@@ -27,6 +31,11 @@ const SCORE_MATE_CP = 100000;
 const STOCKFISH_CP_CLEAR = 120;
 const STOCKFISH_CP_STRONG = 200;
 const DEFAULT_MIN_GAMES_AT_NODE = 250;
+const REFERENCE_MODE_EXPLORER_NODE = {
+  opening: null,
+  totalGamesAtNode: Number.MAX_SAFE_INTEGER,
+  topMoves: [],
+};
 
 function parseArgs(argv) {
   const args = {
@@ -35,17 +44,37 @@ function parseArgs(argv) {
     offset: 0,
     ecoVolume: null,
     startsWith: null,
+    sanPrefix: null,
     delayMs: 800,
     maxAddedPlies: 20,
     maxTotalPlies: 40,
-    stockfishDepth: 10,
+    stockfishDepth: 18,
     stockfishEngine: "lite-single",
     checkpointEvery: 10,
     resume: false,
     minGamesAtNode: DEFAULT_MIN_GAMES_AT_NODE,
-    multipvCount: 3,
+    multipvCount: 5,
     shortHorizonPlies: 4,
     shortHorizonMaxPlies: 6,
+    materialRecoveryFreeUntilPly: 18,
+    materialRecoveryHorizonPlies: 6,
+    continuationMode: "reference-best-play",
+    cloudEvalMode: "off",
+    cloudEvalDelayMs: 5000,
+    cloudEvalTimeoutMs: 30000,
+    cloudEvalMaxRetries: 0,
+    cloudEvalMinDepth: 0,
+    cloudEvalCache: path.resolve(__dirname, "output", "lichess-cloud-eval-cache.json"),
+    chessApiCache: path.resolve(__dirname, "output", "chess-api-eval-cache.json"),
+    stockfishEvalCache: path.resolve(__dirname, "output", "stockfish-eval-cache.json"),
+    bestEvalCache: path.resolve(__dirname, "output", "best-known-eval-cache.json"),
+    cloudCacheMissTtlMs: 24 * 60 * 60 * 1000,
+    cloudEngineCooldownMs: 30 * 60 * 1000,
+    referenceMinAddedPlies: 2,
+    referenceSoftTotalPlies: 22,
+    referenceHardTotalPlies: 28,
+    referenceExceptionTotalPlies: 32,
+    traceReferenceCheckpoints: false,
   };
 
   for (let index = 0; index < argv.length; index += 1) {
@@ -77,6 +106,12 @@ function parseArgs(argv) {
 
     if (token === "--starts-with") {
       args.startsWith = String(argv[index + 1]).trim();
+      index += 1;
+      continue;
+    }
+
+    if (token === "--san-prefix") {
+      args.sanPrefix = String(argv[index + 1]).split(",").map(s => s.trim()).filter(Boolean);
       index += 1;
       continue;
     }
@@ -141,9 +176,128 @@ function parseArgs(argv) {
       continue;
     }
 
+    if (token === "--material-recovery-free-until-ply") {
+      args.materialRecoveryFreeUntilPly = Number(argv[index + 1]);
+      index += 1;
+      continue;
+    }
+
+    if (token === "--material-recovery-horizon-plies") {
+      args.materialRecoveryHorizonPlies = Number(argv[index + 1]);
+      index += 1;
+      continue;
+    }
+
+    if (token === "--continuation-mode") {
+      args.continuationMode = String(argv[index + 1]);
+      index += 1;
+      continue;
+    }
+
+    if (token === "--cloud-eval-mode") {
+      args.cloudEvalMode = String(argv[index + 1]);
+      index += 1;
+      continue;
+    }
+
+    if (token === "--cloud-eval-delay-ms") {
+      args.cloudEvalDelayMs = Number(argv[index + 1]);
+      index += 1;
+      continue;
+    }
+
+    if (token === "--cloud-eval-timeout-ms") {
+      args.cloudEvalTimeoutMs = Number(argv[index + 1]);
+      index += 1;
+      continue;
+    }
+
+    if (token === "--cloud-eval-max-retries") {
+      args.cloudEvalMaxRetries = Number(argv[index + 1]);
+      index += 1;
+      continue;
+    }
+
+    if (token === "--cloud-eval-min-depth") {
+      args.cloudEvalMinDepth = Number(argv[index + 1]);
+      index += 1;
+      continue;
+    }
+
+    if (token === "--cloud-eval-cache") {
+      args.cloudEvalCache = path.resolve(argv[index + 1]);
+      index += 1;
+      continue;
+    }
+
+    if (token === "--chess-api-cache") {
+      args.chessApiCache = path.resolve(argv[index + 1]);
+      index += 1;
+      continue;
+    }
+
+    if (token === "--stockfish-eval-cache") {
+      args.stockfishEvalCache = path.resolve(argv[index + 1]);
+      index += 1;
+      continue;
+    }
+
+    if (token === "--best-eval-cache") {
+      args.bestEvalCache = path.resolve(argv[index + 1]);
+      index += 1;
+      continue;
+    }
+
+    if (token === "--cloud-cache-miss-ttl-ms") {
+      args.cloudCacheMissTtlMs = Number(argv[index + 1]);
+      index += 1;
+      continue;
+    }
+
+    if (token === "--reference-min-added-plies") {
+      args.referenceMinAddedPlies = Number(argv[index + 1]);
+      index += 1;
+      continue;
+    }
+
+    if (token === "--reference-soft-total-plies") {
+      args.referenceSoftTotalPlies = Number(argv[index + 1]);
+      index += 1;
+      continue;
+    }
+
+    if (token === "--reference-hard-total-plies") {
+      args.referenceHardTotalPlies = Number(argv[index + 1]);
+      index += 1;
+      continue;
+    }
+
+    if (token === "--reference-exception-total-plies") {
+      args.referenceExceptionTotalPlies = Number(argv[index + 1]);
+      index += 1;
+      continue;
+    }
+
+    if (token === "--trace-reference-checkpoints") {
+      args.traceReferenceCheckpoints = true;
+      continue;
+    }
+
     if (token === "--resume") {
       args.resume = true;
     }
+  }
+
+  if (!["reference-best-play", "practical-human"].includes(args.continuationMode)) {
+    throw new Error(
+      `Unsupported continuation mode "${args.continuationMode}". Expected reference-best-play or practical-human.`
+    );
+  }
+
+  if (!["off", "full", "authoritative"].includes(args.cloudEvalMode)) {
+    throw new Error(
+      `Unsupported cloud eval mode "${args.cloudEvalMode}". Expected off, full, or authoritative.`
+    );
   }
 
   return args;
@@ -170,6 +324,13 @@ function filterEntries(entries, args) {
     filtered = filtered.filter((entry) =>
       entry.name.toLowerCase().startsWith(args.startsWith.toLowerCase())
     );
+  }
+
+  if (Array.isArray(args.sanPrefix) && args.sanPrefix.length > 0) {
+    filtered = filtered.filter((entry) => {
+      if (entry.sans.length < args.sanPrefix.length) return false;
+      return args.sanPrefix.every((san, i) => entry.sans[i] === san);
+    });
   }
 
   if (Number.isFinite(args.limit) && args.limit > 0) {
@@ -213,13 +374,28 @@ function inferOpeningColor(openingName) {
   return "white";
 }
 
-function splitVariationSegments(entry) {
+function courseFamilyForEntry(entry, courseAnchor = null) {
+  if (courseAnchor) {
+    return courseAnchor;
+  }
+
+  const family = String(entry.family ?? "").trim();
+  return family;
+}
+
+function splitVariationSegments(entry, courseAnchor = null) {
+  const courseFamily = courseFamilyForEntry(entry, courseAnchor);
+  const family = String(entry.family ?? "").trim();
   const segments = String(entry.variation ?? "")
-    .split(":")
+    .split(/[:,]/u)
     .map((part) => part.trim())
     .filter(Boolean);
 
-  return [entry.family, ...segments];
+  if (family && family !== courseFamily) {
+    return [courseFamily, family, ...segments];
+  }
+
+  return [courseFamily, ...segments];
 }
 
 function inferPrimaryCategory(entry) {
@@ -350,9 +526,10 @@ function deriveOpeningDifficulty(lines) {
   };
 }
 
-function buildOpeningIds(entry) {
+function buildOpeningIds(entry, courseAnchor = null) {
+  const courseFamily = courseFamilyForEntry(entry, courseAnchor);
   return {
-    openingId: slugify(entry.family),
+    openingId: slugify(courseFamily),
     variationId: slugify(entry.name),
     lineId: slugify(entry.name),
   };
@@ -493,6 +670,48 @@ function perspectiveEvalCp(score, turnColor, targetColor) {
   return turnColor === targetColor ? cp : -cp;
 }
 
+function whiteEvalCpFromAnalysis(analysis) {
+  return perspectiveEvalCp(analysis?.lines?.[0]?.score ?? null, analysis?.turnColor, "white");
+}
+
+function timelineWithEvalAtPly(timeline, ply, whiteEvalCp) {
+  const next = Array.isArray(timeline) ? [...timeline] : [];
+  if (!Number.isFinite(whiteEvalCp) || !Number.isInteger(ply) || ply < 0) {
+    return next;
+  }
+  while (next.length <= ply) next.push(null);
+  next[ply] = whiteEvalCp;
+  return next;
+}
+
+async function buildWhiteEvalCpByPlyFromSans(generatedSans, args, caches, seedTimeline = null) {
+  const evalCpByPly = Array.isArray(seedTimeline) ? [...seedTimeline] : [0];
+  if (!Number.isFinite(evalCpByPly[0])) evalCpByPly[0] = 0;
+  const chess = new Chess();
+
+  for (const san of generatedSans) {
+    const move = chess.move(san);
+    if (!move) {
+      throw new Error(`Cannot build eval timeline; illegal SAN "${san}" in ${generatedSans.join(" ")}`);
+    }
+
+    const ply = chess.history().length;
+    if (Number.isFinite(evalCpByPly[ply])) {
+      continue;
+    }
+
+    const analysis = await analyzePosition(chess.fen(), args, caches);
+    const whiteEvalCp = whiteEvalCpFromAnalysis(analysis);
+    if (!Number.isFinite(whiteEvalCp)) {
+      throw new Error(`Cannot build eval timeline; no eval returned for ${chess.fen()}`);
+    }
+    while (evalCpByPly.length <= ply) evalCpByPly.push(null);
+    evalCpByPly[ply] = whiteEvalCp;
+  }
+
+  return evalCpByPly;
+}
+
 function evalStabilityCp(history) {
   if (history.length === 0) {
     return 0;
@@ -522,7 +741,12 @@ function moveDescriptorFromUci(chess, uci) {
   }
 
   const clone = new Chess(chess.fen());
-  const move = clone.move(uciToMoveObject(uci));
+  let move = null;
+  try {
+    move = clone.move(uciToMoveObject(uci));
+  } catch (_error) {
+    return null;
+  }
   if (!move) {
     return null;
   }
@@ -674,6 +898,7 @@ function computeRawSignals({
   chess,
   openingColor,
   category,
+  args,
   generatedSans,
   sourcePlies,
   analysis,
@@ -687,7 +912,10 @@ function computeRawSignals({
   const secondLine = analysis.lines[1] ?? null;
   const currentEval = perspectiveEvalCp(bestLine?.score ?? null, turnColor, openingColor);
   const recentSans = generatedSans.slice(-4);
+  const lastSan = generatedSans[generatedSans.length - 1] ?? null;
   const bestMoveDescriptor = moveDescriptorFromUci(chess, bestLine?.uci ?? null);
+  const referenceMode = args?.continuationMode === "reference-best-play";
+  const signalCategory = referenceMode ? "reference" : category;
   const opponentBestMoveDescriptor = turnColor === openingColor ? null : bestMoveDescriptor;
   const trainedBestMoveDescriptor = turnColor === openingColor ? bestMoveDescriptor : null;
 
@@ -705,7 +933,7 @@ function computeRawSignals({
       ? Math.abs(scoreToCp(bestLine.score) - scoreToCp(secondLine.score))
       : 0;
   const playableWindowCp =
-    category === "tactical_payoff" || category === "forcing" ? 50 : 75;
+    signalCategory === "tactical_payoff" || signalCategory === "forcing" ? 50 : 75;
   const playableMoveCount = analysis.lines.filter((line) => {
     if (!bestLine) {
       return false;
@@ -713,7 +941,20 @@ function computeRawSignals({
 
     return Math.abs(scoreToCp(bestLine.score) - scoreToCp(line.score)) <= playableWindowCp;
   }).length;
-  const gapBand = bandTopMoveGap(topMoveGapCp, category);
+  const playableMoveDescriptors = analysis.lines
+    .filter((line) => {
+      if (!bestLine) {
+        return false;
+      }
+
+      return Math.abs(scoreToCp(bestLine.score) - scoreToCp(line.score)) <= playableWindowCp;
+    })
+    .map((line) => moveDescriptorFromUci(chess, line.uci ?? null))
+    .filter(Boolean);
+  const playableNonCaptureCount = playableMoveDescriptors.filter(
+    (descriptor) => !descriptor.isCapture
+  ).length;
+  const gapBand = bandTopMoveGap(topMoveGapCp, signalCategory);
   const onlyMovePressure = playableMoveCount <= 1 || gapBand === "critical";
   const trainedDeveloped = countDevelopedMinorPieces(chess, trainedColorCode);
   const opponentDeveloped = countDevelopedMinorPieces(chess, opponentColorCode);
@@ -746,11 +987,33 @@ function computeRawSignals({
     evalStabilityCp: evalStabilityCp(evalHistory),
     topMoveGapCp,
     topMoveGapBand: gapBand,
+    bestMoveSan: bestMoveDescriptor?.san ?? null,
+    bestMoveIsCapture: bestMoveDescriptor?.isCapture ?? false,
+    bestMoveGivesCheck: bestMoveDescriptor?.givesCheck ?? false,
+    lastMoveSan: lastSan,
+    lastMoveWasCapture: lastSan ? lastSan.includes("x") : false,
+    pendingRecapture:
+      referenceMode &&
+      Boolean(lastSan?.includes("x")) &&
+      (bestMoveDescriptor?.isCapture ?? false) &&
+      (onlyMovePressure ||
+        gapBand === "narrow" ||
+        gapBand === "critical" ||
+        playableNonCaptureCount === 0),
+    playableNonCaptureCount,
+    unresolvedCaptureDecision:
+      referenceMode &&
+      (bestMoveDescriptor?.isCapture ?? false) &&
+      playableNonCaptureCount > 0 &&
+      playableMoveCount >= 2 &&
+      (gapBand === "comfortable" || gapBand === "acceptable"),
     playableMoveCount,
     onlyMovePressure,
     tacticalVolatility: tacticalVolatilityScore,
     tacticalVolatilityBand: tacticalVolatilityBand(tacticalVolatilityScore),
     materialEdgePawns,
+    materialDebtPawns: Math.max(-materialEdgePawns, 0),
+    materialRecoveryFreeUntilPly: args?.materialRecoveryFreeUntilPly ?? 18,
     developmentScore: trainedDeveloped + (trainedCastled ? 2 : 0),
     trainedDeveloped,
     opponentDeveloped,
@@ -774,6 +1037,7 @@ function computeRawSignals({
 
 function coreSafetyPasses(signals, args) {
   const nodeConfidencePass =
+    args.continuationMode === "reference-best-play" ||
     signals.nodeSampleGames >= args.minGamesAtNode ||
     signals.payoffSignals.strongMaterial ||
     signals.payoffSignals.clearCompensation ||
@@ -788,6 +1052,205 @@ function coreSafetyPasses(signals, args) {
     signals.trainedKingSafety !== "critical" &&
     nodeConfidencePass
   );
+}
+
+function referenceCheckpointPasses(signals, args) {
+  if (!signals) {
+    return false;
+  }
+
+  if (signals.unresolvedCaptureDecision || signals.pendingRecapture) {
+    return false;
+  }
+
+  const minimumContinuationPass =
+    signals.addedPlies >= args.referenceMinAddedPlies ||
+    signals.totalPlies >= args.referenceSoftTotalPlies;
+
+  const settledEnough =
+    signals.tacticalVolatilityBand === "low" ||
+    signals.payoffSignals.clearMaterial ||
+    signals.payoffSignals.clearCompensation ||
+    signals.materialEdgePawns >= 1 ||
+    (signals.trainedCastled &&
+      signals.opponentKingSafety === "safe" &&
+      signals.trainedKingSafety === "safe" &&
+      signals.developmentScore >= 4);
+
+  const planShapeVisible =
+    signals.trainedCastled ||
+    signals.developmentScore >= 4 ||
+    signals.materialEdgePawns >= 1 ||
+    signals.compensationVisibility !== "none" ||
+    Math.abs(signals.currentEvalCp) >= 80 ||
+    signals.totalPlies >= args.referenceSoftTotalPlies;
+
+  return (
+    minimumContinuationPass &&
+    settledEnough &&
+    planShapeVisible &&
+    coreSafetyPasses(signals, args)
+  );
+}
+
+function referenceCheckpointScore(signals, args) {
+  let score = 0;
+
+  if (signals.totalPlies <= args.referenceSoftTotalPlies) {
+    score += 4;
+  } else {
+    score -= signals.totalPlies - args.referenceSoftTotalPlies;
+  }
+
+  if (signals.tacticalVolatilityBand === "low") {
+    score += 3;
+  } else if (signals.tacticalVolatilityBand === "medium") {
+    score += 1;
+  }
+
+  if (signals.topMoveGapBand === "comfortable") {
+    score += 2;
+  } else if (signals.topMoveGapBand === "acceptable") {
+    score += 1;
+  }
+
+  if (signals.trainedCastled) {
+    score += 2;
+  }
+
+  if (signals.materialEdgePawns >= 1) {
+    score += 2;
+  } else if (signals.materialDebtPawns > 0) {
+    score -= Math.min(signals.materialDebtPawns, 3);
+  }
+
+  if (signals.compensationVisibility === "clear") {
+    score += 2;
+  } else if (signals.compensationVisibility === "partial") {
+    score += 1;
+  }
+
+  if (signals.trainedKingSafety === "safe") {
+    score += 1;
+  } else if (signals.trainedKingSafety === "critical") {
+    score -= 4;
+  }
+
+  if (signals.pendingRecapture) {
+    score -= 8;
+  }
+
+  if (signals.unresolvedCaptureDecision) {
+    score -= 4;
+  }
+
+  return score;
+}
+
+function referenceLineCompletion(signals) {
+  if (
+    signals.materialDebtPawns > 0 &&
+    signals.materialDebtPawns <= 1 &&
+    signals.totalPlies < signals.materialRecoveryFreeUntilPly
+  ) {
+    return {
+      pass: false,
+      summary:
+        "The reference line is still early and the trained side has a recoverable pawn debt.",
+      primary: null,
+      secondary: [],
+    };
+  }
+
+  if (signals.unresolvedCaptureDecision) {
+    return {
+      pass: false,
+      summary:
+        "The reference line is one move before a playable capture decision, so the endpoint is not clear enough yet.",
+      primary: null,
+      secondary: [],
+    };
+  }
+
+  if (signals.pendingRecapture) {
+    return {
+      pass: false,
+      summary:
+        "The reference line is one move before a forced-looking recapture, so the endpoint is not clear enough yet.",
+      primary: null,
+      secondary: [],
+    };
+  }
+
+  const tabiyaVisible =
+    signals.trainedCastled ||
+    signals.developmentScore >= 4 ||
+    signals.materialEdgePawns >= 1 ||
+    signals.compensationVisibility !== "none" ||
+    Math.abs(signals.currentEvalCp) >= 80;
+
+  const settledEnough =
+    signals.tacticalVolatilityBand === "low" ||
+    signals.payoffSignals.clearMaterial ||
+    signals.payoffSignals.clearCompensation ||
+    signals.materialEdgePawns >= 1 ||
+    (signals.trainedCastled &&
+      signals.opponentKingSafety === "safe" &&
+      signals.trainedKingSafety === "safe" &&
+      signals.developmentScore >= 4);
+
+  const pass = tabiyaVisible && settledEnough;
+
+  return {
+    pass,
+    summary: pass
+      ? "The reference line has reached a stable, recognizable tabiya."
+      : "The reference line has not reached a stable enough tabiya yet.",
+    primary: pass ? "reference" : null,
+    secondary: pass ? ["tabiya"] : [],
+  };
+}
+
+function completionForMode(signals, category, args) {
+  if (args.continuationMode === "reference-best-play") {
+    return referenceLineCompletion(signals);
+  }
+
+  return categoryCompletion(signals, category);
+}
+
+function isReferenceHardCapReached(signals, args) {
+  if (!signals) {
+    return false;
+  }
+
+  if (signals.totalPlies >= args.referenceExceptionTotalPlies) {
+    return true;
+  }
+
+  if (signals.totalPlies < args.referenceHardTotalPlies) {
+    return false;
+  }
+
+  const exceptionStillForcing =
+    signals.unresolvedCaptureDecision ||
+    signals.pendingRecapture ||
+    (signals.tacticalVolatilityBand !== "low" &&
+      (signals.onlyMovePressure || signals.topMoveGapBand === "narrow"));
+
+  return !exceptionStillForcing;
+}
+
+function shouldExtendPastAddedPlyCap(signals, args) {
+  if (!signals || args.continuationMode !== "reference-best-play") {
+    return false;
+  }
+
+  if (signals.totalPlies >= args.referenceExceptionTotalPlies) {
+    return false;
+  }
+
+  return signals.unresolvedCaptureDecision || signals.pendingRecapture;
 }
 
 function categoryCompletion(signals, category) {
@@ -876,7 +1339,11 @@ function categoryCompletion(signals, category) {
   };
 }
 
-function endpointQualityScore(signals, category, completion) {
+function endpointQualityScore(signals, category, completion, args) {
+  if (args?.continuationMode === "reference-best-play") {
+    return referenceCheckpointScore(signals, args);
+  }
+
   let score = 0;
 
   if (coreSafetyPasses(signals, { minGamesAtNode: DEFAULT_MIN_GAMES_AT_NODE })) {
@@ -924,15 +1391,35 @@ function endpointQualityScore(signals, category, completion) {
   return score;
 }
 
-function meaningfulUpgrade(currentSignals, candidateSignals, category, currentCompletion, candidateCompletion) {
-  const currentScore = endpointQualityScore(currentSignals, category, currentCompletion);
-  const candidateScore = endpointQualityScore(candidateSignals, category, candidateCompletion);
+function meaningfulUpgrade(currentSignals, candidateSignals, category, currentCompletion, candidateCompletion, args) {
+  const currentScore = endpointQualityScore(currentSignals, category, currentCompletion, args);
+  const candidateScore = endpointQualityScore(candidateSignals, category, candidateCompletion, args);
+
+  if (
+    args?.continuationMode === "reference-best-play" &&
+    (currentSignals.unresolvedCaptureDecision || currentSignals.pendingRecapture) &&
+    !candidateSignals.unresolvedCaptureDecision &&
+    !candidateSignals.pendingRecapture &&
+    candidateCompletion.pass
+  ) {
+    return true;
+  }
+
+  if (
+    args?.continuationMode === "reference-best-play" &&
+    currentSignals.materialDebtPawns > 0 &&
+    candidateSignals.materialDebtPawns < currentSignals.materialDebtPawns &&
+    candidateCompletion.pass
+  ) {
+    return true;
+  }
 
   if (candidateScore >= currentScore + 2) {
     return true;
   }
 
   if (
+    args?.continuationMode !== "reference-best-play" &&
     (category === "setup" || category === "strategic") &&
     !currentSignals.trainedCastled &&
     candidateSignals.trainedCastled
@@ -1008,6 +1495,7 @@ async function analyzeFen({ fen, depth, multipvCount, engineFlavor }) {
                 turnColor,
                 depth,
                 engineFlavor,
+                source: "stockfish",
                 bestMove: bestmoveMatch ? bestmoveMatch[1] : null,
                 ponder: bestmoveMatch ? bestmoveMatch[2] ?? null : null,
                 lines,
@@ -1035,7 +1523,316 @@ async function analyzeFen({ fen, depth, multipvCount, engineFlavor }) {
   });
 }
 
+function loadJsonObject(filePath) {
+  if (!filePath || !fs.existsSync(filePath)) {
+    return {};
+  }
+
+  return JSON.parse(fs.readFileSync(filePath, "utf8"));
+}
+
+function writeJsonObject(filePath, value) {
+  writeJsonObjectFileSync(filePath, value);
+}
+
+function stockfishCacheKey(fen, args) {
+  return `${fen}::depth:${args.stockfishDepth}::engine:${args.stockfishEngine}::multipv:${args.multipvCount}`;
+}
+
+function normalizedPositionKey(fen) {
+  return String(fen).split(/\s+/).slice(0, 4).join(" ");
+}
+
+async function analyzeFenCached(fen, args, cache) {
+  const cachePath = args.stockfishEvalCache;
+  const key = stockfishCacheKey(fen, args);
+  cache = cache ?? loadJsonObject(cachePath);
+
+  if (cache[key]?.result) {
+    return cache[key].result;
+  }
+
+  const result = await analyzeFen({
+    fen,
+    depth: args.stockfishDepth,
+    multipvCount: args.multipvCount,
+    engineFlavor: args.stockfishEngine,
+  });
+
+  cache[key] = {
+    result,
+    cachedAt: new Date().toISOString(),
+  };
+  writeJsonObject(cachePath, cache);
+  return result;
+}
+
+function bestEvalCacheKey(fen) {
+  return normalizedPositionKey(fen);
+}
+
+function isLegalUciForFen(fen, uci) {
+  if (!uci || uci === "(none)") {
+    return false;
+  }
+
+  try {
+    const chess = new Chess(fen);
+    return Boolean(chess.move(uciToMoveObject(uci)));
+  } catch (_error) {
+    return false;
+  }
+}
+
+function analysisMatchesFen(analysis, fen) {
+  if (!analysis?.bestMove || analysis.bestMove === "(none)") {
+    return false;
+  }
+
+  if (analysis.fen && normalizedPositionKey(analysis.fen) !== normalizedPositionKey(fen)) {
+    return false;
+  }
+
+  return isLegalUciForFen(fen, analysis.bestMove);
+}
+
+function terminalAnalysisForFen(fen) {
+  const chess = new Chess(fen);
+  if (!chess.isGameOver()) {
+    return null;
+  }
+
+  const turnColor = chess.turn() === "w" ? "white" : "black";
+  const score = chess.isCheckmate()
+    ? { type: "mate", value: -1 }
+    : { type: "cp", value: 0 };
+
+  return {
+    fen,
+    turnColor,
+    depth: 0,
+    engineFlavor: "terminal",
+    source: "terminal",
+    bestMove: "(none)",
+    ponder: null,
+    lines: [
+      {
+        multipv: 1,
+        depth: 0,
+        score,
+        pv: [],
+        uci: null,
+        nodes: null,
+        nps: null,
+      },
+    ],
+  };
+}
+
+function providerRank(source) {
+  if (source === "lichess-cloud-eval") {
+    return 300;
+  }
+
+  if (source === "chess-api") {
+    return 200;
+  }
+
+  if (source === "stockfish") {
+    return 100;
+  }
+
+  return 0;
+}
+
+function analysisDepth(analysis) {
+  return Number.isFinite(analysis?.depth) ? analysis.depth : 0;
+}
+
+function analysisLineCount(analysis) {
+  return Array.isArray(analysis?.lines) ? analysis.lines.length : 0;
+}
+
+function analysisQuality(analysis) {
+  return {
+    providerRank: providerRank(analysis?.source),
+    depth: analysisDepth(analysis),
+    lineCount: analysisLineCount(analysis),
+  };
+}
+
+function isBetterAnalysis(candidate, current) {
+  if (!candidate?.bestMove || candidate.bestMove === "(none)") {
+    return false;
+  }
+
+  if (!current?.bestMove || current.bestMove === "(none)") {
+    return true;
+  }
+
+  const candidateQuality = analysisQuality(candidate);
+  const currentQuality = analysisQuality(current);
+
+  if (candidateQuality.providerRank !== currentQuality.providerRank) {
+    return candidateQuality.providerRank > currentQuality.providerRank;
+  }
+
+  if (candidateQuality.depth !== currentQuality.depth) {
+    return candidateQuality.depth > currentQuality.depth;
+  }
+
+  return candidateQuality.lineCount > currentQuality.lineCount;
+}
+
+function readBestKnownAnalysis(fen, args, cache) {
+  if (!args.bestEvalCache || !cache) {
+    return null;
+  }
+
+  const entry = cache?.[bestEvalCacheKey(fen)];
+  const analysis = entry?.result ?? null;
+  return analysisMatchesFen(analysis, fen) ? analysis : null;
+}
+
+function writeBestKnownAnalysis(fen, analysis, args, cache) {
+  if (!args.bestEvalCache || !cache || !analysisMatchesFen(analysis, fen)) {
+    return analysis;
+  }
+
+  const key = bestEvalCacheKey(fen);
+  const current = cache[key]?.result ?? null;
+  if (!isBetterAnalysis(analysis, current)) {
+    return current ?? analysis;
+  }
+
+  cache[key] = {
+    result: analysis,
+    source: analysis.source ?? null,
+    provider: analysisSourceToProvider(analysis.source),
+    depth: analysis.depth ?? null,
+    bestMove: analysis.bestMove ?? null,
+    lineCount: analysisLineCount(analysis),
+    quality: analysisQuality(analysis),
+    updatedAt: new Date().toISOString(),
+  };
+  writeJsonObject(args.bestEvalCache, cache);
+  return analysis;
+}
+
+function shouldUseBestKnownAnalysis(analysis, args) {
+  if (!analysis?.bestMove || analysis.bestMove === "(none)") {
+    return false;
+  }
+
+  if (analysis.source === "lichess-cloud-eval") {
+    return true;
+  }
+
+  if (args.cloudEvalMode !== "authoritative" && args.cloudEvalMode !== "full") {
+    return true;
+  }
+
+  if (args.lockedEngineId === "stockfish") {
+    return true;
+  }
+
+  return false;
+}
+
+function hasUsableBestKnownAnalysis(analysis) {
+  return Boolean(analysis?.bestMove && analysis.bestMove !== "(none)");
+}
+
+function analysisSourceToMoveSource(source) {
+  if (source === "lichess-cloud-eval") {
+    return "lichess-cloud-best-move";
+  }
+
+  if (source === "chess-api") {
+    return "chess-api-best-move";
+  }
+
+  return "stockfish-best-move";
+}
+
+function moveSourceToProvider(source) {
+  if (source === "lichess-cloud-best-move") {
+    return "lichess";
+  }
+
+  if (source === "chess-api-best-move") {
+    return "chess-api";
+  }
+
+  if (source === "stockfish-best-move") {
+    return "stockfish";
+  }
+
+  return null;
+}
+
+function analysisSourceToProvider(source) {
+  if (source === "lichess-cloud-eval") {
+    return "lichess";
+  }
+
+  if (source === "chess-api") {
+    return "chess-api";
+  }
+
+  if (source === "stockfish") {
+    return "stockfish";
+  }
+
+  return null;
+}
+
+function countBy(values) {
+  const counts = {};
+  for (const value of values) {
+    if (!value) continue;
+    counts[value] = (counts[value] ?? 0) + 1;
+  }
+  return counts;
+}
+
+function summarizeGenerationEngines(continuationSteps, finalAnalysis) {
+  const extensionSourceCounts = countBy(
+    continuationSteps.map((step) => step.source)
+  );
+  const providerCounts = countBy(
+    continuationSteps
+      .map((step) => moveSourceToProvider(step.source))
+      .filter(Boolean)
+  );
+  const providers = Object.keys(providerCounts);
+  const engineProvider =
+    providers.length > 1
+      ? "mixed"
+      : providers[0] ?? analysisSourceToProvider(finalAnalysis?.source) ?? null;
+  const extensionDepths = continuationSteps
+    .map((step) => step.engineDepth)
+    .filter(Number.isFinite);
+  const avgExtensionDepth =
+    extensionDepths.length > 0
+      ? Math.round(extensionDepths.reduce((a, b) => a + b, 0) / extensionDepths.length)
+      : Number.isFinite(finalAnalysis?.depth)
+        ? finalAnalysis.depth
+        : null;
+
+  return {
+    engineProvider,
+    providerCounts,
+    extensionSourceCounts,
+    avgExtensionDepth,
+  };
+}
+
 async function fetchExplorerNode(fen, args, cache) {
+  if (args.continuationMode === "reference-best-play") {
+    return REFERENCE_MODE_EXPLORER_NODE;
+  }
+
   if (cache.has(fen)) {
     return cache.get(fen);
   }
@@ -1062,21 +1859,168 @@ async function fetchExplorerNode(fen, args, cache) {
   return result;
 }
 
-async function analyzePosition(fen, args, cache) {
-  const key = `${fen}::${args.stockfishDepth}::${args.stockfishEngine}::${args.multipvCount}`;
-  if (cache.has(key)) {
-    return cache.get(key);
+async function fetchCloudAnalysis(fen, args) {
+  const lockedId = args.lockedEngineId;
+  const engineOptions = {
+    lichess: {
+      multipvCount: args.multipvCount,
+      delayMs: args.cloudEvalDelayMs,
+      maxRetries: args.cloudEvalMaxRetries,
+      timeoutMs: args.cloudEvalTimeoutMs,
+      cachePath: args.cloudEvalCache,
+      missTtlMs: args.cloudCacheMissTtlMs,
+    },
+    chessApi: {
+      delayMs: args.cloudEvalDelayMs,
+      timeoutMs: args.cloudEvalTimeoutMs,
+      cachePath: args.chessApiCache,
+      missTtlMs: args.cloudCacheMissTtlMs,
+    },
+  };
+
+  const allEngines = args.router.engineIds;
+  const startIdx = allEngines.indexOf(lockedId);
+  const orderedEngines =
+    startIdx >= 0 ? allEngines.slice(startIdx) : allEngines;
+
+  const cachedLichess = readCachedLichessCloudEval(fen, engineOptions.lichess);
+  if (analysisMatchesFen(cachedLichess, fen)) {
+    return cachedLichess;
   }
 
-  const result = await analyzeFen({
-    fen,
-    depth: args.stockfishDepth,
-    multipvCount: args.multipvCount,
-    engineFlavor: args.stockfishEngine,
-  });
+  const cachedChessApi = readCachedChessApiEval(fen, engineOptions.chessApi);
+  const canTryLichess =
+    orderedEngines.includes("lichess") && !args.router.isCoolingDown("lichess");
+  if (!canTryLichess && analysisMatchesFen(cachedChessApi, fen)) {
+    return cachedChessApi;
+  }
 
-  cache.set(key, result);
-  return result;
+  for (const engineId of orderedEngines) {
+    if (args.router.isCoolingDown(engineId)) continue;
+
+    const result = await args.router.fetch(engineId, fen, engineOptions);
+
+    if (!analysisMatchesFen(result, fen)) {
+      if (engineId !== orderedEngines[orderedEngines.length - 1]) {
+        console.warn(
+          `Cloud eval (${engineId}) has no data for this position — trying next engine.`
+        );
+      }
+      continue;
+    }
+
+    if (
+      args.cloudEvalMinDepth > 0 &&
+      result.depth != null &&
+      result.depth < args.cloudEvalMinDepth
+    ) {
+      throw new Error(
+        `Cloud eval (${engineId}) depth ${result.depth} is below required minimum ${args.cloudEvalMinDepth} for FEN: ${fen}`
+      );
+    }
+
+    return result;
+  }
+
+  return null;
+}
+
+async function analyzePosition(fen, args, cache) {
+  const analysisCache = cache?.analysis instanceof Map ? cache.analysis : cache;
+  const bestEvalCache = cache?.bestEval ?? null;
+  const engineProvider = args.lockedEngineId ?? "default";
+  const key = `${fen}::${args.stockfishDepth}::${args.stockfishEngine}::${args.multipvCount}::cloud:${args.cloudEvalMode}::provider:${engineProvider}`;
+  if (analysisCache?.has(key)) {
+    return analysisCache.get(key);
+  }
+
+  const terminalAnalysis = terminalAnalysisForFen(fen);
+  if (terminalAnalysis) {
+    analysisCache?.set(key, terminalAnalysis);
+    return terminalAnalysis;
+  }
+
+  const bestKnown = readBestKnownAnalysis(fen, args, bestEvalCache);
+  if (shouldUseBestKnownAnalysis(bestKnown, args)) {
+    analysisCache?.set(key, bestKnown);
+    return bestKnown;
+  }
+
+  const useCloud =
+    args.cloudEvalMode === "authoritative" && args.lockedEngineId !== "stockfish";
+
+  if (useCloud) {
+    try {
+      const cloudResult = await fetchCloudAnalysis(fen, args);
+      if (analysisMatchesFen(cloudResult, fen)) {
+        const bestResult = writeBestKnownAnalysis(fen, cloudResult, args, bestEvalCache);
+        analysisCache?.set(key, bestResult);
+        return bestResult;
+      }
+    } catch (error) {
+      if (error?.code === "ENGINE_RATE_LIMITED") {
+        if (hasUsableBestKnownAnalysis(bestKnown)) {
+          analysisCache?.set(key, bestKnown);
+          return bestKnown;
+        }
+        throw error;
+      }
+      if (args.lockedEngineId && args.lockedEngineId !== "stockfish") {
+        args.router.markCoolingDown(args.lockedEngineId);
+      }
+
+      console.warn(
+        `Cloud eval (${engineProvider}) unavailable for ${fen}; falling back to local Stockfish depth ${args.stockfishDepth}: ${
+          error instanceof Error ? error.message : String(error)
+        }`
+      );
+    }
+
+    console.warn(
+      `Cloud eval (${engineProvider}) returned no usable move for ${fen}; falling back to local Stockfish depth ${args.stockfishDepth}.`
+    );
+  }
+
+  if (args.cloudEvalMode === "full") {
+    try {
+      const cloudResult = await fetchCloudAnalysis(fen, args);
+      if (analysisMatchesFen(cloudResult, fen)) {
+        const bestResult = writeBestKnownAnalysis(fen, cloudResult, args, bestEvalCache);
+        analysisCache?.set(key, bestResult);
+        return bestResult;
+      }
+    } catch (error) {
+      if (error?.code === "ENGINE_RATE_LIMITED") {
+        if (hasUsableBestKnownAnalysis(bestKnown)) {
+          analysisCache?.set(key, bestKnown);
+          return bestKnown;
+        }
+        throw error;
+      }
+      if (args.lockedEngineId && args.lockedEngineId !== "stockfish") {
+        args.router.markCoolingDown(args.lockedEngineId);
+      }
+      console.warn(
+        `Cloud eval (${engineProvider}) unavailable for ${fen}; falling back to cached/local Stockfish depth ${args.stockfishDepth}: ${
+          error instanceof Error ? error.message : String(error)
+        }`
+      );
+    }
+  }
+
+  if (hasUsableBestKnownAnalysis(bestKnown)) {
+    analysisCache?.set(key, bestKnown);
+    return bestKnown;
+  }
+
+  const result = await analyzeFenCached(fen, args, cache?.stockfishEval);
+  if (!analysisMatchesFen(result, fen)) {
+    throw new Error(`Stockfish returned illegal best move "${result?.bestMove ?? "none"}" for ${fen}`);
+  }
+  const bestResult = writeBestKnownAnalysis(fen, result, args, bestEvalCache);
+
+  analysisCache?.set(key, bestResult);
+  return bestResult;
 }
 
 async function chooseContinuationMove({
@@ -1088,6 +2032,24 @@ async function chooseContinuationMove({
 }) {
   const sideToMove = chess.turn() === "w" ? "white" : "black";
   const isTrainedSideTurn = sideToMove === openingColor;
+  const engineSource = analysisSourceToMoveSource(analysis.source);
+
+  if (args.continuationMode === "reference-best-play") {
+    if (!analysis.bestMove || analysis.bestMove === "(none)") {
+      return null;
+    }
+
+    return {
+      side: isTrainedSideTurn ? "trained" : "opponent",
+      source: engineSource,
+      engineDepth: analysis.depth ?? null,
+      engineAnalysisSource: analysis.source ?? null,
+      uci: analysis.bestMove,
+      popularityRatio: null,
+      popularityGames: null,
+      nodeGames: explorer.totalGamesAtNode,
+    };
+  }
 
   if (isTrainedSideTurn) {
     if (!analysis.bestMove || analysis.bestMove === "(none)") {
@@ -1096,7 +2058,9 @@ async function chooseContinuationMove({
 
     return {
       side: "trained",
-      source: "stockfish-best-move",
+      source: engineSource,
+      engineDepth: analysis.depth ?? null,
+      engineAnalysisSource: analysis.source ?? null,
       uci: analysis.bestMove,
       popularityRatio: null,
       popularityGames: null,
@@ -1165,7 +2129,18 @@ async function shouldExtendForShortHorizon({
   analysisCache,
   explorerCache,
 }) {
-  const limit = Math.min(args.shortHorizonPlies, args.shortHorizonMaxPlies);
+  const recoveryWindowAvailable =
+    args.continuationMode === "reference-best-play" &&
+    currentSignals.materialDebtPawns > 0 &&
+    currentSignals.materialDebtPawns <= 1 &&
+    currentSignals.totalPlies >= args.materialRecoveryFreeUntilPly &&
+    currentSignals.totalPlies < args.referenceSoftTotalPlies;
+  const limit = recoveryWindowAvailable
+    ? Math.max(
+        Math.min(args.shortHorizonPlies, args.shortHorizonMaxPlies),
+        args.materialRecoveryHorizonPlies
+      )
+    : Math.min(args.shortHorizonPlies, args.shortHorizonMaxPlies);
   const simChess = new Chess(chess.fen());
   const simSans = [...generatedSans];
   const simHistory = [...evalHistory];
@@ -1212,13 +2187,14 @@ async function shouldExtendForShortHorizon({
       chess: simChess,
       openingColor,
       category,
+      args,
       generatedSans: simSans,
       sourcePlies,
       analysis: nextAnalysis,
       explorer: nextExplorer,
       evalHistory: simHistory,
     });
-    const candidateCompletion = categoryCompletion(candidateSignals, category);
+    const candidateCompletion = completionForMode(candidateSignals, category, args);
 
     if (
       coreSafetyPasses(candidateSignals, args) &&
@@ -1228,7 +2204,8 @@ async function shouldExtendForShortHorizon({
         candidateSignals,
         category,
         latestCompletion,
-        candidateCompletion
+        candidateCompletion,
+        args
       )
     ) {
       return true;
@@ -1258,6 +2235,7 @@ async function evaluateStop({
     chess,
     openingColor,
     category,
+    args,
     generatedSans,
     sourcePlies,
     analysis,
@@ -1266,10 +2244,11 @@ async function evaluateStop({
   });
 
   const corePass = coreSafetyPasses(signals, args);
-  const completion = categoryCompletion(signals, category);
+  const completion = completionForMode(signals, category, args);
 
   if (!corePass) {
     if (
+      args.continuationMode !== "reference-best-play" &&
       signals.nodeSampleGames < args.minGamesAtNode &&
       signals.addedPlies > 0
     ) {
@@ -1286,7 +2265,16 @@ async function evaluateStop({
   }
 
   if (!completion.pass) {
-    return continuePayload("The line has not completed its teaching goal yet.", signals);
+    return continuePayload(
+      args.continuationMode === "reference-best-play" && signals.unresolvedCaptureDecision
+        ? "The next engine move is a capture, but playable non-capture alternatives still exist; continue one short step to resolve the choice."
+        : args.continuationMode === "reference-best-play" && signals.pendingRecapture
+        ? "The last move was a capture and the next engine move is a forced-looking recapture; continue one short step to resolve it."
+        : args.continuationMode === "reference-best-play"
+        ? "The reference line has not reached a stable tabiya yet."
+        : "The line has not completed its teaching goal yet.",
+      signals
+    );
   }
 
   const shouldUpgrade = await shouldExtendForShortHorizon({
@@ -1311,7 +2299,9 @@ async function evaluateStop({
   }
 
   return stopPayload(
-    "Stopped at the earliest position where the instructional payoff was visible without unnecessary continuation.",
+    args.cloudEvalMode === "authoritative" && args.continuationMode === "reference-best-play"
+      ? "Stopped at a cloud-authoritative mature reference checkpoint after short-horizon review."
+      : "Stopped at the earliest position where the instructional payoff was visible without unnecessary continuation.",
     completion.summary,
     completion.primary,
     completion.secondary,
@@ -1329,9 +2319,12 @@ async function extendMainVariationLine(entry, args, caches) {
   const generatedSans = [...entry.sans];
   const variationAnchorFen = chess.fen();
   const continuationSteps = [];
-  const openingColor = inferOpeningColor(entry.family);
+  const openingColor = inferOpeningColor(courseFamilyForEntry(entry, args.startsWith));
   const category = inferPrimaryCategory(entry);
   const evalHistory = [];
+  let evalCpByPly = [0];
+  const referenceTrace = [];
+  let bestReferenceCheckpoint = null;
   let finalStop = {
     reason: "Reached the variation anchor only; no continuation was needed.",
     finalPositionSummary: null,
@@ -1340,44 +2333,126 @@ async function extendMainVariationLine(entry, args, caches) {
     signals: null,
   };
 
-  if (isSourceMainLineEntry(entry)) {
-    const finalAnalysis = await analyzePosition(chess.fen(), args, caches.analysis);
+  function rememberReferenceCheckpoint(stopState) {
+    if (!referenceCheckpointPasses(stopState.signals, args)) {
+      return;
+    }
 
-    return {
-      openingColor,
-      primaryCategory: category,
-      sourcePlies,
-      variationAnchorFen,
-      generatedSans,
-      continuationSans: [],
-      stopReason:
-        "Stored as the source main-line reference; practical continuation is generated from the parent named variation node.",
-      finalPositionSummary:
-        "This line preserves the naming-source main line as reference theory.",
-      advantageTypePrimary: "reference",
-      advantageTypeSecondary: [],
-      stopSignals: null,
-      extension: [],
-      finalFen: chess.fen(),
-      stockfish: finalAnalysis,
-      sourceReferenceOnly: true,
+    const score = referenceCheckpointScore(stopState.signals, args);
+    if (bestReferenceCheckpoint && score <= bestReferenceCheckpoint.score) {
+      return;
+    }
+
+    bestReferenceCheckpoint = {
+      score,
+      generatedSans: [...generatedSans],
+      continuationSteps: continuationSteps.map((step) => ({ ...step })),
+      evalCpByPly: [...evalCpByPly],
+      fen: chess.fen(),
+      stop: {
+        ...stopState,
+        reason:
+          stopState.reason +
+          " Selected as the best mature reference checkpoint before the reference cap.",
+      },
     };
+  }
+
+  function traceReferenceCheckpoint(stopState) {
+    if (!args.traceReferenceCheckpoints || args.continuationMode !== "reference-best-play") {
+      return;
+    }
+
+    referenceTrace.push({
+      event: "evaluated",
+      ply: stopState.signals?.totalPlies ?? generatedSans.length,
+      addedPlies: stopState.signals?.addedPlies ?? Math.max(generatedSans.length - sourcePlies, 0),
+      san: generatedSans.at(-1) ?? null,
+      fen: chess.fen(),
+      stop: stopState.stop,
+      reason: stopState.reason,
+      checkpointPasses: referenceCheckpointPasses(stopState.signals, args),
+      checkpointScore: referenceCheckpointPasses(stopState.signals, args)
+        ? referenceCheckpointScore(stopState.signals, args)
+        : null,
+      directCompletion: referenceLineCompletion(stopState.signals),
+      signals: stopState.signals
+        ? {
+            currentEvalCp: stopState.signals.currentEvalCp,
+            evalStabilityCp: stopState.signals.evalStabilityCp,
+            topMoveGapCp: stopState.signals.topMoveGapCp,
+            topMoveGapBand: stopState.signals.topMoveGapBand,
+            bestMoveSan: stopState.signals.bestMoveSan,
+            bestMoveIsCapture: stopState.signals.bestMoveIsCapture,
+            lastMoveSan: stopState.signals.lastMoveSan,
+            lastMoveWasCapture: stopState.signals.lastMoveWasCapture,
+            pendingRecapture: stopState.signals.pendingRecapture,
+            unresolvedCaptureDecision: stopState.signals.unresolvedCaptureDecision,
+            onlyMovePressure: stopState.signals.onlyMovePressure,
+            tacticalVolatilityBand: stopState.signals.tacticalVolatilityBand,
+            materialEdgePawns: stopState.signals.materialEdgePawns,
+            materialDebtPawns: stopState.signals.materialDebtPawns,
+            trainedKingSafety: stopState.signals.trainedKingSafety,
+            opponentKingSafety: stopState.signals.opponentKingSafety,
+            developmentScore: stopState.signals.developmentScore,
+          }
+        : null,
+    });
+  }
+
+  function restoreBestReferenceCheckpoint(reason) {
+    if (!bestReferenceCheckpoint) {
+      return false;
+    }
+
+    if (args.traceReferenceCheckpoints && args.continuationMode === "reference-best-play") {
+      referenceTrace.push({
+        event: "rollback",
+        reason,
+        selectedPly: bestReferenceCheckpoint.generatedSans.length,
+        selectedSan: bestReferenceCheckpoint.generatedSans.at(-1) ?? null,
+        selectedScore: bestReferenceCheckpoint.score,
+      });
+    }
+
+    generatedSans.length = 0;
+    generatedSans.push(...bestReferenceCheckpoint.generatedSans);
+    continuationSteps.length = 0;
+    continuationSteps.push(...bestReferenceCheckpoint.continuationSteps);
+    evalCpByPly = [...bestReferenceCheckpoint.evalCpByPly];
+    chess.load(bestReferenceCheckpoint.fen);
+    finalStop = {
+      ...bestReferenceCheckpoint.stop,
+      reason,
+    };
+    return true;
   }
 
   for (let addedPlies = 0; addedPlies <= args.maxAddedPlies; addedPlies += 1) {
     if (generatedSans.length >= args.maxTotalPlies) {
-      finalStop = {
-        reason: "Stopped at the current total-ply safety cap.",
-        finalPositionSummary: "The line hit the current total-length cap before a cleaner stopping point appeared.",
-        advantageTypePrimary: "reference",
-        advantageTypeSecondary: [],
-        signals: finalStop.signals,
-      };
+      if (
+        !restoreBestReferenceCheckpoint(
+          "Stopped at the best mature reference checkpoint before the total-ply safety cap."
+        )
+      ) {
+        finalStop = {
+          reason: "Stopped at the current total-ply safety cap.",
+          finalPositionSummary: "The line hit the current total-length cap before a cleaner stopping point appeared.",
+          advantageTypePrimary: "reference",
+          advantageTypeSecondary: [],
+          signals: finalStop.signals,
+        };
+      }
       break;
     }
 
-    const analysis = await analyzePosition(chess.fen(), args, caches.analysis);
+    const analysis = await analyzePosition(chess.fen(), args, caches);
     const explorer = await fetchExplorerNode(chess.fen(), args, caches.explorer);
+    evalCpByPly = timelineWithEvalAtPly(
+      evalCpByPly,
+      generatedSans.length,
+      whiteEvalCpFromAnalysis(analysis)
+    );
     const currentEval = perspectiveEvalCp(
       analysis.lines[0]?.score ?? null,
       analysis.turnColor,
@@ -1401,19 +2476,55 @@ async function extendMainVariationLine(entry, args, caches) {
       explorerCache: caches.explorer,
     });
 
+    traceReferenceCheckpoint(stopState);
+    rememberReferenceCheckpoint(stopState);
+
     if (stopState.stop) {
+      if (referenceCheckpointPasses(stopState.signals, args)) {
+        finalStop = stopState;
+        break;
+      }
+
       finalStop = stopState;
-      break;
     }
 
-    if (addedPlies === args.maxAddedPlies) {
+    if (isReferenceHardCapReached(stopState.signals, args)) {
+      if (
+        restoreBestReferenceCheckpoint(
+          "Stopped at the best mature reference checkpoint before the reference hard cap."
+        )
+      ) {
+        break;
+      }
+
       finalStop = {
-        reason: "Stopped at the current added-ply cap for the generated continuation.",
-        finalPositionSummary: "The line hit the current continuation cap before a cleaner endpoint appeared.",
+        reason: "Stopped at the reference hard cap without finding a cleaner mature checkpoint.",
+        finalPositionSummary:
+          "The line hit the reference cap before a cleaner tabiya appeared.",
         advantageTypePrimary: "reference",
         advantageTypeSecondary: [],
         signals: stopState.signals,
       };
+      break;
+    }
+
+    if (
+      addedPlies >= args.maxAddedPlies &&
+      !shouldExtendPastAddedPlyCap(stopState.signals, args)
+    ) {
+      if (
+        !restoreBestReferenceCheckpoint(
+          "Stopped at the best mature reference checkpoint before the generated continuation cap."
+        )
+      ) {
+        finalStop = {
+          reason: "Stopped at the current added-ply cap for the generated continuation.",
+          finalPositionSummary: "The line hit the current continuation cap before a cleaner endpoint appeared.",
+          advantageTypePrimary: "reference",
+          advantageTypeSecondary: [],
+          signals: stopState.signals,
+        };
+      }
       break;
     }
 
@@ -1436,7 +2547,10 @@ async function extendMainVariationLine(entry, args, caches) {
       break;
     }
 
-    if (continuation.stopBecauseThinSample) {
+    if (
+      args.continuationMode !== "reference-best-play" &&
+      continuation.stopBecauseThinSample
+    ) {
       finalStop = {
         reason: "Stopped because the Lichess node sample is too thin to trust further continuation.",
         finalPositionSummary: "The line is ending as a reference continuation because the practical continuation sample is too small.",
@@ -1466,13 +2580,22 @@ async function extendMainVariationLine(entry, args, caches) {
       uci: continuation.uci,
       side: continuation.side,
       source: continuation.source,
+      engineDepth: continuation.engineDepth,
+      engineAnalysisSource: continuation.engineAnalysisSource,
       popularityRatio: continuation.popularityRatio,
       popularityGames: continuation.popularityGames,
       nodeGames: continuation.nodeGames,
     });
   }
 
-  const finalAnalysis = await analyzePosition(chess.fen(), args, caches.analysis);
+  const finalAnalysis = await analyzePosition(chess.fen(), args, caches);
+  evalCpByPly = timelineWithEvalAtPly(
+    evalCpByPly,
+    generatedSans.length,
+    whiteEvalCpFromAnalysis(finalAnalysis)
+  );
+  evalCpByPly = await buildWhiteEvalCpByPlyFromSans(generatedSans, args, caches, evalCpByPly);
+  const engineSummary = summarizeGenerationEngines(continuationSteps, finalAnalysis);
 
   return {
     openingColor,
@@ -1487,15 +2610,23 @@ async function extendMainVariationLine(entry, args, caches) {
     advantageTypeSecondary: finalStop.advantageTypeSecondary,
     stopSignals: finalStop.signals,
     extension: continuationSteps,
+    referenceTrace: args.traceReferenceCheckpoints ? referenceTrace : undefined,
     finalFen: chess.fen(),
     stockfish: finalAnalysis,
+    evalCpByPly,
+    finalEvalCp: evalCpByPly.at(-1) ?? null,
+    engineProvider: engineSummary.engineProvider,
+    engineProviderCounts: engineSummary.providerCounts,
+    extensionSourceCounts: engineSummary.extensionSourceCounts,
+    avgExtensionDepth: engineSummary.avgExtensionDepth,
   };
 }
 
-function buildCandidateRecord(entry, generated) {
-  const ids = buildOpeningIds(entry);
+function buildCandidateRecord(entry, generated, courseAnchor = null) {
+  const ids = buildOpeningIds(entry, courseAnchor);
+  const courseFamily = courseFamilyForEntry(entry, courseAnchor);
   const mainLine = inferMainLineStatus(entry);
-  const variationPath = splitVariationSegments(entry);
+  const variationPath = splitVariationSegments(entry, courseAnchor);
   const sourceMainLine = isSourceMainLineEntry(entry);
   const difficulty = buildLineDifficulty({
     category: generated.primaryCategory,
@@ -1503,11 +2634,45 @@ function buildCandidateRecord(entry, generated) {
     addedPlies: Math.max(generated.generatedSans.length - generated.sourcePlies, 0),
   });
 
+  const continuationSources = new Set(
+    (generated.extension ?? []).map((step) => step.source).filter(Boolean)
+  );
+  const hasLichessCloud = continuationSources.has("lichess-cloud-best-move");
+  const hasChessApi = continuationSources.has("chess-api-best-move");
+  const hasStockfishFallback = continuationSources.has("stockfish-best-move");
+  const sourceParts = [];
+
+  if (hasLichessCloud) {
+    sourceParts.push("Lichess cloud eval");
+  }
+
+  if (hasChessApi) {
+    sourceParts.push("Chess-API eval");
+  }
+
+  if (hasStockfishFallback) {
+    sourceParts.push(
+      sourceParts.length > 0 ? "Stockfish fallback" : "Stockfish"
+    );
+  }
+
+  if (sourceParts.length === 0) {
+    if (generated.engineProvider === "lichess") {
+      sourceParts.push("Lichess cloud eval");
+    } else if (generated.engineProvider === "chess-api") {
+      sourceParts.push("Chess-API eval");
+    } else {
+      sourceParts.push("Stockfish");
+    }
+  }
+
+  const sourceName = `lichess-org/chess-openings + ${sourceParts.join(" + ")}`;
+
   return {
     openingId: ids.openingId,
     variationId: ids.variationId,
     lineId: ids.lineId,
-    openingName: entry.family,
+    openingName: courseFamily,
     lineName: entry.variation || entry.family,
     fullName: entry.name,
     lineDisplayName: entry.name,
@@ -1543,16 +2708,13 @@ function buildCandidateRecord(entry, generated) {
     evalGain: null,
     inclusionOutcome: "include-authoritative",
     sourceType: "hybrid",
-    sourceName: "lichess-org/chess-openings + Lichess Explorer + Stockfish",
+    sourceName,
     sourceConfidence: "medium",
     stopReason: generated.stopReason,
     finalFen: generated.finalFen,
-    finalEvalCp: perspectiveEvalCp(
-      generated.stockfish.lines[0]?.score ?? null,
-      generated.stockfish.turnColor,
-      generated.openingColor
-    ),
-    finalEvalPerspective: generated.openingColor,
+    finalEvalCp: generated.finalEvalCp,
+    finalEvalPerspective: "white",
+    evalCpByPly: generated.evalCpByPly,
     finalPositionSummary: generated.finalPositionSummary,
     advantageTypePrimary: generated.advantageTypePrimary,
     advantageTypeSecondary: generated.advantageTypeSecondary,
@@ -1573,6 +2735,11 @@ function buildCandidateRecord(entry, generated) {
       sourceReferenceOnly: generated.sourceReferenceOnly ?? false,
       extension: generated.extension,
       stopSignals: generated.stopSignals,
+      referenceTrace: generated.referenceTrace,
+      engineProvider: generated.engineProvider,
+      engineProviderCounts: generated.engineProviderCounts,
+      extensionSourceCounts: generated.extensionSourceCounts,
+      avgExtensionDepth: generated.avgExtensionDepth,
     },
     stockfish: generated.stockfish,
   };
@@ -1693,9 +2860,12 @@ function loadResumeState(outputPath) {
 
   const payload = JSON.parse(fs.readFileSync(outputPath, "utf8"));
   const results = Array.isArray(payload.results) ? payload.results : [];
+  const processedSourceNames = Array.isArray(payload.processedSourceNames)
+    ? payload.processedSourceNames
+    : results.map((entry) => entry.fullName);
 
   return {
-    processed: new Set(results.map((entry) => entry.fullName)),
+    processed: new Set(processedSourceNames),
     results,
   };
 }
@@ -1706,22 +2876,32 @@ function writePayload({
   results,
   totalEntries,
   status,
+  error = null,
+  processedSourceNames = null,
 }) {
   const dedupedResults = collapseDuplicateLines(results);
   const openings = groupOpenings(dedupedResults);
+  const processedCount = processedSourceNames?.length ?? results.length;
   const payload = {
     generatedAt: new Date().toISOString(),
     status,
+    processedSourceNames: processedSourceNames ?? results.map((entry) => entry.fullName),
     source: {
       naming: "lichess-org/chess-openings",
-      opponentModel: "Lichess Explorer",
-      trainedSideModel: "Stockfish",
+      continuationMode: args.continuationMode,
+      engineModel:
+        args.cloudEvalMode === "authoritative"
+          ? "Lichess cloud eval with Stockfish fallback"
+          : args.cloudEvalMode === "full"
+            ? "Lichess cloud eval with Stockfish fallback"
+            : "Stockfish",
     },
     config: {
       limit: args.limit,
       offset: args.offset,
       ecoVolume: args.ecoVolume,
       startsWith: args.startsWith,
+      sanPrefix: args.sanPrefix,
       delayMs: args.delayMs,
       minGamesAtNode: args.minGamesAtNode,
       maxAddedPlies: args.maxAddedPlies,
@@ -1732,12 +2912,27 @@ function writePayload({
       multipvCount: args.multipvCount,
       shortHorizonPlies: args.shortHorizonPlies,
       shortHorizonMaxPlies: args.shortHorizonMaxPlies,
+      materialRecoveryFreeUntilPly: args.materialRecoveryFreeUntilPly,
+      materialRecoveryHorizonPlies: args.materialRecoveryHorizonPlies,
+      continuationMode: args.continuationMode,
+      cloudEvalMode: args.cloudEvalMode,
+      cloudEvalDelayMs: args.cloudEvalDelayMs,
+      cloudEvalTimeoutMs: args.cloudEvalTimeoutMs,
+      cloudEvalMaxRetries: args.cloudEvalMaxRetries,
+      cloudEvalMinDepth: args.cloudEvalMinDepth,
+      cloudEvalCache: args.cloudEvalCache,
+      chessApiCache: args.chessApiCache,
+      stockfishEvalCache: args.stockfishEvalCache,
+      bestEvalCache: args.bestEvalCache,
+      cloudCacheMissTtlMs: args.cloudCacheMissTtlMs,
     },
+    error,
     count: dedupedResults.length,
+    processedCount,
     totalEntries,
     progressPercent:
       totalEntries > 0
-        ? Number(((dedupedResults.length / totalEntries) * 100).toFixed(2))
+        ? Number(((processedCount / totalEntries) * 100).toFixed(2))
         : 0,
     openingCount: openings.length,
     openings,
@@ -1752,6 +2947,7 @@ function writePayload({
 
 async function main() {
   const args = parseArgs(process.argv.slice(2));
+  args.router = new CloudEvalRouter({ cooldownMs: args.cloudEngineCooldownMs });
   const sourceEntries = filterEntries(await fetchChessOpeningsDataset(), args);
 
   if (!sourceEntries.length) {
@@ -1766,6 +2962,8 @@ async function main() {
   const caches = {
     analysis: new Map(),
     explorer: new Map(),
+    stockfishEval: loadJsonObject(args.stockfishEvalCache),
+    bestEval: loadJsonObject(args.bestEvalCache),
   };
 
   if (resumeState.results.length > 0) {
@@ -1783,16 +2981,83 @@ async function main() {
       continue;
     }
 
-    const generated = await extendMainVariationLine(entry, args, caches);
-    const record = buildCandidateRecord(entry, generated);
-    results.push(record);
-    resumeState.processed.add(entry.name);
-    processedCount += 1;
+    let record;
+    try {
+      let generated;
+      let engineId =
+        args.cloudEvalMode === "authoritative"
+          ? (args.router.getNextAvailableEngine() ?? "stockfish")
+          : null;
+
+      while (true) {
+        try {
+          generated = await extendMainVariationLine(
+            entry,
+            { ...args, lockedEngineId: engineId },
+            caches
+          );
+          break;
+        } catch (engineError) {
+          if (engineError instanceof EngineRateLimitedError) {
+            args.router.markCoolingDown(engineError.engineId);
+            console.warn(
+              `[router] Restarting line "${entry.name}" from beginning. Status: ${args.router.statusSummary()}`
+            );
+            const nextEngine = args.router.getNextAvailableEngine();
+            engineId = nextEngine ?? "stockfish";
+            if (nextEngine == null) {
+              console.warn(
+                `[router] All cloud engines cooling — using local Stockfish for "${entry.name}".`
+              );
+            }
+            continue;
+          }
+          throw engineError;
+        }
+      }
+
+      record = buildCandidateRecord(entry, generated, args.startsWith);
+      results.push(record);
+      resumeState.processed.add(entry.name);
+      processedCount += 1;
+    } catch (error) {
+      writePayload({
+        output: args.output,
+        args,
+        results,
+        totalEntries,
+        status: "paused",
+        processedSourceNames: Array.from(resumeState.processed),
+        error: {
+          message: error instanceof Error ? error.message : String(error),
+          entry: {
+            eco: entry.eco,
+            name: entry.name,
+            family: entry.family,
+            variation: entry.variation,
+          },
+          at: new Date().toISOString(),
+        },
+      });
+      throw error;
+    }
 
     const percent = totalEntries > 0 ? (processedCount / totalEntries) * 100 : 100;
     console.log(
       `[${processedCount}/${totalEntries}] ${formatPercent(percent)} - ${record.fullName}`
     );
+
+    if (args.cloudEvalMode === "authoritative") {
+      writePayload({
+        output: args.output,
+        args,
+        results,
+        totalEntries,
+        status: "partial",
+        processedSourceNames: Array.from(resumeState.processed),
+      });
+      continue;
+    }
 
     if (
       Number.isFinite(args.checkpointEvery) &&
@@ -1805,8 +3070,8 @@ async function main() {
         results,
         totalEntries,
         status: "partial",
+        processedSourceNames: Array.from(resumeState.processed),
       });
-      console.log(`Checkpoint saved at ${formatPercent(percent)}.`);
     }
   }
 
@@ -1816,6 +3081,7 @@ async function main() {
     results,
     totalEntries,
     status: "complete",
+    processedSourceNames: Array.from(resumeState.processed),
   });
 
   console.log(`Wrote generated opening candidates to ${args.output}`);
