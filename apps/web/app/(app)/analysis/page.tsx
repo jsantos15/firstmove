@@ -186,6 +186,27 @@ function buildExplorePairs(history: ExploreEntry[], startFen: string): ExplorePa
   return pairs;
 }
 
+// ─── Variation Tree Types ─────────────────────────────────────────────────────
+
+type MoveEntry = { id: string; san: string; fen: string; from: string; to: string };
+
+type VBranch = {
+  id: string;
+  divergeAtPly: number;
+  moves: MoveEntry[];
+};
+
+type ExploreTree = {
+  rootFen: string;
+  mainLine: MoveEntry[];
+  branches: VBranch[];
+};
+
+type ExploreNav = {
+  branchId: string | null;
+  plyIndex: number;
+};
+
 function extractGameTitle(pgn: string): string | null {
   const white = pgn.match(/\[White "([^"]+)"\]/)?.[1];
   const black = pgn.match(/\[Black "([^"]+)"\]/)?.[1];
@@ -690,8 +711,8 @@ export default function AnalysisPage() {
   const boardContainerRef = useRef<HTMLDivElement>(null);
   const [engineSettingsOpen, setEngineSettingsOpen] = useState(false);
   const engineSettingsRef = useRef<HTMLDivElement>(null);
-  const [exploreHistory, setExploreHistory] = useState<ExploreEntry[]>([]);
-  const [exploreHistoryIndex, setExploreHistoryIndex] = useState(-1);
+  const [exploreTree, setExploreTree] = useState<ExploreTree | null>(null);
+  const [exploreNav, setExploreNav] = useState<ExploreNav>({ branchId: null, plyIndex: -1 });
   const [selectedSquare, setSelectedSquare] = useState<string | null>(null);
   const [baseFen, setBaseFen] = useState<string | null>(null);
   const [positionMode, setPositionMode] = useState<'fen' | 'pgn'>('pgn');
@@ -734,8 +755,8 @@ export default function AnalysisPage() {
     const g = game ?? analyzedGameRef.current;
     if (!g) return;
     const clamped = Math.max(-1, Math.min(plyIndex, g.moves.length - 1));
-    setExploreHistory([]);
-    setExploreHistoryIndex(-1);
+    setExploreTree(null);
+    setExploreNav({ branchId: null, plyIndex: -1 });
     setCurrentPlyIndex(clamped);
 
     if (clamped >= 0) {
@@ -796,12 +817,35 @@ export default function AnalysisPage() {
     return analyzedGame.moves[currentPlyIndex]?.afterFen ?? INITIAL_FEN;
   }, [analyzedGame, currentPlyIndex, baseFen]);
 
-  // Derived from exploreHistory — placed here because they depend on currentFen.
-  const freeExploreFen = exploreHistoryIndex >= 0 ? (exploreHistory[exploreHistoryIndex]?.fen ?? null) : null;
-  const lastExploreMove = exploreHistoryIndex >= 0 ? {
-    san: exploreHistory[exploreHistoryIndex]!.san,
-    prevFen: exploreHistoryIndex > 0 ? exploreHistory[exploreHistoryIndex - 1]!.fen : currentFen,
-  } : null;
+  // Derived from exploreTree — placed here because they depend on currentFen.
+  const isExploring = exploreTree !== null && exploreNav.plyIndex >= 0;
+
+  function getNavFen(tree: ExploreTree | null, nav: ExploreNav, fallback: string): string {
+    if (!tree || nav.plyIndex < 0) return fallback;
+    if (nav.branchId === null) return tree.mainLine[nav.plyIndex]?.fen ?? fallback;
+    const branch = tree.branches.find(b => b.id === nav.branchId);
+    return branch?.moves[nav.plyIndex]?.fen ?? fallback;
+  }
+  const freeExploreFen = isExploring ? getNavFen(exploreTree, exploreNav, currentFen) : null;
+
+  function getLastExploreMove(tree: ExploreTree | null, nav: ExploreNav, fallback: string): { san: string; prevFen: string } | null {
+    if (!tree || nav.plyIndex < 0) return null;
+    if (nav.branchId === null) {
+      const move = tree.mainLine[nav.plyIndex];
+      if (!move) return null;
+      const prevFen = nav.plyIndex === 0 ? tree.rootFen : (tree.mainLine[nav.plyIndex - 1]?.fen ?? tree.rootFen);
+      return { san: move.san, prevFen };
+    }
+    const branch = tree.branches.find(b => b.id === nav.branchId);
+    if (!branch) return null;
+    const move = branch.moves[nav.plyIndex];
+    if (!move) return null;
+    const prevFen = nav.plyIndex === 0
+      ? (branch.divergeAtPly === 0 ? tree.rootFen : tree.mainLine[branch.divergeAtPly - 1]?.fen ?? tree.rootFen)
+      : branch.moves[nav.plyIndex - 1]?.fen ?? tree.rootFen;
+    return { san: move.san, prevFen };
+  }
+  const lastExploreMove = getLastExploreMove(exploreTree, exploreNav, currentFen);
 
   const currentEvalCp = useMemo(
     () => (currentMove?.hasEngineAnalysis ? currentMove.afterPlayedEvalCp : undefined),
@@ -841,6 +885,8 @@ export default function AnalysisPage() {
       setAnalyzedGame(game);
       setBaseFen(null);
       setCurrentPlyIndex(-1);
+      setExploreTree(null);
+      setExploreNav({ branchId: null, plyIndex: -1 });
       setLastMoveSquares(null);
       setParseError(null);
       setEngineError(null);
@@ -921,58 +967,90 @@ export default function AnalysisPage() {
   const canGoBack = analyzedGame !== null && currentPlyIndex >= 0;
   const canGoForward = analyzedGame !== null && currentPlyIndex < totalMoves - 1;
 
-  // Navigation helpers — Explore tab navigates free-play history; other tabs navigate the analyzed game.
-  const navCanGoBack = activeTab === 'explore' && exploreHistory.length > 0
-    ? exploreHistoryIndex >= 0
-    : canGoBack;
-  const navCanGoForward = activeTab === 'explore' && exploreHistory.length > 0
-    ? exploreHistoryIndex < exploreHistory.length - 1
-    : canGoForward;
+  // Navigation helpers — Explore tab navigates the variation tree; other tabs navigate the analyzed game.
+  const navCanGoBack = isExploring || canGoBack;
+  const navCanGoForward = (() => {
+    if (!exploreTree || exploreNav.plyIndex < 0) return canGoForward;
+    if (exploreNav.branchId === null) return exploreNav.plyIndex < exploreTree.mainLine.length - 1;
+    const branch = exploreTree.branches.find(b => b.id === exploreNav.branchId);
+    return branch ? exploreNav.plyIndex < branch.moves.length - 1 : false;
+  })();
 
   function navGoFirst() {
-    if (activeTab === 'explore' && exploreHistory.length > 0) {
-      // Reset to the base position without erasing the history so forward nav still works.
-      setExploreHistoryIndex(-1);
+    if (exploreTree && exploreNav.plyIndex >= 0) {
+      setExploreNav({ branchId: null, plyIndex: -1 });
       setLastMoveSquares(null);
-    } else if (analyzedGame !== null) {
+    } else {
       goTo(-1);
     }
   }
 
   function navGoBack() {
-    if (activeTab === 'explore' && exploreHistory.length > 0) {
-      const newIdx = exploreHistoryIndex - 1;
-      setExploreHistoryIndex(newIdx);
-      if (newIdx >= 0) {
-        const entry = exploreHistory[newIdx];
-        if (entry) setLastMoveSquares({ from: entry.from, to: entry.to });
-      } else {
+    if (!exploreTree || exploreNav.plyIndex < 0) { goTo(currentPlyIndex - 1); return; }
+    if (exploreNav.branchId === null) {
+      if (exploreNav.plyIndex === 0) {
+        setExploreNav({ branchId: null, plyIndex: -1 });
         setLastMoveSquares(null);
+      } else {
+        const newPly = exploreNav.plyIndex - 1;
+        const entry = exploreTree.mainLine[newPly];
+        setExploreNav({ branchId: null, plyIndex: newPly });
+        if (entry) setLastMoveSquares({ from: entry.from, to: entry.to });
       }
     } else {
-      goTo(currentPlyIndex - 1);
+      const branch = exploreTree.branches.find(b => b.id === exploreNav.branchId)!;
+      if (exploreNav.plyIndex === 0) {
+        const mainPly = branch.divergeAtPly - 1;
+        setExploreNav({ branchId: null, plyIndex: mainPly });
+        const mainEntry = mainPly >= 0 ? exploreTree.mainLine[mainPly] : null;
+        if (mainEntry) setLastMoveSquares({ from: mainEntry.from, to: mainEntry.to });
+        else setLastMoveSquares(null);
+      } else {
+        const newPly = exploreNav.plyIndex - 1;
+        const entry = branch.moves[newPly];
+        setExploreNav({ ...exploreNav, plyIndex: newPly });
+        if (entry) setLastMoveSquares({ from: entry.from, to: entry.to });
+      }
     }
   }
 
   function navGoForward() {
-    if (activeTab === 'explore' && exploreHistory.length > 0) {
-      const newIdx = exploreHistoryIndex + 1;
-      if (newIdx < exploreHistory.length) {
-        setExploreHistoryIndex(newIdx);
-        const entry = exploreHistory[newIdx];
-        if (entry) setLastMoveSquares({ from: entry.from, to: entry.to });
-      }
+    if (!exploreTree || exploreNav.plyIndex < 0) { goTo(currentPlyIndex + 1); return; }
+    if (exploreNav.branchId === null) {
+      const nextPly = exploreNav.plyIndex + 1;
+      const entry = exploreTree.mainLine[nextPly];
+      if (!entry) return;
+      setExploreNav({ branchId: null, plyIndex: nextPly });
+      setLastMoveSquares({ from: entry.from, to: entry.to });
     } else {
-      goTo(currentPlyIndex + 1);
+      const branch = exploreTree.branches.find(b => b.id === exploreNav.branchId);
+      if (!branch) return;
+      const nextPly = exploreNav.plyIndex + 1;
+      const entry = branch.moves[nextPly];
+      if (!entry) return;
+      setExploreNav({ ...exploreNav, plyIndex: nextPly });
+      setLastMoveSquares({ from: entry.from, to: entry.to });
     }
   }
 
   function navGoLast() {
-    if (activeTab === 'explore' && exploreHistory.length > 0) {
-      const lastIdx = exploreHistory.length - 1;
-      setExploreHistoryIndex(lastIdx);
-      const entry = exploreHistory[lastIdx];
-      if (entry) setLastMoveSquares({ from: entry.from, to: entry.to });
+    if (exploreTree) {
+      if (exploreNav.branchId === null) {
+        const lastPly = exploreTree.mainLine.length - 1;
+        if (lastPly >= 0) {
+          setExploreNav({ branchId: null, plyIndex: lastPly });
+          const entry = exploreTree.mainLine[lastPly];
+          if (entry) setLastMoveSquares({ from: entry.from, to: entry.to });
+        }
+      } else {
+        const branch = exploreTree.branches.find(b => b.id === exploreNav.branchId);
+        if (branch) {
+          const lastPly = branch.moves.length - 1;
+          setExploreNav({ ...exploreNav, plyIndex: lastPly });
+          const entry = branch.moves[lastPly];
+          if (entry) setLastMoveSquares({ from: entry.from, to: entry.to });
+        }
+      }
     } else {
       goTo(totalMoves - 1);
     }
@@ -988,13 +1066,15 @@ export default function AnalysisPage() {
     }
     // PGN mode — reconstruct a PGN from current state (moves only, no auto-generated headers)
     try {
-      if (exploreHistory.length > 0) {
-        const chess = new Chess(currentFen);
-        for (const entry of exploreHistory) chess.move(entry.san);
+      const mainLine = exploreTree?.mainLine;
+      if (mainLine && mainLine.length > 0) {
+        const rootFen = exploreTree!.rootFen;
+        const chess = new Chess(rootFen);
+        for (const entry of mainLine) chess.move(entry.san);
         const movesOnly = chess.pgn().replace(/^\[.*?\]\r?\n?/gm, '').replace(/\s*\*\s*$/, '').trim();
         setPositionText(
-          currentFen !== INITIAL_FEN
-            ? `[FEN "${currentFen}"]\n\n${movesOnly}`
+          rootFen !== INITIAL_FEN
+            ? `[FEN "${rootFen}"]\n\n${movesOnly}`
             : movesOnly
         );
       } else if (analyzedGame && analyzedGame.moves.length > 0) {
@@ -1016,7 +1096,7 @@ export default function AnalysisPage() {
     setPositionError(null);
     setPositionDirty(false);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [freeExploreFen, currentFen, positionMode, exploreHistory, analyzedGame]);
+  }, [freeExploreFen, currentFen, positionMode, exploreTree, analyzedGame]);
 
   useEffect(() => {
     const el = positionTextareaRef.current;
@@ -1033,8 +1113,8 @@ export default function AnalysisPage() {
         setBaseFen(text);
         setAnalyzedGame(null);
         setCurrentPlyIndex(-1);
-        setExploreHistory([]);
-        setExploreHistoryIndex(-1);
+        setExploreTree(null);
+        setExploreNav({ branchId: null, plyIndex: -1 });
         setLastMoveSquares(null);
         setCoachByPly(new Map());
         setPositionError(null);
@@ -1065,8 +1145,8 @@ export default function AnalysisPage() {
         } else {
           setLastMoveSquares(null);
         }
-        setExploreHistory([]);
-        setExploreHistoryIndex(-1);
+        setExploreTree(null);
+        setExploreNav({ branchId: null, plyIndex: -1 });
         setCoachByPly(new Map());
         setPositionError(null);
         setPositionDirty(false);
@@ -1197,15 +1277,55 @@ export default function AnalysisPage() {
     );
   }, [bestMoveUci, boardSize, settings.flipBoard, settings.hideArrows]);
 
-  const tryMove = (from: string, to: string): boolean => {
+  const tryMove = (from: string, to: string, prom = 'q'): boolean => {
     try {
-      const prevFen = boardFen;
-      const chess = new Chess(prevFen);
-      const move = chess.move({ from, to, promotion: 'q' });
+      const chess = new Chess(boardFen);
+      const move = chess.move({ from, to, promotion: prom as 'q' | 'r' | 'b' | 'n' });
       if (!move) return false;
-      const newFen = chess.fen();
-      setExploreHistory(prev => [...prev.slice(0, exploreHistoryIndex + 1), { san: move.san, fen: newFen, from: move.from, to: move.to }]);
-      setExploreHistoryIndex(prev => prev + 1);
+      const entry: MoveEntry = { id: crypto.randomUUID(), san: move.san, fen: chess.fen(), from: move.from, to: move.to };
+
+      let newTree: ExploreTree;
+      let newNav: ExploreNav;
+
+      if (!exploreTree) {
+        newTree = { rootFen: currentFen, mainLine: [entry], branches: [] };
+        newNav = { branchId: null, plyIndex: 0 };
+      } else if (exploreNav.branchId === null) {
+        const nextPly = exploreNav.plyIndex + 1;
+        const nextMain = exploreTree.mainLine[nextPly];
+        if (!nextMain) {
+          newTree = { ...exploreTree, mainLine: [...exploreTree.mainLine.slice(0, nextPly), entry] };
+          newNav = { branchId: null, plyIndex: nextPly };
+        } else if (nextMain.san === move.san) {
+          newTree = exploreTree;
+          newNav = { branchId: null, plyIndex: nextPly };
+        } else {
+          const existing = exploreTree.branches.find(b => b.divergeAtPly === nextPly && b.moves[0]?.san === move.san);
+          if (existing) {
+            newTree = exploreTree;
+            newNav = { branchId: existing.id, plyIndex: 0 };
+          } else {
+            const newBranch: VBranch = { id: crypto.randomUUID(), divergeAtPly: nextPly, moves: [entry] };
+            newTree = { ...exploreTree, branches: [...exploreTree.branches, newBranch] };
+            newNav = { branchId: newBranch.id, plyIndex: 0 };
+          }
+        }
+      } else {
+        const branch = exploreTree.branches.find(b => b.id === exploreNav.branchId)!;
+        const nextPly = exploreNav.plyIndex + 1;
+        newTree = {
+          ...exploreTree,
+          branches: exploreTree.branches.map(b =>
+            b.id === exploreNav.branchId
+              ? { ...b, moves: [...b.moves.slice(0, nextPly), entry] }
+              : b
+          ),
+        };
+        newNav = { ...exploreNav, plyIndex: nextPly };
+      }
+
+      setExploreTree(newTree);
+      setExploreNav(newNav);
       setLastMoveSquares({ from: move.from, to: move.to });
       setSelectedSquare(null);
       return true;
@@ -1217,19 +1337,23 @@ export default function AnalysisPage() {
   const handlePvClick = (pvUci: string[], clickedIdx: number) => {
     try {
       const chess = new Chess(boardFen);
-      const newEntries: ExploreEntry[] = [];
+      const newEntries: MoveEntry[] = [];
       for (let i = 0; i <= clickedIdx; i++) {
         const uci = pvUci[i]!;
         const move = chess.move({ from: uci.slice(0, 2), to: uci.slice(2, 4), promotion: (uci[4] ?? 'q') as 'q' | 'r' | 'b' | 'n' });
         if (!move) break;
-        newEntries.push({ san: move.san, fen: chess.fen(), from: move.from, to: move.to });
+        newEntries.push({ id: crypto.randomUUID(), san: move.san, fen: chess.fen(), from: move.from, to: move.to });
       }
       if (newEntries.length === 0) return;
-      // Prepend any existing explore moves so the history stays coherent
-      const baseHistory = exploreHistoryIndex >= 0 ? exploreHistory.slice(0, exploreHistoryIndex + 1) : [];
-      const combined = [...baseHistory, ...newEntries];
-      setExploreHistory(combined);
-      setExploreHistoryIndex(combined.length - 1);
+      // Append PV moves to main line (replacing from current position)
+      const basePly = exploreNav.branchId === null ? exploreNav.plyIndex : -1;
+      const baseMainLine = exploreTree?.mainLine.slice(0, basePly + 1) ?? [];
+      setExploreTree(tree => ({
+        rootFen: tree?.rootFen ?? currentFen,
+        mainLine: [...baseMainLine, ...newEntries],
+        branches: tree?.branches ?? [],
+      }));
+      setExploreNav({ branchId: null, plyIndex: basePly + newEntries.length });
       const last = newEntries[newEntries.length - 1]!;
       setLastMoveSquares({ from: last.from, to: last.to });
       setSelectedSquare(null);
@@ -1283,20 +1407,117 @@ export default function AnalysisPage() {
 
   const onPromotionPieceSelect = (piece?: string, from?: string, to?: string): boolean => {
     if (!from || !to) return false;
-    const promotion = (piece?.slice(1)?.toLowerCase() ?? 'q') as 'q' | 'r' | 'b' | 'n';
-    try {
-      const chess = new Chess(boardFen);
-      const move = chess.move({ from, to, promotion });
-      if (!move) return false;
-      const newFen = chess.fen();
-      setExploreHistory(prev => [...prev.slice(0, exploreHistoryIndex + 1), { san: move.san, fen: newFen, from: move.from, to: move.to }]);
-      setExploreHistoryIndex(prev => prev + 1);
-      setLastMoveSquares({ from: move.from, to: move.to });
-      return true;
-    } catch {
-      return false;
-    }
+    const promotion = piece?.slice(1)?.toLowerCase() ?? 'q';
+    return tryMove(from, to, promotion);
   };
+
+  function renderExploreTree(
+    tree: ExploreTree,
+    nav: ExploreNav,
+    onNavigateMain: (ply: number) => void,
+    onNavigateBranch: (branchId: string, ply: number) => void,
+  ) {
+    const { rootFen, mainLine, branches } = tree;
+    const parts = rootFen.split(' ');
+    const startSide = parts[1] ?? 'w';
+    const startMoveNum = parseInt(parts[5] ?? '1', 10);
+
+    function getMoveNum(ply: number): number {
+      return startMoveNum + Math.floor((ply + (startSide === 'b' ? 1 : 0)) / 2);
+    }
+    function getSide(ply: number): 'w' | 'b' {
+      return (startSide === 'w') ? (ply % 2 === 0 ? 'w' : 'b') : (ply % 2 === 0 ? 'b' : 'w');
+    }
+
+    const rows: React.ReactNode[] = [];
+
+    type MainPair = { moveNum: number; white: { san: string; ply: number } | null; black: { san: string; ply: number } | null };
+    const pairs: MainPair[] = [];
+    for (let i = 0; i < mainLine.length; i++) {
+      const side = getSide(i);
+      const mn = getMoveNum(i);
+      const cell = { san: mainLine[i]!.san, ply: i };
+      if (side === 'w') {
+        pairs.push({ moveNum: mn, white: cell, black: null });
+      } else {
+        const last = pairs[pairs.length - 1];
+        if (last && last.black === null && last.moveNum === mn) {
+          last.black = cell;
+        } else {
+          pairs.push({ moveNum: mn, white: null, black: cell });
+        }
+      }
+    }
+
+    for (const pair of pairs) {
+      rows.push(
+        <div key={`ml-${pair.moveNum}-${pair.white?.ply ?? 'x'}`} className="flex items-center gap-1 py-0.5">
+          <span className="w-7 shrink-0 text-right font-mono text-base text-gray-600">{pair.moveNum}.</span>
+          <div className="flex flex-1 gap-1">
+            {pair.white ? (
+              <button type="button" onClick={() => onNavigateMain(pair.white!.ply)}
+                className={`flex min-w-0 flex-1 items-center rounded px-2 py-1.5 font-mono text-base transition-colors ${
+                  nav.branchId === null && nav.plyIndex === pair.white.ply
+                    ? 'bg-amber-400/15 text-amber-300' : 'text-gray-300 hover:bg-white/5 hover:text-white'
+                }`}>{pair.white.san}</button>
+            ) : <span className="flex-1" />}
+            {pair.black ? (
+              <button type="button" onClick={() => onNavigateMain(pair.black!.ply)}
+                className={`flex min-w-0 flex-1 items-center rounded px-2 py-1.5 font-mono text-base transition-colors ${
+                  nav.branchId === null && nav.plyIndex === pair.black.ply
+                    ? 'bg-amber-400/15 text-amber-300' : 'text-gray-300 hover:bg-white/5 hover:text-white'
+                }`}>{pair.black.san}</button>
+            ) : <span className="flex-1" />}
+          </div>
+        </div>
+      );
+
+      const pliesInPair = [pair.white?.ply, pair.black?.ply].filter((p): p is number => p !== undefined);
+      for (const divergePly of pliesInPair) {
+        const branchesHere = branches.filter(b => b.divergeAtPly === divergePly);
+        for (const branch of branchesHere) {
+          const branchParts: React.ReactNode[] = [];
+          for (let i = 0; i < branch.moves.length; i++) {
+            const absPlyContinuation = divergePly + i;
+            const bSide = getSide(absPlyContinuation);
+            const bMoveNum = getMoveNum(absPlyContinuation);
+            if (i === 0) {
+              branchParts.push(
+                <span key={`bn-${i}`} className="text-gray-600 font-mono text-sm">
+                  {bSide === 'b' ? `${bMoveNum}…` : `${bMoveNum}.`}
+                </span>
+              );
+            } else if (bSide === 'w') {
+              branchParts.push(
+                <span key={`bn-${i}`} className="text-gray-600 font-mono text-sm">{bMoveNum}.</span>
+              );
+            }
+            branchParts.push(
+              <button
+                key={`bm-${i}`}
+                type="button"
+                onClick={() => onNavigateBranch(branch.id, i)}
+                className={`rounded px-1.5 py-0.5 font-mono text-sm transition-colors ${
+                  nav.branchId === branch.id && nav.plyIndex === i
+                    ? 'bg-amber-400/15 text-amber-300'
+                    : 'text-gray-400 hover:bg-white/5 hover:text-gray-200'
+                }`}
+              >
+                {branch.moves[i]!.san}
+              </button>
+            );
+          }
+          rows.push(
+            <div key={`branch-${branch.id}`} className="ml-7 mt-0.5 mb-0.5 flex flex-wrap items-center gap-x-0.5 gap-y-0.5 border-l-2 border-white/10 pl-2">
+              {branchParts}
+            </div>
+          );
+        }
+      }
+    }
+
+    return rows;
+  }
 
   return (
     <div className="h-full flex flex-col overflow-hidden">
@@ -1520,7 +1741,7 @@ export default function AnalysisPage() {
                 {/* Explore moves — fills all remaining space */}
                 <div className="flex-1 min-h-0 overflow-y-auto border-t border-white/5">
                   {/* Players header row — shown whenever there is a game or free-play moves */}
-                  {(analyzedGame || exploreHistory.length > 0) && (
+                  {(analyzedGame || exploreTree !== null) && (
                     <div className="flex items-center gap-2 border-b border-white/5 px-3 py-2">
                       <span className="flex-1 truncate text-sm font-medium text-gray-300">
                         {gameDetails.white || 'White'}
@@ -1542,63 +1763,36 @@ export default function AnalysisPage() {
                       </button>
                     </div>
                   )}
-                  {exploreHistory.length === 0 && analyzedGame && analyzedGame.moves.length > 0 ? (
+                  {exploreTree ? (
+                    <div className="px-2 py-2">
+                      {renderExploreTree(
+                        exploreTree,
+                        exploreNav,
+                        (ply) => {
+                          setExploreNav({ branchId: null, plyIndex: ply });
+                          const entry = exploreTree.mainLine[ply];
+                          if (entry) setLastMoveSquares({ from: entry.from, to: entry.to });
+                          else setLastMoveSquares(null);
+                        },
+                        (branchId, ply) => {
+                          setExploreNav({ branchId, plyIndex: ply });
+                          const branch = exploreTree.branches.find(b => b.id === branchId);
+                          const entry = branch?.moves[ply];
+                          if (entry) setLastMoveSquares({ from: entry.from, to: entry.to });
+                          else setLastMoveSquares(null);
+                        },
+                      )}
+                    </div>
+                  ) : analyzedGame && analyzedGame.moves.length > 0 ? (
                     <AnalysisMoveList
                       game={analyzedGame}
                       currentPlyIndex={currentPlyIndex}
                       onNavigate={goTo}
                     />
-                  ) : exploreHistory.length === 0 ? (
+                  ) : (
                     <p className="px-3 pt-4 text-center text-xs text-gray-600">
                       Move pieces on the board to explore.
                     </p>
-                  ) : (
-                    <div className="px-2 py-2">
-                      {buildExplorePairs(exploreHistory, currentFen).map(pair => {
-                        const goToExplore = (idx: number) => {
-                          setExploreHistoryIndex(idx);
-                          const entry = exploreHistory[idx];
-                          if (entry) setLastMoveSquares({ from: entry.from, to: entry.to });
-                        };
-                        return (
-                          <div key={pair.moveNumber} className="flex items-center gap-1 py-0.5">
-                            <span className="w-7 shrink-0 text-right font-mono text-base text-gray-600">{pair.moveNumber}.</span>
-                            <div className="flex flex-1 gap-1">
-                              {pair.white ? (
-                                <button
-                                  type="button"
-                                  onClick={() => goToExplore(pair.white!.idx)}
-                                  className={`flex min-w-0 flex-1 items-center rounded px-2 py-1.5 font-mono text-base transition-colors ${
-                                    exploreHistoryIndex === pair.white.idx
-                                      ? 'bg-amber-400/15 text-amber-300'
-                                      : 'text-gray-300 hover:bg-white/5 hover:text-white'
-                                  }`}
-                                >
-                                  {pair.white.san}
-                                </button>
-                              ) : (
-                                <span className="flex-1" />
-                              )}
-                              {pair.black ? (
-                                <button
-                                  type="button"
-                                  onClick={() => goToExplore(pair.black!.idx)}
-                                  className={`flex min-w-0 flex-1 items-center rounded px-2 py-1.5 font-mono text-base transition-colors ${
-                                    exploreHistoryIndex === pair.black.idx
-                                      ? 'bg-amber-400/15 text-amber-300'
-                                      : 'text-gray-300 hover:bg-white/5 hover:text-white'
-                                  }`}
-                                >
-                                  {pair.black.san}
-                                </button>
-                              ) : (
-                                <span className="flex-1" />
-                              )}
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
                   )}
                 </div>
 
