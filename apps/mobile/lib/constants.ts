@@ -20,8 +20,8 @@ export const COLORS = {
   success: '#22c55e',
   successDim: 'rgba(34, 197, 94, 0.15)',
   // Board
-  boardLight: '#f0d9b5',
-  boardDark: '#b58863',
+  boardLight: '#c8d9e8',
+  boardDark: '#7090b0',
   boardHighlight: 'rgba(255, 210, 0, 0.4)',
   boardWrong: 'rgba(220, 38, 38, 0.5)',
   boardHint: 'rgba(251, 191, 36, 0.45)',
@@ -40,3 +40,4 @@ export const FONT = {
   semibold: '600' as const,
   bold: '700' as const,
 };
+

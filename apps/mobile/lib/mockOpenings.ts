@@ -14,6 +14,7 @@ export interface MockOpening {
   difficulty: 'beginner' | 'intermediate' | 'advanced';
   fen: string;
   description: string;
+  likes: number;
   variations: MockVariation[];
   completedIds: string[];
 }
@@ -27,6 +28,7 @@ export const MOCK_OPENINGS: MockOpening[] = [
     difficulty: 'beginner',
     fen: 'r1bqkbnr/pppp1ppp/2n5/4p3/2B1P3/5N2/PPPP1PPP/RNBQK2R b KQkq - 3 3',
     description: 'Control the center, develop pieces, castle early. A solid foundation for beginners.',
+    likes: 1247,
     variations: [
       {
         id: 'italian-giuoco-piano',
@@ -64,6 +66,7 @@ export const MOCK_OPENINGS: MockOpening[] = [
     difficulty: 'intermediate',
     fen: 'r1bqkb1r/pppp1ppp/2n2n2/1B2p3/4P3/5N2/PPPP1PPP/RNBQK2R w KQkq - 4 4',
     description: "One of the oldest and most respected openings. Creates long-term pressure on Black's e5 pawn.",
+    likes: 2381,
     variations: [
       {
         id: 'ruy-berlin',
@@ -101,6 +104,7 @@ export const MOCK_OPENINGS: MockOpening[] = [
     difficulty: 'beginner',
     fen: 'rnbqkbnr/ppp2ppp/4p3/3p4/2PP4/8/PP2PPPP/RNBQKBNR w KQkq - 0 3',
     description: 'Control the center with pawns. Black almost never gets to keep the gambited pawn.',
+    likes: 3142,
     variations: [
       {
         id: 'qg-declined',
@@ -132,6 +136,7 @@ export const MOCK_OPENINGS: MockOpening[] = [
     difficulty: 'advanced',
     fen: 'rnbqkb1r/1p2pppp/p2p1n2/8/3NP3/2N5/PPP2PPP/R1BQKB1R w KQkq - 0 6',
     description: "The sharpest and most theoretically rich reply to 1.e4. The Najdorf variation is the choice of champions.",
+    likes: 4891,
     variations: [
       {
         id: 'najdorf-english',
@@ -163,6 +168,7 @@ export const MOCK_OPENINGS: MockOpening[] = [
     difficulty: 'intermediate',
     fen: 'rnbq1rk1/ppp1ppbp/3p1np1/8/2PPP3/2N2N2/PP3PPP/R1BQKB1R w KQ - 2 6',
     description: "Hypermodern strategy: let White build a center, then dynamically attack it with pieces.",
+    likes: 1923,
     variations: [
       {
         id: 'kid-classical',
@@ -194,6 +200,7 @@ export const MOCK_OPENINGS: MockOpening[] = [
     difficulty: 'intermediate',
     fen: 'rnbqk1nr/ppp2ppp/4p3/3p4/1b1PP3/2N5/PPP2PPP/R1BQKBNR w KQkq - 2 4',
     description: 'A solid reply to 1.e4 that leads to strategic pawn structures and long-term battles.',
+    likes: 1548,
     variations: [
       {
         id: 'french-winawer',

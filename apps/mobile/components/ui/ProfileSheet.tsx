@@ -1,5 +1,8 @@
+import { useEffect, useRef, useState } from 'react';
 import {
+  Animated,
   Modal,
+  PanResponder,
   Pressable,
   StyleSheet,
   Text,
@@ -30,19 +33,89 @@ const MENU_ITEMS = [
 export function ProfileSheet({ visible, onClose }: ProfileSheetProps) {
   const insets = useSafeAreaInsets();
 
+  const slideAnim = useRef(new Animated.Value(700)).current;
+  const [modalVisible, setModalVisible] = useState(false);
+  const dismissingRef = useRef(false);
+
+  useEffect(() => {
+    if (visible) {
+      dismissingRef.current = false;
+      setModalVisible(true);
+      Animated.spring(slideAnim, {
+        toValue: 0,
+        useNativeDriver: true,
+        bounciness: 4,
+        speed: 14,
+      }).start();
+    } else if (!dismissingRef.current) {
+      Animated.timing(slideAnim, {
+        toValue: 700,
+        duration: 200,
+        useNativeDriver: true,
+      }).start(() => setModalVisible(false));
+    }
+  }, [visible]);
+
+  const panResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: (_, { dy }) => dy > 4,
+      onPanResponderMove: (_, { dy }) => {
+        if (dy > 0) slideAnim.setValue(dy);
+      },
+      onPanResponderRelease: (_, { dy, vy }) => {
+        if (dy > 80 || vy > 0.4) {
+          dismissingRef.current = true;
+          Animated.timing(slideAnim, {
+            toValue: 700,
+            duration: 200,
+            useNativeDriver: true,
+          }).start(() => {
+            setModalVisible(false);
+            onClose();
+          });
+        } else {
+          Animated.spring(slideAnim, {
+            toValue: 0,
+            useNativeDriver: true,
+            bounciness: 4,
+            speed: 14,
+          }).start();
+        }
+      },
+    })
+  ).current;
+
+  const overlayOpacity = slideAnim.interpolate({
+    inputRange: [0, 700],
+    outputRange: [1, 0],
+  });
+
   return (
     <Modal
-      visible={visible}
+      visible={modalVisible}
       transparent
-      animationType="slide"
+      animationType="none"
       statusBarTranslucent
       onRequestClose={onClose}
     >
-      <Pressable style={styles.overlay} onPress={onClose} />
+      {/* Dim overlay — absolute so it doesn't affect column flow */}
+      <Animated.View style={[StyleSheet.absoluteFill, { opacity: overlayOpacity }]}>
+        <Pressable style={styles.overlayFill} onPress={onClose} />
+      </Animated.View>
 
-      <View style={[styles.sheet, { paddingBottom: insets.bottom + 20 }]}>
-        {/* Handle */}
-        <View style={styles.handle} />
+      {/* Container pushes sheet to bottom of screen */}
+      <View style={styles.sheetContainer} pointerEvents="box-none">
+      <Animated.View
+        style={[
+          styles.sheet,
+          { paddingBottom: insets.bottom + 20, transform: [{ translateY: slideAnim }] },
+        ]}
+      >
+        {/* Drag handle */}
+        <View style={styles.dragArea} {...panResponder.panHandlers}>
+          <View style={styles.handle} />
+        </View>
 
         {/* Avatar + identity */}
         <View style={styles.identity}>
@@ -90,15 +163,20 @@ export function ProfileSheet({ visible, onClose }: ProfileSheetProps) {
           <Ionicons name="log-out-outline" size={18} color={COLORS.error} style={styles.menuIcon} />
           <Text style={styles.signOutLabel}>Sign Out</Text>
         </TouchableOpacity>
+      </Animated.View>
       </View>
     </Modal>
   );
 }
 
 const styles = StyleSheet.create({
-  overlay: {
+  overlayFill: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.55)',
+  },
+  sheetContainer: {
+    flex: 1,
+    justifyContent: 'flex-end',
   },
   sheet: {
     backgroundColor: COLORS.surface,
@@ -106,16 +184,18 @@ const styles = StyleSheet.create({
     borderTopRightRadius: 24,
     borderTopWidth: 1,
     borderColor: COLORS.border,
-    paddingTop: 12,
     paddingHorizontal: 20,
+  },
+  dragArea: {
+    alignItems: 'center',
+    paddingTop: 12,
+    paddingBottom: 12,
   },
   handle: {
     width: 36,
     height: 4,
     borderRadius: 2,
     backgroundColor: COLORS.border,
-    alignSelf: 'center',
-    marginBottom: 20,
   },
 
   // Identity

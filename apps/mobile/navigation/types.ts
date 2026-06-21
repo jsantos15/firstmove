@@ -7,8 +7,7 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 export type RootTabParamList = {
   Home: undefined;
   Openings: undefined;
-  Puzzles: undefined;
-  News: undefined;
+  Train: undefined;
   More: undefined;
 };
 
@@ -20,12 +19,19 @@ export type OpeningsStackParamList = {
   Practice: { openingSlug: string; variationId: string; mode: 'learn' | 'practice' };
 };
 
+// ─── Train Stack ─────────────────────────────────────────────────────────────
+
+export type TrainStackParamList = {
+  TrainHome: undefined;
+  OpeningTrack: { openingSlug: string; openingName: string; openingEco: string };
+};
+
 // ─── Screen prop helpers ──────────────────────────────────────────────────────
 
 export type HomeScreenProps = BottomTabScreenProps<RootTabParamList, 'Home'>;
 export type OpeningsScreenProps = BottomTabScreenProps<RootTabParamList, 'Openings'>;
-export type PuzzlesScreenProps = BottomTabScreenProps<RootTabParamList, 'Puzzles'>;
-export type NewsScreenProps = BottomTabScreenProps<RootTabParamList, 'News'>;
+export type TrainScreenProps = BottomTabScreenProps<RootTabParamList, 'Train'>;
+export type MoreScreenProps = BottomTabScreenProps<RootTabParamList, 'More'>;
 
 export type OpeningDetailScreenProps = CompositeScreenProps<
   NativeStackScreenProps<OpeningsStackParamList, 'OpeningDetail'>,

@@ -64,3 +64,8 @@ coverage/
 .idea/
 *.swp
 *.swo
+
+# Large data files
+*.csv
+*.bz2
+*.zst

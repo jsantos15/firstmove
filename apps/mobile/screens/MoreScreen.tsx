@@ -1,14 +1,15 @@
 import {
-  Modal,
-  Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { COLORS, FONT, RADIUS } from '../../lib/constants';
+import { ScreenHeader } from '../components/ui/ScreenHeader';
+import { COLORS, FONT, RADIUS } from '../lib/constants';
+
+// ─── Types ────────────────────────────────────────────────────────────────────
 
 interface MenuItem {
   icon: React.ComponentProps<typeof Ionicons>['name'];
@@ -18,78 +19,79 @@ interface MenuItem {
   onPress: () => void;
 }
 
-interface MoreMenuProps {
-  visible: boolean;
-  onClose: () => void;
-}
+// ─── Component ────────────────────────────────────────────────────────────────
 
-export function MoreMenu({ visible, onClose }: MoreMenuProps) {
-  const insets = useSafeAreaInsets();
-
+export function MoreScreen() {
   const items: MenuItem[] = [
     {
       icon: 'person-outline',
       label: 'My Profile',
       sub: 'Stats, progress and account',
-      onPress: onClose,
+      onPress: () => {},
     },
     {
       icon: 'shield-checkmark-outline',
       label: 'Sparring',
       sub: 'Test your skills — coming in v2',
       badge: 'Soon',
-      onPress: onClose,
+      onPress: () => {},
     },
     {
       icon: 'people-outline',
       label: 'Community',
       sub: 'Puzzles, comments, debates',
       badge: 'Soon',
-      onPress: onClose,
+      onPress: () => {},
     },
     {
       icon: 'settings-outline',
       label: 'Settings',
       sub: 'Board theme, piece set, notifications',
-      onPress: onClose,
+      onPress: () => {},
     },
     {
       icon: 'star-outline',
       label: 'Rate FirstMove',
       sub: 'Enjoying the app? Leave a review',
-      onPress: onClose,
+      onPress: () => {},
     },
     {
       icon: 'help-circle-outline',
       label: 'Help & Support',
-      onPress: onClose,
+      onPress: () => {},
     },
   ];
 
   return (
-    <Modal
-      visible={visible}
-      transparent
-      animationType="slide"
-      statusBarTranslucent
-      onRequestClose={onClose}
-    >
-      {/* Dim overlay — tap to close */}
-      <Pressable style={styles.overlay} onPress={onClose} />
+    <View style={styles.container}>
+      <ScreenHeader title="More" />
 
-      {/* Sheet */}
-      <View style={[styles.sheet, { paddingBottom: insets.bottom + 16 }]}>
-        {/* Handle */}
-        <View style={styles.handle} />
+      {/* Profile card */}
+      <TouchableOpacity style={styles.profileCard} activeOpacity={0.75}>
+        <View style={styles.avatar}>
+          <Ionicons name="person" size={28} color={COLORS.accent} />
+        </View>
+        <View style={styles.profileText}>
+          <Text style={styles.profileName}>Guest Player</Text>
+          <Text style={styles.profileSub}>Sign in to save your progress</Text>
+        </View>
+        <Ionicons name="chevron-forward" size={18} color={COLORS.textDim} />
+      </TouchableOpacity>
 
-        <Text style={styles.sheetTitle}>More</Text>
-
-        {items.map(item => (
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
+        {items.map((item, index) => (
           <TouchableOpacity
             key={item.label}
-            style={styles.menuRow}
+            style={[
+              styles.menuRow,
+              index === items.length - 1 && styles.menuRowLast,
+            ]}
             activeOpacity={0.75}
-            onPress={() => { item.onPress(); }}
+            onPress={item.onPress}
           >
             <View style={styles.menuIconBox}>
               <Ionicons name={item.icon} size={20} color={COLORS.accent} />
@@ -107,47 +109,64 @@ export function MoreMenu({ visible, onClose }: MoreMenuProps) {
             )}
           </TouchableOpacity>
         ))}
-      </View>
-    </Modal>
+      </ScrollView>
+    </View>
   );
 }
 
+// ─── Styles ───────────────────────────────────────────────────────────────────
+
 const styles = StyleSheet.create({
-  overlay: {
+  container: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.55)',
+    backgroundColor: COLORS.bgBase,
   },
-  sheet: {
+  profileCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginHorizontal: 20,
+    marginBottom: 24,
+    padding: 16,
     backgroundColor: COLORS.surface,
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    borderTopWidth: 1,
+    borderRadius: RADIUS.md,
+    borderWidth: 1,
     borderColor: COLORS.border,
-    paddingTop: 12,
-    paddingHorizontal: 20,
-    gap: 4,
+    gap: 14,
   },
-  handle: {
-    width: 36,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: COLORS.border,
-    alignSelf: 'center',
-    marginBottom: 16,
+  avatar: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: COLORS.accentDim,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  sheetTitle: {
-    fontSize: 18,
-    fontWeight: FONT.bold,
+  profileText: { flex: 1 },
+  profileName: {
+    fontSize: 16,
+    fontWeight: FONT.semibold,
     color: COLORS.text,
-    marginBottom: 8,
+  },
+  profileSub: {
+    fontSize: 12,
+    color: COLORS.textMuted,
+    marginTop: 2,
+  },
+  scroll: { flex: 1 },
+  scrollContent: {
+    paddingHorizontal: 20,
+    paddingBottom: 32,
   },
   menuRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 13,
+    paddingVertical: 14,
     gap: 14,
     borderBottomWidth: 1,
     borderBottomColor: COLORS.borderSubtle,
+  },
+  menuRowLast: {
+    borderBottomWidth: 0,
   },
   menuIconBox: {
     width: 36,

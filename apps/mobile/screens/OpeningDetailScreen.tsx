@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   ActivityIndicator,
   Pressable,
@@ -6,91 +6,115 @@ import {
   StyleSheet,
   Text,
   View,
-  useWindowDimensions,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { useQuery } from '@tanstack/react-query';
-import { Chess } from '@firstmove/core';
-import { MiniBoard } from '../components/board/MiniBoard';
 import { COLORS, FONT, RADIUS } from '../lib/constants';
+import { useHideProfileButton } from '../lib/profileVisibility';
 import {
-  getOpeningCatalogBySlug,
-  getOpeningLinesBySlug,
-  type OpeningLineRow,
-} from '@firstmove/supabase';
+  useOpening,
+  groupVariations,
+  sortAndLimitDisplayedBranches,
+  formatBranchEval,
+  branchEvalValue,
+  type AppVariation,
+  type VariationGroup,
+} from '../hooks/useOpenings';
 import type { OpeningsStackParamList } from '../navigation/types';
 
 type Props = NativeStackScreenProps<OpeningsStackParamList, 'OpeningDetail'>;
-type ActiveTab = 'reference' | 'punish';
 
-// ─── Move list for a variation ────────────────────────────────────────────────
+// ─── Row primitives ───────────────────────────────────────────────────────────
 
-function MoveList({ moves }: { moves: string[] }) {
-  const pairs: Array<{ num: number; white: string; black: string }> = [];
-  for (let i = 0; i < moves.length; i += 2) {
-    pairs.push({
-      num: Math.floor(i / 2) + 1,
-      white: moves[i] ?? '',
-      black: moves[i + 1] ?? '',
-    });
-  }
-
+function Row({
+  label,
+  right,
+  isActive,
+  indent,
+  onPress,
+}: {
+  label: string;
+  right?: React.ReactNode;
+  isActive?: boolean;
+  indent?: boolean;
+  onPress: () => void;
+}) {
   return (
-    <View style={styles.moveGrid}>
-      {pairs.map(({ num, white, black }) => (
-        <View key={num} style={styles.moveRow}>
-          <Text style={styles.moveNum}>{num}.</Text>
-          <Text style={styles.moveWhite}>{white}</Text>
-          <Text style={styles.moveBlack}>{black}</Text>
-        </View>
-      ))}
+    <Pressable
+      style={({ pressed }) => [
+        styles.row,
+        indent && styles.rowIndent,
+        isActive && styles.rowActive,
+        pressed && styles.rowPressed,
+      ]}
+      onPress={onPress}
+    >
+      {isActive && <View style={styles.activeBar} />}
+      <Text
+        style={[styles.rowLabel, isActive && styles.rowLabelActive]}
+        numberOfLines={1}
+      >
+        {label}
+      </Text>
+      {right}
+    </Pressable>
+  );
+}
+
+function CountBadge({ count }: { count: number }) {
+  return (
+    <View style={styles.countBadge}>
+      <Text style={styles.countBadgeText}>{count}</Text>
     </View>
   );
 }
 
-// ─── Punish line card ──────────────────────────────────────────────────────────
-
-function isPunishLine(line: OpeningLineRow) {
-  const text = `${line.name} ${line.full_name ?? ''} ${line.primary_category ?? ''}`.toLowerCase();
+function EvalBadge({ value }: { value: string }) {
   return (
-    text.includes('punish') ||
-    text.includes('trap') ||
-    text.includes('tactical_payoff') ||
-    line.primary_category === 'tactical_payoff'
+    <View style={styles.evalBadge}>
+      <Text style={styles.evalBadgeText}>{value}</Text>
+    </View>
   );
 }
 
-function lineFinalFen(line: OpeningLineRow) {
-  try {
-    const chess = new Chess();
-    for (const san of line.sans) chess.move(san);
-    return chess.fen();
-  } catch {
-    return undefined;
-  }
+function Chevron({ down }: { down: boolean }) {
+  return (
+    <Ionicons
+      name={down ? 'chevron-down' : 'chevron-forward'}
+      size={13}
+      color={COLORS.textDim}
+      style={styles.chevron}
+    />
+  );
 }
 
-// ─── Punish line card ──────────────────────────────────────────────────────────
+// ─── Inset card section ───────────────────────────────────────────────────────
+// Label sits above the card (like iOS grouped table), card is visually self-contained.
 
-function PunishCard({ variation }: { variation: OpeningLineRow }) {
+function CardSection({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactNode;
+}) {
   return (
-    <View style={styles.punishCard}>
-      <View style={styles.punishHeader}>
-        <View style={styles.punishIconBox}>
-          <Text style={styles.punishIcon}>⚡</Text>
-        </View>
-        <View style={{ flex: 1 }}>
-          <Text style={styles.punishName} numberOfLines={2}>{variation.name}</Text>
-          {variation.inclusion_outcome && (
-            <View style={styles.punishBadge}>
-              <Text style={styles.punishBadgeText}>{variation.inclusion_outcome}</Text>
-            </View>
-          )}
-        </View>
-      </View>
-      <MoveList moves={variation.sans} />
+    <View style={styles.cardSection}>
+      <Text style={styles.cardSectionLabel}>{label}</Text>
+      <View style={styles.card}>{children}</View>
+    </View>
+  );
+}
+
+function CardDivider() {
+  return <View style={styles.cardDivider} />;
+}
+
+function CardSubheader({ label }: { label: string }) {
+  return (
+    <View style={styles.cardSubheader}>
+      <Text style={styles.cardSubheaderText}>{label}</Text>
     </View>
   );
 }
@@ -100,165 +124,212 @@ function PunishCard({ variation }: { variation: OpeningLineRow }) {
 export function OpeningDetailScreen({ route, navigation }: Props) {
   const { openingSlug } = route.params;
   const insets = useSafeAreaInsets();
-  const { width } = useWindowDimensions();
-  const [activeTab, setActiveTab] = useState<ActiveTab>('reference');
+  const { data: opening, isLoading, isError, error } = useOpening(openingSlug);
 
-  const { data, isLoading, isError, error } = useQuery({
-    queryKey: ['openings', openingSlug],
-    queryFn: async () => {
-      const [opening, lines] = await Promise.all([
-        getOpeningCatalogBySlug(openingSlug),
-        getOpeningLinesBySlug(openingSlug),
-      ]);
-      return { opening, lines };
-    },
-    staleTime: 1000 * 60 * 10,
-  });
+  useHideProfileButton();
+
+  const [expandedGroupId, setExpandedGroupId] = useState('');
+  const [contextLineId, setContextLineId] = useState<string | null>(null);
+  const [selectedPracticeId, setSelectedPracticeId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!opening || contextLineId) return;
+    const groups = groupVariations(opening.variations, opening.name);
+    const first = groups[0];
+    const firstLine = first?.lines[0];
+    if (first && firstLine) {
+      // All groups start collapsed — user chooses what to expand
+      setContextLineId(firstLine.id);
+      setSelectedPracticeId(firstLine.id);
+    }
+  }, [opening?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (isLoading) {
     return (
       <View style={[styles.root, { paddingTop: insets.top }]}>
-        <View style={styles.centered}>
-          <ActivityIndicator size="large" color={COLORS.accent} />
-        </View>
+        <View style={styles.centered}><ActivityIndicator size="large" color={COLORS.accent} /></View>
       </View>
     );
   }
 
-  if (isError || !data?.opening) {
+  if (isError || !opening) {
     return (
       <View style={[styles.root, { paddingTop: insets.top }]}>
-        <Pressable style={[styles.backButton, styles.floatingBackButton]} onPress={() => navigation.goBack()}>
+        <Pressable style={[styles.backBtn, styles.floatingBack]} onPress={() => navigation.goBack()}>
           <Ionicons name="arrow-back" size={22} color={COLORS.text} />
         </Pressable>
-        <View style={styles.notFound}>
-          <Text style={styles.notFoundText}>
-            {isError ? 'Could not load opening' : 'Opening not found'}
-          </Text>
-          {isError && (
-            <Text style={styles.errorDetailText}>
-              {error instanceof Error ? error.message : 'Unknown opening detail error'}
-            </Text>
-          )}
+        <View style={styles.centered}>
+          <Text style={styles.errorText}>{isError ? 'Could not load opening' : 'Opening not found'}</Text>
+          {isError && <Text style={styles.errorDetail}>{error instanceof Error ? error.message : ''}</Text>}
         </View>
       </View>
     );
   }
 
-  const { opening, lines } = data;
-  const referenceLines = lines.filter(line => !isPunishLine(line));
-  const punishLines = lines.filter(isPunishLine);
-  const referenceVariation = referenceLines[0];
-  const boardSize = width - 40;
-  const boardFen =
-    opening.preview_fen ??
-    (referenceVariation ? lineFinalFen(referenceVariation) : undefined);
+  const groups = groupVariations(opening.variations, opening.name);
+  const contextVariation = opening.variations.find(v => v.id === contextLineId) ?? opening.variations[0];
+  const displayedBranches = sortAndLimitDisplayedBranches(
+    opening.practicalBranches.filter(b => b.branchMetadata?.parent_line_slug === contextLineId),
+    opening.color
+  );
+  const allLines: AppVariation[] = [...opening.variations, ...opening.practicalBranches];
+  const practiceTarget = allLines.find(v => v.id === selectedPracticeId);
+  const practiceLabel = practiceTarget?.branchMetadata?.lesson_title ?? practiceTarget?.name ?? 'Select a line';
+
+  function handleGroupPress(group: VariationGroup) {
+    const isOpen = expandedGroupId === group.id;
+    setExpandedGroupId(isOpen ? '' : group.id);
+    if (!isOpen) {
+      const hasContext = group.lines.some(l => l.id === contextLineId);
+      if (!hasContext) {
+        const first = group.lines[0];
+        if (first) { setContextLineId(first.id); setSelectedPracticeId(first.id); }
+      }
+    }
+  }
+
+  function handleChildPress(line: AppVariation) {
+    setContextLineId(line.id);
+    setSelectedPracticeId(line.id);
+  }
+
+  function handleReferencePress() {
+    if (contextVariation) setSelectedPracticeId(contextVariation.id);
+  }
+
+  function handleBranchPress(branch: AppVariation) {
+    setSelectedPracticeId(branch.id);
+  }
 
   return (
     <View style={[styles.root, { paddingTop: insets.top }]}>
+
       {/* Header */}
       <View style={styles.header}>
-        <Pressable style={styles.backButton} onPress={() => navigation.goBack()} hitSlop={8}>
+        <Pressable style={styles.backBtn} onPress={() => navigation.goBack()} hitSlop={8}>
           <Ionicons name="arrow-back" size={22} color={COLORS.text} />
         </Pressable>
-        <View style={styles.headerTitle}>
-          <Text style={styles.headerName} numberOfLines={1}>{opening.name}</Text>
-          <Text style={styles.headerEco}>{opening.eco_code}</Text>
-        </View>
-        <Pressable
-          style={styles.practiceButton}
-          onPress={() =>
-            referenceVariation &&
-            navigation.navigate('Practice', {
-              openingSlug: opening.slug,
-              variationId: referenceVariation.slug,
-              mode: 'learn',
-            })
-          }
-        >
-          <Text style={styles.practiceButtonText}>Practice</Text>
-        </Pressable>
+        <Text style={styles.headerName} numberOfLines={1}>{opening.name}</Text>
       </View>
 
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
-        {/* Board */}
-        <View style={styles.boardSection}>
-          <MiniBoard
-            fen={boardFen}
-            size={boardSize}
-            orientation={opening.color === 'black' ? 'black' : 'white'}
-          />
+      {/* Body — fixed layout, no outer scroll */}
+      <View style={styles.body}>
+
+        {/* Variations card — smaller, scrolls internally */}
+        <View style={styles.sectionTop}>
+          <Text style={styles.cardSectionLabel}>Variations</Text>
+          <View style={styles.card}>
+            <ScrollView showsVerticalScrollIndicator={false} bounces={false}>
+              {groups.map((group, gi) => {
+                const isOpen = expandedGroupId === group.id;
+                const hasContext = group.lines.some(l => l.id === contextLineId);
+                return (
+                  <View key={group.id}>
+                    {gi > 0 && <CardDivider />}
+                    <Row
+                      label={group.displayName}
+                      isActive={hasContext && !isOpen}
+                      right={
+                        <View style={styles.groupRight}>
+                          <CountBadge count={group.lines.length} />
+                          <Chevron down={isOpen} />
+                        </View>
+                      }
+                      onPress={() => handleGroupPress(group)}
+                    />
+                    {isOpen && group.lines.map(line => (
+                      <View key={line.id}>
+                        <CardDivider />
+                        <Row
+                          label={line.name}
+                          indent
+                          isActive={line.id === contextLineId}
+                          right={
+                            line.id === selectedPracticeId
+                              ? <Ionicons name="checkmark-circle" size={18} color={COLORS.accent} style={{ marginLeft: 8 }} />
+                              : null
+                          }
+                          onPress={() => handleChildPress(line)}
+                        />
+                      </View>
+                    ))}
+                  </View>
+                );
+              })}
+            </ScrollView>
+          </View>
         </View>
 
-        {/* Meta row */}
-        <View style={styles.metaRow}>
-          <View style={[
-            styles.colorBadge,
-            opening.color === 'white' ? styles.colorBadgeWhite : styles.colorBadgeBlack,
-          ]}>
-            <Text style={[
-              styles.colorBadgeText,
-              opening.color === 'white' ? styles.colorTextWhite : styles.colorTextBlack,
-            ]}>
-              {opening.color === 'white' ? '♙ White' : '♟ Black'}
-            </Text>
+        {/* Lines card — larger, scrolls internally */}
+        <View style={styles.sectionBottom}>
+          <Text style={styles.cardSectionLabel}>Lines</Text>
+          <View style={styles.card}>
+            <ScrollView showsVerticalScrollIndicator={false} bounces={false}>
+              <CardSubheader label="Reference (Engine Continuation)" />
+              {contextVariation ? (
+                <Row
+                  label={contextVariation.name}
+                  isActive={selectedPracticeId === contextVariation.id}
+                  right={
+                    selectedPracticeId === contextVariation.id
+                      ? <Ionicons name="checkmark-circle" size={18} color={COLORS.accent} style={{ marginLeft: 8 }} />
+                      : null
+                  }
+                  onPress={handleReferencePress}
+                />
+              ) : (
+                <View style={styles.emptyRow}><Text style={styles.emptyText}>Select a variation above.</Text></View>
+              )}
+
+              <CardDivider />
+
+              <CardSubheader label="Punish" />
+              {displayedBranches.length > 0 ? (
+                displayedBranches.map((branch, bi) => {
+                  const evalLabel = formatBranchEval(branchEvalValue(branch, opening.color));
+                  const title = branch.branchMetadata?.lesson_title ?? branch.name;
+                  const isActive = selectedPracticeId === branch.id;
+                  return (
+                    <View key={branch.id}>
+                      {bi > 0 && <CardDivider />}
+                      <Row
+                        label={title}
+                        isActive={isActive}
+                        right={
+                          <View style={styles.rowRight}>
+                            {evalLabel && <EvalBadge value={evalLabel} />}
+                            {isActive && <Ionicons name="checkmark-circle" size={18} color={COLORS.accent} style={{ marginLeft: 6 }} />}
+                          </View>
+                        }
+                        onPress={() => handleBranchPress(branch)}
+                      />
+                    </View>
+                  );
+                })
+              ) : (
+                <View style={styles.emptyRow}><Text style={styles.emptyText}>No punish lines for this variation yet.</Text></View>
+              )}
+            </ScrollView>
           </View>
-          <Text style={styles.metaDot}>·</Text>
-          <Text style={styles.metaDifficulty}>{opening.difficulty}</Text>
-          <Text style={styles.metaDot}>·</Text>
-          <Text style={styles.metaDesc} numberOfLines={2}>{opening.description}</Text>
         </View>
 
-        {/* Tabs */}
-        <View style={styles.tabs}>
-          <Pressable
-            style={[styles.tab, activeTab === 'reference' && styles.tabActive]}
-            onPress={() => setActiveTab('reference')}
-          >
-            <Text style={[styles.tabText, activeTab === 'reference' && styles.tabTextActive]}>
-              Reference Line
-            </Text>
-          </Pressable>
-          <Pressable
-            style={[styles.tab, activeTab === 'punish' && styles.tabActive]}
-            onPress={() => setActiveTab('punish')}
-          >
-            <Text style={[styles.tabText, activeTab === 'punish' && styles.tabTextActive]}>
-              ⚡ Punish Lines ({punishLines.length})
-            </Text>
-          </Pressable>
-        </View>
+      </View>
 
-        {/* Tab content */}
-        {activeTab === 'reference' ? (
-          <View style={styles.section}>
-            {referenceLines.length === 0 ? (
-              <View style={styles.noPunish}>
-                <Text style={styles.noPunishText}>No reference lines yet for this opening.</Text>
-              </View>
-            ) : (
-              referenceLines.map(v => (
-                <View key={v.slug} style={styles.variationBlock}>
-                  <Text style={styles.variationName}>{v.name}</Text>
-                  <MoveList moves={v.sans} />
-                </View>
-              ))
-            )}
-          </View>
-        ) : (
-          <View style={styles.section}>
-            {punishLines.length === 0 ? (
-              <View style={styles.noPunish}>
-                <Text style={styles.noPunishText}>No punish lines yet for this opening.</Text>
-              </View>
-            ) : (
-              punishLines.map(v => <PunishCard key={v.slug} variation={v} />)
-            )}
-          </View>
-        )}
-
-        <View style={{ height: insets.bottom + 24 }} />
-      </ScrollView>
+      {/* CTA — pinned to bottom */}
+      <View style={styles.ctaWrap}>
+        <Pressable
+          style={({ pressed }) => [styles.ctaBtn, !selectedPracticeId && styles.ctaBtnDisabled, pressed && { opacity: 0.88 }]}
+          onPress={() => {
+            if (selectedPracticeId) {
+              navigation.navigate('Practice', { openingSlug, variationId: selectedPracticeId, mode: 'learn' });
+            }
+          }}
+          disabled={!selectedPracticeId}
+        >
+          <Text style={styles.ctaLabel} numberOfLines={1}>{practiceLabel}</Text>
+          <Ionicons name="arrow-forward-circle" size={22} color="rgba(255,255,255,0.5)" />
+        </Pressable>
+      </View>
     </View>
   );
 }
@@ -266,159 +337,153 @@ export function OpeningDetailScreen({ route, navigation }: Props) {
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: COLORS.bgBase },
-  scroll: { paddingHorizontal: 20 },
+  root: { flex: 1, backgroundColor: '#0a0c11' },
 
   // Header
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingVertical: 10,
     borderBottomWidth: 1,
     borderBottomColor: COLORS.border,
     gap: 10,
   },
-  backButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+  backBtn: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
     backgroundColor: COLORS.surface,
     alignItems: 'center',
     justifyContent: 'center',
+    flexShrink: 0,
   },
-  floatingBackButton: {
-    marginLeft: 16,
-    marginTop: 12,
-  },
-  headerTitle: { flex: 1, gap: 1 },
-  headerName: { fontSize: 15, fontWeight: FONT.bold, color: COLORS.text },
-  headerEco: { fontSize: 11, color: COLORS.textDim, fontWeight: FONT.medium },
-  practiceButton: {
-    backgroundColor: COLORS.accent,
-    borderRadius: RADIUS.sm,
-    paddingVertical: 7,
-    paddingHorizontal: 14,
-  },
-  practiceButtonText: { fontSize: 13, fontWeight: FONT.bold, color: COLORS.bgBase },
+  floatingBack: { marginLeft: 16, marginTop: 12 },
+  headerName: { flex: 1, fontSize: 15, fontWeight: FONT.bold, color: COLORS.text },
 
-  // Board section
-  boardSection: {
-    marginTop: 16,
-    marginHorizontal: -20,
-    borderTopWidth: 1,
-    borderBottomWidth: 1,
-    borderColor: COLORS.border,
-  },
-
-  // Meta
-  metaRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    flexWrap: 'wrap',
-    gap: 6,
+  // Body — fills remaining space, no scroll
+  body: {
+    flex: 1,
+    paddingHorizontal: 16,
     paddingTop: 14,
     paddingBottom: 4,
-  },
-  colorBadge: { borderRadius: 4, borderWidth: 1, paddingHorizontal: 7, paddingVertical: 3 },
-  colorBadgeWhite: { backgroundColor: 'rgba(255,255,255,0.08)', borderColor: 'rgba(255,255,255,0.15)' },
-  colorBadgeBlack: { backgroundColor: 'rgba(0,0,0,0.3)', borderColor: 'rgba(255,255,255,0.08)' },
-  colorBadgeText: { fontSize: 11, fontWeight: FONT.semibold },
-  colorTextWhite: { color: COLORS.textMuted },
-  colorTextBlack: { color: COLORS.textDim },
-  metaDot: { fontSize: 12, color: COLORS.textDim },
-  metaDifficulty: { fontSize: 12, color: COLORS.textDim, textTransform: 'capitalize' },
-  metaDesc: { fontSize: 12, color: COLORS.textMuted, flex: 1 },
-
-  // Tabs
-  tabs: {
-    flexDirection: 'row',
-    marginTop: 16,
-    marginBottom: 4,
-    borderRadius: RADIUS.sm,
-    backgroundColor: COLORS.surface,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    padding: 3,
-    gap: 3,
-  },
-  tab: {
-    flex: 1,
-    paddingVertical: 8,
-    borderRadius: 6,
-    alignItems: 'center',
-  },
-  tabActive: { backgroundColor: COLORS.bgBase },
-  tabText: { fontSize: 12, fontWeight: FONT.medium, color: COLORS.textDim },
-  tabTextActive: { color: COLORS.text, fontWeight: FONT.semibold },
-
-  // Section
-  section: { paddingTop: 12, gap: 12 },
-
-  // Variation block (reference lines)
-  variationBlock: {
-    backgroundColor: COLORS.surface,
-    borderRadius: RADIUS.lg,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    padding: 16,
     gap: 12,
   },
-  variationName: { fontSize: 13, fontWeight: FONT.semibold, color: COLORS.text },
+  // Variations section — bigger (flex: 3)
+  sectionTop: { flex: 3, gap: 5, minHeight: 0 },
+  // Lines section — shorter (flex: 2)
+  sectionBottom: { flex: 2, gap: 5, minHeight: 0 },
 
-  // Move list
-  moveGrid: { gap: 2 },
-  moveRow: { flexDirection: 'row', alignItems: 'center', gap: 0 },
-  moveNum: { width: 28, fontSize: 13, color: COLORS.textDim, fontWeight: FONT.medium },
-  moveWhite: { width: 80, fontSize: 13, color: COLORS.text, fontWeight: FONT.medium },
-  moveBlack: { flex: 1, fontSize: 13, color: COLORS.textMuted },
-
-  // Punish card
-  punishCard: {
-    backgroundColor: COLORS.surface,
-    borderRadius: RADIUS.lg,
-    borderWidth: 1,
-    borderColor: 'rgba(245,158,11,0.2)',
-    borderLeftWidth: 3,
-    borderLeftColor: COLORS.accent,
-    padding: 14,
-    gap: 12,
-  },
-  punishHeader: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
-  punishIconBox: {
-    width: 32,
-    height: 32,
-    borderRadius: RADIUS.sm,
-    backgroundColor: COLORS.accentDim,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  punishIcon: { fontSize: 16 },
-  punishName: { fontSize: 13, fontWeight: FONT.semibold, color: COLORS.text, flex: 1 },
-  punishBadge: {
-    marginTop: 4,
-    alignSelf: 'flex-start',
-    backgroundColor: COLORS.accentDim,
-    borderRadius: 4,
-    borderWidth: 1,
-    borderColor: 'rgba(245,158,11,0.25)',
-    paddingHorizontal: 7,
-    paddingVertical: 2,
-  },
-  punishBadgeText: { fontSize: 10, fontWeight: FONT.bold, color: COLORS.accent, letterSpacing: 0.2 },
-
-  // Empty / not found
-  centered: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  noPunish: { paddingVertical: 32, alignItems: 'center' },
-  noPunishText: { fontSize: 13, color: COLORS.textDim },
-  notFound: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  notFoundText: { fontSize: 14, color: COLORS.textMuted },
-  errorDetailText: {
-    marginTop: 8,
+  cardSectionLabel: {
     fontSize: 11,
-    lineHeight: 16,
+    fontWeight: FONT.bold,
     color: COLORS.textDim,
-    textAlign: 'center',
-    paddingHorizontal: 24,
+    letterSpacing: 0.6,
+    textTransform: 'uppercase',
+    paddingHorizontal: 4,
   },
+  card: {
+    flex: 1,
+    borderRadius: RADIUS.lg,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    backgroundColor: COLORS.surface,
+    overflow: 'hidden',
+  },
+  cardDivider: { height: StyleSheet.hairlineWidth, backgroundColor: COLORS.border, marginLeft: 16 },
+  cardSubheader: {
+    paddingHorizontal: 16,
+    paddingTop: 10,
+    paddingBottom: 4,
+  },
+  cardSubheaderText: {
+    fontSize: 10,
+    fontWeight: FONT.bold,
+    color: COLORS.textDim,
+    letterSpacing: 0.5,
+    textTransform: 'uppercase',
+  },
+
+  // Row
+  row: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 13,
+    minHeight: 46,
+    position: 'relative',
+  },
+  rowIndent: { paddingLeft: 28 },
+  rowActive: { backgroundColor: 'rgba(245,158,11,0.07)' },
+  rowPressed: { backgroundColor: COLORS.surfaceElevated },
+  rowLabel: { flex: 1, fontSize: 14, fontWeight: FONT.medium, color: COLORS.textMuted },
+  rowLabelActive: { color: COLORS.accentText, fontWeight: FONT.semibold },
+  activeBar: {
+    position: 'absolute',
+    left: 0,
+    top: 10,
+    bottom: 10,
+    width: 2.5,
+    borderRadius: 2,
+    backgroundColor: COLORS.accent,
+  },
+
+  // Right-side accessories
+  groupRight: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  rowRight: { flexDirection: 'row', alignItems: 'center' },
+  chevron: { opacity: 0.5 },
+  countBadge: {
+    backgroundColor: COLORS.bgBase,
+    borderRadius: 99,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    minWidth: 24,
+    alignItems: 'center',
+  },
+  countBadgeText: { fontSize: 11, color: COLORS.textDim, fontWeight: FONT.medium },
+  evalBadge: {
+    backgroundColor: COLORS.bgBase,
+    borderRadius: 4,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    marginLeft: 8,
+  },
+  evalBadgeText: { fontSize: 11, color: COLORS.textDim, fontFamily: 'monospace' },
+
+  // Empty state
+  emptyRow: { paddingHorizontal: 16, paddingVertical: 12 },
+  emptyText: { fontSize: 12, color: COLORS.textDim },
+
+  // CTA
+  ctaWrap: {
+    paddingHorizontal: 16,
+    paddingTop: 6,
+    paddingBottom: 8,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: COLORS.border,
+    backgroundColor: '#0a0c11',
+  },
+  ctaBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: COLORS.surface,
+    borderRadius: RADIUS.lg,
+    borderWidth: 1,
+    borderColor: COLORS.accent,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    gap: 10,
+  },
+  ctaBtnDisabled: { borderColor: COLORS.border, opacity: 0.5 },
+  ctaLabel: {
+    flex: 1,
+    fontSize: 14,
+    fontWeight: FONT.semibold,
+    color: COLORS.text,
+  },
+
+  // States
+  centered: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  errorText: { fontSize: 14, color: COLORS.textMuted },
+  errorDetail: { marginTop: 6, fontSize: 11, color: COLORS.textDim, textAlign: 'center', paddingHorizontal: 24 },
 });
