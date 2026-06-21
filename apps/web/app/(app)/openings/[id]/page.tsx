@@ -645,7 +645,7 @@ const selectedReferenceVariation =
             }
             coach={<CoachBubble feedback={coachFeedback} fallbackText={opening.description} dark />}
           >
-            <div className="flex-1 min-h-0 flex flex-col gap-4 px-2 pb-2">
+            <div className="flex-1 min-h-0 flex flex-col gap-4 px-2 py-2">
 
             {/* Move list — full sequence; anchor moves dimmed, continuation moves normal */}
             {mode === 'learn' && selectedVariation && (
