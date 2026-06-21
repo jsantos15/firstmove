@@ -19,11 +19,11 @@ if (!supabaseUrl || !supabaseAnonKey) {
 // ─── Supabase Client ──────────────────────────────────────────────────────────
 // Single shared client instance. Import this in both web and mobile apps.
 
-const isWebBrowser =
-  'window' in globalThis && Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL);
+const isWebBrowser = 'window' in globalThis && Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL);
 
 export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey, {
   auth: {
+    storageKey: isWebBrowser ? 'firstmove-shared-query-client' : undefined,
     persistSession: !isWebBrowser,
     autoRefreshToken: !isWebBrowser,
     detectSessionInUrl: !isWebBrowser,

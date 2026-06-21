@@ -93,8 +93,6 @@ export function OpeningFilters({ filters, onChange }: OpeningFiltersProps) {
       >
         Progress
       </button>
-
     </div>
   );
 }
-

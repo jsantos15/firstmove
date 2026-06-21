@@ -2,7 +2,7 @@ import { createClient } from './client';
 
 /**
  * Web-specific auth helpers — all use the SSR browser client so tokens
- * are stored in cookies and readable by middleware / server components.
+ * are stored in cookies and readable by proxy / server components.
  */
 
 export async function signInWithEmail(email: string, password: string) {

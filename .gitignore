@@ -9,6 +9,11 @@ dist/
 build/
 out/
 
+# Generated opening pipeline artifacts
+scripts/output/*.json
+scripts/output/backups/
+temp
+
 # Environment files — never commit real secrets
 .env
 .env.local
@@ -34,6 +39,8 @@ ios/
 # Supabase local
 supabase/.branches
 supabase/.temp
+**/supabase/.branches
+**/supabase/.temp
 
 # EAS
 .eas/
@@ -41,6 +48,7 @@ supabase/.temp
 # OS
 .DS_Store
 Thumbs.db
+Microsoft/
 
 # Logs
 *.log
@@ -56,3 +64,8 @@ coverage/
 .idea/
 *.swp
 *.swo
+
+# Large data files
+*.csv
+*.bz2
+*.zst

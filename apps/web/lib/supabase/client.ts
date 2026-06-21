@@ -3,7 +3,7 @@ import type { Database } from '@firstmove/supabase';
 
 /**
  * Browser Supabase client — stores auth tokens in cookies so server
- * components and middleware can read the session.
+ * components and proxy can read the session.
  * Use this in Client Components and hooks.
  */
 let browserClient: ReturnType<typeof createBrowserClient<Database>> | null = null;

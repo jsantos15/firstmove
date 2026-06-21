@@ -73,6 +73,14 @@ function sourceFamilyFromFullName(fullName) {
 }
 
 function buildNameSuffix(line) {
+  if (line.lineType === "practical_branch") {
+    const trace = line.generation?.branch?.continuationTrace ?? line.generation?.extension ?? [];
+    const lastTrained = [...trace].reverse().find((step) => step?.side === "trained" && step?.san)?.san;
+    const lastOpponent = [...trace].reverse().find((step) => step?.side === "opponent" && step?.san)?.san;
+    if (lastTrained && lastOpponent) return `${lastOpponent} ${lastTrained}`;
+    if (lastTrained) return `ends ${lastTrained}`;
+  }
+
   const sourceFamily = sourceFamilyFromFullName(line.fullName);
   if (sourceFamily && normalizeText(sourceFamily) !== normalizeText(line.openingName)) {
     return `${sourceFamily} move order`;
@@ -120,18 +128,34 @@ function resolveOpeningLines(opening) {
       currentCount === 0 ? baseSlug : `${baseSlug}-${currentCount + 1}`;
   }
 
+  const resolvedReferenceIds = new Map();
+  for (const line of lines) {
+    if (line.lineType !== "practical_branch" && line.lineId) {
+      resolvedReferenceIds.set(line.lineId, line.resolvedLineId);
+    }
+  }
+
+  for (const line of lines) {
+    if (line.lineType !== "practical_branch") continue;
+    const parentLineId =
+      line.parentLineId ?? line.generation?.branch?.parentLineId ?? null;
+    line.resolvedParentLineId =
+      resolvedReferenceIds.get(parentLineId) ?? parentLineId;
+  }
+
   return lines;
 }
 
 function buildOpeningDescription(opening) {
-  const lineCount = opening.lineCount;
-  const mainLine = opening.lines.find((line) => line.isMainLine);
-
-  if (mainLine) {
-    return `${opening.openingName} regenerated from authoritative naming and continuation sources. Includes ${lineCount} line${lineCount === 1 ? "" : "s"} staged for study, anchored by the main line ${mainLine.lineName}.`;
+  if (opening.openingId === "italian-game") {
+    return "The Italian Game develops quickly with Bc4, aiming at Black's f7 square while building a strong center and preparing to castle. It teaches active piece play, early pressure, and when to turn development into tactics.";
   }
 
-  return `${opening.openingName} regenerated from authoritative naming and continuation sources. Includes ${lineCount} line${lineCount === 1 ? "" : "s"} staged for study.`;
+  if (opening.openingId === "caro-kann-defense") {
+    return "The Caro-Kann Defense is a solid answer to 1.e4 where Black supports ...d5 with ...c6. It teaches sturdy pawn structures, patient development, and clean counterplay without weakening the king.";
+  }
+
+  return `${opening.openingName} is part of your opening study plan. Focus on the main ideas first, then use each line to learn the typical plans and tactical moments.`;
 }
 
 function buildOpeningTags(opening, color) {
@@ -141,9 +165,44 @@ function buildOpeningTags(opening, color) {
     "display:pending-popularity",
     "source:regenerated",
     "source:naming:lichess-org-chess-openings",
-    "source:continuation:lichess-explorer",
-    "source:trained-side:stockfish",
+    "source:continuation:cloud-reference",
   ]);
+
+  if (
+    opening.lines.some(
+      (line) =>
+        line.sourceName?.includes("Lichess cloud") ||
+        inferEngineProvider(line) === "lichess" ||
+        inferEngineProvider(line) === "mixed"
+    )
+  ) {
+    tags.add("source:engine:lichess-cloud");
+  }
+
+  if (
+    opening.lines.some(
+      (line) =>
+        line.sourceName?.includes("Chess-API") ||
+        inferEngineProvider(line) === "chess-api"
+    )
+  ) {
+    tags.add("source:engine:chess-api");
+  }
+
+  if (
+    opening.lines.some(
+      (line) =>
+        line.sourceName?.includes("Stockfish") ||
+        inferEngineProvider(line) === "stockfish" ||
+        inferEngineProvider(line) === "mixed"
+    )
+  ) {
+    tags.add("source:engine:fallback-stockfish");
+  }
+
+  if (opening.lines.some((line) => line.lineType === "practical_branch")) {
+    tags.add("source:branch-generation:lichess-explorer");
+  }
 
   if (opening.lines.some((line) => line.isMainLine)) {
     tags.add("main-line:present");
@@ -191,6 +250,10 @@ function buildCatalogRow(opening) {
 }
 
 function buildLineDescription(line) {
+  if (line.lineType === "practical_branch" && line.triggerMoveSan) {
+    return `Practical branch after ${line.triggerMoveSan}: ${line.stopReason ?? "learn the trained-side response to a common deviation."}`;
+  }
+
   return line.stopReason ?? null;
 }
 
@@ -202,6 +265,165 @@ function buildLineRow(line, sortOrder) {
     description: buildLineDescription(line),
     sans: line.generatedSans,
     sort_order: sortOrder,
+  };
+}
+
+function buildBranchMetadataRow(line) {
+  if (line.lineType !== "practical_branch") {
+    return null;
+  }
+
+  const branch = line.generation?.branch ?? {};
+  const parentLineSlug =
+    line.resolvedParentLineId ?? line.parentLineId ?? branch.parentLineId ?? null;
+  const lessonStemPly = line.lessonStemPly ?? branch.lessonStemPly ?? null;
+  const lessonStemFen = line.lessonStemFen ?? branch.lessonStemFen ?? null;
+  const triggerMoveSan = line.triggerMoveSan ?? branch.triggerMoveSan ?? null;
+  const triggerMoveUci = line.triggerMoveUci ?? branch.triggerMoveUci ?? null;
+
+  if (!parentLineSlug || lessonStemPly == null || !lessonStemFen || !triggerMoveSan || !triggerMoveUci) {
+    return null;
+  }
+
+  return {
+    opening_slug: line.openingId,
+    line_slug: line.resolvedLineId,
+    parent_opening_slug: line.openingId,
+    parent_line_slug: parentLineSlug,
+    branch_key:
+      branch.branchKey ??
+      `${line.openingId}::${parentLineSlug}::${lessonStemPly}::${triggerMoveUci}`,
+    lesson_title: branch.lessonTitle ?? line.resolvedLineName,
+    theme_tags: branch.themeTags ?? [],
+    advantage_type: line.advantageTypePrimary ?? null,
+    branch_score: line.branchScore ?? branch.branchScore ?? null,
+    branch_stem_ply: lessonStemPly,
+    branch_stem_fen: lessonStemFen,
+    trigger_ply: branch.triggerPly ?? lessonStemPly + 1,
+    trigger_move_san: triggerMoveSan,
+    trigger_move_uci: triggerMoveUci,
+    reference_move_san: line.referenceMoveSan ?? branch.referenceMoveSan ?? null,
+    reference_move_uci: line.referenceMoveUci ?? branch.referenceMoveUci ?? null,
+    trigger_node_games: line.gamesAtNode ?? branch.gamesAtNode ?? null,
+    trigger_move_games: line.gamesForMove ?? branch.gamesForMove ?? null,
+    trigger_move_play_rate:
+      line.triggerMovePopularity ?? branch.triggerMovePopularity ?? null,
+    trigger_cumulative_play_rate: branch.triggerCumulativePlayRate ?? null,
+    eval_before_trigger_cp:
+      line.evalBeforeTrigger ?? branch.evalBeforeTrigger ?? null,
+    eval_after_trigger_cp:
+      line.evalAfterTrigger ?? branch.evalAfterTrigger ?? null,
+    final_trained_eval_cp:
+      branch.finalTrainedEvalCp ??
+      branch.selectionMetadata?.finalState?.trainedEvalCp ??
+      line.finalTrainedEvalCp ??
+      null,
+    eval_gain_cp: line.evalGain ?? branch.evalGain ?? null,
+    continuation_trace: branch.continuationTrace ?? line.generation?.extension ?? [],
+    selection_metadata: branch.selectionMetadata ?? {},
+  };
+}
+
+function countExtensionSources(line) {
+  const counts = {};
+  for (const step of line.generation?.extension ?? []) {
+    const source = step?.source ?? "unknown";
+    counts[source] = (counts[source] ?? 0) + 1;
+  }
+
+  return counts;
+}
+
+function inferEngineProvider(line) {
+  const sources = Object.keys(countExtensionSources(line));
+  const hasLichess = sources.some((source) => source.includes("lichess"));
+  const hasChessApi = sources.some((source) => source.includes("chess-api"));
+  const hasStockfish = sources.some((source) => source.includes("stockfish"));
+
+  if ((hasLichess || hasChessApi) && hasStockfish) {
+    return "mixed";
+  }
+
+  if (hasLichess) {
+    return "lichess";
+  }
+
+  if (hasChessApi) {
+    return "chess-api";
+  }
+
+  if (hasStockfish) {
+    return "stockfish";
+  }
+
+  if (line.generation?.engineProvider) {
+    return line.generation.engineProvider;
+  }
+
+  if (line.sourceName?.includes("Lichess cloud")) {
+    return "lichess";
+  }
+
+  if (line.sourceName?.includes("Chess-API")) {
+    return "chess-api";
+  }
+
+  if (line.sourceName?.includes("Stockfish")) {
+    return "stockfish";
+  }
+
+  return null;
+}
+
+function inferAverageEngineDepth(line) {
+  if (Number.isFinite(line.generation?.avgExtensionDepth)) {
+    return line.generation.avgExtensionDepth;
+  }
+
+  if (Number.isFinite(line.stockfish?.depth)) {
+    return line.stockfish.depth;
+  }
+
+  return null;
+}
+
+function buildGenerationMetadata(line) {
+  const generation = line.generation ?? {};
+  const extensionSourceCounts =
+    generation.extensionSourceCounts ?? countExtensionSources(line);
+
+  return {
+    sourcePlies: generation.sourcePlies ?? line.sourceSans?.length ?? null,
+    addedPlies: generation.addedPlies ?? line.continuationSans?.length ?? null,
+    sourceReferenceOnly: generation.sourceReferenceOnly ?? false,
+    engineProvider: generation.engineProvider ?? null,
+    engineProviderCounts: generation.engineProviderCounts ?? {},
+    inferredEngineProvider: inferEngineProvider(line),
+    avgExtensionDepth: generation.avgExtensionDepth ?? null,
+    finalAnalysisDepth: line.stockfish?.depth ?? null,
+    finalAnalysisSource: line.stockfish?.source ?? null,
+    extensionSourceCounts,
+    stopSignals: generation.stopSignals ?? [],
+    lineKind: line.lineKind ?? (line.lineType === "practical_branch" ? "practical_branch" : "reference"),
+    lineType: line.lineType ?? null,
+    branch:
+      generation.branch ??
+      (line.lineType === "practical_branch"
+        ? {
+            parentLineId: line.parentLineId ?? null,
+            resolvedParentLineId: line.resolvedParentLineId ?? null,
+            branchDepth: line.branchDepth ?? null,
+            lessonStemPly: line.lessonStemPly ?? null,
+            lessonStemFen: line.lessonStemFen ?? null,
+            triggerMoveSan: line.triggerMoveSan ?? null,
+            triggerMovePopularity: line.triggerMovePopularity ?? null,
+            gamesAtNode: line.gamesAtNode ?? null,
+            gamesForMove: line.gamesForMove ?? null,
+            evalBeforeTrigger: line.evalBeforeTrigger ?? null,
+            evalAfterTrigger: line.evalAfterTrigger ?? null,
+            evalGain: line.evalGain ?? null,
+          }
+        : null),
   };
 }
 
@@ -231,6 +453,8 @@ function buildLineMetadata(line) {
     slug: line.resolvedLineId,
     openingSlug: line.openingId,
     fullName: line.fullName,
+    lineType: line.lineType ?? null,
+    lineKind: line.lineKind ?? (line.lineType === "practical_branch" ? "practical_branch" : "reference"),
     primaryCategory: line.primaryCategory,
     inclusionOutcome: line.inclusionOutcome,
     lineDifficulty: line.lineDifficulty,
@@ -247,6 +471,32 @@ function buildLineMetadata(line) {
     stopReason: line.stopReason,
     sourceName: line.sourceName,
     sourceConfidence: line.sourceConfidence,
+    variationPath: line.variationPath ?? null,
+    variationDepth: line.variationDepth ?? null,
+    variationAnchorPly: line.variationAnchorSans?.length ?? null,
+    variationAnchorName: line.variationName ?? line.lineName ?? null,
+    variationAnchorFen: line.variationAnchorFen ?? null,
+    variationAnchorSans: line.variationAnchorSans ?? null,
+    engineProvider: inferEngineProvider(line),
+    engineModel: line.sourceName ?? null,
+    avgEngineDepth: inferAverageEngineDepth(line),
+    generationMetadata: buildGenerationMetadata(line),
+    parentLineId: line.parentLineId ?? null,
+    resolvedParentLineId: line.resolvedParentLineId ?? null,
+    branchDepth: line.branchDepth ?? null,
+    lessonStemPly: line.lessonStemPly ?? null,
+    lessonStemFen: line.lessonStemFen ?? null,
+    triggerMoveSan: line.triggerMoveSan ?? null,
+    triggerMovePopularity: line.triggerMovePopularity ?? null,
+    gamesAtNode: line.gamesAtNode ?? null,
+    gamesForMove: line.gamesForMove ?? null,
+    evalBeforeTrigger: line.evalBeforeTrigger ?? null,
+    evalAfterTrigger: line.evalAfterTrigger ?? null,
+    evalGain: line.evalGain ?? null,
+    branchScore: line.branchScore ?? null,
+    triggerMoveUci: line.triggerMoveUci ?? null,
+    referenceMoveSan: line.referenceMoveSan ?? null,
+    referenceMoveUci: line.referenceMoveUci ?? null,
   };
 }
 
@@ -276,6 +526,22 @@ function buildSeedOpening(opening) {
   };
 }
 
+function assignPopularityRanks(lines) {
+  // Only fill in ranks that the generator didn't already set.
+  // gamesAtNode is a sentinel (Number.MAX_SAFE_INTEGER) in reference-best-play
+  // mode and must not be used as a real game count.
+  const needsRank = lines.filter(
+    (l) => l.popularityRankWithinOpening == null && l.lineType !== "practical_branch"
+  );
+  if (needsRank.length === 0) return;
+
+  // Fall back to array-position ordering (generator already emits lines in
+  // Lichess popularity order, so position is a valid proxy).
+  needsRank.forEach((line, i) => {
+    line.popularityRankWithinOpening = i + 1;
+  });
+}
+
 function main() {
   const args = parseArgs(process.argv.slice(2));
   const normalized = JSON.parse(fs.readFileSync(args.input, "utf8"));
@@ -285,10 +551,18 @@ function main() {
     lines: resolveOpeningLines(opening),
   }));
 
+  // Assign popularity ranks within each opening based on Lichess game counts
+  for (const opening of resolvedOpenings) {
+    assignPopularityRanks(opening.lines);
+  }
+
   const openingsCatalogRows = resolvedOpenings.map(buildCatalogRow);
   const openingLinesRows = resolvedOpenings.flatMap((opening) =>
     opening.lines.map((line, index) => buildLineRow(line, index))
   );
+  const openingLineBranchMetadataRows = resolvedOpenings
+    .flatMap((opening) => opening.lines.map(buildBranchMetadataRow))
+    .filter(Boolean);
 
   const openingDisplayMetadata = resolvedOpenings.map(buildOpeningMetadata);
   const lineStudyMetadata = resolvedOpenings.flatMap((opening) =>
@@ -309,10 +583,12 @@ function main() {
     counts: {
       openings: openingsCatalogRows.length,
       lines: openingLinesRows.length,
+      branchMetadata: openingLineBranchMetadataRows.length,
     },
     currentSchema: {
       openingsCatalogRows,
       openingLinesRows,
+      openingLineBranchMetadataRows,
     },
     futureMetadata: {
       openingDisplayMetadata,
@@ -330,6 +606,7 @@ function main() {
       {
         openings: openingsCatalogRows.length,
         lines: openingLinesRows.length,
+        branchMetadata: openingLineBranchMetadataRows.length,
       },
       null,
       2

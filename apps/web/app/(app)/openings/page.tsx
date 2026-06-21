@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useMemo, useState, useSyncExternalStore } from 'react';
 import { OpeningCard } from '@/components/openings/OpeningCard';
 import { OpeningFilters } from '@/components/openings/OpeningFilters';
 import { useAllProgress, getOpeningProgress } from '@/hooks/useProgress';
@@ -14,7 +14,24 @@ interface Filters {
   inProgress: boolean;
 }
 
+function normalizeQuery(text: string): string {
+  return text
+    .toLowerCase()
+    .replace(/[,;:.!?()\-\/\\'"]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function subscribeHydration() {
+  return () => {};
+}
+
 export default function OpeningsPage() {
+  const hydrated = useSyncExternalStore(
+    subscribeHydration,
+    () => true,
+    () => false
+  );
   const [filters, setFilters] = useState<Filters>({
     search: '',
     color: 'all',
@@ -24,17 +41,19 @@ export default function OpeningsPage() {
 
   const { data: openings = [], isLoading } = useOpenings();
   const { data: progress } = useAllProgress();
+  const showLoading = !hydrated || isLoading;
 
   const filtered = useMemo(() => {
     const result = openings.filter(o => {
       if (filters.color !== 'all' && o.color !== filters.color) return false;
       if (filters.difficulty !== 'all' && o.difficulty !== filters.difficulty) return false;
       if (filters.search) {
-        const q = filters.search.toLowerCase();
+        const q = normalizeQuery(filters.search);
         const match =
-          o.name.toLowerCase().includes(q) ||
+          normalizeQuery(o.name).includes(q) ||
           o.ecoCode.toLowerCase().includes(q) ||
-          o.tags.some(t => t.includes(q));
+          o.tags.some(t => normalizeQuery(t).includes(q)) ||
+          o.variations.some(v => normalizeQuery(v.name).includes(q));
         if (!match) return false;
       }
       return true;
@@ -69,7 +88,7 @@ export default function OpeningsPage() {
 
       {/* Grid */}
       <div className="mx-auto max-w-6xl px-6 pb-16">
-        {isLoading ? (
+        {showLoading ? (
           <div className="flex items-center justify-center py-24">
             <div className="w-6 h-6 border-2 border-amber-400/30 border-t-amber-400 rounded-full animate-spin" />
           </div>
@@ -92,20 +111,23 @@ export default function OpeningsPage() {
                 opening.id,
                 opening.variations.map(v => v.id)
               );
+              const q = normalizeQuery(filters.search);
+              const matchedVariations = filters.search
+                ? opening.variations.filter(v => normalizeQuery(v.name).includes(q))
+                : [];
               return (
                 <OpeningCard
                   key={opening.id}
                   opening={opening}
                   completedLines={completedLines}
                   status={status}
+                  matchedVariations={matchedVariations.length > 0 ? matchedVariations : undefined}
                 />
               );
             })}
           </div>
         )}
       </div>
-
     </div>
   );
 }
-

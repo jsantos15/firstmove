@@ -1,10 +1,17 @@
 'use client';
 
+import { useState, useCallback, useEffect, useRef } from 'react';
 import type { OpeningVariation } from '@firstmove/core';
+import type { OpeningPositionMilestone } from '@/hooks/useOpeningPositionLabels';
 
 interface MoveListProps {
   variation: OpeningVariation;
   currentMoveIndex: number;
+  selectedMoveIndex?: number;
+  onNavigate?: (index: number) => void;
+  milestones?: OpeningPositionMilestone[];
+  mode?: 'learn' | 'practice';
+  anchorPly?: number;
 }
 
 interface MovePair {
@@ -35,47 +42,182 @@ function MoveCell({
   san,
   index,
   currentMoveIndex,
+  selectedMoveIndex,
+  onNavigate,
+  mode,
+  isAnchor,
 }: {
   san: string;
   index: number;
   currentMoveIndex: number;
+  selectedMoveIndex?: number;
+  onNavigate?: (index: number) => void;
+  mode?: 'learn' | 'practice';
+  isAnchor?: boolean;
 }) {
-  const isDone = index < currentMoveIndex;
-  const isCurrent = index === currentMoveIndex;
+  const isSelected = index === (selectedMoveIndex ?? currentMoveIndex);
+  const isPlayed = index <= currentMoveIndex;
 
   return (
-    <span
-      className={`min-w-[56px] rounded px-2 py-0.5 text-center transition-colors ${
-        isCurrent
-          ? 'bg-amber-400/20 text-amber-300 font-semibold'
-          : isDone
-            ? 'text-gray-400'
-            : 'text-gray-600'
+    <button
+      type="button"
+      onClick={() => onNavigate?.(index)}
+      className={`w-full px-2 py-1.5 text-left font-mono text-sm transition-colors ${
+        isSelected
+          ? 'bg-white/20 text-white font-semibold'
+          : isAnchor
+            ? 'text-gray-600 hover:bg-white/5 hover:text-gray-400'
+            : isPlayed || mode === 'learn'
+              ? 'text-gray-300 hover:bg-white/10 hover:text-white'
+              : 'text-gray-500 hover:bg-white/5 hover:text-gray-300'
       }`}
     >
       {san}
-    </span>
+    </button>
   );
 }
 
-export function MoveList({ variation, currentMoveIndex }: MoveListProps) {
+function buildPgn(variation: OpeningVariation, upToIndex: number): string {
+  const moves = variation.moves.slice(0, upToIndex + 1);
+  const parts: string[] = [];
+  for (let i = 0; i < moves.length; i++) {
+    if (i % 2 === 0) parts.push(`${Math.floor(i / 2) + 1}.`);
+    parts.push(moves[i].san);
+  }
+  return parts.join(' ');
+}
+
+function getActiveMilestone(
+  milestones: OpeningPositionMilestone[],
+  currentMoveIndex: number
+) {
+  if (currentMoveIndex < 0) {
+    return null;
+  }
+
+  let active: OpeningPositionMilestone | null = null;
+  for (const milestone of milestones) {
+    if (milestone.moveIndex <= currentMoveIndex) {
+      active = milestone;
+    } else {
+      break;
+    }
+  }
+  return active;
+}
+
+export function MoveList({ variation, currentMoveIndex, selectedMoveIndex, onNavigate, milestones = [], mode, anchorPly }: MoveListProps) {
   const pairs = toPairs(variation);
+  const activeMilestone = getActiveMilestone(milestones, currentMoveIndex);
+  const [copied, setCopied] = useState(false);
+  const selectedRowRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    selectedRowRef.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  }, [selectedMoveIndex ?? currentMoveIndex]);
+
+  const handleCopy = useCallback(async () => {
+    if (currentMoveIndex < 0) return;
+    const pgn = buildPgn(variation, currentMoveIndex);
+    await navigator.clipboard.writeText(pgn);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
+  }, [variation, currentMoveIndex]);
+
+  const activeIndex = selectedMoveIndex ?? currentMoveIndex;
+
+  // Index of the first pair that contains at least one continuation move
+  const firstContinuationPairIdx = anchorPly != null
+    ? pairs.findIndex(p => p.whiteIndex >= anchorPly || (p.blackIndex != null && p.blackIndex >= anchorPly))
+    : -1;
 
   return (
-    <div className="rounded-xl border border-white/5 bg-[var(--bg-panel)] p-4">
-      <h3 className="mb-3 text-xs font-medium uppercase tracking-wider text-gray-500">
-        Move sequence
-      </h3>
-      <div className="space-y-0.5 font-mono text-sm">
-        {pairs.map(pair => (
-          <div key={pair.moveNumber} className="flex items-center gap-1">
-            <span className="w-6 text-right text-gray-600">{pair.moveNumber}.</span>
-            <MoveCell san={pair.white} index={pair.whiteIndex} currentMoveIndex={currentMoveIndex} />
-            {pair.black !== null && pair.blackIndex !== null && (
-              <MoveCell san={pair.black} index={pair.blackIndex} currentMoveIndex={currentMoveIndex} />
+    <div className="flex h-78 shrink-0 flex-col">
+      {/* Header */}
+      <div className="shrink-0 flex items-center justify-between px-4 py-3 border-b border-white/8">
+        <h3 className="text-[11px] font-semibold uppercase tracking-widest text-gray-500">Moves</h3>
+        {currentMoveIndex >= 0 && (
+          <button
+            type="button"
+            onClick={handleCopy}
+            title="Copy PGN"
+            className="text-gray-600 transition-colors hover:text-gray-400"
+          >
+            {copied ? (
+              <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="text-amber-400">
+                <polyline points="20 6 9 17 4 12" />
+              </svg>
+            ) : (
+              <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+              </svg>
             )}
-          </div>
-        ))}
+          </button>
+        )}
+      </div>
+
+      {/* Milestone label */}
+      <div className="shrink-0 h-5 overflow-hidden px-4 pt-1">
+        <span
+          className={`block text-[11px] font-medium transition-all duration-200 ${
+            activeMilestone
+              ? 'translate-y-0 opacity-100 text-amber-400/80'
+              : 'translate-y-1 opacity-0'
+          }`}
+        >
+          {activeMilestone?.name ?? ''}
+        </span>
+      </div>
+
+      {/* Move rows */}
+      <div className="min-h-0 flex-1 overflow-y-auto">
+        <div className="grid grid-cols-[2.5rem_1fr_1fr] text-sm">
+          {pairs.map((pair, i) => {
+            const isSelectedRow =
+              pair.whiteIndex === activeIndex || pair.blackIndex === activeIndex;
+            const whiteIsAnchor = anchorPly != null && pair.whiteIndex < anchorPly;
+            const blackIsAnchor = anchorPly != null && pair.blackIndex != null && pair.blackIndex < anchorPly;
+            const showDivider = firstContinuationPairIdx !== -1 && i === firstContinuationPairIdx;
+
+            return (
+              <div key={pair.moveNumber} className="contents">
+                {showDivider && (
+                  <div className="col-span-3 flex items-center gap-2 px-3 py-1.5">
+                    <div className="h-px flex-1 bg-white/[0.07]" />
+                    <span className="text-[9px] uppercase tracking-widest text-gray-700">Continuation</span>
+                    <div className="h-px flex-1 bg-white/[0.07]" />
+                  </div>
+                )}
+                <span ref={isSelectedRow ? selectedRowRef : undefined} className="flex items-center justify-center text-[11px] text-gray-600 select-none font-mono">
+                  {pair.moveNumber}
+                </span>
+                <MoveCell
+                  san={pair.white}
+                  index={pair.whiteIndex}
+                  currentMoveIndex={currentMoveIndex}
+                  selectedMoveIndex={selectedMoveIndex}
+                  onNavigate={onNavigate}
+                  mode={mode}
+                  isAnchor={whiteIsAnchor}
+                />
+                {pair.black !== null && pair.blackIndex !== null ? (
+                  <MoveCell
+                    san={pair.black}
+                    index={pair.blackIndex}
+                    currentMoveIndex={currentMoveIndex}
+                    selectedMoveIndex={selectedMoveIndex}
+                    onNavigate={onNavigate}
+                    mode={mode}
+                    isAnchor={blackIsAnchor}
+                  />
+                ) : (
+                  <span />
+                )}
+              </div>
+            );
+          })}
+        </div>
       </div>
     </div>
   );
