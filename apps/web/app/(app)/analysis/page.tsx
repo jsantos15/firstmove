@@ -1129,6 +1129,14 @@ export default function AnalysisPage() {
     settings.engineEnabled,
   );
 
+  // Keep showing the previous PV tokens while the engine loads a new position so the
+  // container height never collapses (which causes the "trembling" layout shift).
+  const stableLinesRef = useRef(lines);
+  if (lines.some(l => l.pvUci.length > 0)) {
+    stableLinesRef.current = lines;
+  }
+  const displayLines = lines.some(l => l.pvUci.length > 0) ? lines : stableLinesRef.current;
+
   // Priority: analyzed game data → live Stockfish eval → INITIAL_EVAL_CP at start position.
   const displayEvalCp = currentEvalCp ?? liveEvalCp ?? (currentPlyIndex <= -1 ? INITIAL_EVAL_CP : undefined);
 
@@ -1467,7 +1475,7 @@ export default function AnalysisPage() {
                 {/* Engine lines */}
                 {settings.engineEnabled && !settings.hideEngineInfo && (
                   <div className="shrink-0 px-3 pb-2 flex flex-col gap-1">
-                    {lines.slice(0, settings.engineLines).map((engineLine, li) => {
+                    {displayLines.slice(0, settings.engineLines).map((engineLine, li) => {
                       const tokens = pvToTokens(boardFen, engineLine.pvUci);
                       const evalStr = formatEval(engineLine.evalCp);
                       const positive = (engineLine.evalCp ?? 0) >= 0;
