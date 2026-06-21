@@ -29,9 +29,7 @@ firstmove/
 ```
 
 ## Environment Map
-- `main` branch → Production (live app)
-- `staging` branch → Pre-production (review before going live)
-- `feature/*` branches → All development work
+- `main` branch → All development and production. This is the only branch used for day-to-day work.
 
 ## Routing Table
 | Request Type | Workspace(s) to touch | Notes |
@@ -72,7 +70,6 @@ firstmove/
 | `user_favorites` | Quick-access openings per user |
 
 ## Escalation Rules
-- Never merge into `main` without explicit user confirmation
 - Never deploy to production without explicit user confirmation
 - Never delete a file without explicit user confirmation
 - If a request touches more than 2 workspaces, summarize the plan and wait for approval
@@ -81,21 +78,18 @@ firstmove/
 - If a request is ambiguous, ask — do not assume
 
 ## Git Workflow
-- All new work starts on a `feature/*` branch
-- Commit after each logical unit of work
+- All work commits directly to `main`. No feature branches.
+- Commit after each logical unit of work and push immediately.
 - Commit message format: `type: short description`
   - Types: `feat`, `fix`, `docs`, `test`, `config`, `refactor`
   - Example: `feat: add Sicilian Defense opening sequence`
-- Merge `feature/*` → `staging` for review
-- Merge `staging` → `main` only after user approval
-- Never force push to `main` or `staging`
+- Never force push to `main`.
 
 ## Automated Git Behavior
-Claude handles branch creation, commits, and pushes automatically — no need to ask or wait to be told:
+Claude handles commits and pushes automatically — no need to ask or wait to be told:
 
-- **Branch creation:** When starting work that introduces a new user-facing capability (a new screen, a new data flow, a new integration, a complete new function of the app), automatically create and switch to a `feature/*` branch before touching any code. Do not create a new branch for UI tweaks, copy changes, style adjustments, small menu additions, or anything that does not add a distinct new capability.
-- **Commit and push:** When a feature is complete and the user confirms it (explicitly or clearly implicitly — e.g. "looks good", "ship it", "that's done"), automatically commit all changes with an appropriate message and push the feature branch to the remote. Do not wait to be asked.
-- **Merging:** Never automatic. Merging feature/* into staging, or staging into main, always requires explicit user confirmation regardless of context. This is a hard rule — do not infer approval from positive feedback alone.
+- **Commit and push:** After completing any meaningful unit of work, automatically commit with an appropriate message and push to `main`. Do not wait to be asked.
+- **No branches:** Never create feature branches. All work goes directly to `main` so any machine can stay in sync with a simple `git pull`.
 
 ## How to Work on This Project
 1. Read this file first — every session, every time
