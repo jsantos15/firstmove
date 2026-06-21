@@ -126,8 +126,13 @@ export function MoveList({ variation, currentMoveIndex, selectedMoveIndex, onNav
 
   const activeIndex = selectedMoveIndex ?? currentMoveIndex;
 
-  // Index of the first pair where white itself is the first continuation move
-  const firstContinuationPairIdx = anchorPly != null
+  // Whether anchorPly splits a pair (white=anchor, black=first continuation)
+  const splitPairExists = anchorPly != null &&
+    pairs.some(p => p.whiteIndex < anchorPly && p.blackIndex != null && p.blackIndex >= anchorPly);
+
+  // Index of the first pair where white itself is the first continuation move.
+  // Only used when there is no split pair (split pair renders its own divider).
+  const firstContinuationPairIdx = !splitPairExists && anchorPly != null
     ? pairs.findIndex(p => p.whiteIndex >= anchorPly)
     : -1;
 
