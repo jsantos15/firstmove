@@ -190,22 +190,56 @@ function buildExplorePairs(history: ExploreEntry[], startFen: string): ExplorePa
 
 type MoveEntry = { id: string; san: string; fen: string; from: string; to: string };
 
-type VBranch = {
+// A single line in the variation tree (main line or a branch)
+type VariationLine = {
   id: string;
-  divergeAtPly: number;
+  parentLineId: string | null; // null = main line
+  divergeAtPly: number;        // index in parent's moves[] where this branch diverges (ignored for main line)
+  depth: number;               // 0=main, 1..3=branch levels (max depth 3 = 4 levels total)
   moves: MoveEntry[];
 };
 
 type ExploreTree = {
   rootFen: string;
-  mainLine: MoveEntry[];
-  branches: VBranch[];
+  lines: VariationLine[];  // lines[0] is always the main line
 };
 
 type ExploreNav = {
-  branchId: string | null;
-  plyIndex: number;
+  lineId: string | null;  // null when no tree exists
+  plyIndex: number;       // -1 = before first move (root); only valid on main line
 };
+
+function getFenMeta(fen: string): { side: 'w' | 'b'; moveNum: number } {
+  const parts = fen.split(' ');
+  return { side: (parts[1] ?? 'w') as 'w' | 'b', moveNum: parseInt(parts[5] ?? '1', 10) };
+}
+
+function getLineStartFen(tree: ExploreTree, line: VariationLine): string {
+  if (line.parentLineId === null) return tree.rootFen;
+  const parent = tree.lines.find(l => l.id === line.parentLineId);
+  if (!parent) return tree.rootFen;
+  return line.divergeAtPly === 0
+    ? tree.rootFen
+    : (parent.moves[line.divergeAtPly - 1]?.fen ?? tree.rootFen);
+}
+
+function removeLineAndChildren(lines: VariationLine[], lineId: string): VariationLine[] {
+  const children = lines.filter(l => l.parentLineId === lineId);
+  let result = lines.filter(l => l.id !== lineId);
+  for (const child of children) {
+    result = removeLineAndChildren(result, child.id);
+  }
+  return result;
+}
+
+function truncateChildBranches(lines: VariationLine[], parentId: string, fromPly: number): VariationLine[] {
+  const childrenToRemove = lines.filter(l => l.parentLineId === parentId && l.divergeAtPly >= fromPly);
+  let result = lines;
+  for (const child of childrenToRemove) {
+    result = removeLineAndChildren(result, child.id);
+  }
+  return result;
+}
 
 function extractGameTitle(pgn: string): string | null {
   const white = pgn.match(/\[White "([^"]+)"\]/)?.[1];
@@ -712,7 +746,7 @@ export default function AnalysisPage() {
   const [engineSettingsOpen, setEngineSettingsOpen] = useState(false);
   const engineSettingsRef = useRef<HTMLDivElement>(null);
   const [exploreTree, setExploreTree] = useState<ExploreTree | null>(null);
-  const [exploreNav, setExploreNav] = useState<ExploreNav>({ branchId: null, plyIndex: -1 });
+  const [exploreNav, setExploreNav] = useState<ExploreNav>({ lineId: null, plyIndex: -1 });
   const [selectedSquare, setSelectedSquare] = useState<string | null>(null);
   const [baseFen, setBaseFen] = useState<string | null>(null);
   const [positionMode, setPositionMode] = useState<'fen' | 'pgn'>('pgn');
@@ -756,7 +790,7 @@ export default function AnalysisPage() {
     if (!g) return;
     const clamped = Math.max(-1, Math.min(plyIndex, g.moves.length - 1));
     setExploreTree(null);
-    setExploreNav({ branchId: null, plyIndex: -1 });
+    setExploreNav({ lineId: null, plyIndex: -1 });
     setCurrentPlyIndex(clamped);
 
     if (clamped >= 0) {
@@ -821,31 +855,23 @@ export default function AnalysisPage() {
   const isExploring = exploreTree !== null && exploreNav.plyIndex >= 0;
 
   function getNavFen(tree: ExploreTree | null, nav: ExploreNav, fallback: string): string {
-    if (!tree || nav.plyIndex < 0) return fallback;
-    if (nav.branchId === null) return tree.mainLine[nav.plyIndex]?.fen ?? fallback;
-    const branch = tree.branches.find(b => b.id === nav.branchId);
-    return branch?.moves[nav.plyIndex]?.fen ?? fallback;
+    if (!tree || !nav.lineId || nav.plyIndex < 0) return fallback;
+    const line = tree.lines.find(l => l.id === nav.lineId);
+    return line?.moves[nav.plyIndex]?.fen ?? fallback;
   }
   const freeExploreFen = isExploring ? getNavFen(exploreTree, exploreNav, currentFen) : null;
 
-  function getLastExploreMove(tree: ExploreTree | null, nav: ExploreNav, fallback: string): { san: string; prevFen: string } | null {
-    if (!tree || nav.plyIndex < 0) return null;
-    if (nav.branchId === null) {
-      const move = tree.mainLine[nav.plyIndex];
-      if (!move) return null;
-      const prevFen = nav.plyIndex === 0 ? tree.rootFen : (tree.mainLine[nav.plyIndex - 1]?.fen ?? tree.rootFen);
-      return { san: move.san, prevFen };
-    }
-    const branch = tree.branches.find(b => b.id === nav.branchId);
-    if (!branch) return null;
-    const move = branch.moves[nav.plyIndex];
+  function getLastExploreMove(tree: ExploreTree | null, nav: ExploreNav): { san: string; prevFen: string } | null {
+    if (!tree || !nav.lineId || nav.plyIndex < 0) return null;
+    const line = tree.lines.find(l => l.id === nav.lineId);
+    if (!line) return null;
+    const move = line.moves[nav.plyIndex];
     if (!move) return null;
-    const prevFen = nav.plyIndex === 0
-      ? (branch.divergeAtPly === 0 ? tree.rootFen : tree.mainLine[branch.divergeAtPly - 1]?.fen ?? tree.rootFen)
-      : branch.moves[nav.plyIndex - 1]?.fen ?? tree.rootFen;
+    const startFen = getLineStartFen(tree, line);
+    const prevFen = nav.plyIndex === 0 ? startFen : (line.moves[nav.plyIndex - 1]?.fen ?? startFen);
     return { san: move.san, prevFen };
   }
-  const lastExploreMove = getLastExploreMove(exploreTree, exploreNav, currentFen);
+  const lastExploreMove = getLastExploreMove(exploreTree, exploreNav);
 
   const currentEvalCp = useMemo(
     () => (currentMove?.hasEngineAnalysis ? currentMove.afterPlayedEvalCp : undefined),
@@ -886,7 +912,7 @@ export default function AnalysisPage() {
       setBaseFen(null);
       setCurrentPlyIndex(-1);
       setExploreTree(null);
-      setExploreNav({ branchId: null, plyIndex: -1 });
+      setExploreNav({ lineId: null, plyIndex: -1 });
       setLastMoveSquares(null);
       setParseError(null);
       setEngineError(null);
@@ -970,15 +996,15 @@ export default function AnalysisPage() {
   // Navigation helpers — Explore tab navigates the variation tree; other tabs navigate the analyzed game.
   const navCanGoBack = isExploring || canGoBack;
   const navCanGoForward = (() => {
-    if (!exploreTree || exploreNav.plyIndex < 0) return canGoForward;
-    if (exploreNav.branchId === null) return exploreNav.plyIndex < exploreTree.mainLine.length - 1;
-    const branch = exploreTree.branches.find(b => b.id === exploreNav.branchId);
-    return branch ? exploreNav.plyIndex < branch.moves.length - 1 : false;
+    if (!exploreTree || !exploreNav.lineId || exploreNav.plyIndex < 0) return canGoForward;
+    const line = exploreTree.lines.find(l => l.id === exploreNav.lineId);
+    return line ? exploreNav.plyIndex < line.moves.length - 1 : false;
   })();
 
   function navGoFirst() {
-    if (exploreTree && exploreNav.plyIndex >= 0) {
-      setExploreNav({ branchId: null, plyIndex: -1 });
+    if (exploreTree && exploreNav.lineId) {
+      const mainLine = exploreTree.lines[0]!;
+      setExploreNav({ lineId: mainLine.id, plyIndex: -1 });
       setLastMoveSquares(null);
     } else {
       goTo(-1);
@@ -986,70 +1012,53 @@ export default function AnalysisPage() {
   }
 
   function navGoBack() {
-    if (!exploreTree || exploreNav.plyIndex < 0) { goTo(currentPlyIndex - 1); return; }
-    if (exploreNav.branchId === null) {
-      if (exploreNav.plyIndex === 0) {
-        setExploreNav({ branchId: null, plyIndex: -1 });
+    if (!exploreTree || !exploreNav.lineId || exploreNav.plyIndex < 0) {
+      goTo(currentPlyIndex - 1);
+      return;
+    }
+    const currentLine = exploreTree.lines.find(l => l.id === exploreNav.lineId)!;
+    if (exploreNav.plyIndex > 0) {
+      const newPly = exploreNav.plyIndex - 1;
+      setExploreNav({ lineId: currentLine.id, plyIndex: newPly });
+      const entry = currentLine.moves[newPly];
+      if (entry) setLastMoveSquares({ from: entry.from, to: entry.to });
+    } else {
+      // plyIndex === 0 — go to parent or root
+      if (currentLine.parentLineId === null) {
+        setExploreNav({ lineId: currentLine.id, plyIndex: -1 });
         setLastMoveSquares(null);
       } else {
-        const newPly = exploreNav.plyIndex - 1;
-        const entry = exploreTree.mainLine[newPly];
-        setExploreNav({ branchId: null, plyIndex: newPly });
+        const parentPly = currentLine.divergeAtPly - 1;
+        setExploreNav({ lineId: currentLine.parentLineId, plyIndex: parentPly });
+        const parentLine = exploreTree.lines.find(l => l.id === currentLine.parentLineId);
+        const entry = parentPly >= 0 ? parentLine?.moves[parentPly] : null;
         if (entry) setLastMoveSquares({ from: entry.from, to: entry.to });
-      }
-    } else {
-      const branch = exploreTree.branches.find(b => b.id === exploreNav.branchId)!;
-      if (exploreNav.plyIndex === 0) {
-        const mainPly = branch.divergeAtPly - 1;
-        setExploreNav({ branchId: null, plyIndex: mainPly });
-        const mainEntry = mainPly >= 0 ? exploreTree.mainLine[mainPly] : null;
-        if (mainEntry) setLastMoveSquares({ from: mainEntry.from, to: mainEntry.to });
         else setLastMoveSquares(null);
-      } else {
-        const newPly = exploreNav.plyIndex - 1;
-        const entry = branch.moves[newPly];
-        setExploreNav({ ...exploreNav, plyIndex: newPly });
-        if (entry) setLastMoveSquares({ from: entry.from, to: entry.to });
       }
     }
   }
 
   function navGoForward() {
-    if (!exploreTree || exploreNav.plyIndex < 0) { goTo(currentPlyIndex + 1); return; }
-    if (exploreNav.branchId === null) {
-      const nextPly = exploreNav.plyIndex + 1;
-      const entry = exploreTree.mainLine[nextPly];
-      if (!entry) return;
-      setExploreNav({ branchId: null, plyIndex: nextPly });
-      setLastMoveSquares({ from: entry.from, to: entry.to });
-    } else {
-      const branch = exploreTree.branches.find(b => b.id === exploreNav.branchId);
-      if (!branch) return;
-      const nextPly = exploreNav.plyIndex + 1;
-      const entry = branch.moves[nextPly];
-      if (!entry) return;
-      setExploreNav({ ...exploreNav, plyIndex: nextPly });
-      setLastMoveSquares({ from: entry.from, to: entry.to });
+    if (!exploreTree || !exploreNav.lineId || exploreNav.plyIndex < 0) {
+      goTo(currentPlyIndex + 1);
+      return;
     }
+    const currentLine = exploreTree.lines.find(l => l.id === exploreNav.lineId)!;
+    const nextPly = exploreNav.plyIndex + 1;
+    const entry = currentLine.moves[nextPly];
+    if (!entry) return;
+    setExploreNav({ lineId: currentLine.id, plyIndex: nextPly });
+    setLastMoveSquares({ from: entry.from, to: entry.to });
   }
 
   function navGoLast() {
-    if (exploreTree) {
-      if (exploreNav.branchId === null) {
-        const lastPly = exploreTree.mainLine.length - 1;
-        if (lastPly >= 0) {
-          setExploreNav({ branchId: null, plyIndex: lastPly });
-          const entry = exploreTree.mainLine[lastPly];
-          if (entry) setLastMoveSquares({ from: entry.from, to: entry.to });
-        }
-      } else {
-        const branch = exploreTree.branches.find(b => b.id === exploreNav.branchId);
-        if (branch) {
-          const lastPly = branch.moves.length - 1;
-          setExploreNav({ ...exploreNav, plyIndex: lastPly });
-          const entry = branch.moves[lastPly];
-          if (entry) setLastMoveSquares({ from: entry.from, to: entry.to });
-        }
+    if (exploreTree && exploreNav.lineId) {
+      const currentLine = exploreTree.lines.find(l => l.id === exploreNav.lineId);
+      if (currentLine && currentLine.moves.length > 0) {
+        const lastPly = currentLine.moves.length - 1;
+        setExploreNav({ lineId: currentLine.id, plyIndex: lastPly });
+        const entry = currentLine.moves[lastPly];
+        if (entry) setLastMoveSquares({ from: entry.from, to: entry.to });
       }
     } else {
       goTo(totalMoves - 1);
@@ -1066,7 +1075,7 @@ export default function AnalysisPage() {
     }
     // PGN mode — reconstruct a PGN from current state (moves only, no auto-generated headers)
     try {
-      const mainLine = exploreTree?.mainLine;
+      const mainLine = exploreTree?.lines[0]?.moves;
       if (mainLine && mainLine.length > 0) {
         const rootFen = exploreTree!.rootFen;
         const chess = new Chess(rootFen);
@@ -1114,7 +1123,7 @@ export default function AnalysisPage() {
         setAnalyzedGame(null);
         setCurrentPlyIndex(-1);
         setExploreTree(null);
-        setExploreNav({ branchId: null, plyIndex: -1 });
+        setExploreNav({ lineId: null, plyIndex: -1 });
         setLastMoveSquares(null);
         setCoachByPly(new Map());
         setPositionError(null);
@@ -1146,7 +1155,7 @@ export default function AnalysisPage() {
           setLastMoveSquares(null);
         }
         setExploreTree(null);
-        setExploreNav({ branchId: null, plyIndex: -1 });
+        setExploreNav({ lineId: null, plyIndex: -1 });
         setCoachByPly(new Map());
         setPositionError(null);
         setPositionDirty(false);
@@ -1287,41 +1296,81 @@ export default function AnalysisPage() {
       let newTree: ExploreTree;
       let newNav: ExploreNav;
 
-      if (!exploreTree) {
-        newTree = { rootFen: currentFen, mainLine: [entry], branches: [] };
-        newNav = { branchId: null, plyIndex: 0 };
-      } else if (exploreNav.branchId === null) {
+      if (!exploreTree || !exploreNav.lineId) {
+        const mainId = crypto.randomUUID();
+        newTree = {
+          rootFen: currentFen,
+          lines: [{ id: mainId, parentLineId: null, divergeAtPly: 0, depth: 0, moves: [entry] }],
+        };
+        newNav = { lineId: mainId, plyIndex: 0 };
+      } else {
+        const currentLine = exploreTree.lines.find(l => l.id === exploreNav.lineId)!;
         const nextPly = exploreNav.plyIndex + 1;
-        const nextMain = exploreTree.mainLine[nextPly];
-        if (!nextMain) {
-          newTree = { ...exploreTree, mainLine: [...exploreTree.mainLine.slice(0, nextPly), entry] };
-          newNav = { branchId: null, plyIndex: nextPly };
-        } else if (nextMain.san === move.san) {
+        const nextMove = currentLine.moves[nextPly];
+
+        if (!nextMove) {
+          // Append — also clear any child branches that diverged at >= nextPly
+          const cleanedLines = truncateChildBranches(exploreTree.lines, currentLine.id, nextPly);
+          newTree = {
+            ...exploreTree,
+            lines: cleanedLines.map(l =>
+              l.id === currentLine.id
+                ? { ...l, moves: [...l.moves.slice(0, nextPly), entry] }
+                : l
+            ),
+          };
+          newNav = { lineId: currentLine.id, plyIndex: nextPly };
+        } else if (nextMove.san === move.san) {
+          // Same move — just advance nav
           newTree = exploreTree;
-          newNav = { branchId: null, plyIndex: nextPly };
+          newNav = { lineId: currentLine.id, plyIndex: nextPly };
         } else {
-          const existing = exploreTree.branches.find(b => b.divergeAtPly === nextPly && b.moves[0]?.san === move.san);
+          // Divergence
+          const existing = exploreTree.lines.find(l =>
+            l.parentLineId === currentLine.id &&
+            l.divergeAtPly === nextPly &&
+            l.moves[0]?.san === move.san
+          );
+
           if (existing) {
             newTree = exploreTree;
-            newNav = { branchId: existing.id, plyIndex: 0 };
+            newNav = { lineId: existing.id, plyIndex: 0 };
+          } else if (currentLine.depth >= 3) {
+            // Max depth — overwrite from nextPly instead of creating sub-branch
+            const cleanedLines = truncateChildBranches(exploreTree.lines, currentLine.id, nextPly);
+            newTree = {
+              ...exploreTree,
+              lines: cleanedLines.map(l =>
+                l.id === currentLine.id
+                  ? { ...l, moves: [...l.moves.slice(0, nextPly), entry] }
+                  : l
+              ),
+            };
+            newNav = { lineId: currentLine.id, plyIndex: nextPly };
           } else {
-            const newBranch: VBranch = { id: crypto.randomUUID(), divergeAtPly: nextPly, moves: [entry] };
-            newTree = { ...exploreTree, branches: [...exploreTree.branches, newBranch] };
-            newNav = { branchId: newBranch.id, plyIndex: 0 };
+            const MAX_PER_POINT = 4;
+            const siblingsHere = exploreTree.lines.filter(l =>
+              l.parentLineId === currentLine.id && l.divergeAtPly === nextPly
+            );
+            const newBranchId = crypto.randomUUID();
+            const newBranch: VariationLine = {
+              id: newBranchId,
+              parentLineId: currentLine.id,
+              divergeAtPly: nextPly,
+              depth: currentLine.depth + 1,
+              moves: [entry],
+            };
+            if (siblingsHere.length >= MAX_PER_POINT) {
+              // Replace oldest sibling
+              const oldest = siblingsHere[0]!;
+              const cleanedLines = removeLineAndChildren(exploreTree.lines, oldest.id);
+              newTree = { ...exploreTree, lines: [...cleanedLines, newBranch] };
+            } else {
+              newTree = { ...exploreTree, lines: [...exploreTree.lines, newBranch] };
+            }
+            newNav = { lineId: newBranchId, plyIndex: 0 };
           }
         }
-      } else {
-        const branch = exploreTree.branches.find(b => b.id === exploreNav.branchId)!;
-        const nextPly = exploreNav.plyIndex + 1;
-        newTree = {
-          ...exploreTree,
-          branches: exploreTree.branches.map(b =>
-            b.id === exploreNav.branchId
-              ? { ...b, moves: [...b.moves.slice(0, nextPly), entry] }
-              : b
-          ),
-        };
-        newNav = { ...exploreNav, plyIndex: nextPly };
       }
 
       setExploreTree(newTree);
@@ -1345,15 +1394,22 @@ export default function AnalysisPage() {
         newEntries.push({ id: crypto.randomUUID(), san: move.san, fen: chess.fen(), from: move.from, to: move.to });
       }
       if (newEntries.length === 0) return;
-      // Append PV moves to main line (replacing from current position)
-      const basePly = exploreNav.branchId === null ? exploreNav.plyIndex : -1;
-      const baseMainLine = exploreTree?.mainLine.slice(0, basePly + 1) ?? [];
-      setExploreTree(tree => ({
-        rootFen: tree?.rootFen ?? currentFen,
-        mainLine: [...baseMainLine, ...newEntries],
-        branches: tree?.branches ?? [],
-      }));
-      setExploreNav({ branchId: null, plyIndex: basePly + newEntries.length });
+
+      if (!exploreTree) {
+        const mainId = crypto.randomUUID();
+        setExploreTree({ rootFen: currentFen, lines: [{ id: mainId, parentLineId: null, divergeAtPly: 0, depth: 0, moves: newEntries }] });
+        setExploreNav({ lineId: mainId, plyIndex: newEntries.length - 1 });
+      } else {
+        const mainLine = exploreTree.lines[0]!;
+        const basePly = exploreNav.lineId === mainLine.id ? exploreNav.plyIndex : -1;
+        const newMainMoves = [...mainLine.moves.slice(0, basePly + 1), ...newEntries];
+        setExploreTree({
+          ...exploreTree,
+          lines: exploreTree.lines.map(l => l.id === mainLine.id ? { ...l, moves: newMainMoves } : l),
+        });
+        setExploreNav({ lineId: mainLine.id, plyIndex: basePly + newEntries.length });
+      }
+
       const last = newEntries[newEntries.length - 1]!;
       setLastMoveSquares({ from: last.from, to: last.to });
       setSelectedSquare(null);
@@ -1411,32 +1467,109 @@ export default function AnalysisPage() {
     return tryMove(from, to, promotion);
   };
 
-  function renderExploreTree(
+  function navigateTo(lineId: string, plyIndex: number) {
+    if (!exploreTree) return;
+    setExploreNav({ lineId, plyIndex });
+    const line = exploreTree.lines.find(l => l.id === lineId);
+    const entry = line?.moves[plyIndex];
+    if (entry) setLastMoveSquares({ from: entry.from, to: entry.to });
+    else setLastMoveSquares(null);
+  }
+
+  function renderBranchContent(
     tree: ExploreTree,
     nav: ExploreNav,
-    onNavigateMain: (ply: number) => void,
-    onNavigateBranch: (branchId: string, ply: number) => void,
-  ) {
-    const { rootFen, mainLine, branches } = tree;
-    const parts = rootFen.split(' ');
-    const startSide = parts[1] ?? 'w';
-    const startMoveNum = parseInt(parts[5] ?? '1', 10);
+    line: VariationLine,
+    startFen: string,
+  ): React.ReactNode[] {
+    const { side: startSide, moveNum: startMoveNum } = getFenMeta(startFen);
 
-    function getMoveNum(ply: number): number {
-      return startMoveNum + Math.floor((ply + (startSide === 'b' ? 1 : 0)) / 2);
+    function getSide(plyInLine: number): 'w' | 'b' {
+      return startSide === 'w'
+        ? (plyInLine % 2 === 0 ? 'w' : 'b')
+        : (plyInLine % 2 === 0 ? 'b' : 'w');
     }
-    function getSide(ply: number): 'w' | 'b' {
-      return (startSide === 'w') ? (ply % 2 === 0 ? 'w' : 'b') : (ply % 2 === 0 ? 'b' : 'w');
+    function getMoveNum(plyInLine: number): number {
+      return startMoveNum + Math.floor((plyInLine + (startSide === 'b' ? 1 : 0)) / 2);
     }
 
-    const rows: React.ReactNode[] = [];
+    const items: React.ReactNode[] = [];
+    let pendingTokens: React.ReactNode[] = [];
 
-    type MainPair = { moveNum: number; white: { san: string; ply: number } | null; black: { san: string; ply: number } | null };
-    const pairs: MainPair[] = [];
-    for (let i = 0; i < mainLine.length; i++) {
+    function flushTokenRow(key: string) {
+      if (pendingTokens.length > 0) {
+        items.push(
+          <div key={key} className="flex flex-wrap items-center gap-x-0.5 py-0.5">
+            {[...pendingTokens]}
+          </div>
+        );
+        pendingTokens = [];
+      }
+    }
+
+    for (let i = 0; i < line.moves.length; i++) {
       const side = getSide(i);
       const mn = getMoveNum(i);
-      const cell = { san: mainLine[i]!.san, ply: i };
+      if (i === 0 || side === 'w') {
+        pendingTokens.push(
+          <span key={`mn-${i}`} className="font-mono text-sm text-gray-500">
+            {i === 0 && side === 'b' ? `${mn}…` : `${mn}.`}
+          </span>
+        );
+      }
+      pendingTokens.push(
+        <button
+          key={`mv-${i}`}
+          type="button"
+          onClick={() => navigateTo(line.id, i)}
+          className={`rounded px-1.5 py-0.5 font-mono text-sm transition-colors ${
+            nav.lineId === line.id && nav.plyIndex === i
+              ? 'bg-amber-400/15 text-amber-300'
+              : 'text-gray-400 hover:bg-white/5 hover:text-gray-200'
+          }`}
+        >
+          {line.moves[i]!.san}
+        </button>
+      );
+      // Sub-branches after this move
+      const childBranches = tree.lines.filter(l => l.parentLineId === line.id && l.divergeAtPly === i + 1);
+      if (childBranches.length > 0) {
+        flushTokenRow(`tok-${i}`);
+        for (const child of childBranches) {
+          const childStartFen = line.moves[i]?.fen ?? startFen;
+          items.push(
+            <div key={`child-${child.id}`} className="ml-4 border-l-2 border-white/10 pl-2">
+              {renderBranchContent(tree, nav, child, childStartFen)}
+            </div>
+          );
+        }
+      }
+    }
+    flushTokenRow('tok-end');
+    return items;
+  }
+
+  function renderMainLine(tree: ExploreTree, nav: ExploreNav): React.ReactNode[] {
+    const line = tree.lines[0];
+    if (!line) return [];
+    const startFen = tree.rootFen;
+    const { side: startSide, moveNum: startMoveNum } = getFenMeta(startFen);
+
+    function getSide(plyInLine: number): 'w' | 'b' {
+      return startSide === 'w'
+        ? (plyInLine % 2 === 0 ? 'w' : 'b')
+        : (plyInLine % 2 === 0 ? 'b' : 'w');
+    }
+    function getMoveNum(plyInLine: number): number {
+      return startMoveNum + Math.floor((plyInLine + (startSide === 'b' ? 1 : 0)) / 2);
+    }
+
+    type Pair = { moveNum: number; white: { san: string; ply: number } | null; black: { san: string; ply: number } | null };
+    const pairs: Pair[] = [];
+    for (let i = 0; i < line.moves.length; i++) {
+      const side = getSide(i);
+      const mn = getMoveNum(i);
+      const cell = { san: line.moves[i]!.san, ply: i };
       if (side === 'w') {
         pairs.push({ moveNum: mn, white: cell, black: null });
       } else {
@@ -1449,73 +1582,52 @@ export default function AnalysisPage() {
       }
     }
 
+    const rows: React.ReactNode[] = [];
     for (const pair of pairs) {
       rows.push(
-        <div key={`ml-${pair.moveNum}-${pair.white?.ply ?? 'x'}`} className="flex items-center gap-1 py-0.5">
+        <div key={`ml-${pair.moveNum}-${pair.white?.ply ?? 'bx'}`} className="flex items-center gap-1 py-0.5">
           <span className="w-7 shrink-0 text-right font-mono text-base text-gray-600">{pair.moveNum}.</span>
           <div className="flex flex-1 gap-1">
             {pair.white ? (
-              <button type="button" onClick={() => onNavigateMain(pair.white!.ply)}
+              <button type="button" onClick={() => navigateTo(line.id, pair.white!.ply)}
                 className={`flex min-w-0 flex-1 items-center rounded px-2 py-1.5 font-mono text-base transition-colors ${
-                  nav.branchId === null && nav.plyIndex === pair.white.ply
+                  nav.lineId === line.id && nav.plyIndex === pair.white.ply
                     ? 'bg-amber-400/15 text-amber-300' : 'text-gray-300 hover:bg-white/5 hover:text-white'
                 }`}>{pair.white.san}</button>
             ) : <span className="flex-1" />}
             {pair.black ? (
-              <button type="button" onClick={() => onNavigateMain(pair.black!.ply)}
+              <button type="button" onClick={() => navigateTo(line.id, pair.black!.ply)}
                 className={`flex min-w-0 flex-1 items-center rounded px-2 py-1.5 font-mono text-base transition-colors ${
-                  nav.branchId === null && nav.plyIndex === pair.black.ply
+                  nav.lineId === line.id && nav.plyIndex === pair.black.ply
                     ? 'bg-amber-400/15 text-amber-300' : 'text-gray-300 hover:bg-white/5 hover:text-white'
                 }`}>{pair.black.san}</button>
             ) : <span className="flex-1" />}
           </div>
         </div>
       );
-
-      const pliesInPair = [pair.white?.ply, pair.black?.ply].filter((p): p is number => p !== undefined);
-      for (const divergePly of pliesInPair) {
-        const branchesHere = branches.filter(b => b.divergeAtPly === divergePly);
-        for (const branch of branchesHere) {
-          const branchParts: React.ReactNode[] = [];
-          for (let i = 0; i < branch.moves.length; i++) {
-            const absPlyContinuation = divergePly + i;
-            const bSide = getSide(absPlyContinuation);
-            const bMoveNum = getMoveNum(absPlyContinuation);
-            if (i === 0) {
-              branchParts.push(
-                <span key={`bn-${i}`} className="text-gray-600 font-mono text-sm">
-                  {bSide === 'b' ? `${bMoveNum}…` : `${bMoveNum}.`}
-                </span>
-              );
-            } else if (bSide === 'w') {
-              branchParts.push(
-                <span key={`bn-${i}`} className="text-gray-600 font-mono text-sm">{bMoveNum}.</span>
-              );
-            }
-            branchParts.push(
-              <button
-                key={`bm-${i}`}
-                type="button"
-                onClick={() => onNavigateBranch(branch.id, i)}
-                className={`rounded px-1.5 py-0.5 font-mono text-sm transition-colors ${
-                  nav.branchId === branch.id && nav.plyIndex === i
-                    ? 'bg-amber-400/15 text-amber-300'
-                    : 'text-gray-400 hover:bg-white/5 hover:text-gray-200'
-                }`}
-              >
-                {branch.moves[i]!.san}
-              </button>
-            );
-          }
+      // Branches diverging at white.ply (= alternative to white's move, shown after white)
+      if (pair.white) {
+        for (const branch of tree.lines.filter(l => l.parentLineId === line.id && l.divergeAtPly === pair.white!.ply)) {
+          const bStartFen = pair.white.ply === 0 ? startFen : (line.moves[pair.white.ply - 1]?.fen ?? startFen);
           rows.push(
-            <div key={`branch-${branch.id}`} className="ml-7 mt-0.5 mb-0.5 flex flex-wrap items-center gap-x-0.5 gap-y-0.5 border-l-2 border-white/10 pl-2">
-              {branchParts}
+            <div key={`br-${branch.id}`} className="mb-0.5 ml-7 border-l-2 border-white/10 pl-2">
+              {renderBranchContent(tree, nav, branch, bStartFen)}
+            </div>
+          );
+        }
+      }
+      // Branches diverging at black.ply (= alternative to black's move, shown after black)
+      if (pair.black) {
+        for (const branch of tree.lines.filter(l => l.parentLineId === line.id && l.divergeAtPly === pair.black!.ply)) {
+          const bStartFen = pair.black.ply === 0 ? startFen : (line.moves[pair.black.ply - 1]?.fen ?? startFen);
+          rows.push(
+            <div key={`br-${branch.id}`} className="mb-0.5 ml-7 border-l-2 border-white/10 pl-2">
+              {renderBranchContent(tree, nav, branch, bStartFen)}
             </div>
           );
         }
       }
     }
-
     return rows;
   }
 
@@ -1765,23 +1877,7 @@ export default function AnalysisPage() {
                   )}
                   {exploreTree ? (
                     <div className="px-2 py-2">
-                      {renderExploreTree(
-                        exploreTree,
-                        exploreNav,
-                        (ply) => {
-                          setExploreNav({ branchId: null, plyIndex: ply });
-                          const entry = exploreTree.mainLine[ply];
-                          if (entry) setLastMoveSquares({ from: entry.from, to: entry.to });
-                          else setLastMoveSquares(null);
-                        },
-                        (branchId, ply) => {
-                          setExploreNav({ branchId, plyIndex: ply });
-                          const branch = exploreTree.branches.find(b => b.id === branchId);
-                          const entry = branch?.moves[ply];
-                          if (entry) setLastMoveSquares({ from: entry.from, to: entry.to });
-                          else setLastMoveSquares(null);
-                        },
-                      )}
+                      {renderMainLine(exploreTree, exploreNav)}
                     </div>
                   ) : analyzedGame && analyzedGame.moves.length > 0 ? (
                     <AnalysisMoveList
