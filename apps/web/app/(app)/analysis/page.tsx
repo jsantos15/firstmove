@@ -2006,8 +2006,8 @@ export default function AnalysisPage() {
       {/* Game Details modal */}
       {showGameDetailsModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-          <div className="w-full max-w-sm rounded-2xl border border-white/10 bg-[#1a1a2e] shadow-2xl">
-            <div className="flex items-center justify-between border-b border-white/8 px-5 py-4">
+          <div className="w-full max-w-md rounded-2xl border border-white/10 bg-[#1a1a2e] shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+            <div className="shrink-0 flex items-center justify-between border-b border-white/8 px-5 py-4">
               <h2 className="text-base font-semibold text-white">Game Details</h2>
               <button type="button" onClick={() => setShowGameDetailsModal(false)} className="text-gray-500 hover:text-white transition-colors">
                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="h-5 w-5">
@@ -2015,7 +2015,7 @@ export default function AnalysisPage() {
                 </svg>
               </button>
             </div>
-            <div className="space-y-2.5 px-5 py-4">
+            <div className="overflow-y-auto space-y-2.5 px-5 py-4">
               {/* White / Black rows */}
               {(['white', 'black'] as const).map(color => (
                 <div key={color} className="flex gap-2">
@@ -2070,7 +2070,7 @@ export default function AnalysisPage() {
                 ))}
               </div>
             </div>
-            <div className="flex gap-2 border-t border-white/8 px-5 py-4">
+            <div className="shrink-0 flex gap-2 border-t border-white/8 px-5 py-4">
               <button type="button" onClick={() => setShowGameDetailsModal(false)}
                 className="flex-1 rounded-lg border border-white/10 py-2 text-sm font-medium text-gray-300 transition-colors hover:border-white/20 hover:text-white">
                 Cancel
