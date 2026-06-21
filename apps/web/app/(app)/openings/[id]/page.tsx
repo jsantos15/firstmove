@@ -182,8 +182,6 @@ function BranchRow({
 }) {
   const locked = globalIndex > 0 && !user;
   const zebraClass = rowIndex % 2 === 0 ? 'bg-white/[0.015]' : '';
-  const anchorMove = line.variationAnchorPly != null ? Math.ceil(line.variationAnchorPly / 2) : null;
-
   const activeBg = highlightVariant === 'navigate' ? 'bg-white/[0.07]' : 'bg-amber-400/10';
   const activeBar = highlightVariant === 'navigate' ? 'bg-white/25' : 'bg-amber-400';
   const activeText = highlightVariant === 'navigate' ? 'text-gray-300' : 'text-amber-300';
@@ -214,9 +212,7 @@ function BranchRow({
             isActive ? activeText : locked ? 'text-gray-700' : 'text-gray-500 group-hover:text-gray-300'
           }`}>{line.name}</span>
           <div className="flex shrink-0 items-center gap-1">
-            {anchorMove != null && !isActive && (
-              <span className="text-[10px] text-gray-700">move {anchorMove}</span>
-            )}
+
             {completions != null && completions > 0 && (
               <span className="text-[10px] text-gray-600">{completions}×</span>
             )}
