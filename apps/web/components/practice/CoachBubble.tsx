@@ -58,7 +58,7 @@ export function CoachBubble({ feedback, fallbackText, dark = false }: CoachBubbl
         </div>
         {/* White speech bubble */}
         <div
-          className="relative min-h-0 min-w-0 flex-1 flex flex-col justify-center rounded-xl bg-white px-3 py-1.5 shadow-sm my-1 ml-2"
+          className="relative min-h-0 min-w-0 flex-1 flex flex-col justify-center rounded-xl bg-white px-3 py-1.5 shadow-sm mt-1 mb-2 ml-2"
           aria-live="polite"
         >
           {/* Speech bubble pointer toward coach */}
