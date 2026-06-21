@@ -126,18 +126,10 @@ export function MoveList({ variation, currentMoveIndex, selectedMoveIndex, onNav
 
   const activeIndex = selectedMoveIndex ?? currentMoveIndex;
 
-  // Index of the first pair where white itself is already a continuation move
+  // Index of the first pair that contains at least one continuation move
   const firstContinuationPairIdx = anchorPly != null
-    ? pairs.findIndex(p => p.whiteIndex >= anchorPly)
+    ? pairs.findIndex(p => p.whiteIndex >= anchorPly || (p.blackIndex != null && p.blackIndex >= anchorPly))
     : -1;
-
-  const continuationDivider = (
-    <div className="col-span-3 flex items-center gap-2 px-3 py-1.5">
-      <div className="h-px flex-1 bg-white/[0.07]" />
-      <span className="text-[9px] uppercase tracking-widest text-gray-700">Continuation</span>
-      <div className="h-px flex-1 bg-white/[0.07]" />
-    </div>
-  );
 
   return (
     <div className="flex h-78 shrink-0 flex-col">
@@ -182,66 +174,21 @@ export function MoveList({ variation, currentMoveIndex, selectedMoveIndex, onNav
       <div className="min-h-0 flex-1 overflow-y-auto">
         <div className="grid grid-cols-[2.5rem_1fr_1fr] text-sm">
           {pairs.map((pair, i) => {
+            const isSelectedRow =
+              pair.whiteIndex === activeIndex || pair.blackIndex === activeIndex;
             const whiteIsAnchor = anchorPly != null && pair.whiteIndex < anchorPly;
             const blackIsAnchor = anchorPly != null && pair.blackIndex != null && pair.blackIndex < anchorPly;
-
-            // Split pair: white is still anchor, but black is first continuation move.
-            // Render as two half-rows with the divider in between.
-            const isSplitPair = whiteIsAnchor && pair.black !== null && !blackIsAnchor;
-
-            if (isSplitPair) {
-              return (
-                <div key={pair.moveNumber} className="contents">
-                  {/* Anchor half: move number + white only */}
-                  <span
-                    ref={pair.whiteIndex === activeIndex ? selectedRowRef : undefined}
-                    className="flex items-center justify-center text-[11px] text-gray-600 select-none font-mono"
-                  >
-                    {pair.moveNumber}
-                  </span>
-                  <MoveCell
-                    san={pair.white}
-                    index={pair.whiteIndex}
-                    currentMoveIndex={currentMoveIndex}
-                    selectedMoveIndex={selectedMoveIndex}
-                    onNavigate={onNavigate}
-                    mode={mode}
-                    isAnchor
-                  />
-                  <span />
-
-                  {/* Divider between anchor white and continuation black */}
-                  {continuationDivider}
-
-                  {/* Continuation half: move number + empty white + black */}
-                  <span
-                    ref={pair.blackIndex === activeIndex ? selectedRowRef : undefined}
-                    className="flex items-center justify-center text-[11px] text-gray-600 select-none font-mono"
-                  >
-                    {pair.moveNumber}…
-                  </span>
-                  <span />
-                  {pair.blackIndex !== null && (
-                    <MoveCell
-                      san={pair.black!}
-                      index={pair.blackIndex}
-                      currentMoveIndex={currentMoveIndex}
-                      selectedMoveIndex={selectedMoveIndex}
-                      onNavigate={onNavigate}
-                      mode={mode}
-                      isAnchor={false}
-                    />
-                  )}
-                </div>
-              );
-            }
-
-            const isSelectedRow = pair.whiteIndex === activeIndex || pair.blackIndex === activeIndex;
             const showDivider = firstContinuationPairIdx !== -1 && i === firstContinuationPairIdx;
 
             return (
               <div key={pair.moveNumber} className="contents">
-                {showDivider && continuationDivider}
+                {showDivider && (
+                  <div className="col-span-3 flex items-center gap-2 px-3 py-1.5">
+                    <div className="h-px flex-1 bg-white/[0.07]" />
+                    <span className="text-[9px] uppercase tracking-widest text-gray-700">Continuation</span>
+                    <div className="h-px flex-1 bg-white/[0.07]" />
+                  </div>
+                )}
                 <span ref={isSelectedRow ? selectedRowRef : undefined} className="flex items-center justify-center text-[11px] text-gray-600 select-none font-mono">
                   {pair.moveNumber}
                 </span>
