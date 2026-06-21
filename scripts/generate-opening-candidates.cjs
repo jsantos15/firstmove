@@ -374,20 +374,17 @@ function inferOpeningColor(openingName) {
   return "white";
 }
 
-function courseFamilyForEntry(entry) {
-  const family = String(entry.family ?? "").trim();
-  if (
-    family === "Queen's Gambit Accepted" ||
-    family === "Queen's Gambit Declined"
-  ) {
-    return "Queen's Gambit";
+function courseFamilyForEntry(entry, courseAnchor = null) {
+  if (courseAnchor) {
+    return courseAnchor;
   }
 
+  const family = String(entry.family ?? "").trim();
   return family;
 }
 
-function splitVariationSegments(entry) {
-  const courseFamily = courseFamilyForEntry(entry);
+function splitVariationSegments(entry, courseAnchor = null) {
+  const courseFamily = courseFamilyForEntry(entry, courseAnchor);
   const family = String(entry.family ?? "").trim();
   const segments = String(entry.variation ?? "")
     .split(/[:,]/u)
@@ -529,8 +526,8 @@ function deriveOpeningDifficulty(lines) {
   };
 }
 
-function buildOpeningIds(entry) {
-  const courseFamily = courseFamilyForEntry(entry);
+function buildOpeningIds(entry, courseAnchor = null) {
+  const courseFamily = courseFamilyForEntry(entry, courseAnchor);
   return {
     openingId: slugify(courseFamily),
     variationId: slugify(entry.name),
@@ -2322,7 +2319,7 @@ async function extendMainVariationLine(entry, args, caches) {
   const generatedSans = [...entry.sans];
   const variationAnchorFen = chess.fen();
   const continuationSteps = [];
-  const openingColor = inferOpeningColor(courseFamilyForEntry(entry));
+  const openingColor = inferOpeningColor(courseFamilyForEntry(entry, args.startsWith));
   const category = inferPrimaryCategory(entry);
   const evalHistory = [];
   let evalCpByPly = [0];
@@ -2625,11 +2622,11 @@ async function extendMainVariationLine(entry, args, caches) {
   };
 }
 
-function buildCandidateRecord(entry, generated) {
-  const ids = buildOpeningIds(entry);
-  const courseFamily = courseFamilyForEntry(entry);
+function buildCandidateRecord(entry, generated, courseAnchor = null) {
+  const ids = buildOpeningIds(entry, courseAnchor);
+  const courseFamily = courseFamilyForEntry(entry, courseAnchor);
   const mainLine = inferMainLineStatus(entry);
-  const variationPath = splitVariationSegments(entry);
+  const variationPath = splitVariationSegments(entry, courseAnchor);
   const sourceMainLine = isSourceMainLineEntry(entry);
   const difficulty = buildLineDifficulty({
     category: generated.primaryCategory,
@@ -3019,7 +3016,7 @@ async function main() {
         }
       }
 
-      record = buildCandidateRecord(entry, generated);
+      record = buildCandidateRecord(entry, generated, args.startsWith);
       results.push(record);
       resumeState.processed.add(entry.name);
       processedCount += 1;
