@@ -1343,7 +1343,7 @@ export default function AnalysisPage() {
 
           <SidePanel
             bottomBar={
-              <div className="flex items-stretch gap-2 px-3 py-2.5">
+              <div className="flex items-stretch gap-2 px-3 py-2.5 select-none">
                 <NavBtn onClick={navGoFirst} disabled={!navCanGoBack} title="First position"
                   className="flex h-14 flex-1 items-center justify-center rounded-xl border border-white/8 bg-white/4 text-gray-500 transition-all hover:border-amber-400/40 hover:bg-amber-400/8 hover:text-amber-300 disabled:pointer-events-none disabled:opacity-30">
                   <svg viewBox="0 0 16 16" fill="currentColor" className="h-5 w-5"><path d="M3.5 3a.5.5 0 0 1 .5.5v3.793l6.146-4.439A.5.5 0 0 1 11 3.5v9a.5.5 0 0 1-.854.354L4 8.707V12.5a.5.5 0 0 1-1 0v-9a.5.5 0 0 1 .5-.5z" /></svg>
