@@ -1395,19 +1395,30 @@ export default function AnalysisPage() {
       }
       if (newEntries.length === 0) return;
 
-      if (!exploreTree) {
+      if (!exploreTree || !exploreNav.lineId) {
+        // No tree yet — start a new main line
         const mainId = crypto.randomUUID();
         setExploreTree({ rootFen: currentFen, lines: [{ id: mainId, parentLineId: null, divergeAtPly: 0, depth: 0, moves: newEntries }] });
         setExploreNav({ lineId: mainId, plyIndex: newEntries.length - 1 });
       } else {
-        const mainLine = exploreTree.lines[0]!;
-        const basePly = exploreNav.lineId === mainLine.id ? exploreNav.plyIndex : -1;
-        const newMainMoves = [...mainLine.moves.slice(0, basePly + 1), ...newEntries];
-        setExploreTree({
-          ...exploreTree,
-          lines: exploreTree.lines.map(l => l.id === mainLine.id ? { ...l, moves: newMainMoves } : l),
-        });
-        setExploreNav({ lineId: mainLine.id, plyIndex: basePly + newEntries.length });
+        // Append PV moves to the currently active line (not always the main line)
+        const currentLine = exploreTree.lines.find(l => l.id === exploreNav.lineId)!;
+        const insertAt = exploreNav.plyIndex + 1;
+
+        // If all new entries already match what's in the line, just advance the pointer
+        const allMatch = newEntries.every((e, i) => currentLine.moves[insertAt + i]?.san === e.san);
+        if (allMatch) {
+          setExploreNav({ lineId: currentLine.id, plyIndex: insertAt + newEntries.length - 1 });
+        } else {
+          // Truncate from insertAt, remove any child branches rooted there, append PV moves
+          const cleanedLines = truncateChildBranches(exploreTree.lines, currentLine.id, insertAt);
+          const newMoves = [...currentLine.moves.slice(0, insertAt), ...newEntries];
+          setExploreTree({
+            ...exploreTree,
+            lines: cleanedLines.map(l => l.id === currentLine.id ? { ...l, moves: newMoves } : l),
+          });
+          setExploreNav({ lineId: currentLine.id, plyIndex: insertAt + newEntries.length - 1 });
+        }
       }
 
       const last = newEntries[newEntries.length - 1]!;
