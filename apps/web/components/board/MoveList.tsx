@@ -137,9 +137,9 @@ export function MoveList({ variation, currentMoveIndex, selectedMoveIndex, onNav
     : -1;
 
   return (
-    <div className="flex h-78 shrink-0 flex-col">
+    <div className="h-full flex flex-col">
       {/* Header */}
-      <div className="shrink-0 flex items-center justify-between px-4 py-3 border-b border-white/8">
+      <div className="shrink-0 flex items-center justify-between px-4 py-2 border-b border-white/8">
         <h3 className="text-[11px] font-semibold uppercase tracking-widest text-gray-500">Moves</h3>
         {currentMoveIndex >= 0 && (
           <button
@@ -162,10 +162,10 @@ export function MoveList({ variation, currentMoveIndex, selectedMoveIndex, onNav
         )}
       </div>
 
-      {/* Milestone label */}
-      <div className="shrink-0 h-5 overflow-hidden px-4 pt-1">
+      {/* Milestone label — pinned above scroll area, never wraps */}
+      <div className="shrink-0 h-6 flex items-center overflow-hidden px-4">
         <span
-          className={`block text-[11px] font-medium transition-all duration-200 ${
+          className={`block truncate text-[11px] font-medium transition-all duration-200 ${
             activeMilestone
               ? 'translate-y-0 opacity-100 text-amber-400/80'
               : 'translate-y-1 opacity-0'
