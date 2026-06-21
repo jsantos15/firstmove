@@ -45,7 +45,7 @@ export function CoachBubble({ feedback, fallbackText, dark = false }: CoachBubbl
     return (
       <div className="h-full flex items-center gap-0 pl-3 pr-3">
         {/* Coach image */}
-        <div className="relative shrink-0 w-20 self-end mb-5" style={{ height: 'calc(100% - 14px)' }}>
+        <div className="relative shrink-0 w-20 self-end mb-3" style={{ height: 'calc(100% - 20px)' }}>
           <Image
             src="/coaches/jazmin.png"
             alt="Jazmin, your opening coach"
