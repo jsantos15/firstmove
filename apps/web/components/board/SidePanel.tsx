@@ -15,8 +15,8 @@ export function SidePanel({ topBar, coach, bottomBar, children }: SidePanelProps
         {topBar}
       </div>
 
-      {/* Coach — height = 1 board square */}
-      <div className="shrink-0 overflow-hidden" style={{ height: 'calc((100% - 164px) / 8)' }}>
+      {/* Coach — height = 1 board square, min 68px so bubble always has room */}
+      <div className="shrink-0 overflow-hidden" style={{ height: 'calc((100% - 164px) / 8)', minHeight: '68px' }}>
         {coach}
       </div>
 

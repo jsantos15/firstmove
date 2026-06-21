@@ -58,10 +58,10 @@ export function CoachBubble({ feedback, fallbackText, dark = false }: CoachBubbl
         </div>
         {/* White speech bubble */}
         <div
-          className="relative min-h-0 min-w-0 flex-1 flex flex-col justify-center rounded-xl bg-white px-3 py-2.5 shadow-lg shadow-black/30 my-2 ml-2"
+          className="relative min-h-0 min-w-0 flex-1 flex flex-col justify-center rounded-xl bg-white px-3 py-1.5 shadow-sm my-2 ml-2 overflow-hidden"
           aria-live="polite"
         >
-          {/* Comic-style speech bubble tail — both arcs bow downward (regular parabola) */}
+          {/* Comic-style speech bubble tail */}
           <svg
             className="absolute -left-3.5 top-1/2 -translate-y-1/2"
             width="14"
@@ -72,7 +72,7 @@ export function CoachBubble({ feedback, fallbackText, dark = false }: CoachBubbl
             <path d="M 14 4 Q 7 12 0 11 Q 7 18 14 18 Z" />
           </svg>
           {feedback ? (
-            <div className="flex min-w-0 flex-col gap-1 overflow-hidden">
+            <div className="flex min-w-0 flex-col gap-0.5 overflow-hidden">
               <div className="flex min-w-0 items-center gap-2">
                 <span className={`shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase leading-4 ${TONE_STYLES[tone].badge}`}>
                   {feedback.label}
@@ -81,12 +81,12 @@ export function CoachBubble({ feedback, fallbackText, dark = false }: CoachBubbl
                   {feedback.title}
                 </span>
               </div>
-              <p className="min-w-0 overflow-hidden text-[12px] leading-4 text-zinc-600">
+              <p className="min-w-0 overflow-hidden text-[12px] leading-4 text-zinc-600 line-clamp-2">
                 {feedback.message}
               </p>
             </div>
           ) : (
-            <p className="overflow-hidden text-xs leading-5 text-zinc-600">
+            <p className="overflow-hidden text-xs leading-4 text-zinc-600 line-clamp-3">
               {fallbackText}
             </p>
           )}
