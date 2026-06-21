@@ -140,7 +140,7 @@ export function MoveList({ variation, currentMoveIndex, selectedMoveIndex, onNav
     <div className="h-full flex flex-col">
       {/* Header */}
       <div className="shrink-0 flex items-center justify-between px-4 py-2 border-b border-white/8">
-        <h3 className="text-[11px] font-semibold uppercase tracking-widest text-gray-500">Moves</h3>
+        <h3 className="text-[11px] font-semibold uppercase tracking-widest text-gray-400">Moves</h3>
         {currentMoveIndex >= 0 && (
           <button
             type="button"
