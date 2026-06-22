@@ -1942,7 +1942,8 @@ export default function AnalysisPage() {
 
                 {/* Engine lines */}
                 {settings.engineEnabled && !settings.hideEngineInfo && (
-                  <div className="shrink-0 px-3 pb-2 flex flex-col gap-1">
+                  <div className="shrink-0 px-3 pb-2">
+                    <div className="rounded overflow-hidden divide-y divide-white/[0.06] bg-white/[0.05]">
                     {lines.slice(0, settings.engineLines).map((engineLine, li) => {
                       const freshTokens = pvToTokens(boardFen, engineLine.pvUci);
                       // Update cache only when the engine has real moves for the current position
@@ -1956,8 +1957,8 @@ export default function AnalysisPage() {
                       const evalStr = formatEval(engineLine.evalCp);
                       const positive = (engineLine.evalCp ?? 0) >= 0;
                       return (
-                        <div key={li} className="flex items-center gap-2 rounded bg-white/[0.05] px-2.5 py-1.5 min-w-0">
-                          <div className="flex-1 flex flex-wrap items-baseline gap-x-0.5 gap-y-0.5 font-mono text-[13px] min-w-0">
+                        <div key={li} className="flex items-center gap-2 px-2.5 py-1 min-w-0">
+                          <div className="flex-1 flex flex-wrap items-baseline gap-x-0.5 gap-y-0 font-mono text-xs min-w-0">
                             {tokens.length === 0 ? (
                               <span className="text-gray-600">...</span>
                             ) : tokens.map((token, ti) =>
@@ -1979,7 +1980,7 @@ export default function AnalysisPage() {
                               )
                             )}
                           </div>
-                          <span className={`shrink-0 rounded border px-1.5 py-0.5 font-mono text-[13px] font-bold tabular-nums ${
+                          <span className={`shrink-0 rounded border px-1.5 py-px font-mono text-xs font-bold tabular-nums ${
                             positive
                               ? 'border-zinc-500/60 text-white'
                               : 'border-red-400/40 text-red-400'
@@ -1989,6 +1990,7 @@ export default function AnalysisPage() {
                         </div>
                       );
                     })}
+                    </div>
                   </div>
                 )}
 
