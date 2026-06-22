@@ -10,6 +10,7 @@ import { NavBtn } from '@/components/board/NavBtn';
 import { useBoardSettings } from '@/hooks/useBoardSettings';
 import { usePositionAnalysis, ENGINE_DISPLAY_NAME } from '@/hooks/usePositionAnalysis';
 import { useCoachSettings } from '@/hooks/useCoachSettings';
+import { useOpeningName } from '@/hooks/useOpeningName';
 import { getCustomPieces } from '@/lib/piecesets';
 import { BoardSettingsPopover } from '@/components/board/BoardSettingsPopover';
 import { AnalysisWorkerPool, workerPoolSize } from '@/lib/client/analysisPool';
@@ -1388,6 +1389,7 @@ export default function AnalysisPage() {
   // boardFen is the FEN actually shown and analyzed — follows game navigation unless the
   // user has played a move freely, in which case freeExploreFen takes over.
   const boardFen = freeExploreFen ?? currentFen;
+  const openingPosition = useOpeningName(boardFen);
   const [extendKey, setExtendKey] = useState(0);
 
   // Reset extend key whenever the position changes so each new FEN starts fresh at 8s.
@@ -1988,6 +1990,18 @@ export default function AnalysisPage() {
 
                 {/* Explore moves — fills all remaining space */}
                 <div className="flex-1 min-h-0 overflow-y-auto border-t border-white/5">
+                  {/* Opening name strip */}
+                  {openingPosition && (
+                    <div className="flex items-center gap-2 border-b border-white/5 px-3 py-1.5">
+                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="shrink-0 h-3.5 w-3.5 text-gray-600">
+                        <path d="M10.75 16.82A7.462 7.462 0 0 1 15 15.5c.71 0 1.396.098 2.046.282A.75.75 0 0 0 18 15.06v-11a.75.75 0 0 0-.546-.721A9.006 9.006 0 0 0 15 3a8.963 8.963 0 0 0-4.25 1.065V16.82ZM9.25 4.065A8.963 8.963 0 0 0 5 3c-.85 0-1.673.118-2.454.339A.75.75 0 0 0 2 4.06v11a.75.75 0 0 0 .954.721A7.506 7.506 0 0 1 5 15.5c1.579 0 3.042.487 4.25 1.32V4.065Z" />
+                      </svg>
+                      <span className="flex-1 min-w-0 truncate text-[12px] text-gray-400">
+                        {openingPosition.name}
+                      </span>
+                      <span className="shrink-0 font-mono text-[10px] text-gray-600">{openingPosition.eco_code}</span>
+                    </div>
+                  )}
                   {/* Players header row — shown whenever there is a game or free-play moves */}
                   {(analyzedGame || exploreTree !== null) && (
                     <div className="flex items-center gap-2 border-b border-white/5 px-3 py-2">
