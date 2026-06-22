@@ -1653,7 +1653,7 @@ export default function AnalysisPage() {
           key={`mv-${i}`}
           type="button"
           onClick={() => navigateTo(line.id, branchPly)}
-          onContextMenu={e => { e.preventDefault(); setMoveContextMenu({ x: e.clientX, y: e.clientY, lineId: line.id, plyIndex: branchPly }); }}
+          onContextMenu={e => { e.preventDefault(); e.stopPropagation(); setMoveContextMenu({ x: e.clientX, y: e.clientY, lineId: line.id, plyIndex: branchPly }); }}
           className={`rounded px-1.5 py-0.5 font-mono text-sm transition-colors ${
             nav.lineId === line.id && nav.plyIndex === branchPly
               ? 'bg-amber-400/15 text-amber-300'
@@ -1723,7 +1723,7 @@ export default function AnalysisPage() {
             {pair.white ? (
               <button type="button"
                 onClick={() => navigateTo(line.id, pair.white!.ply)}
-                onContextMenu={e => { e.preventDefault(); setMoveContextMenu({ x: e.clientX, y: e.clientY, lineId: line.id, plyIndex: pair.white!.ply }); }}
+                onContextMenu={e => { e.preventDefault(); e.stopPropagation(); setMoveContextMenu({ x: e.clientX, y: e.clientY, lineId: line.id, plyIndex: pair.white!.ply }); }}
                 className={`flex min-w-0 flex-1 items-center rounded px-2 py-1.5 font-mono text-base transition-colors ${
                   nav.lineId === line.id && nav.plyIndex === pair.white.ply
                     ? 'bg-amber-400/15 text-amber-300' : 'text-gray-300 hover:bg-white/5 hover:text-white'
@@ -1732,7 +1732,7 @@ export default function AnalysisPage() {
             {pair.black ? (
               <button type="button"
                 onClick={() => navigateTo(line.id, pair.black!.ply)}
-                onContextMenu={e => { e.preventDefault(); setMoveContextMenu({ x: e.clientX, y: e.clientY, lineId: line.id, plyIndex: pair.black!.ply }); }}
+                onContextMenu={e => { e.preventDefault(); e.stopPropagation(); setMoveContextMenu({ x: e.clientX, y: e.clientY, lineId: line.id, plyIndex: pair.black!.ply }); }}
                 className={`flex min-w-0 flex-1 items-center rounded px-2 py-1.5 font-mono text-base transition-colors ${
                   nav.lineId === line.id && nav.plyIndex === pair.black.ply
                     ? 'bg-amber-400/15 text-amber-300' : 'text-gray-300 hover:bg-white/5 hover:text-white'
