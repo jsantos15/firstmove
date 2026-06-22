@@ -1956,10 +1956,10 @@ export default function AnalysisPage() {
                       const evalStr = formatEval(engineLine.evalCp);
                       const positive = (engineLine.evalCp ?? 0) >= 0;
                       return (
-                        <div key={li} className="flex items-center gap-2 rounded-lg bg-white/4 px-2.5 py-2 min-w-0">
-                          <div className="flex-1 flex flex-wrap items-baseline gap-x-0.5 gap-y-0.5 font-mono text-sm min-w-0">
+                        <div key={li} className="flex items-center gap-2 rounded bg-white/[0.05] px-2.5 py-1.5 min-w-0">
+                          <div className="flex-1 flex flex-wrap items-baseline gap-x-0.5 gap-y-0.5 font-mono text-[13px] min-w-0">
                             {tokens.length === 0 ? (
-                              <span className="text-gray-500">...</span>
+                              <span className="text-gray-600">...</span>
                             ) : tokens.map((token, ti) =>
                               token.type === 'num' ? (
                                 <span key={ti} className="text-gray-600">{token.text}</span>
@@ -1970,7 +1970,7 @@ export default function AnalysisPage() {
                                   onClick={() => handlePvClick(engineLine.pvUci, token.uciIdx)}
                                   className={`rounded px-1 py-px transition-colors hover:bg-white/20 hover:text-white ${
                                     li === 0 && token.uciIdx === 0
-                                      ? 'bg-white/15 text-white'
+                                      ? 'bg-white/15 text-gray-100'
                                       : 'text-gray-400'
                                   }`}
                                 >
@@ -1979,7 +1979,11 @@ export default function AnalysisPage() {
                               )
                             )}
                           </div>
-                          <span className={`shrink-0 text-sm font-bold tabular-nums ${positive ? 'text-gray-100' : 'text-red-400'}`}>
+                          <span className={`shrink-0 rounded border px-1.5 py-0.5 font-mono text-[13px] font-bold tabular-nums ${
+                            positive
+                              ? 'border-zinc-500/60 text-white'
+                              : 'border-red-400/40 text-red-400'
+                          }`}>
                             {evalStr}
                           </span>
                         </div>
