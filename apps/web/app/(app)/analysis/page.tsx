@@ -1717,25 +1717,25 @@ export default function AnalysisPage() {
     const rows: React.ReactNode[] = [];
     for (const pair of pairs) {
       rows.push(
-        <div key={`ml-${pair.moveNum}-${pair.white?.ply ?? 'bx'}`} className="flex items-center gap-1 py-0.5">
-          <span className="w-7 shrink-0 text-right font-mono text-base text-gray-600">{pair.moveNum}.</span>
-          <div className="flex flex-1 gap-1">
+        <div key={`ml-${pair.moveNum}-${pair.white?.ply ?? 'bx'}`} className="flex items-center">
+          <span className="w-8 shrink-0 text-right font-mono text-[13px] text-gray-600 pr-1">{pair.moveNum}.</span>
+          <div className="flex flex-1">
             {pair.white ? (
               <button type="button"
                 onClick={() => navigateTo(line.id, pair.white!.ply)}
                 onContextMenu={e => { e.preventDefault(); e.stopPropagation(); setMoveContextMenu({ x: e.clientX, y: e.clientY, lineId: line.id, plyIndex: pair.white!.ply }); }}
-                className={`flex min-w-0 flex-1 items-center rounded px-2 py-1.5 font-mono text-base transition-colors ${
+                className={`flex min-w-0 flex-1 items-center rounded px-2 py-[5px] font-mono text-[13px] transition-colors ${
                   nav.lineId === line.id && nav.plyIndex === pair.white.ply
-                    ? 'bg-amber-400/15 text-amber-300' : 'text-gray-300 hover:bg-white/5 hover:text-white'
+                    ? 'bg-amber-400/15 text-amber-300' : 'text-gray-200 hover:bg-white/5 hover:text-white'
                 }`}>{pair.white.san}</button>
             ) : <span className="flex-1" />}
             {pair.black ? (
               <button type="button"
                 onClick={() => navigateTo(line.id, pair.black!.ply)}
                 onContextMenu={e => { e.preventDefault(); e.stopPropagation(); setMoveContextMenu({ x: e.clientX, y: e.clientY, lineId: line.id, plyIndex: pair.black!.ply }); }}
-                className={`flex min-w-0 flex-1 items-center rounded px-2 py-1.5 font-mono text-base transition-colors ${
+                className={`flex min-w-0 flex-1 items-center rounded px-2 py-[5px] font-mono text-[13px] transition-colors ${
                   nav.lineId === line.id && nav.plyIndex === pair.black.ply
-                    ? 'bg-amber-400/15 text-amber-300' : 'text-gray-300 hover:bg-white/5 hover:text-white'
+                    ? 'bg-amber-400/15 text-amber-300' : 'text-gray-200 hover:bg-white/5 hover:text-white'
                 }`}>{pair.black.san}</button>
             ) : <span className="flex-1" />}
           </div>
