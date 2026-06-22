@@ -272,6 +272,75 @@ function truncateChildBranches(lines: VariationLine[], parentId: string, fromPly
   return result;
 }
 
+// Swaps the content of a branch with its parent at the divergence point.
+// Used iteratively by promoteToMainLine to bubble a branch up to main.
+function swapBranchWithParent(tree: ExploreTree, branchId: string): ExploreTree {
+  const branch = tree.lines.find(l => l.id === branchId);
+  if (!branch?.parentLineId) return tree;
+  const parent = tree.lines.find(l => l.id === branch.parentLineId);
+  if (!parent) return tree;
+  const P = branch.divergeAtPly;
+  const newParentMoves = [...parent.moves.slice(0, P), ...branch.moves];
+  const newBranchMoves = parent.moves.slice(P);
+  return {
+    ...tree,
+    lines: tree.lines.map(l => {
+      if (l.id === parent.id) return { ...l, moves: newParentMoves };
+      if (l.id === branchId) return { ...l, moves: newBranchMoves };
+      // Other siblings of branch at divergeAtPly >= P → re-parent to branch, adjust ply
+      if (l.parentLineId === parent.id && l.divergeAtPly >= P && l.id !== branchId)
+        return { ...l, parentLineId: branchId, divergeAtPly: l.divergeAtPly - P };
+      // Children of branch → re-parent to parent at shifted ply
+      if (l.parentLineId === branchId)
+        return { ...l, parentLineId: parent.id, divergeAtPly: l.divergeAtPly + P };
+      return l;
+    }),
+  };
+}
+
+function recomputeDepths(lines: VariationLine[]): VariationLine[] {
+  const depthMap = new Map<string, number>();
+  const queue: string[] = [];
+  const main = lines.find(l => l.parentLineId === null);
+  if (!main) return lines;
+  depthMap.set(main.id, 0);
+  queue.push(main.id);
+  while (queue.length > 0) {
+    const pid = queue.shift()!;
+    const pd = depthMap.get(pid) ?? 0;
+    for (const l of lines) {
+      if (l.parentLineId === pid) { depthMap.set(l.id, pd + 1); queue.push(l.id); }
+    }
+  }
+  return lines.map(l => ({ ...l, depth: depthMap.get(l.id) ?? l.depth }));
+}
+
+// Promotes a branch to the main line by repeatedly swapping it upward.
+// Former main and intermediate ancestors become sibling branches at their divergence points.
+function promoteToMainLine(tree: ExploreTree, lineId: string): ExploreTree {
+  let currentTree = tree;
+  let targetId = lineId;
+  while (true) {
+    const target = currentTree.lines.find(l => l.id === targetId);
+    if (!target || target.parentLineId === null) break;
+    const parentId = target.parentLineId;
+    currentTree = swapBranchWithParent(currentTree, targetId);
+    targetId = parentId; // promoted content is now in the parent slot — continue from there
+  }
+  return { ...currentTree, lines: recomputeDepths(currentTree.lines) };
+}
+
+// Removes moves from fromPly onwards in the given line (inclusive), plus any child branches.
+function deleteFromHere(tree: ExploreTree, lineId: string, fromPly: number): ExploreTree {
+  let newLines = truncateChildBranches(tree.lines, lineId, fromPly);
+  newLines = newLines.map(l => l.id === lineId ? { ...l, moves: l.moves.slice(0, fromPly) } : l);
+  // Drop the branch entirely if it now has no moves (only applies to non-main branches)
+  const line = newLines.find(l => l.id === lineId);
+  if (line && line.moves.length === 0 && line.parentLineId !== null)
+    newLines = removeLineAndChildren(newLines, lineId);
+  return { ...tree, lines: newLines };
+}
+
 // Shared logic for adding one MoveEntry to the tree at the current nav position.
 // Used by both tryMove (single move) and handlePvClick (batch of moves).
 function applyMoveToTree(
@@ -838,6 +907,7 @@ export default function AnalysisPage() {
   const engineSettingsRef = useRef<HTMLDivElement>(null);
   const [exploreTree, setExploreTree] = useState<ExploreTree | null>(null);
   const [exploreNav, setExploreNav] = useState<ExploreNav>({ lineId: null, plyIndex: -1 });
+  const [moveContextMenu, setMoveContextMenu] = useState<{ x: number; y: number; lineId: string; plyIndex: number } | null>(null);
   const [selectedSquare, setSelectedSquare] = useState<string | null>(null);
   const [baseFen, setBaseFen] = useState<string | null>(null);
   const [positionMode, setPositionMode] = useState<'fen' | 'pgn'>('pgn');
@@ -1154,6 +1224,60 @@ export default function AnalysisPage() {
     } else {
       goTo(totalMoves - 1);
     }
+  }
+
+  // Close context menu on any outside click
+  useEffect(() => {
+    if (!moveContextMenu) return;
+    const close = () => setMoveContextMenu(null);
+    window.addEventListener('click', close);
+    window.addEventListener('contextmenu', close);
+    return () => { window.removeEventListener('click', close); window.removeEventListener('contextmenu', close); };
+  }, [moveContextMenu]);
+
+  function handleMakeMainLine(lineId: string, plyIndex: number) {
+    if (!exploreTree) return;
+    const activePath = getActivePath(exploreTree, { lineId, plyIndex });
+    const newTree = promoteToMainLine(exploreTree, lineId);
+    const mainLine = newTree.lines.find(l => l.parentLineId === null)!;
+    const newPlyIndex = Math.max(0, activePath.length - 1);
+    setExploreTree(newTree);
+    setExploreNav({ lineId: mainLine.id, plyIndex: newPlyIndex });
+    const entry = mainLine.moves[newPlyIndex];
+    if (entry) setLastMoveSquares({ from: entry.from, to: entry.to });
+    setMoveContextMenu(null);
+  }
+
+  function handleDeleteFromHere(lineId: string, fromPly: number) {
+    if (!exploreTree) return;
+    const originalLine = exploreTree.lines.find(l => l.id === lineId)!;
+    const newTree = deleteFromHere(exploreTree, lineId, fromPly);
+    const lineStillExists = newTree.lines.some(l => l.id === lineId);
+    let newNav: ExploreNav;
+    if (!lineStillExists || fromPly === 0) {
+      if (originalLine.parentLineId) {
+        const parentPly = Math.max(-1, originalLine.divergeAtPly - 1);
+        newNav = { lineId: originalLine.parentLineId, plyIndex: parentPly };
+      } else {
+        newNav = { lineId: newTree.lines[0]?.id ?? null, plyIndex: -1 };
+      }
+    } else {
+      newNav = { lineId: lineId, plyIndex: fromPly - 1 };
+    }
+    const mainEmpty = newTree.lines.length === 1 && newTree.lines[0]!.moves.length === 0;
+    if (newTree.lines.length === 0 || mainEmpty) {
+      setExploreTree(null);
+      setExploreNav({ lineId: null, plyIndex: -1 });
+      setLastMoveSquares(null);
+    } else {
+      setExploreTree(newTree);
+      setExploreNav(newNav);
+      const navLine = newTree.lines.find(l => l.id === newNav.lineId);
+      const navEntry = newNav.plyIndex >= 0 ? navLine?.moves[newNav.plyIndex] : null;
+      if (navEntry) setLastMoveSquares({ from: navEntry.from, to: navEntry.to });
+      else setLastMoveSquares(null);
+    }
+    setMoveContextMenu(null);
   }
 
   // Keep positionText in sync with the board. Board changes always win over user-typed text —
@@ -1523,18 +1647,20 @@ export default function AnalysisPage() {
           </span>
         );
       }
+      const branchPly = i;
       pendingTokens.push(
         <button
           key={`mv-${i}`}
           type="button"
-          onClick={() => navigateTo(line.id, i)}
+          onClick={() => navigateTo(line.id, branchPly)}
+          onContextMenu={e => { e.preventDefault(); setMoveContextMenu({ x: e.clientX, y: e.clientY, lineId: line.id, plyIndex: branchPly }); }}
           className={`rounded px-1.5 py-0.5 font-mono text-sm transition-colors ${
-            nav.lineId === line.id && nav.plyIndex === i
+            nav.lineId === line.id && nav.plyIndex === branchPly
               ? 'bg-amber-400/15 text-amber-300'
               : 'text-gray-400 hover:bg-white/5 hover:text-gray-200'
           }`}
         >
-          {line.moves[i]!.san}
+          {line.moves[branchPly]!.san}
         </button>
       );
       // Sub-branches after this move
@@ -1595,14 +1721,18 @@ export default function AnalysisPage() {
           <span className="w-7 shrink-0 text-right font-mono text-base text-gray-600">{pair.moveNum}.</span>
           <div className="flex flex-1 gap-1">
             {pair.white ? (
-              <button type="button" onClick={() => navigateTo(line.id, pair.white!.ply)}
+              <button type="button"
+                onClick={() => navigateTo(line.id, pair.white!.ply)}
+                onContextMenu={e => { e.preventDefault(); setMoveContextMenu({ x: e.clientX, y: e.clientY, lineId: line.id, plyIndex: pair.white!.ply }); }}
                 className={`flex min-w-0 flex-1 items-center rounded px-2 py-1.5 font-mono text-base transition-colors ${
                   nav.lineId === line.id && nav.plyIndex === pair.white.ply
                     ? 'bg-amber-400/15 text-amber-300' : 'text-gray-300 hover:bg-white/5 hover:text-white'
                 }`}>{pair.white.san}</button>
             ) : <span className="flex-1" />}
             {pair.black ? (
-              <button type="button" onClick={() => navigateTo(line.id, pair.black!.ply)}
+              <button type="button"
+                onClick={() => navigateTo(line.id, pair.black!.ply)}
+                onContextMenu={e => { e.preventDefault(); setMoveContextMenu({ x: e.clientX, y: e.clientY, lineId: line.id, plyIndex: pair.black!.ply }); }}
                 className={`flex min-w-0 flex-1 items-center rounded px-2 py-1.5 font-mono text-base transition-colors ${
                   nav.lineId === line.id && nav.plyIndex === pair.black.ply
                     ? 'bg-amber-400/15 text-amber-300' : 'text-gray-300 hover:bg-white/5 hover:text-white'
@@ -2377,6 +2507,33 @@ export default function AnalysisPage() {
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Move context menu */}
+      {moveContextMenu && (
+        <div
+          className="fixed z-[200] min-w-[168px] overflow-hidden rounded-lg border border-white/10 bg-zinc-900 py-1 shadow-xl"
+          style={{ left: moveContextMenu.x, top: moveContextMenu.y }}
+          onClick={e => e.stopPropagation()}
+          onContextMenu={e => { e.preventDefault(); e.stopPropagation(); }}
+        >
+          {exploreTree?.lines.find(l => l.id === moveContextMenu.lineId)?.parentLineId !== null && (
+            <button
+              type="button"
+              className="flex w-full items-center gap-2 px-4 py-2 text-left text-sm text-gray-200 hover:bg-white/8 hover:text-white"
+              onClick={() => handleMakeMainLine(moveContextMenu.lineId, moveContextMenu.plyIndex)}
+            >
+              Make main line
+            </button>
+          )}
+          <button
+            type="button"
+            className="flex w-full items-center gap-2 px-4 py-2 text-left text-sm text-rose-400 hover:bg-white/8 hover:text-rose-300"
+            onClick={() => handleDeleteFromHere(moveContextMenu.lineId, moveContextMenu.plyIndex)}
+          >
+            Delete from here
+          </button>
         </div>
       )}
     </div>
