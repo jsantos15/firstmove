@@ -241,6 +241,66 @@ function truncateChildBranches(lines: VariationLine[], parentId: string, fromPly
   return result;
 }
 
+// Shared logic for adding one MoveEntry to the tree at the current nav position.
+// Used by both tryMove (single move) and handlePvClick (batch of moves).
+function applyMoveToTree(
+  tree: ExploreTree | null,
+  nav: ExploreNav,
+  entry: MoveEntry,
+  rootFen: string,
+): { tree: ExploreTree; nav: ExploreNav } {
+  const MAX_PER_POINT = 4;
+
+  if (!tree || !nav.lineId) {
+    const mainId = crypto.randomUUID();
+    return {
+      tree: { rootFen, lines: [{ id: mainId, parentLineId: null, divergeAtPly: 0, depth: 0, moves: [entry] }] },
+      nav: { lineId: mainId, plyIndex: 0 },
+    };
+  }
+
+  const currentLine = tree.lines.find(l => l.id === nav.lineId)!;
+  const nextPly = nav.plyIndex + 1;
+  const nextMove = currentLine.moves[nextPly];
+
+  if (!nextMove) {
+    const cleanedLines = truncateChildBranches(tree.lines, currentLine.id, nextPly);
+    return {
+      tree: { ...tree, lines: cleanedLines.map(l => l.id === currentLine.id ? { ...l, moves: [...l.moves.slice(0, nextPly), entry] } : l) },
+      nav: { lineId: currentLine.id, plyIndex: nextPly },
+    };
+  }
+
+  if (nextMove.san === entry.san) {
+    return { tree, nav: { lineId: currentLine.id, plyIndex: nextPly } };
+  }
+
+  // Divergence — check for an existing branch starting with the same move
+  const existing = tree.lines.find(l =>
+    l.parentLineId === currentLine.id && l.divergeAtPly === nextPly && l.moves[0]?.san === entry.san
+  );
+  if (existing) {
+    return { tree, nav: { lineId: existing.id, plyIndex: 0 } };
+  }
+
+  if (currentLine.depth >= 3) {
+    const cleanedLines = truncateChildBranches(tree.lines, currentLine.id, nextPly);
+    return {
+      tree: { ...tree, lines: cleanedLines.map(l => l.id === currentLine.id ? { ...l, moves: [...l.moves.slice(0, nextPly), entry] } : l) },
+      nav: { lineId: currentLine.id, plyIndex: nextPly },
+    };
+  }
+
+  const siblingsHere = tree.lines.filter(l => l.parentLineId === currentLine.id && l.divergeAtPly === nextPly);
+  const newBranchId = crypto.randomUUID();
+  const newBranch: VariationLine = { id: newBranchId, parentLineId: currentLine.id, divergeAtPly: nextPly, depth: currentLine.depth + 1, moves: [entry] };
+  if (siblingsHere.length >= MAX_PER_POINT) {
+    const oldest = siblingsHere[0]!;
+    return { tree: { ...tree, lines: [...removeLineAndChildren(tree.lines, oldest.id), newBranch] }, nav: { lineId: newBranchId, plyIndex: 0 } };
+  }
+  return { tree: { ...tree, lines: [...tree.lines, newBranch] }, nav: { lineId: newBranchId, plyIndex: 0 } };
+}
+
 function extractGameTitle(pgn: string): string | null {
   const white = pgn.match(/\[White "([^"]+)"\]/)?.[1];
   const black = pgn.match(/\[Black "([^"]+)"\]/)?.[1];
@@ -1292,87 +1352,7 @@ export default function AnalysisPage() {
       const move = chess.move({ from, to, promotion: prom as 'q' | 'r' | 'b' | 'n' });
       if (!move) return false;
       const entry: MoveEntry = { id: crypto.randomUUID(), san: move.san, fen: chess.fen(), from: move.from, to: move.to };
-
-      let newTree: ExploreTree;
-      let newNav: ExploreNav;
-
-      if (!exploreTree || !exploreNav.lineId) {
-        const mainId = crypto.randomUUID();
-        newTree = {
-          rootFen: currentFen,
-          lines: [{ id: mainId, parentLineId: null, divergeAtPly: 0, depth: 0, moves: [entry] }],
-        };
-        newNav = { lineId: mainId, plyIndex: 0 };
-      } else {
-        const currentLine = exploreTree.lines.find(l => l.id === exploreNav.lineId)!;
-        const nextPly = exploreNav.plyIndex + 1;
-        const nextMove = currentLine.moves[nextPly];
-
-        if (!nextMove) {
-          // Append — also clear any child branches that diverged at >= nextPly
-          const cleanedLines = truncateChildBranches(exploreTree.lines, currentLine.id, nextPly);
-          newTree = {
-            ...exploreTree,
-            lines: cleanedLines.map(l =>
-              l.id === currentLine.id
-                ? { ...l, moves: [...l.moves.slice(0, nextPly), entry] }
-                : l
-            ),
-          };
-          newNav = { lineId: currentLine.id, plyIndex: nextPly };
-        } else if (nextMove.san === move.san) {
-          // Same move — just advance nav
-          newTree = exploreTree;
-          newNav = { lineId: currentLine.id, plyIndex: nextPly };
-        } else {
-          // Divergence
-          const existing = exploreTree.lines.find(l =>
-            l.parentLineId === currentLine.id &&
-            l.divergeAtPly === nextPly &&
-            l.moves[0]?.san === move.san
-          );
-
-          if (existing) {
-            newTree = exploreTree;
-            newNav = { lineId: existing.id, plyIndex: 0 };
-          } else if (currentLine.depth >= 3) {
-            // Max depth — overwrite from nextPly instead of creating sub-branch
-            const cleanedLines = truncateChildBranches(exploreTree.lines, currentLine.id, nextPly);
-            newTree = {
-              ...exploreTree,
-              lines: cleanedLines.map(l =>
-                l.id === currentLine.id
-                  ? { ...l, moves: [...l.moves.slice(0, nextPly), entry] }
-                  : l
-              ),
-            };
-            newNav = { lineId: currentLine.id, plyIndex: nextPly };
-          } else {
-            const MAX_PER_POINT = 4;
-            const siblingsHere = exploreTree.lines.filter(l =>
-              l.parentLineId === currentLine.id && l.divergeAtPly === nextPly
-            );
-            const newBranchId = crypto.randomUUID();
-            const newBranch: VariationLine = {
-              id: newBranchId,
-              parentLineId: currentLine.id,
-              divergeAtPly: nextPly,
-              depth: currentLine.depth + 1,
-              moves: [entry],
-            };
-            if (siblingsHere.length >= MAX_PER_POINT) {
-              // Replace oldest sibling
-              const oldest = siblingsHere[0]!;
-              const cleanedLines = removeLineAndChildren(exploreTree.lines, oldest.id);
-              newTree = { ...exploreTree, lines: [...cleanedLines, newBranch] };
-            } else {
-              newTree = { ...exploreTree, lines: [...exploreTree.lines, newBranch] };
-            }
-            newNav = { lineId: newBranchId, plyIndex: 0 };
-          }
-        }
-      }
-
+      const { tree: newTree, nav: newNav } = applyMoveToTree(exploreTree, exploreNav, entry, currentFen);
       setExploreTree(newTree);
       setExploreNav(newNav);
       setLastMoveSquares({ from: move.from, to: move.to });
@@ -1386,43 +1366,23 @@ export default function AnalysisPage() {
   const handlePvClick = (pvUci: string[], clickedIdx: number) => {
     try {
       const chess = new Chess(boardFen);
-      const newEntries: MoveEntry[] = [];
+      let workTree: ExploreTree | null = exploreTree;
+      let workNav: ExploreNav = exploreNav;
+      let lastEntry: MoveEntry | null = null;
       for (let i = 0; i <= clickedIdx; i++) {
         const uci = pvUci[i]!;
         const move = chess.move({ from: uci.slice(0, 2), to: uci.slice(2, 4), promotion: (uci[4] ?? 'q') as 'q' | 'r' | 'b' | 'n' });
         if (!move) break;
-        newEntries.push({ id: crypto.randomUUID(), san: move.san, fen: chess.fen(), from: move.from, to: move.to });
+        const entry: MoveEntry = { id: crypto.randomUUID(), san: move.san, fen: chess.fen(), from: move.from, to: move.to };
+        const result = applyMoveToTree(workTree, workNav, entry, currentFen);
+        workTree = result.tree;
+        workNav = result.nav;
+        lastEntry = entry;
       }
-      if (newEntries.length === 0) return;
-
-      if (!exploreTree || !exploreNav.lineId) {
-        // No tree yet — start a new main line
-        const mainId = crypto.randomUUID();
-        setExploreTree({ rootFen: currentFen, lines: [{ id: mainId, parentLineId: null, divergeAtPly: 0, depth: 0, moves: newEntries }] });
-        setExploreNav({ lineId: mainId, plyIndex: newEntries.length - 1 });
-      } else {
-        // Append PV moves to the currently active line (not always the main line)
-        const currentLine = exploreTree.lines.find(l => l.id === exploreNav.lineId)!;
-        const insertAt = exploreNav.plyIndex + 1;
-
-        // If all new entries already match what's in the line, just advance the pointer
-        const allMatch = newEntries.every((e, i) => currentLine.moves[insertAt + i]?.san === e.san);
-        if (allMatch) {
-          setExploreNav({ lineId: currentLine.id, plyIndex: insertAt + newEntries.length - 1 });
-        } else {
-          // Truncate from insertAt, remove any child branches rooted there, append PV moves
-          const cleanedLines = truncateChildBranches(exploreTree.lines, currentLine.id, insertAt);
-          const newMoves = [...currentLine.moves.slice(0, insertAt), ...newEntries];
-          setExploreTree({
-            ...exploreTree,
-            lines: cleanedLines.map(l => l.id === currentLine.id ? { ...l, moves: newMoves } : l),
-          });
-          setExploreNav({ lineId: currentLine.id, plyIndex: insertAt + newEntries.length - 1 });
-        }
-      }
-
-      const last = newEntries[newEntries.length - 1]!;
-      setLastMoveSquares({ from: last.from, to: last.to });
+      if (!lastEntry || !workTree) return;
+      setExploreTree(workTree);
+      setExploreNav(workNav);
+      setLastMoveSquares({ from: lastEntry.from, to: lastEntry.to });
       setSelectedSquare(null);
     } catch {}
   };
