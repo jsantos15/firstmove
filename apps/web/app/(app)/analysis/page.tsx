@@ -232,6 +232,37 @@ function removeLineAndChildren(lines: VariationLine[], lineId: string): Variatio
   return result;
 }
 
+// Returns the ordered move sequence from the tree root to the current nav position,
+// tracing through any parent lines when on a branch.
+function getActivePath(tree: ExploreTree, nav: ExploreNav): MoveEntry[] {
+  if (!nav.lineId || nav.plyIndex < 0) return [];
+  const line = tree.lines.find(l => l.id === nav.lineId);
+  if (!line) return [];
+
+  // Walk up to the root, collecting the chain of lines
+  const chain: VariationLine[] = [];
+  let cur: VariationLine | undefined = line;
+  while (cur) {
+    chain.unshift(cur);
+    if (!cur.parentLineId) break;
+    cur = tree.lines.find(l => l.id === cur!.parentLineId);
+  }
+
+  const moves: MoveEntry[] = [];
+  for (let i = 0; i < chain.length; i++) {
+    const l = chain[i]!;
+    if (i < chain.length - 1) {
+      // Parent line — take moves up to (but not including) the next branch's divergeAtPly
+      const childLine = chain[i + 1]!;
+      moves.push(...l.moves.slice(0, childLine.divergeAtPly));
+    } else {
+      // Current (leaf) line — take moves up to the current ply index
+      moves.push(...l.moves.slice(0, nav.plyIndex + 1));
+    }
+  }
+  return moves;
+}
+
 function truncateChildBranches(lines: VariationLine[], parentId: string, fromPly: number): VariationLine[] {
   const childrenToRemove = lines.filter(l => l.parentLineId === parentId && l.divergeAtPly >= fromPly);
   let result = lines;
@@ -1133,20 +1164,24 @@ export default function AnalysisPage() {
       setPositionError(null);
       return;
     }
-    // PGN mode — reconstruct a PGN from current state (moves only, no auto-generated headers)
+    // PGN mode — reconstruct a PGN from the active path in the variation tree
     try {
-      const mainLine = exploreTree?.lines[0]?.moves;
-      if (mainLine && mainLine.length > 0) {
-        const rootFen = exploreTree!.rootFen;
-        const chess = new Chess(rootFen);
-        for (const entry of mainLine) chess.move(entry.san);
-        const movesOnly = chess.pgn().replace(/^\[.*?\]\r?\n?/gm, '').replace(/\s*\*\s*$/, '').trim();
-        setPositionText(
-          rootFen !== INITIAL_FEN
-            ? `[FEN "${rootFen}"]\n\n${movesOnly}`
-            : movesOnly
-        );
-      } else if (analyzedGame && analyzedGame.moves.length > 0) {
+      if (exploreTree) {
+        const rootFen = exploreTree.rootFen;
+        // Use the full path from root to current position (respects branches)
+        const activeMoves = getActivePath(exploreTree, exploreNav);
+        const source = activeMoves.length > 0 ? activeMoves : (exploreTree.lines[0]?.moves ?? []);
+        if (source.length > 0) {
+          const chess = new Chess(rootFen);
+          for (const entry of source) chess.move(entry.san);
+          const movesOnly = chess.pgn().replace(/^\[.*?\]\r?\n?/gm, '').replace(/\s*\*\s*$/, '').trim();
+          setPositionText(rootFen !== INITIAL_FEN ? `[FEN "${rootFen}"]\n\n${movesOnly}` : movesOnly);
+          setPositionError(null);
+          setPositionDirty(false);
+          return;
+        }
+      }
+      if (analyzedGame && analyzedGame.moves.length > 0) {
         const initFen = analyzedGame.initialFen;
         const chess = initFen ? new Chess(initFen) : new Chess();
         for (const move of analyzedGame.moves) chess.move(move.san);
@@ -1165,7 +1200,7 @@ export default function AnalysisPage() {
     setPositionError(null);
     setPositionDirty(false);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [freeExploreFen, currentFen, positionMode, exploreTree, analyzedGame]);
+  }, [freeExploreFen, currentFen, positionMode, exploreTree, exploreNav, analyzedGame]);
 
   useEffect(() => {
     const el = positionTextareaRef.current;
