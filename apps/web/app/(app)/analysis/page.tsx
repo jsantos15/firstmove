@@ -1087,6 +1087,42 @@ export default function AnalysisPage() {
     }
   }
 
+  function handleSaveAnalysis() {
+    let pgn = '';
+    try {
+      if (exploreTree) {
+        const activeMoves = getActivePath(exploreTree, exploreNav);
+        const source = activeMoves.length > 0 ? activeMoves : (exploreTree.lines[0]?.moves ?? []);
+        if (source.length > 0) {
+          const chess = new Chess(exploreTree.rootFen);
+          for (const entry of source) chess.move(entry.san);
+          const movesOnly = chess.pgn().replace(/^\[.*?\]\r?\n?/gm, '').replace(/\s*\*\s*$/, '').trim();
+          pgn = exploreTree.rootFen !== INITIAL_FEN
+            ? `[FEN "${exploreTree.rootFen}"]\n\n${movesOnly}`
+            : movesOnly;
+        }
+      } else if (analyzedGame && analyzedGame.moves.length > 0) {
+        const chess = new Chess(analyzedGame.initialFen ?? INITIAL_FEN);
+        for (const move of analyzedGame.moves) chess.move(move.san);
+        pgn = chess.pgn().replace(/^\[.*?\]\r?\n?/gm, '').replace(/\s*\*\s*$/, '').trim();
+      }
+    } catch { /* ignore */ }
+    if (!pgn) pgn = positionText.trim();
+    if (!pgn) return;
+    const filename = (gameDetails.white && gameDetails.black)
+      ? `${gameDetails.white.replace(/\s+/g, '_')}-vs-${gameDetails.black.replace(/\s+/g, '_')}.pgn`
+      : 'analysis.pgn';
+    const blob = new Blob([pgn], { type: 'application/x-chess-pgn' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+
   async function runStockfish() {
     if (!analyzedGame || isEngineRunning) return;
     setIsEngineRunning(true);
@@ -2050,21 +2086,10 @@ export default function AnalysisPage() {
 
                 {/* Position — FEN / PGN input strip */}
                 <div className="shrink-0 border-t border-white/5">
-                  <div className="flex items-end gap-2 px-3 pt-2 pb-0">
-                    <button
-                      type="button"
-                      onClick={() => { setParseError(null); setShowImportModal(true); }}
-                      className="flex items-center gap-2 rounded border border-amber-400/45 bg-amber-400/8 px-5 py-2 mb-3 text-sm font-medium text-amber-300 transition-colors hover:border-amber-400/65 hover:bg-amber-400/15 hover:text-amber-200"
-                    >
-                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="h-4 w-4">
-                        <path d="M1 3.5A1.5 1.5 0 0 1 2.5 2h2.764c.958 0 1.76.56 2.311 1.184C7.985 3.648 8.48 4 9 4h4.5A1.5 1.5 0 0 1 15 5.5v.64c.57.265.94.876.856 1.546l-.64 5.124A2.5 2.5 0 0 1 12.733 15H3.266a2.5 2.5 0 0 1-2.481-2.19l-.64-5.124A1.5 1.5 0 0 1 1 6.14V3.5ZM2 6h12v-.5a.5.5 0 0 0-.5-.5H9c-.964 0-1.71-.629-2.174-1.154C6.374 3.334 5.82 3 5.264 3H2.5a.5.5 0 0 0-.5.5V6Zm-.367 1a.5.5 0 0 0-.496.562l.64 5.124A1.5 1.5 0 0 0 3.266 14h9.468a1.5 1.5 0 0 0 1.489-1.314l.64-5.124A.5.5 0 0 0 14.367 7H1.633Z"/>
-                      </svg>
-                      Import Game
-                    </button>
+                  <div className="flex items-end justify-end gap-2 px-3 pt-2 pb-0">
                     {positionError && (
-                      <span className="text-[10px] text-red-400 leading-none">{positionError}</span>
+                      <span className="flex-1 text-[10px] text-red-400 leading-none">{positionError}</span>
                     )}
-                    <div className="flex-1" />
                     {/* Mode toggle — tab style, flush against textarea top */}
                     <div className="flex text-[10px] font-medium">
                       {(['pgn', 'fen'] as const).map((m, i) => (
@@ -2110,6 +2135,29 @@ export default function AnalysisPage() {
                         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="h-3 w-3">
                           <path fillRule="evenodd" d="M8.22 2.97a.75.75 0 0 1 1.06 0l4.25 4.25a.75.75 0 0 1 0 1.06l-4.25 4.25a.75.75 0 0 1-1.042-1.06l2.97-2.97H3.75a.75.75 0 0 1 0-1.5h7.44L8.22 4.03a.75.75 0 0 1 0-1.06Z" clipRule="evenodd" />
                         </svg>
+                      </button>
+                    </div>
+                    {/* Action buttons below textarea */}
+                    <div className="flex gap-2 mt-2">
+                      <button
+                        type="button"
+                        onClick={() => { setParseError(null); setShowImportModal(true); }}
+                        className="flex flex-1 items-center justify-center gap-1.5 rounded border border-white/10 bg-white/[0.04] px-3 py-1.5 text-xs font-medium text-gray-400 transition-colors hover:border-white/20 hover:text-gray-200"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="h-3.5 w-3.5">
+                          <path d="M1 3.5A1.5 1.5 0 0 1 2.5 2h2.764c.958 0 1.76.56 2.311 1.184C7.985 3.648 8.48 4 9 4h4.5A1.5 1.5 0 0 1 15 5.5v.64c.57.265.94.876.856 1.546l-.64 5.124A2.5 2.5 0 0 1 12.733 15H3.266a2.5 2.5 0 0 1-2.481-2.19l-.64-5.124A1.5 1.5 0 0 1 1 6.14V3.5ZM2 6h12v-.5a.5.5 0 0 0-.5-.5H9c-.964 0-1.71-.629-2.174-1.154C6.374 3.334 5.82 3 5.264 3H2.5a.5.5 0 0 0-.5.5V6Zm-.367 1a.5.5 0 0 0-.496.562l.64 5.124A1.5 1.5 0 0 0 3.266 14h9.468a1.5 1.5 0 0 0 1.489-1.314l.64-5.124A.5.5 0 0 0 14.367 7H1.633Z"/>
+                        </svg>
+                        Import Game
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleSaveAnalysis}
+                        className="flex flex-1 items-center justify-center gap-1.5 rounded border border-white/10 bg-white/[0.04] px-3 py-1.5 text-xs font-medium text-gray-400 transition-colors hover:border-white/20 hover:text-gray-200"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="h-3.5 w-3.5">
+                          <path d="M2.5 1A1.5 1.5 0 0 0 1 2.5v11A1.5 1.5 0 0 0 2.5 15h11a1.5 1.5 0 0 0 1.5-1.5V5.457c0-.398-.158-.78-.44-1.06L11.063 1.44A1.5 1.5 0 0 0 10.043 1H2.5Zm0 1h7.5v3a1 1 0 0 0 1 1h3v7.5a.5.5 0 0 1-.5.5h-11a.5.5 0 0 1-.5-.5v-11a.5.5 0 0 1 .5-.5ZM5 11.5a.5.5 0 0 0 0 1h6a.5.5 0 0 0 0-1H5Zm0-2a.5.5 0 0 0 0 1h6a.5.5 0 0 0 0-1H5ZM5 7.5a.5.5 0 0 0 0 1h3a.5.5 0 0 0 0-1H5Z"/>
+                        </svg>
+                        Save Analysis
                       </button>
                     </div>
                   </div>
