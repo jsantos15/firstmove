@@ -919,6 +919,7 @@ export default function AnalysisPage() {
   const [gameDetails, setGameDetails] = useState<GameDetails>(EMPTY_GAME_DETAILS);
   const [showGameDetailsModal, setShowGameDetailsModal] = useState(false);
   const [gameDetailsDraft, setGameDetailsDraft] = useState<GameDetails>(EMPTY_GAME_DETAILS);
+  const [showNewAnalysisModal, setShowNewAnalysisModal] = useState(false);
   const { theme, animationDuration, settings, setSettings } = useBoardSettings();
   const { settings: coachSettings } = useCoachSettings();
   const customPieces = useMemo(() => getCustomPieces(settings.pieceSetId), [settings.pieceSetId]);
@@ -1121,6 +1122,30 @@ export default function AnalysisPage() {
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
+  }
+
+  function clearAnalysis() {
+    setAnalyzedGame(null);
+    setCurrentPlyIndex(-1);
+    setExploreTree(null);
+    setExploreNav({ lineId: null, plyIndex: -1 });
+    setBaseFen(null);
+    setLastMoveSquares(null);
+    setSelectedSquare(null);
+    setCoachByPly(new Map());
+    setPositionText('');
+    setPositionDirty(false);
+    setPositionError(null);
+    setParseError(null);
+    setGameDetails(EMPTY_GAME_DETAILS);
+    setActiveTab('explore');
+    setShowNewAnalysisModal(false);
+  }
+
+  function handleNewAnalysis() {
+    const hasContent = analyzedGame !== null || exploreTree !== null || baseFen !== null;
+    if (!hasContent) { clearAnalysis(); return; }
+    setShowNewAnalysisModal(true);
   }
 
   async function runStockfish() {
@@ -2032,18 +2057,18 @@ export default function AnalysisPage() {
 
                 {/* Explore moves — fills all remaining space */}
                 <div className="flex-1 min-h-0 overflow-y-auto border-t border-white/5">
-                  {/* Opening name strip */}
-                  {openingPosition && (
-                    <div className="flex items-center gap-2 border-b border-white/5 px-3 py-1.5">
-                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="shrink-0 h-3.5 w-3.5 text-gray-600">
-                        <path d="M10.75 16.82A7.462 7.462 0 0 1 15 15.5c.71 0 1.396.098 2.046.282A.75.75 0 0 0 18 15.06v-11a.75.75 0 0 0-.546-.721A9.006 9.006 0 0 0 15 3a8.963 8.963 0 0 0-4.25 1.065V16.82ZM9.25 4.065A8.963 8.963 0 0 0 5 3c-.85 0-1.673.118-2.454.339A.75.75 0 0 0 2 4.06v11a.75.75 0 0 0 .954.721A7.506 7.506 0 0 1 5 15.5c1.579 0 3.042.487 4.25 1.32V4.065Z" />
-                      </svg>
-                      <span className="flex-1 min-w-0 truncate text-[12px] text-gray-400">
-                        {openingPosition.name}
-                      </span>
+                  {/* Opening name strip — always visible */}
+                  <div className="flex items-center gap-2 border-b border-white/5 px-3 py-1.5">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="shrink-0 h-3.5 w-3.5 text-gray-600">
+                      <path d="M10.75 16.82A7.462 7.462 0 0 1 15 15.5c.71 0 1.396.098 2.046.282A.75.75 0 0 0 18 15.06v-11a.75.75 0 0 0-.546-.721A9.006 9.006 0 0 0 15 3a8.963 8.963 0 0 0-4.25 1.065V16.82ZM9.25 4.065A8.963 8.963 0 0 0 5 3c-.85 0-1.673.118-2.454.339A.75.75 0 0 0 2 4.06v11a.75.75 0 0 0 .954.721A7.506 7.506 0 0 1 5 15.5c1.579 0 3.042.487 4.25 1.32V4.065Z" />
+                    </svg>
+                    <span className="flex-1 min-w-0 truncate text-[12px] text-gray-400">
+                      {openingPosition?.name ?? 'Starting Position'}
+                    </span>
+                    {openingPosition && (
                       <span className="shrink-0 font-mono text-[10px] text-gray-600">{openingPosition.eco_code}</span>
-                    </div>
-                  )}
+                    )}
+                  </div>
                   {/* Players header row — always visible */}
                   <div className="flex items-center gap-2 border-b border-white/5 px-3 py-2">
                     <span className="flex-1 truncate text-sm font-medium text-gray-300">
@@ -2108,7 +2133,7 @@ export default function AnalysisPage() {
                       ))}
                     </div>
                   </div>
-                  <div className="px-3 pb-2.5">
+                  <div className="px-3 pb-1.5">
                     <div className="relative">
                       <textarea
                         ref={positionTextareaRef}
@@ -2136,26 +2161,36 @@ export default function AnalysisPage() {
                       </button>
                     </div>
                     {/* Action buttons below textarea */}
-                    <div className="flex gap-2 mt-2">
+                    <div className="flex gap-1.5 mt-1">
+                      <button
+                        type="button"
+                        onClick={handleNewAnalysis}
+                        className="flex flex-1 items-center justify-center gap-1 rounded border border-white/10 bg-white/[0.04] px-2 py-1.5 text-[11px] font-medium text-gray-400 transition-colors hover:border-white/20 hover:text-gray-200"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="h-3 w-3 shrink-0">
+                          <path d="M8 2a.75.75 0 0 1 .75.75v4.5h4.5a.75.75 0 0 1 0 1.5h-4.5v4.5a.75.75 0 0 1-1.5 0v-4.5h-4.5a.75.75 0 0 1 0-1.5h4.5v-4.5A.75.75 0 0 1 8 2Z" />
+                        </svg>
+                        New
+                      </button>
                       <button
                         type="button"
                         onClick={() => { setParseError(null); setShowImportModal(true); }}
-                        className="flex flex-1 items-center justify-center gap-1.5 rounded border border-white/10 bg-white/[0.04] px-3 py-1.5 text-xs font-medium text-gray-400 transition-colors hover:border-white/20 hover:text-gray-200"
+                        className="flex flex-1 items-center justify-center gap-1 rounded border border-white/10 bg-white/[0.04] px-2 py-1.5 text-[11px] font-medium text-gray-400 transition-colors hover:border-white/20 hover:text-gray-200"
                       >
-                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="h-3.5 w-3.5">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="h-3 w-3 shrink-0">
                           <path d="M1 3.5A1.5 1.5 0 0 1 2.5 2h2.764c.958 0 1.76.56 2.311 1.184C7.985 3.648 8.48 4 9 4h4.5A1.5 1.5 0 0 1 15 5.5v.64c.57.265.94.876.856 1.546l-.64 5.124A2.5 2.5 0 0 1 12.733 15H3.266a2.5 2.5 0 0 1-2.481-2.19l-.64-5.124A1.5 1.5 0 0 1 1 6.14V3.5ZM2 6h12v-.5a.5.5 0 0 0-.5-.5H9c-.964 0-1.71-.629-2.174-1.154C6.374 3.334 5.82 3 5.264 3H2.5a.5.5 0 0 0-.5.5V6Zm-.367 1a.5.5 0 0 0-.496.562l.64 5.124A1.5 1.5 0 0 0 3.266 14h9.468a1.5 1.5 0 0 0 1.489-1.314l.64-5.124A.5.5 0 0 0 14.367 7H1.633Z"/>
                         </svg>
-                        Import Game
+                        Import
                       </button>
                       <button
                         type="button"
                         onClick={handleSaveAnalysis}
-                        className="flex flex-1 items-center justify-center gap-1.5 rounded border border-white/10 bg-white/[0.04] px-3 py-1.5 text-xs font-medium text-gray-400 transition-colors hover:border-white/20 hover:text-gray-200"
+                        className="flex flex-1 items-center justify-center gap-1 rounded border border-white/10 bg-white/[0.04] px-2 py-1.5 text-[11px] font-medium text-gray-400 transition-colors hover:border-white/20 hover:text-gray-200"
                       >
-                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="h-3.5 w-3.5">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="h-3 w-3 shrink-0">
                           <path d="M2.5 1A1.5 1.5 0 0 0 1 2.5v11A1.5 1.5 0 0 0 2.5 15h11a1.5 1.5 0 0 0 1.5-1.5V5.457c0-.398-.158-.78-.44-1.06L11.063 1.44A1.5 1.5 0 0 0 10.043 1H2.5Zm0 1h7.5v3a1 1 0 0 0 1 1h3v7.5a.5.5 0 0 1-.5.5h-11a.5.5 0 0 1-.5-.5v-11a.5.5 0 0 1 .5-.5ZM5 11.5a.5.5 0 0 0 0 1h6a.5.5 0 0 0 0-1H5Zm0-2a.5.5 0 0 0 0 1h6a.5.5 0 0 0 0-1H5ZM5 7.5a.5.5 0 0 0 0 1h3a.5.5 0 0 0 0-1H5Z"/>
                         </svg>
-                        Save Analysis
+                        Save
                       </button>
                     </div>
                   </div>
@@ -2570,6 +2605,39 @@ export default function AnalysisPage() {
               <button type="button" onClick={() => { setGameDetails(gameDetailsDraft); setShowGameDetailsModal(false); }}
                 className="flex-1 rounded-lg bg-amber-500 py-2 text-sm font-semibold text-black transition-colors hover:bg-amber-400">
                 Save
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* New Analysis confirmation modal */}
+      {showNewAnalysisModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={() => setShowNewAnalysisModal(false)}>
+          <div className="w-80 rounded-xl border border-white/10 bg-[#14161f] p-5 shadow-2xl" onClick={e => e.stopPropagation()}>
+            <h2 className="text-base font-semibold text-white">Start a new analysis?</h2>
+            <p className="mt-1.5 text-sm text-gray-400">Your current analysis will be cleared. You can save it first if you'd like to keep it.</p>
+            <div className="mt-5 flex gap-2">
+              <button
+                type="button"
+                onClick={() => setShowNewAnalysisModal(false)}
+                className="flex-1 rounded-lg border border-white/10 py-2 text-sm font-medium text-gray-400 transition-colors hover:border-white/20 hover:text-gray-200"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={clearAnalysis}
+                className="flex-1 rounded-lg border border-white/10 bg-white/5 py-2 text-sm font-medium text-gray-200 transition-colors hover:bg-white/10 hover:text-white"
+              >
+                Discard
+              </button>
+              <button
+                type="button"
+                onClick={() => { handleSaveAnalysis(); clearAnalysis(); }}
+                className="flex-1 rounded-lg bg-amber-500 py-2 text-sm font-semibold text-black transition-colors hover:bg-amber-400"
+              >
+                Save & Clear
               </button>
             </div>
           </div>
