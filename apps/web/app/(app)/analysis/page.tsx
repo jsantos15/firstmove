@@ -2615,8 +2615,8 @@ export default function AnalysisPage() {
       {showNewAnalysisModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={() => setShowNewAnalysisModal(false)}>
           <div className="w-80 rounded-xl border border-white/10 bg-[#14161f] p-5 shadow-2xl" onClick={e => e.stopPropagation()}>
-            <h2 className="text-base font-semibold text-white">Start a new analysis?</h2>
-            <p className="mt-1.5 text-sm text-gray-400">Your current analysis will be cleared. You can save it first if you'd like to keep it.</p>
+            <h2 className="text-base font-semibold text-white">Start New Analysis?</h2>
+            <p className="mt-1.5 text-sm text-gray-400">Any unsaved progress will be lost.</p>
             <div className="mt-5 flex gap-2">
               <button
                 type="button"
@@ -2628,16 +2628,9 @@ export default function AnalysisPage() {
               <button
                 type="button"
                 onClick={clearAnalysis}
-                className="flex-1 rounded-lg border border-white/10 bg-white/5 py-2 text-sm font-medium text-gray-200 transition-colors hover:bg-white/10 hover:text-white"
-              >
-                Discard
-              </button>
-              <button
-                type="button"
-                onClick={() => { handleSaveAnalysis(); clearAnalysis(); }}
                 className="flex-1 rounded-lg bg-amber-500 py-2 text-sm font-semibold text-black transition-colors hover:bg-amber-400"
               >
-                Save & Clear
+                New Analysis
               </button>
             </div>
           </div>
