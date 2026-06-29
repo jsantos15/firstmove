@@ -136,11 +136,14 @@ export function usePositionAnalysis(fen: string, extendKey = 0, numLines = 1, mo
             const next = [...prev];
             while (next.length <= mvIdx) next.push(emptyLine());
             const cur = next[mvIdx];
+            // Use Math.max so depth is strictly non-decreasing — guards against
+            // out-of-order message delivery under concurrent rendering.
+            const newDepth = lineDepth > 0 ? Math.max(lineDepth, cur.depth ?? 0) : cur.depth;
             next[mvIdx] = {
               bestMoveUci: pvMoves[0] ?? cur.bestMoveUci,
               evalCp: newEvalCp !== null ? newEvalCp : cur.evalCp,
               pvUci: pvMoves.length > 0 ? pvMoves : cur.pvUci,
-              depth: lineDepth > 0 ? lineDepth : cur.depth,
+              depth: newDepth,
             };
             if (mvIdx === 0 && lineDepth > lastDepthRef.current) {
               lastDepthRef.current = lineDepth;
@@ -169,14 +172,10 @@ export function usePositionAnalysis(fen: string, extendKey = 0, numLines = 1, mo
       sharedWorker!.addEventListener('message', onMessage);
       sharedWorker!.postMessage(`setoption name MultiPV value ${numLines}`);
       sharedWorker!.postMessage(`position fen ${fen}`);
-      if (isExtension) {
-        // go infinite: Stockfish re-converges through cached depths almost instantly,
-        // then genuinely continues past the previous depth. Stops only when the position
-        // changes or the component unmounts (cleanup sends stop).
-        sharedWorker!.postMessage(`go infinite`);
-      } else {
-        sharedWorker!.postMessage(`go movetime ${mt}`);
-      }
+      // Extensions reuse the same movetime budget. Stockfish re-traverses cached depths
+      // very fast via the hash table and spends most of the budget genuinely going deeper.
+      // The extensionBaseDepth filter above hides the re-traversal from the UI.
+      sharedWorker!.postMessage(`go movetime ${mt}`);
     }, isExtension ? 0 : 150);
 
     return () => {
