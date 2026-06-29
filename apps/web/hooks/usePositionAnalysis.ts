@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from 'react';
 
 const WORKER_SCRIPT = '/stockfish/stockfish-17.1-lite-single-03e3232.js';
 const MIN_DISPLAY_DEPTH = 8;
+const EXTEND_DEPTH_STEP = 5;
 
 export const ENGINE_DISPLAY_NAME = 'SF 17.1 lite';
 
@@ -60,6 +61,8 @@ export function usePositionAnalysis(fen: string, extendKey = 0, numLines = 1, mo
   // movetime is read via ref so the slider change doesn't restart the current analysis.
   const movetimeRef = useRef(movetime);
   movetimeRef.current = movetime;
+  // Tracks the highest depth line[0] has reached; used by extensions to target deeper.
+  const lastDepthRef = useRef(0);
 
   useEffect(() => {
     if (!enabled) {
@@ -73,6 +76,7 @@ export function usePositionAnalysis(fen: string, extendKey = 0, numLines = 1, mo
     const mt = movetimeRef.current;
 
     if (!isExtension) {
+      lastDepthRef.current = 0;
       // Keep line 0's evalCp so the bar doesn't jump while the new search ramps up.
       setLines(prev =>
         Array.from({ length: numLines }, (_, i) =>
@@ -130,6 +134,9 @@ export function usePositionAnalysis(fen: string, extendKey = 0, numLines = 1, mo
               pvUci: pvMoves.length > 0 ? pvMoves : cur.pvUci,
               depth: lineDepth > 0 ? lineDepth : cur.depth,
             };
+            if (mvIdx === 0 && lineDepth > lastDepthRef.current) {
+              lastDepthRef.current = lineDepth;
+            }
             return next;
           });
         } else if (line.startsWith('bestmove ')) {
@@ -154,7 +161,12 @@ export function usePositionAnalysis(fen: string, extendKey = 0, numLines = 1, mo
       sharedWorker!.addEventListener('message', onMessage);
       sharedWorker!.postMessage(`setoption name MultiPV value ${numLines}`);
       sharedWorker!.postMessage(`position fen ${fen}`);
-      sharedWorker!.postMessage(`go movetime ${mt}`);
+      if (isExtension) {
+        const targetDepth = lastDepthRef.current + EXTEND_DEPTH_STEP;
+        sharedWorker!.postMessage(`go depth ${targetDepth}`);
+      } else {
+        sharedWorker!.postMessage(`go movetime ${mt}`);
+      }
     }, isExtension ? 0 : 150);
 
     return () => {
