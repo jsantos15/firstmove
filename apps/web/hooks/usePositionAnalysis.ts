@@ -4,7 +4,6 @@ import { useState, useEffect, useRef } from 'react';
 
 const WORKER_SCRIPT = '/stockfish/stockfish-17.1-lite-single-03e3232.js';
 const MIN_DISPLAY_DEPTH = 8;
-const EXTEND_DEPTH_STEP = 5;
 
 export const ENGINE_DISPLAY_NAME = 'SF 17.1 lite';
 
@@ -171,9 +170,10 @@ export function usePositionAnalysis(fen: string, extendKey = 0, numLines = 1, mo
       sharedWorker!.postMessage(`setoption name MultiPV value ${numLines}`);
       sharedWorker!.postMessage(`position fen ${fen}`);
       if (isExtension) {
-        // Combine depth + movetime: stops at whichever limit is hit first.
-        const targetDepth = lastDepthRef.current + EXTEND_DEPTH_STEP;
-        sharedWorker!.postMessage(`go depth ${targetDepth} movetime ${mt}`);
+        // go infinite: Stockfish re-converges through cached depths almost instantly,
+        // then genuinely continues past the previous depth. Stops only when the position
+        // changes or the component unmounts (cleanup sends stop).
+        sharedWorker!.postMessage(`go infinite`);
       } else {
         sharedWorker!.postMessage(`go movetime ${mt}`);
       }
