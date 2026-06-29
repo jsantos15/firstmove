@@ -1968,7 +1968,7 @@ export default function AnalysisPage() {
                           type="button"
                           onClick={() => setExtendKey(k => k + 1)}
                           disabled={!isDone}
-                          title="Think 20 seconds deeper"
+                          title="Extend analysis deeper"
                           className="flex h-5 w-5 items-center justify-center rounded text-sm font-bold text-gray-500 transition-colors hover:bg-white/5 hover:text-white disabled:cursor-not-allowed disabled:opacity-25"
                         >
                           +

@@ -98,6 +98,10 @@ export function usePositionAnalysis(fen: string, extendKey = 0, numLines = 1, mo
 
       setIsAnalyzing(true);
 
+      // For extensions, ignore info lines at or below this depth so the UI never
+      // appears to count back down to 1 while Stockfish re-traverses cached nodes.
+      const extensionBaseDepth = isExtension ? lastDepthRef.current : 0;
+
       onMessage = (e: MessageEvent) => {
         if (cancelled) return;
         const line = typeof e.data === 'string' ? e.data : String(e.data);
@@ -113,6 +117,11 @@ export function usePositionAnalysis(fen: string, extendKey = 0, numLines = 1, mo
           const pvMatch = line.match(/\bpv\s+(.+)$/);
 
           const lineDepth = depthMatch ? Number(depthMatch[1]) : 0;
+
+          // During an extension skip depths the engine has already covered —
+          // Stockfish re-traverses them using cached hash entries (fast, not useful to show).
+          if (lineDepth <= extensionBaseDepth) return;
+
           const pvMoves = pvMatch ? pvMatch[1].trim().split(/\s+/).slice(0, 8) : [];
 
           let newEvalCp: number | null = null;
@@ -162,8 +171,9 @@ export function usePositionAnalysis(fen: string, extendKey = 0, numLines = 1, mo
       sharedWorker!.postMessage(`setoption name MultiPV value ${numLines}`);
       sharedWorker!.postMessage(`position fen ${fen}`);
       if (isExtension) {
+        // Combine depth + movetime: stops at whichever limit is hit first.
         const targetDepth = lastDepthRef.current + EXTEND_DEPTH_STEP;
-        sharedWorker!.postMessage(`go depth ${targetDepth}`);
+        sharedWorker!.postMessage(`go depth ${targetDepth} movetime ${mt}`);
       } else {
         sharedWorker!.postMessage(`go movetime ${mt}`);
       }
