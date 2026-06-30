@@ -98,6 +98,25 @@ export function usePositionAnalysis(
   // mistaken for a genuine extension request on a new position.
   const prevFenRef = useRef<string>('');
 
+  // Stop the engine when the tab is hidden. The incremental cache already holds
+  // whatever depth was reached, so the display is preserved on return without
+  // needing to restart analysis.
+  useEffect(() => {
+    if (!enabled) return;
+    const onVisibilityChange = () => {
+      if (document.hidden) {
+        sharedWorker?.postMessage('stop');
+        // For go infinite (extension), bestmove is ignored by the listener, so
+        // we update state here. For auto-analysis the bestmove handler does this,
+        // but calling it twice is harmless — the final value is the same.
+        setIsAnalyzing(false);
+        setIsDone(lastDepthRef.current >= TARGET_DEPTH);
+      }
+    };
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', onVisibilityChange);
+  }, [enabled]);
+
   useEffect(() => {
     if (!enabled) {
       sharedWorker?.postMessage('stop');
