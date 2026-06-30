@@ -4,6 +4,8 @@ import { useState, useEffect, useRef } from 'react';
 
 const WORKER_SCRIPT = '/stockfish/stockfish-17.1-lite-single-03e3232.js';
 const MIN_DISPLAY_DEPTH = 8;
+/** Auto-analysis stops at this depth (unless time runs out first). */
+const TARGET_DEPTH = 25;
 
 export const ENGINE_DISPLAY_NAME = 'SF 17.1 lite';
 
@@ -24,8 +26,22 @@ interface PositionAnalysis {
   isDone: boolean;
 }
 
+interface CachedAnalysis {
+  lines: EngineLine[];
+  maxDepth: number;
+  /** True when analysis reached TARGET_DEPTH — suppresses auto re-analysis on revisit. */
+  reachedTarget: boolean;
+}
+
 let sharedWorker: Worker | null = null;
 let workerReadyPromise: Promise<void> | null = null;
+
+/** Per-position analysis cache keyed by `${fen}:${numLines}`. Persists the session. */
+const analysisCache = new Map<string, CachedAnalysis>();
+
+function cacheKey(fen: string, numLines: number): string {
+  return `${fen}:${numLines}`;
+}
 
 function ensureWorker(): Promise<void> {
   if (workerReadyPromise) return workerReadyPromise;
@@ -49,19 +65,38 @@ function emptyLine(preserveEvalCp?: number | null): EngineLine {
   return { bestMoveUci: null, evalCp: preserveEvalCp ?? null, pvUci: [], depth: null };
 }
 
-export function usePositionAnalysis(fen: string, extendKey = 0, numLines = 1, movetime = 8000, enabled = true): PositionAnalysis {
-  const [lines, setLines] = useState<EngineLine[]>(() => [emptyLine()]);
-  const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [isDone, setIsDone] = useState(false);
+export function usePositionAnalysis(
+  fen: string,
+  extendKey = 0,
+  numLines = 1,
+  movetime = 8000,
+  enabled = true,
+): PositionAnalysis {
+  const key = cacheKey(fen, numLines);
 
-  // Keep refs so closures capture them without going stale.
-  const numLinesRef = useRef(numLines);
-  numLinesRef.current = numLines;
-  // movetime is read via ref so the slider change doesn't restart the current analysis.
+  // Initialize from cache on first mount so revisited positions load instantly.
+  const [lines, setLines] = useState<EngineLine[]>(() => {
+    const c = analysisCache.get(key);
+    return c?.lines ?? [emptyLine()];
+  });
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [isDone, setIsDone] = useState(() => {
+    const c = analysisCache.get(key);
+    return c?.reachedTarget ?? false;
+  });
+
+  // Read movetime via ref so the slider value is always current inside the closure
+  // without restarting analysis on every drag tick.
   const movetimeRef = useRef(movetime);
   movetimeRef.current = movetime;
-  // Tracks the highest depth line[0] has reached; used by extensions to target deeper.
+
+  // Tracks the highest depth line[0] has reached; used as baseline for extensions
+  // and as the starting point when resuming a partially-analyzed position.
   const lastDepthRef = useRef(0);
+
+  // Detects FEN changes within the effect to prevent a stale extendKey from being
+  // mistaken for a genuine extension request on a new position.
+  const prevFenRef = useRef<string>('');
 
   useEffect(() => {
     if (!enabled) {
@@ -71,35 +106,56 @@ export function usePositionAnalysis(fen: string, extendKey = 0, numLines = 1, mo
       setIsDone(false);
       return;
     }
-    const isExtension = extendKey > 0;
-    const mt = movetimeRef.current;
 
-    if (!isExtension) {
+    const cached = analysisCache.get(key);
+    const fenChanged = fen !== prevFenRef.current;
+    prevFenRef.current = fen;
+
+    // An extension only makes sense for the same FEN going deeper.
+    const isExtension = !fenChanged && extendKey > 0;
+
+    // Position is already fully analyzed — show cache, skip engine.
+    if (cached?.reachedTarget && !isExtension) {
+      setLines(cached.lines);
+      setIsAnalyzing(false);
+      setIsDone(true);
+      lastDepthRef.current = cached.maxDepth;
+      sharedWorker?.postMessage('stop');
+      return;
+    }
+
+    // Load cached lines immediately so the UI shows prior progress while engine catches up.
+    if (cached) {
+      setLines(cached.lines);
+      if (!isExtension) {
+        lastDepthRef.current = cached.maxDepth;
+      }
+    } else if (!isExtension) {
       lastDepthRef.current = 0;
-      // Keep line 0's evalCp so the bar doesn't jump while the new search ramps up.
       setLines(prev =>
         Array.from({ length: numLines }, (_, i) =>
           i === 0 ? emptyLine(prev[0]?.evalCp) : emptyLine()
         )
       );
     }
+
     setIsAnalyzing(false);
     setIsDone(false);
-
     sharedWorker?.postMessage('stop');
 
     let cancelled = false;
     let onMessage: ((e: MessageEvent) => void) | null = null;
 
+    // Depths already covered — filter during hash-table re-traversal so the
+    // depth counter never appears to go backwards.
+    const extensionBaseDepth = isExtension
+      ? lastDepthRef.current
+      : (cached?.maxDepth ?? 0);
+
     const timer = setTimeout(async () => {
       await ensureWorker();
       if (cancelled) return;
-
       setIsAnalyzing(true);
-
-      // For extensions, ignore info lines at or below this depth so the UI never
-      // appears to count back down to 1 while Stockfish re-traverses cached nodes.
-      const extensionBaseDepth = isExtension ? lastDepthRef.current : 0;
 
       onMessage = (e: MessageEvent) => {
         if (cancelled) return;
@@ -107,9 +163,8 @@ export function usePositionAnalysis(fen: string, extendKey = 0, numLines = 1, mo
 
         if (line.startsWith('info ')) {
           const multipvMatch = line.match(/\bmultipv\s+(\d+)/);
-          // 0-based index; default to 0 when there is no multipv token
           const mvIdx = multipvMatch ? Number(multipvMatch[1]) - 1 : 0;
-          if (mvIdx >= numLinesRef.current) return;
+          if (mvIdx >= numLines) return;
 
           const depthMatch = line.match(/\bdepth\s+(\d+)/);
           const scoreMatch = line.match(/\bscore\s+(cp|mate)\s+(-?\d+)/);
@@ -117,8 +172,8 @@ export function usePositionAnalysis(fen: string, extendKey = 0, numLines = 1, mo
 
           const lineDepth = depthMatch ? Number(depthMatch[1]) : 0;
 
-          // During an extension skip depths the engine has already covered —
-          // Stockfish re-traverses them using cached hash entries (fast, not useful to show).
+          // Skip depths already covered — prevents the counter from counting backward
+          // as Stockfish re-traverses cached hash entries.
           if (lineDepth <= extensionBaseDepth) return;
 
           const pvMoves = pvMatch ? pvMatch[1].trim().split(/\s+/).slice(0, 8) : [];
@@ -136,8 +191,7 @@ export function usePositionAnalysis(fen: string, extendKey = 0, numLines = 1, mo
             const next = [...prev];
             while (next.length <= mvIdx) next.push(emptyLine());
             const cur = next[mvIdx];
-            // Use Math.max so depth is strictly non-decreasing — guards against
-            // out-of-order message delivery under concurrent rendering.
+            // Math.max prevents depth from decreasing under concurrent rendering.
             const newDepth = lineDepth > 0 ? Math.max(lineDepth, cur.depth ?? 0) : cur.depth;
             next[mvIdx] = {
               bestMoveUci: pvMoves[0] ?? cur.bestMoveUci,
@@ -147,21 +201,33 @@ export function usePositionAnalysis(fen: string, extendKey = 0, numLines = 1, mo
             };
             if (mvIdx === 0 && lineDepth > lastDepthRef.current) {
               lastDepthRef.current = lineDepth;
+              // Incrementally update cache so navigating away mid-analysis preserves progress.
+              analysisCache.set(key, {
+                lines: next,
+                maxDepth: lineDepth,
+                reachedTarget: lineDepth >= TARGET_DEPTH,
+              });
             }
             return next;
           });
         } else if (line.startsWith('bestmove ')) {
           const match = line.match(/^bestmove\s+(\S+)/);
           const move = match?.[1] && match[1] !== '(none)' ? match[1] : null;
-          if (move) {
-            setLines(prev => {
-              const next = [...prev];
-              if (next.length > 0 && !next[0].bestMoveUci) {
-                next[0] = { ...next[0], bestMoveUci: move };
-              }
-              return next;
+
+          setLines(prev => {
+            const next = [...prev];
+            if (move && next.length > 0 && !next[0].bestMoveUci) {
+              next[0] = { ...next[0], bestMoveUci: move };
+            }
+            // Final cache commit.
+            analysisCache.set(key, {
+              lines: next,
+              maxDepth: lastDepthRef.current,
+              reachedTarget: lastDepthRef.current >= TARGET_DEPTH,
             });
-          }
+            return next;
+          });
+
           setIsAnalyzing(false);
           setIsDone(true);
           if (onMessage) sharedWorker!.removeEventListener('message', onMessage);
@@ -172,10 +238,15 @@ export function usePositionAnalysis(fen: string, extendKey = 0, numLines = 1, mo
       sharedWorker!.addEventListener('message', onMessage);
       sharedWorker!.postMessage(`setoption name MultiPV value ${numLines}`);
       sharedWorker!.postMessage(`position fen ${fen}`);
-      // Extensions reuse the same movetime budget. Stockfish re-traverses cached depths
-      // very fast via the hash table and spends most of the budget genuinely going deeper.
-      // The extensionBaseDepth filter above hides the re-traversal from the UI.
-      sharedWorker!.postMessage(`go movetime ${mt}`);
+
+      // Extensions go past TARGET_DEPTH with no cap — hash table means Stockfish
+      // re-traverses depths 1–N very fast and spends most of the budget genuinely deeper.
+      // Auto-analysis: user-selected time OR TARGET_DEPTH, whichever first.
+      const cmd = isExtension
+        ? `go movetime ${movetimeRef.current}`
+        : `go movetime ${movetimeRef.current} depth ${TARGET_DEPTH}`;
+
+      sharedWorker!.postMessage(cmd);
     }, isExtension ? 0 : 150);
 
     return () => {
@@ -185,7 +256,7 @@ export function usePositionAnalysis(fen: string, extendKey = 0, numLines = 1, mo
       sharedWorker?.postMessage('stop');
       setIsAnalyzing(false);
     };
-  }, [fen, extendKey, numLines, enabled]);
+  }, [fen, extendKey, numLines, enabled, key]);
 
   const line0 = lines[0];
   return {
