@@ -211,6 +211,12 @@ export function usePositionAnalysis(
             return next;
           });
         } else if (line.startsWith('bestmove ')) {
+          // For go infinite (extension), bestmove is not meaningful here — the listener
+          // stays alive for info updates and cleanup handles the stop when the user
+          // navigates away. isDone comes from cache on the next revisit.
+          // This also prevents a stale bestmove (none) from an idle-stop (fired before
+          // our go command) from incorrectly marking the extension as done.
+          if (isExtension) return;
           const match = line.match(/^bestmove\s+(\S+)/);
           const move = match?.[1] && match[1] !== '(none)' ? match[1] : null;
 
@@ -239,11 +245,11 @@ export function usePositionAnalysis(
       sharedWorker!.postMessage(`setoption name MultiPV value ${numLines}`);
       sharedWorker!.postMessage(`position fen ${fen}`);
 
-      // Extensions go past TARGET_DEPTH with no cap — hash table means Stockfish
-      // re-traverses depths 1–N very fast and spends most of the budget genuinely deeper.
+      // Extensions run indefinitely — engine keeps going until the user navigates
+      // away (cleanup sends stop), preserving whatever depth was reached in cache.
       // Auto-analysis: user-selected time OR TARGET_DEPTH, whichever first.
       const cmd = isExtension
-        ? `go movetime ${movetimeRef.current}`
+        ? `go infinite`
         : `go movetime ${movetimeRef.current} depth ${TARGET_DEPTH}`;
 
       sharedWorker!.postMessage(cmd);
