@@ -1961,25 +1961,31 @@ export default function AnalysisPage() {
                     {/* Push depth section to right */}
                     <div className="flex-1 min-w-0" />
 
-                    {/* Extend button + Depth label + analyzing dot */}
+                    {/* Extend button + Depth label */}
                     {settings.engineEnabled && depth !== null && (
                       <div className="flex shrink-0 items-center gap-1 mr-2">
-                        <button
-                          type="button"
-                          onClick={() => setExtendKey(k => k + 1)}
-                          disabled={!isDone}
-                          title="Extend analysis deeper"
-                          className="flex h-5 w-5 items-center justify-center rounded text-sm font-bold text-gray-500 transition-colors hover:bg-white/5 hover:text-white disabled:cursor-not-allowed disabled:opacity-25"
-                        >
-                          +
-                        </button>
+                        {isAnalyzing ? (
+                          <div className="flex h-5 w-5 items-center justify-center">
+                            <svg className="h-4 w-4 animate-spin text-emerald-400" viewBox="0 0 20 20" fill="none">
+                              <circle cx="10" cy="10" r="7" stroke="currentColor" strokeWidth="1.5" strokeOpacity="0.15" />
+                              <path d="M10 3 A7 7 0 0 1 17 10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                            </svg>
+                          </div>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => setExtendKey(k => k + 1)}
+                            disabled={!isDone}
+                            title="Extend analysis deeper"
+                            className="flex h-5 w-5 items-center justify-center rounded text-sm font-bold text-gray-500 transition-colors hover:bg-white/5 hover:text-white disabled:cursor-not-allowed disabled:opacity-25"
+                          >
+                            +
+                          </button>
+                        )}
                         <span className="text-[11px] text-gray-400">
                           Depth{' '}
                           <span className={isAnalyzing ? 'text-emerald-400' : 'text-gray-200'}>{depth}</span>
                         </span>
-                        {isAnalyzing && (
-                          <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                        )}
                       </div>
                     )}
 
