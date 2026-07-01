@@ -2071,9 +2071,6 @@ export default function AnalysisPage() {
                     <span className="flex-1 min-w-0 truncate text-[12px] text-gray-400">
                       {openingPosition?.name ?? 'Starting Position'}
                     </span>
-                    {openingPosition && (
-                      <span className="shrink-0 font-mono text-[10px] text-gray-600">{openingPosition.eco_code}</span>
-                    )}
                   </div>
                   {/* Players header row — always visible */}
                   <div className="flex items-center gap-2 border-b border-white/5 px-3 py-2">
