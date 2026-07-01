@@ -1022,6 +1022,7 @@ export default function AnalysisPage() {
   const [boardSize, setBoardSize] = useState(480);
   const [maxBoardWidth, setMaxBoardWidth] = useState<number | undefined>(undefined);
   const boardContainerRef = useRef<HTMLDivElement>(null);
+  const activeExploreMoveRef = useRef<HTMLButtonElement | null>(null);
   const [engineSettingsOpen, setEngineSettingsOpen] = useState(false);
   const engineSettingsRef = useRef<HTMLDivElement>(null);
   const [exploreTree, setExploreTree] = useState<ExploreTree | null>(null);
@@ -1519,6 +1520,10 @@ export default function AnalysisPage() {
     if (el) el.scrollTop = el.scrollHeight;
   }, [positionText]);
 
+  useEffect(() => {
+    activeExploreMoveRef.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  }, [exploreNav]);
+
   function handlePositionLoad() {
     const text = positionText.trim();
     if (!text) return;
@@ -1904,14 +1909,16 @@ export default function AnalysisPage() {
         );
       }
       const branchPly = i;
+      const isBranchActive = nav.lineId === line.id && nav.plyIndex === branchPly;
       pendingTokens.push(
         <button
           key={`mv-${i}`}
+          ref={isBranchActive ? activeExploreMoveRef : undefined}
           type="button"
           onClick={() => navigateTo(line.id, branchPly)}
           onContextMenu={e => { e.preventDefault(); e.stopPropagation(); setMoveContextMenu({ x: e.clientX, y: e.clientY, lineId: line.id, plyIndex: branchPly }); }}
           className={`rounded px-1.5 py-0.5 font-mono text-sm transition-colors ${
-            nav.lineId === line.id && nav.plyIndex === branchPly
+            isBranchActive
               ? 'bg-amber-400/15 text-amber-300'
               : 'text-gray-400 hover:bg-white/5 hover:text-gray-200'
           }`}
@@ -1978,6 +1985,7 @@ export default function AnalysisPage() {
           <div className="flex flex-1">
             {pair.white ? (
               <button type="button"
+                ref={nav.lineId === line.id && nav.plyIndex === pair.white.ply ? activeExploreMoveRef : undefined}
                 onClick={() => navigateTo(line.id, pair.white!.ply)}
                 onContextMenu={e => { e.preventDefault(); e.stopPropagation(); setMoveContextMenu({ x: e.clientX, y: e.clientY, lineId: line.id, plyIndex: pair.white!.ply }); }}
                 className={`flex min-w-0 flex-1 items-center rounded px-2 py-[5px] font-mono text-[13px] transition-colors ${
@@ -1987,6 +1995,7 @@ export default function AnalysisPage() {
             ) : <span className="flex-1" />}
             {pair.black ? (
               <button type="button"
+                ref={nav.lineId === line.id && nav.plyIndex === pair.black.ply ? activeExploreMoveRef : undefined}
                 onClick={() => navigateTo(line.id, pair.black!.ply)}
                 onContextMenu={e => { e.preventDefault(); e.stopPropagation(); setMoveContextMenu({ x: e.clientX, y: e.clientY, lineId: line.id, plyIndex: pair.black!.ply }); }}
                 className={`flex min-w-0 flex-1 items-center rounded px-2 py-[5px] font-mono text-[13px] transition-colors ${
