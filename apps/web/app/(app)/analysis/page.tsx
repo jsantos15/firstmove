@@ -75,6 +75,108 @@ type ReviewSubTab = 'summary' | 'moves';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
+// Parse [%clk h:mm:ss] annotations from a PGN string, returning formatted times
+// in the order they appear (ply 0 = white's first move, ply 1 = black's, etc.).
+function parsePgnClocks(pgn: string): string[] {
+  const clocks: string[] = [];
+  const re = /\[%clk\s+(\d+):(\d+):(\d+)\]/g;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(pgn)) !== null) {
+    const h = parseInt(m[1]!, 10);
+    const min = parseInt(m[2]!, 10);
+    const s = parseInt(m[3]!, 10);
+    clocks.push(h > 0
+      ? `${h}:${String(min).padStart(2, '0')}:${String(s).padStart(2, '0')}`
+      : `${min}:${String(s).padStart(2, '0')}`
+    );
+  }
+  return clocks;
+}
+
+// Returns the most recent clock for each color at the given ply index.
+function getClocksAtPly(clocks: string[], plyIndex: number): { w: string | null; b: string | null } {
+  if (plyIndex < 0 || clocks.length === 0) return { w: null, b: null };
+  let wClock: string | null = null;
+  let bClock: string | null = null;
+  for (let i = 0; i <= Math.min(plyIndex, clocks.length - 1); i++) {
+    if (i % 2 === 0) wClock = clocks[i] ?? null;
+    else bClock = clocks[i] ?? null;
+  }
+  return { w: wClock, b: bClock };
+}
+
+const PIECE_VALS: Record<string, number> = { p: 1, n: 3, b: 3, r: 5, q: 9 };
+const PIECE_SYMS: Record<string, string> = { q: '♛', r: '♜', b: '♝', n: '♞', p: '♟' };
+const PIECE_ORDER = ['q', 'r', 'b', 'n', 'p'] as const;
+
+interface MaterialData {
+  whiteCaptured: Record<string, number>;  // black pieces white has taken
+  blackCaptured: Record<string, number>;  // white pieces black has taken
+  advantage: number;                       // positive = white ahead
+}
+
+function computeMaterial(fen: string): MaterialData {
+  const board = fen.split(' ')[0] ?? '';
+  const cnt = (ch: string) => (board.match(new RegExp(ch, 'g')) ?? []).length;
+  const whiteCaptured = { q: Math.max(0, 1 - cnt('q')), r: Math.max(0, 2 - cnt('r')), b: Math.max(0, 2 - cnt('b')), n: Math.max(0, 2 - cnt('n')), p: Math.max(0, 8 - cnt('p')) };
+  const blackCaptured = { q: Math.max(0, 1 - cnt('Q')), r: Math.max(0, 2 - cnt('R')), b: Math.max(0, 2 - cnt('B')), n: Math.max(0, 2 - cnt('N')), p: Math.max(0, 8 - cnt('P')) };
+  const wScore = Object.entries(whiteCaptured).reduce((s, [k, v]) => s + (PIECE_VALS[k] ?? 0) * v, 0);
+  const bScore = Object.entries(blackCaptured).reduce((s, [k, v]) => s + (PIECE_VALS[k] ?? 0) * v, 0);
+  return { whiteCaptured, blackCaptured, advantage: wScore - bScore };
+}
+
+function PlayerRow({
+  name, elo, avatar, captured, advantage, clock, isActive,
+}: {
+  name: string;
+  elo?: string;
+  avatar?: string | null;
+  captured: Record<string, number>;
+  advantage: number;
+  clock?: string | null;
+  isActive: boolean;
+}) {
+  const pieces = PIECE_ORDER.flatMap(p => Array(Math.max(0, captured[p] ?? 0)).fill(PIECE_SYMS[p]));
+
+  return (
+    <div className="flex items-center gap-2 h-full px-1 min-w-0">
+      {/* Avatar */}
+      <div className="shrink-0 h-7 w-7 rounded overflow-hidden bg-white/10 flex items-center justify-center">
+        {avatar
+          ? <img src={avatar} alt={name} className="h-full w-full object-cover" />
+          : <span className="text-[18px] text-gray-500 leading-none select-none">♟</span>
+        }
+      </div>
+
+      {/* Name + ELO */}
+      <div className="flex items-baseline gap-1.5 min-w-0 shrink-0">
+        <span className="text-sm font-medium text-gray-200 truncate max-w-32 leading-none">{name || '—'}</span>
+        {elo && <span className="text-[11px] text-gray-500 shrink-0 leading-none">{elo}</span>}
+      </div>
+
+      {/* Captured pieces + advantage */}
+      <div className="flex items-center gap-0 flex-1 min-w-0">
+        {pieces.length > 0 && (
+          <>
+            <span className="text-[11px] text-gray-500 leading-none tracking-tighter">{pieces.join('')}</span>
+            {advantage > 0 && <span className="ml-1 text-[11px] text-gray-400 leading-none">+{advantage}</span>}
+          </>
+        )}
+      </div>
+
+      {/* Clock */}
+      {clock && (
+        <div className={`shrink-0 flex items-center gap-1 ${isActive ? 'text-gray-200' : 'text-gray-500'}`}>
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" className="h-3 w-3 shrink-0">
+            <circle cx="8" cy="8" r="6" />
+            <path d="M8 5v3l2 2" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+          <span className="text-sm font-mono">{clock}</span>
+        </div>
+      )}
+    </div>
+  );
+}
 
 const CLASSIFICATION_DOT: Record<GameReviewCategory, string> = {
   brilliant: 'bg-cyan-400',
@@ -917,6 +1019,9 @@ export default function AnalysisPage() {
   const [positionError, setPositionError] = useState<string | null>(null);
   const positionTextareaRef = useRef<HTMLTextAreaElement>(null);
   const [gameDetails, setGameDetails] = useState<GameDetails>(EMPTY_GAME_DETAILS);
+  const [rawPgn, setRawPgn] = useState('');
+  const [whiteAvatar, setWhiteAvatar] = useState<string | null>(null);
+  const [blackAvatar, setBlackAvatar] = useState<string | null>(null);
   const [showGameDetailsModal, setShowGameDetailsModal] = useState(false);
   const [gameDetailsDraft, setGameDetailsDraft] = useState<GameDetails>(EMPTY_GAME_DETAILS);
   const [showNewAnalysisModal, setShowNewAnalysisModal] = useState(false);
@@ -1138,6 +1243,9 @@ export default function AnalysisPage() {
     setPositionError(null);
     setParseError(null);
     setGameDetails(EMPTY_GAME_DETAILS);
+    setRawPgn('');
+    setWhiteAvatar(null);
+    setBlackAvatar(null);
     setActiveTab('explore');
     setShowNewAnalysisModal(false);
   }
@@ -1410,6 +1518,9 @@ export default function AnalysisPage() {
         setPositionError(null);
         setPositionDirty(false);
         setGameDetails(EMPTY_GAME_DETAILS);
+        setRawPgn('');
+        setWhiteAvatar(null);
+        setBlackAvatar(null);
       } catch {
         setPositionError('Invalid FEN');
       }
@@ -1441,6 +1552,9 @@ export default function AnalysisPage() {
         setPositionError(null);
         setPositionDirty(false);
         setGameDetails(parsePgnHeaders(text));
+        setRawPgn(text);
+        setWhiteAvatar(null);
+        setBlackAvatar(null);
       } catch {
         setPositionError('Invalid PGN');
       }
@@ -1451,6 +1565,39 @@ export default function AnalysisPage() {
   // user has played a move freely, in which case freeExploreFen takes over.
   const boardFen = freeExploreFen ?? currentFen;
   const openingPosition = useOpeningName(boardFen);
+
+  // Parse clock annotations from the raw PGN once per game load.
+  const pgnClocks = useMemo(() => parsePgnClocks(rawPgn), [rawPgn]);
+
+  // Material captured by each side at the current board position.
+  const material = useMemo(() => computeMaterial(boardFen), [boardFen]);
+
+  // Per-color clock at the current ply (null if no clock data in PGN).
+  const playerClocks = useMemo(
+    () => getClocksAtPly(pgnClocks, currentPlyIndex),
+    [pgnClocks, currentPlyIndex]
+  );
+
+  // Fetch player avatars from chess.com's public API when a game is imported.
+  useEffect(() => {
+    if (!gameDetails.location.includes('chess.com')) return;
+    const controller = new AbortController();
+    const fetchAvatar = async (username: string, set: (url: string | null) => void) => {
+      if (!username) return;
+      try {
+        const res = await fetch(
+          `https://api.chess.com/pub/player/${username.toLowerCase()}`,
+          { signal: controller.signal }
+        );
+        if (!res.ok) return;
+        const data = await res.json() as { avatar?: string };
+        set(data.avatar ?? null);
+      } catch { /* ignore — network or CORS failure */ }
+    };
+    fetchAvatar(gameDetails.white, setWhiteAvatar);
+    fetchAvatar(gameDetails.black, setBlackAvatar);
+    return () => controller.abort();
+  }, [gameDetails.white, gameDetails.black, gameDetails.location]);
   const [extendKey, setExtendKey] = useState(0);
 
   // Reset extend key whenever the position changes so each new FEN starts fresh at 8s.
@@ -1843,10 +1990,39 @@ export default function AnalysisPage() {
             onBoardSizeChange={setBoardSize}
             maxWidth={maxBoardWidth}
             overlay={knightArrowOverlay}
-            topBar={<div className="h-full" />}
+            topBar={
+              analyzedGame ? (
+                <PlayerRow
+                  name={settings.flipBoard ? gameDetails.white : gameDetails.black}
+                  elo={settings.flipBoard ? gameDetails.whiteElo : gameDetails.blackElo}
+                  avatar={settings.flipBoard ? whiteAvatar : blackAvatar}
+                  captured={settings.flipBoard ? material.whiteCaptured : material.blackCaptured}
+                  advantage={settings.flipBoard ? material.advantage : -material.advantage}
+                  clock={settings.flipBoard ? playerClocks.w : playerClocks.b}
+                  isActive={settings.flipBoard ? boardFen.split(' ')[1] === 'w' : boardFen.split(' ')[1] === 'b'}
+                />
+              ) : (
+                <div className="h-full" />
+              )
+            }
             bottomBar={
-              <div className="flex items-center justify-end py-2.5">
-                <BoardSettingsPopover />
+              <div className="flex justify-center py-1.5">
+                <div style={{ width: boardSize + 36 }} className="flex items-center gap-2">
+                  {analyzedGame && (
+                    <div className="flex-1 min-w-0">
+                      <PlayerRow
+                        name={settings.flipBoard ? gameDetails.black : gameDetails.white}
+                        elo={settings.flipBoard ? gameDetails.blackElo : gameDetails.whiteElo}
+                        avatar={settings.flipBoard ? blackAvatar : whiteAvatar}
+                        captured={settings.flipBoard ? material.blackCaptured : material.whiteCaptured}
+                        advantage={settings.flipBoard ? -material.advantage : material.advantage}
+                        clock={settings.flipBoard ? playerClocks.b : playerClocks.w}
+                        isActive={settings.flipBoard ? boardFen.split(' ')[1] === 'b' : boardFen.split(' ')[1] === 'w'}
+                      />
+                    </div>
+                  )}
+                  <BoardSettingsPopover />
+                </div>
               </div>
             }
           >
