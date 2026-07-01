@@ -70,8 +70,15 @@ export function BoardPanel({
         </div>
       </div>
 
-      {/* Middle row: board square and eval bar. Board centered within the panel. */}
-      <div ref={middleRowRef} className="min-h-0 flex-1 flex justify-center items-center">
+      {/* Middle row: board square and eval bar. Board centered within the panel.
+          When maxWidth is the binding constraint (board is width-limited, not height-limited),
+          cap this row to exactly boardSize so the top/bottom bars sit flush against the board
+          instead of leaving vertical gaps from items-center centering. */}
+      <div
+        ref={middleRowRef}
+        className="min-h-0 flex-1 flex justify-center items-center"
+        style={boardSize > 0 && maxWidth !== undefined && boardSize >= maxWidth ? { maxHeight: boardSize } : undefined}
+      >
         <div
           className="relative self-stretch flex items-center justify-center"
           style={{ width: boardSize }}
