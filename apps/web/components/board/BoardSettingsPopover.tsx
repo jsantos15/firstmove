@@ -105,7 +105,7 @@ export function BoardSettingsPopover() {
       <button
         type="button"
         onClick={() => setOpen(current => !current)}
-        className={`inline-flex h-12 w-12 items-center justify-center text-gray-300 transition-colors ${
+        className={`inline-flex h-8 w-8 items-center justify-center text-gray-300 transition-colors ${
           open ? 'text-amber-300' : 'hover:text-white'
         }`}
         aria-label="Board settings"

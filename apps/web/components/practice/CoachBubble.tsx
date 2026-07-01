@@ -43,25 +43,23 @@ export function CoachBubble({ feedback, fallbackText, dark = false }: CoachBubbl
 
   if (dark) {
     return (
-      <div className="flex items-end gap-0 pl-3 pr-3 py-2">
-        {/* Coach image — fixed height so Next.js fill works */}
-        <div className="relative shrink-0 w-16" style={{ height: '68px' }}>
+      <div className="flex items-start pl-3 pr-3 pt-2 pb-2 gap-2">
+        <div className="relative shrink-0 w-20" style={{ height: '103px' }}>
           <Image
             src="/coaches/jazmin.png"
             alt="Jazmin, your opening coach"
             fill
-            sizes="64px"
+            sizes="80px"
             className="object-contain object-bottom drop-shadow-lg"
             priority
             unoptimized
           />
         </div>
-        {/* White speech bubble — height wraps content */}
         <div
-          className="relative min-w-0 flex-1 rounded-xl bg-white px-3 py-2 shadow-sm ml-2"
+          className="relative min-w-0 flex-1 flex flex-col justify-center rounded-xl bg-white px-3 py-2 shadow-sm"
+          style={{ height: '103px' }}
           aria-live="polite"
         >
-          {/* Speech bubble pointer toward coach */}
           <svg
             className="absolute -left-3.5 top-1/2 -translate-y-1/2"
             width="14"
@@ -72,7 +70,7 @@ export function CoachBubble({ feedback, fallbackText, dark = false }: CoachBubbl
             <path d="M 14 4 Q 7 12 0 11 Q 7 18 14 18 Z" />
           </svg>
           {feedback ? (
-            <div className="flex min-w-0 flex-col gap-0.5">
+            <div className="flex min-w-0 flex-col gap-0.5 overflow-hidden">
               <div className="flex min-w-0 items-center gap-2">
                 <span className={`shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase leading-4 ${TONE_STYLES[tone].badge}`}>
                   {feedback.label}
@@ -81,12 +79,12 @@ export function CoachBubble({ feedback, fallbackText, dark = false }: CoachBubbl
                   {feedback.title}
                 </span>
               </div>
-              <p className="min-w-0 text-[12px] leading-4 text-zinc-600 line-clamp-2">
+              <p className="min-w-0 overflow-hidden text-[14px] leading-[1.35rem] text-zinc-600 line-clamp-3">
                 {feedback.message}
               </p>
             </div>
           ) : (
-            <p className="text-xs leading-4 text-zinc-600 line-clamp-2">
+            <p className="overflow-hidden text-sm leading-[1.35rem] text-zinc-600 line-clamp-3">
               {fallbackText}
             </p>
           )}

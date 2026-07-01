@@ -125,8 +125,13 @@ function computeMaterial(fen: string): MaterialData {
   return { whiteCaptured, blackCaptured, advantage: wScore - bScore };
 }
 
+// Inline styles for captured piece symbols — white pieces are bright, black pieces are dark
+// with a subtle light outline so they read as "black" without vanishing on the dark panel bg.
+const WHITE_PIECE_STYLE: React.CSSProperties = { color: 'rgb(243,244,246)' };
+const BLACK_PIECE_STYLE: React.CSSProperties = { color: '#1a1a1a', textShadow: '0 0 0 1px rgba(255,255,255,0.45), 0 0 4px rgba(255,255,255,0.25)', WebkitTextStroke: '0.4px rgba(200,200,200,0.5)' };
+
 function PlayerRow({
-  name, elo, avatar, captured, advantage, clock, isActive,
+  name, elo, avatar, captured, advantage, clock, isActive, playerColor,
 }: {
   name: string;
   elo?: string;
@@ -135,33 +140,55 @@ function PlayerRow({
   advantage: number;
   clock?: string | null;
   isActive: boolean;
+  playerColor: 'white' | 'black';
 }) {
-  const pieces = PIECE_ORDER.flatMap(p => Array(Math.max(0, captured[p] ?? 0)).fill(PIECE_SYMS[p]));
+  // White player captures black pieces (dark style); black player captures white pieces (light style)
+  const capturedPieceStyle = playerColor === 'white' ? BLACK_PIECE_STYLE : WHITE_PIECE_STYLE;
+  const pawnSymbol = playerColor === 'white' ? '♙' : '♟';
+  const pawnColor = playerColor === 'white' ? 'text-gray-100' : 'text-zinc-500';
+
+  // Group by piece type for chess.com-style stacked display (same-type pieces overlap slightly)
+  const pieceGroups = PIECE_ORDER
+    .map(p => ({ sym: PIECE_SYMS[p], count: Math.max(0, captured[p] ?? 0) }))
+    .filter(g => g.count > 0);
+  const hasMaterial = pieceGroups.length > 0;
 
   return (
-    <div className="flex items-center gap-2 h-full px-1 min-w-0">
-      {/* Avatar */}
-      <div className="shrink-0 h-7 w-7 rounded overflow-hidden bg-white/10 flex items-center justify-center">
+    <div className="flex items-center h-full px-2 gap-2.5 min-w-0">
+      {/* Avatar — nearly fills row height (50px in a 60px row) */}
+      <div className="shrink-0 rounded overflow-hidden bg-white/10 flex items-center justify-center" style={{ width: '50px', height: '50px' }}>
         {avatar
           ? <img src={avatar} alt={name} className="h-full w-full object-cover" />
-          : <span className="text-[18px] text-gray-500 leading-none select-none">♟</span>
+          : <span className={`text-[44px] leading-none select-none ${pawnColor}`}>{pawnSymbol}</span>
         }
       </div>
 
-      {/* Name + ELO */}
-      <div className="flex items-baseline gap-1.5 min-w-0 shrink-0">
-        <span className="text-sm font-medium text-gray-200 truncate max-w-32 leading-none">{name || '—'}</span>
-        {elo && <span className="text-[11px] text-gray-500 shrink-0 leading-none">{elo}</span>}
-      </div>
-
-      {/* Captured pieces + advantage */}
-      <div className="flex items-center gap-0 flex-1 min-w-0">
-        {pieces.length > 0 && (
-          <>
-            <span className="text-[11px] text-gray-500 leading-none tracking-tighter">{pieces.join('')}</span>
-            {advantage > 0 && <span className="ml-1 text-[11px] text-gray-400 leading-none">+{advantage}</span>}
-          </>
-        )}
+      {/* Name on top row, material on bottom row */}
+      <div className="flex flex-col justify-center gap-1.5 min-w-0 flex-1">
+        <div className="flex items-baseline gap-1.5 min-w-0">
+          <span className="text-sm font-semibold text-gray-200 truncate leading-none">{name || '—'}</span>
+          {elo && <span className="text-xs text-gray-500 shrink-0 leading-none">{elo}</span>}
+        </div>
+        <div className="flex items-center gap-1.5 min-w-0 min-h-[16px]">
+          {hasMaterial && (
+            <>
+              {pieceGroups.map((group, gi) => (
+                <div key={gi} className="flex items-center">
+                  {Array(group.count).fill(null).map((_, i) => (
+                    <span
+                      key={i}
+                      className="text-base leading-none select-none"
+                      style={{ ...capturedPieceStyle, marginLeft: i > 0 ? '-0.3em' : undefined }}
+                    >
+                      {group.sym}
+                    </span>
+                  ))}
+                </div>
+              ))}
+              {advantage > 0 && <span className="text-base font-semibold text-gray-300 leading-none">+{advantage}</span>}
+            </>
+          )}
+        </div>
       </div>
 
       {/* Clock */}
@@ -566,7 +593,7 @@ function MoveChip({
     <button
       type="button"
       onClick={() => onNavigate(item.plyIndex)}
-      className={`flex min-w-0 flex-1 items-center gap-1 rounded px-2 py-1.5 font-mono text-base transition-colors ${
+      className={`flex min-w-0 flex-1 items-center gap-1 rounded px-2 py-[5px] font-mono text-[13px] transition-colors ${
         isActive
           ? 'bg-amber-400/15 text-amber-300'
           : 'text-gray-300 hover:bg-white/5 hover:text-white'
@@ -589,7 +616,6 @@ function AnalysisMoveList({
 }) {
   const pairs = useMemo(() => buildMovePairs(game.moves), [game.moves]);
   const activeRowRef = useRef<HTMLDivElement>(null);
-  const hasEngine = game.moves.some(m => m.hasEngineAnalysis);
 
   useEffect(() => {
     activeRowRef.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
@@ -597,19 +623,7 @@ function AnalysisMoveList({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <div className="shrink-0 flex items-center justify-between border-b border-white/5 px-4 pb-2 pt-3">
-        <h3 className="text-xs font-medium uppercase tracking-wider text-gray-500">Moves</h3>
-        <div className="flex items-center gap-2">
-          {hasEngine && (
-            <span className="flex items-center gap-1 text-[10px] text-emerald-500">
-              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-              Engine
-            </span>
-          )}
-          <span className="text-[11px] text-gray-600">{game.moves.length} moves</span>
-        </div>
-      </div>
-      <div className="min-h-0 flex-1 overflow-y-auto px-2 py-1">
+      <div className="min-h-0 flex-1 overflow-y-auto px-2 py-2">
         {pairs.map(pair => {
           const isActiveRow =
             pair.white?.plyIndex === currentPlyIndex || pair.black?.plyIndex === currentPlyIndex;
@@ -617,29 +631,31 @@ function AnalysisMoveList({
             <div
               key={pair.moveNumber}
               ref={isActiveRow ? activeRowRef : undefined}
-              className="flex items-center gap-1 py-1"
+              className="flex items-center"
             >
-              <span className="w-7 shrink-0 select-none pr-1 text-right font-mono text-base text-gray-600">
+              <span className="w-8 shrink-0 pr-1 text-right font-mono text-[13px] text-gray-600">
                 {pair.moveNumber}.
               </span>
-              {pair.white ? (
-                <MoveChip
-                  item={pair.white}
-                  currentPlyIndex={currentPlyIndex}
-                  onNavigate={onNavigate}
-                />
-              ) : (
-                <span className="flex-1" />
-              )}
-              {pair.black ? (
-                <MoveChip
-                  item={pair.black}
-                  currentPlyIndex={currentPlyIndex}
-                  onNavigate={onNavigate}
-                />
-              ) : (
-                <span className="flex-1" />
-              )}
+              <div className="flex flex-1">
+                {pair.white ? (
+                  <MoveChip
+                    item={pair.white}
+                    currentPlyIndex={currentPlyIndex}
+                    onNavigate={onNavigate}
+                  />
+                ) : (
+                  <span className="flex-1" />
+                )}
+                {pair.black ? (
+                  <MoveChip
+                    item={pair.black}
+                    currentPlyIndex={currentPlyIndex}
+                    onNavigate={onNavigate}
+                  />
+                ) : (
+                  <span className="flex-1" />
+                )}
+              </div>
             </div>
           );
         })}
@@ -1478,7 +1494,9 @@ export default function AnalysisPage() {
       if (analyzedGame && analyzedGame.moves.length > 0) {
         const initFen = analyzedGame.initialFen;
         const chess = initFen ? new Chess(initFen) : new Chess();
-        for (const move of analyzedGame.moves) chess.move(move.san);
+        // Only replay up to the currently selected ply so the textbox tracks navigation
+        const upTo = currentPlyIndex >= 0 ? currentPlyIndex + 1 : 0;
+        for (const move of analyzedGame.moves.slice(0, upTo)) chess.move(move.san);
         const movesOnly = chess.pgn().replace(/^\[.*?\]\r?\n?/gm, '').replace(/\s*\*\s*$/, '').trim();
         setPositionText(
           initFen && initFen !== INITIAL_FEN
@@ -1494,7 +1512,7 @@ export default function AnalysisPage() {
     setPositionError(null);
     setPositionDirty(false);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [freeExploreFen, currentFen, positionMode, exploreTree, exploreNav, analyzedGame]);
+  }, [freeExploreFen, currentFen, positionMode, exploreTree, exploreNav, analyzedGame, currentPlyIndex]);
 
   useEffect(() => {
     const el = positionTextareaRef.current;
@@ -1715,13 +1733,39 @@ export default function AnalysisPage() {
     );
   }, [bestMoveUci, boardSize, settings.flipBoard, settings.hideArrows]);
 
+  // When a PGN game is loaded and the user makes their first free move, seed the explore
+  // tree with the game's history up to the current ply so the full sequence is preserved.
+  function buildSeedTree(currentPlyIdx: number): { tree: ExploreTree; nav: ExploreNav } | null {
+    if (!analyzedGame || currentPlyIdx < 0 || analyzedGame.moves.length === 0) return null;
+    const rootFen = analyzedGame.initialFen ?? INITIAL_FEN;
+    const chess = new Chess(rootFen);
+    const moves: MoveEntry[] = [];
+    // Include ALL game moves so applyMoveToTree can detect divergence and create branches correctly
+    for (let i = 0; i < analyzedGame.moves.length; i++) {
+      const gm = analyzedGame.moves[i]!;
+      const result = chess.move(gm.san);
+      if (!result) break;
+      moves.push({ id: gm.id ?? crypto.randomUUID(), san: result.san, fen: chess.fen(), from: result.from, to: result.to });
+    }
+    if (moves.length === 0) return null;
+    const mainId = crypto.randomUUID();
+    return {
+      tree: { rootFen, lines: [{ id: mainId, parentLineId: null, divergeAtPly: 0, depth: 0, moves }] },
+      nav: { lineId: mainId, plyIndex: currentPlyIdx },
+    };
+  }
+
   const tryMove = (from: string, to: string, prom = 'q'): boolean => {
     try {
       const chess = new Chess(boardFen);
       const move = chess.move({ from, to, promotion: prom as 'q' | 'r' | 'b' | 'n' });
       if (!move) return false;
       const entry: MoveEntry = { id: crypto.randomUUID(), san: move.san, fen: chess.fen(), from: move.from, to: move.to };
-      const { tree: newTree, nav: newNav } = applyMoveToTree(exploreTree, exploreNav, entry, currentFen);
+      const seed = (!exploreTree && analyzedGame && currentPlyIndex >= 0) ? buildSeedTree(currentPlyIndex) : null;
+      const baseTree = seed?.tree ?? exploreTree;
+      const baseNav = seed?.nav ?? exploreNav;
+      const rootFen = baseTree?.rootFen ?? currentFen;
+      const { tree: newTree, nav: newNav } = applyMoveToTree(baseTree, baseNav, entry, rootFen);
       setExploreTree(newTree);
       setExploreNav(newNav);
       setLastMoveSquares({ from: move.from, to: move.to });
@@ -1735,15 +1779,17 @@ export default function AnalysisPage() {
   const handlePvClick = (pvUci: string[], clickedIdx: number) => {
     try {
       const chess = new Chess(boardFen);
-      let workTree: ExploreTree | null = exploreTree;
-      let workNav: ExploreNav = exploreNav;
+      const seed = (!exploreTree && analyzedGame && currentPlyIndex >= 0) ? buildSeedTree(currentPlyIndex) : null;
+      let workTree: ExploreTree | null = seed?.tree ?? exploreTree;
+      let workNav: ExploreNav = seed?.nav ?? exploreNav;
+      const rootFen = workTree?.rootFen ?? currentFen;
       let lastEntry: MoveEntry | null = null;
       for (let i = 0; i <= clickedIdx; i++) {
         const uci = pvUci[i]!;
         const move = chess.move({ from: uci.slice(0, 2), to: uci.slice(2, 4), promotion: (uci[4] ?? 'q') as 'q' | 'r' | 'b' | 'n' });
         if (!move) break;
         const entry: MoveEntry = { id: crypto.randomUUID(), san: move.san, fen: chess.fen(), from: move.from, to: move.to };
-        const result = applyMoveToTree(workTree, workNav, entry, currentFen);
+        const result = applyMoveToTree(workTree, workNav, entry, rootFen);
         workTree = result.tree;
         workNav = result.nav;
         lastEntry = entry;
@@ -1991,38 +2037,32 @@ export default function AnalysisPage() {
             maxWidth={maxBoardWidth}
             overlay={knightArrowOverlay}
             topBar={
-              analyzedGame ? (
-                <PlayerRow
-                  name={settings.flipBoard ? gameDetails.white : gameDetails.black}
-                  elo={settings.flipBoard ? gameDetails.whiteElo : gameDetails.blackElo}
-                  avatar={settings.flipBoard ? whiteAvatar : blackAvatar}
-                  captured={settings.flipBoard ? material.whiteCaptured : material.blackCaptured}
-                  advantage={settings.flipBoard ? material.advantage : -material.advantage}
-                  clock={settings.flipBoard ? playerClocks.w : playerClocks.b}
-                  isActive={settings.flipBoard ? boardFen.split(' ')[1] === 'w' : boardFen.split(' ')[1] === 'b'}
-                />
-              ) : (
-                <div className="h-full" />
-              )
+              <PlayerRow
+                name={settings.flipBoard ? (gameDetails.white || 'White') : (gameDetails.black || 'Black')}
+                elo={settings.flipBoard ? gameDetails.whiteElo : gameDetails.blackElo}
+                avatar={settings.flipBoard ? whiteAvatar : blackAvatar}
+                captured={settings.flipBoard ? material.whiteCaptured : material.blackCaptured}
+                advantage={settings.flipBoard ? material.advantage : -material.advantage}
+                clock={analyzedGame ? (settings.flipBoard ? playerClocks.w : playerClocks.b) : null}
+                isActive={settings.flipBoard ? boardFen.split(' ')[1] === 'w' : boardFen.split(' ')[1] === 'b'}
+                playerColor={settings.flipBoard ? 'white' : 'black'}
+              />
             }
             bottomBar={
-              <div className="flex justify-center py-1.5">
-                <div style={{ width: boardSize + 36 }} className="flex items-center gap-2">
-                  {analyzedGame && (
-                    <div className="flex-1 min-w-0">
-                      <PlayerRow
-                        name={settings.flipBoard ? gameDetails.black : gameDetails.white}
-                        elo={settings.flipBoard ? gameDetails.blackElo : gameDetails.whiteElo}
-                        avatar={settings.flipBoard ? blackAvatar : whiteAvatar}
-                        captured={settings.flipBoard ? material.blackCaptured : material.whiteCaptured}
-                        advantage={settings.flipBoard ? -material.advantage : material.advantage}
-                        clock={settings.flipBoard ? playerClocks.b : playerClocks.w}
-                        isActive={settings.flipBoard ? boardFen.split(' ')[1] === 'b' : boardFen.split(' ')[1] === 'w'}
-                      />
-                    </div>
-                  )}
-                  <BoardSettingsPopover />
+              <div className="flex items-center py-1.5 gap-2">
+                <div className="flex-1 min-w-0">
+                  <PlayerRow
+                    name={settings.flipBoard ? (gameDetails.black || 'Black') : (gameDetails.white || 'White')}
+                    elo={settings.flipBoard ? gameDetails.blackElo : gameDetails.whiteElo}
+                    avatar={settings.flipBoard ? blackAvatar : whiteAvatar}
+                    captured={settings.flipBoard ? material.blackCaptured : material.whiteCaptured}
+                    advantage={settings.flipBoard ? -material.advantage : material.advantage}
+                    clock={analyzedGame ? (settings.flipBoard ? playerClocks.b : playerClocks.w) : null}
+                    isActive={settings.flipBoard ? boardFen.split(' ')[1] === 'b' : boardFen.split(' ')[1] === 'w'}
+                    playerColor={settings.flipBoard ? 'black' : 'white'}
+                  />
                 </div>
+                <BoardSettingsPopover />
               </div>
             }
           >
@@ -2120,7 +2160,7 @@ export default function AnalysisPage() {
                       type="button"
                       onClick={() => setSettings({ engineEnabled: !settings.engineEnabled })}
                       className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer items-center rounded-full transition-colors duration-200 ${
-                        settings.engineEnabled ? 'bg-violet-600' : 'bg-white/15'
+                        settings.engineEnabled ? 'bg-amber-500' : 'bg-white/15'
                       }`}
                     >
                       <span
@@ -2443,7 +2483,7 @@ export default function AnalysisPage() {
                       <label className="flex cursor-pointer items-center gap-2.5">
                         <span
                           className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border transition-colors ${
-                            settings.hideEngineInfo ? 'border-violet-600 bg-violet-600' : 'border-white/20 bg-transparent'
+                            settings.hideEngineInfo ? 'border-amber-500 bg-amber-500' : 'border-white/20 bg-transparent'
                           }`}
                         >
                           {settings.hideEngineInfo && (
@@ -2465,7 +2505,7 @@ export default function AnalysisPage() {
                       <label className="flex cursor-pointer items-center gap-2.5">
                         <span
                           className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border transition-colors ${
-                            settings.hideArrows ? 'border-violet-600 bg-violet-600' : 'border-white/20 bg-transparent'
+                            settings.hideArrows ? 'border-amber-500 bg-amber-500' : 'border-white/20 bg-transparent'
                           }`}
                         >
                           {settings.hideArrows && (

@@ -15,7 +15,7 @@ export function SidePanel({ topBar, coach, bottomBar, children }: SidePanelProps
         {topBar}
       </div>
 
-      {/* Coach — sizes to content so the bubble is only as tall as it needs to be */}
+      {/* Coach — sizes to content so the engine section starts immediately below */}
       <div className="shrink-0 overflow-hidden">
         {coach}
       </div>
