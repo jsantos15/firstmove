@@ -62,7 +62,7 @@ export function BoardPanel({
   }, [maxWidth]);
 
   return (
-    <div className="shrink-0 h-full overflow-hidden rounded-xl border border-white/5 bg-(--bg-panel) flex flex-col select-none">
+    <div className="shrink-0 h-full overflow-hidden rounded-xl border border-white/5 bg-(--bg-panel) flex flex-col justify-center select-none">
       {/* Top row — centered over the board+eval column */}
       <div className="shrink-0 h-15 flex justify-center">
         <div className="h-full" style={{ width: boardSize + 36 }}>

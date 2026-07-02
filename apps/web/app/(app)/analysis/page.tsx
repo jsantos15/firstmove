@@ -821,6 +821,72 @@ function GameReviewReportPanel({
 
 // ─── Import Modal ─────────────────────────────────────────────────────────────
 
+// ─── Import Modal ─────────────────────────────────────────────────────────────
+
+type ImportTab = 'pgn' | 'lichess' | 'chesscom';
+
+interface FetchedGame {
+  id: string;
+  whiteName: string;
+  whiteRating: string | number;
+  blackName: string;
+  blackRating: string | number;
+  result: string;
+  date: string;
+  timeClass?: string;
+  opening?: string;
+  pgn: string;
+}
+
+function SpinnerIcon({ className = 'h-3.5 w-3.5' }: { className?: string }) {
+  return (
+    <svg className={`animate-spin ${className}`} viewBox="0 0 24 24" fill="none">
+      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+    </svg>
+  );
+}
+
+function GameCard({ game, onSelect }: { game: FetchedGame; onSelect: () => void }) {
+  const resultColor =
+    game.result === '1-0' ? 'text-white' :
+    game.result === '0-1' ? 'text-gray-500' : 'text-gray-400';
+  return (
+    <button
+      type="button"
+      onClick={onSelect}
+      className="w-full text-left rounded-xl border border-white/8 bg-white/[0.02] px-4 py-3 transition-all hover:border-amber-400/25 hover:bg-amber-400/[0.04]"
+    >
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-2.5 min-w-0">
+          <span className="shrink-0 w-10 text-right text-[11px] text-gray-600 font-mono tabular-nums">{game.whiteRating}</span>
+          <span className="text-[13px] text-gray-200 font-medium truncate">{game.whiteName}</span>
+        </div>
+        <div className="shrink-0 flex items-center gap-1.5 text-gray-600">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="w-3 h-3 shrink-0">
+            <path fillRule="evenodd" d="M4 1.75a.75.75 0 0 1 1.5 0V3h5V1.75a.75.75 0 0 1 1.5 0V3A2.25 2.25 0 0 1 14.25 5.25v7.5A2.25 2.25 0 0 1 12 15H4A2.25 2.25 0 0 1 1.75 12.75v-7.5A2.25 2.25 0 0 1 4 3V1.75ZM3.25 7.5A.75.75 0 0 1 4 6.75h8a.75.75 0 0 1 0 1.5H4A.75.75 0 0 1 3.25 7.5Z" clipRule="evenodd" />
+          </svg>
+          <span className="text-[11px] tabular-nums">{game.date}</span>
+        </div>
+      </div>
+      <div className="flex items-center justify-between gap-3 mt-1">
+        <div className="flex items-center gap-2.5 min-w-0">
+          <span className="shrink-0 w-10 text-right text-[11px] text-gray-600 font-mono tabular-nums">{game.blackRating}</span>
+          <span className="text-[13px] text-gray-300 font-medium truncate">{game.blackName}</span>
+        </div>
+        <span className={`shrink-0 text-[12px] font-semibold tabular-nums ${resultColor}`}>{game.result}</span>
+      </div>
+      {(game.timeClass ?? game.opening) && (
+        <div className="mt-1.5 ml-[52px] flex items-center gap-1.5 min-w-0">
+          {game.timeClass && <span className="shrink-0 text-[10px] text-gray-700 capitalize">{game.timeClass}</span>}
+          {game.timeClass && game.opening && <span className="text-[10px] text-gray-700">·</span>}
+          {game.opening && <span className="text-[10px] text-gray-600 truncate">{game.opening}</span>}
+        </div>
+      )}
+    </button>
+  );
+}
+
 function ImportModal({
   onClose,
   onImport,
@@ -830,8 +896,21 @@ function ImportModal({
   onImport: (pgn: string, fen: string) => void;
   error: string | null;
 }) {
+  const [tab, setTab] = useState<ImportTab>('pgn');
   const [pgn, setPgn] = useState('');
   const [fen, setFen] = useState('');
+
+  const [lichessUser, setLichessUser] = useState('');
+  const [lichessGames, setLichessGames] = useState<FetchedGame[]>([]);
+  const [lichessLoading, setLichessLoading] = useState(false);
+  const [lichessError, setLichessError] = useState<string | null>(null);
+  const lichessSkipRef = useRef(0);
+
+  const [ccUser, setCcUser] = useState('');
+  const [ccGames, setCcGames] = useState<FetchedGame[]>([]);
+  const [ccLoading, setCcLoading] = useState(false);
+  const [ccError, setCcError] = useState<string | null>(null);
+  const ccMonthBackRef = useRef(0);
 
   async function handleFileUpload(file: File | null) {
     if (!file) return;
@@ -839,79 +918,270 @@ function ImportModal({
     setPgn(text);
   }
 
+  async function loadLichessGames(reset: boolean) {
+    const username = lichessUser.trim();
+    if (!username) return;
+    setLichessLoading(true);
+    setLichessError(null);
+    if (reset) lichessSkipRef.current = 0;
+    const skip = lichessSkipRef.current;
+    try {
+      const res = await fetch(
+        `https://lichess.org/api/games/user/${encodeURIComponent(username)}?max=20&skip=${skip}&pgnInJson=true&tags=true&opening=true&clocks=false&evals=false`,
+        { headers: { Accept: 'application/x-ndjson' } }
+      );
+      if (!res.ok) {
+        throw new Error(res.status === 404 ? `"${username}" not found on Lichess` : `Error ${res.status}`);
+      }
+      const text = await res.text();
+      const lines = text.trim().split('\n').filter(Boolean);
+      if (reset && lines.length === 0) throw new Error(`No games found for "${username}"`);
+      const games: FetchedGame[] = lines.map((line, i) => {
+        const g = JSON.parse(line) as Record<string, unknown>;
+        const players = (g.players ?? {}) as Record<string, Record<string, unknown>>;
+        const w = players.white ?? {};
+        const b = players.black ?? {};
+        const wUser = w.user as Record<string, unknown> | undefined;
+        const bUser = b.user as Record<string, unknown> | undefined;
+        const opening = (g.opening as Record<string, unknown> | undefined)?.name as string | undefined;
+        return {
+          id: (g.id as string) ?? `lich-${skip}-${i}`,
+          whiteName: (wUser?.name as string) ?? 'White',
+          whiteRating: (w.rating as number) ?? '',
+          blackName: (bUser?.name as string) ?? 'Black',
+          blackRating: (b.rating as number) ?? '',
+          result: g.winner === 'white' ? '1-0' : g.winner === 'black' ? '0-1' : '½-½',
+          date: g.createdAt ? new Date(g.createdAt as number).toLocaleDateString() : '',
+          timeClass: g.speed as string | undefined,
+          opening,
+          pgn: (g.pgn as string) ?? '',
+        };
+      });
+      lichessSkipRef.current = skip + games.length;
+      if (reset) setLichessGames(games);
+      else setLichessGames(prev => [...prev, ...games]);
+    } catch (e) {
+      setLichessError(e instanceof Error ? e.message : 'Failed to load games');
+    } finally {
+      setLichessLoading(false);
+    }
+  }
+
+  async function loadChesscomGames(reset: boolean) {
+    const username = ccUser.trim().toLowerCase();
+    if (!username) return;
+    setCcLoading(true);
+    setCcError(null);
+    if (reset) ccMonthBackRef.current = 0;
+    const monthBack = ccMonthBackRef.current;
+    const d = new Date();
+    d.setMonth(d.getMonth() - monthBack);
+    const yyyy = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    try {
+      const res = await fetch(
+        `https://api.chess.com/pub/player/${encodeURIComponent(username)}/games/${yyyy}/${mm}`
+      );
+      if (!res.ok) {
+        throw new Error(res.status === 404 ? `"${username}" not found on Chess.com` : `Error ${res.status}`);
+      }
+      const data = await res.json() as { games?: unknown[] };
+      const rawGames = [...(data.games ?? [])].reverse();
+      if (reset && rawGames.length === 0) throw new Error(`No games found for "${username}" this month — try loading more`);
+      const games: FetchedGame[] = rawGames.map((raw, i) => {
+        const g = raw as Record<string, unknown>;
+        const w = (g.white ?? {}) as Record<string, unknown>;
+        const b = (g.black ?? {}) as Record<string, unknown>;
+        const result = w.result === 'win' ? '1-0' : b.result === 'win' ? '0-1' : '½-½';
+        const gamePgn = (g.pgn as string) ?? '';
+        const opening = gamePgn.match(/\[Opening\s+"([^"]*)"\]/)?.[1] ?? undefined;
+        return {
+          id: `cc-${yyyy}${mm}-${i}`,
+          whiteName: (w.username as string) ?? 'White',
+          whiteRating: (w.rating as number) ?? '',
+          blackName: (b.username as string) ?? 'Black',
+          blackRating: (b.rating as number) ?? '',
+          result,
+          date: g.end_time ? new Date((g.end_time as number) * 1000).toLocaleDateString() : '',
+          timeClass: g.time_class as string | undefined,
+          opening,
+          pgn: gamePgn,
+        };
+      });
+      ccMonthBackRef.current = monthBack + 1;
+      if (reset) setCcGames(games);
+      else setCcGames(prev => [...prev, ...games]);
+    } catch (e) {
+      setCcError(e instanceof Error ? e.message : 'Failed to load games');
+    } finally {
+      setCcLoading(false);
+    }
+  }
+
+  const isLichess = tab === 'lichess';
+  const isSite = tab === 'lichess' || tab === 'chesscom';
+  const siteUser = isLichess ? lichessUser : ccUser;
+  const setSiteUser = isLichess ? setLichessUser : setCcUser;
+  const siteGames = isLichess ? lichessGames : ccGames;
+  const siteLoading = isLichess ? lichessLoading : ccLoading;
+  const siteError = isLichess ? lichessError : ccError;
+  const loadSiteGames = isLichess ? loadLichessGames : loadChesscomGames;
+  const hasGames = siteGames.length > 0;
+
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/65 backdrop-blur-sm"
-      onClick={e => {
-        if (e.target === e.currentTarget) onClose();
-      }}
+      onClick={e => { if (e.target === e.currentTarget) onClose(); }}
     >
-      <div className="mx-4 w-full max-w-lg rounded-2xl border border-white/10 bg-[#0f1117] p-6 shadow-2xl shadow-black/60">
-        <div className="mb-5 flex items-start justify-between gap-3">
-          <div>
-            <h2 className="text-base font-semibold text-white">Import a game</h2>
-            <p className="mt-1 text-xs leading-5 text-gray-500">
-              Paste PGN notation or upload a file. Add an optional starting FEN for non-standard
-              positions.
-            </p>
-          </div>
+      <div className="mx-4 w-full max-w-lg flex flex-col rounded-2xl border border-white/10 bg-[#0f1117] shadow-2xl shadow-black/60 max-h-[85vh]">
+
+        {/* Header */}
+        <div className="shrink-0 flex items-center justify-between px-5 pt-4 pb-3">
+          <h2 className="text-base font-semibold text-white">Import Game</h2>
           <button
             type="button"
             onClick={onClose}
             className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-gray-500 transition-colors hover:bg-white/5 hover:text-white"
           >
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth={2}
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              className="h-4 w-4"
-            >
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
               <path d="M18 6 6 18M6 6l12 12" />
             </svg>
           </button>
         </div>
 
-        <div className="flex flex-col gap-3">
-          <textarea
-            value={pgn}
-            onChange={e => setPgn(e.target.value)}
-            placeholder={'Paste PGN here...\n\n1. e4 e5 2. Nf3 Nc6 3. Bb5 a6 ...'}
-            rows={8}
-            className="w-full resize-none rounded-xl border border-white/10 bg-black/30 px-4 py-3 font-mono text-xs leading-5 text-gray-200 placeholder-gray-600 outline-none transition-colors focus:border-amber-400/40"
-            spellCheck={false}
-          />
-          <input
-            value={fen}
-            onChange={e => setFen(e.target.value)}
-            placeholder="Optional starting FEN (for non-standard positions)"
-            className="w-full rounded-xl border border-white/10 bg-black/30 px-4 py-2.5 font-mono text-xs text-gray-200 placeholder-gray-600 outline-none transition-colors focus:border-amber-400/40"
-          />
-          {error && <p className="text-xs leading-5 text-red-400">{error}</p>}
-          <div className="flex items-center gap-2 pt-1">
+        {/* Source tabs */}
+        <div className="shrink-0 flex gap-1 px-4 pb-3 border-b border-white/8">
+          {(['pgn', 'lichess', 'chesscom'] as const).map(t => (
             <button
+              key={t}
               type="button"
-              onClick={() => onImport(pgn, fen)}
-              className="flex-1 rounded-xl bg-amber-400 px-4 py-2.5 text-sm font-semibold text-[#0f1117] transition-colors hover:bg-amber-300"
+              onClick={() => setTab(t)}
+              className={`px-3.5 py-1.5 rounded-lg text-[13px] font-medium transition-colors ${
+                tab === t
+                  ? 'bg-white/10 text-white'
+                  : 'text-gray-500 hover:text-gray-300 hover:bg-white/5'
+              }`}
             >
-              Analyze
+              {t === 'pgn' ? 'PGN / FEN' : t === 'lichess' ? 'Lichess' : 'Chess.com'}
             </button>
-            <label className="cursor-pointer rounded-xl border border-white/10 px-4 py-2.5 text-sm font-medium text-gray-300 transition-colors hover:border-white/20 hover:text-white">
-              Upload .pgn
-              <input
-                type="file"
-                accept=".pgn,.txt"
-                className="sr-only"
-                onChange={e => {
-                  void handleFileUpload(e.target.files?.[0] ?? null);
-                  e.currentTarget.value = '';
-                }}
+          ))}
+        </div>
+
+        {/* Scrollable content area */}
+        <div className="flex-1 min-h-0 overflow-y-auto">
+
+          {/* ── PGN / FEN tab ── */}
+          {tab === 'pgn' && (
+            <div className="p-4 flex flex-col gap-3">
+              <textarea
+                value={pgn}
+                onChange={e => setPgn(e.target.value)}
+                placeholder={'Paste PGN here...\n\n1. e4 e5 2. Nf3 Nc6 3. Bb5 a6 ...'}
+                rows={8}
+                className="w-full resize-none rounded-xl border border-white/10 bg-black/30 px-4 py-3 font-mono text-xs leading-5 text-gray-200 placeholder-gray-600 outline-none transition-colors focus:border-amber-400/40"
+                spellCheck={false}
               />
-            </label>
-          </div>
+              <input
+                value={fen}
+                onChange={e => setFen(e.target.value)}
+                placeholder="Optional starting FEN (for non-standard positions)"
+                className="w-full rounded-xl border border-white/10 bg-black/30 px-4 py-2.5 font-mono text-xs text-gray-200 placeholder-gray-600 outline-none transition-colors focus:border-amber-400/40"
+              />
+              {error && <p className="text-xs leading-5 text-red-400">{error}</p>}
+              <div className="flex items-center gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={() => onImport(pgn, fen)}
+                  className="flex-1 rounded-xl bg-amber-400 px-4 py-2.5 text-sm font-semibold text-[#0f1117] transition-colors hover:bg-amber-300"
+                >
+                  Analyze
+                </button>
+                <label className="cursor-pointer rounded-xl border border-white/10 px-4 py-2.5 text-sm font-medium text-gray-300 transition-colors hover:border-white/20 hover:text-white">
+                  Upload .pgn
+                  <input
+                    type="file"
+                    accept=".pgn,.txt"
+                    className="sr-only"
+                    onChange={e => {
+                      void handleFileUpload(e.target.files?.[0] ?? null);
+                      e.currentTarget.value = '';
+                    }}
+                  />
+                </label>
+              </div>
+            </div>
+          )}
+
+          {/* ── Lichess / Chess.com tabs ── */}
+          {isSite && (
+            <div className="p-4 flex flex-col gap-3">
+
+              {/* Username search bar */}
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  placeholder={`Enter ${isLichess ? 'Lichess' : 'Chess.com'} username`}
+                  value={siteUser}
+                  onChange={e => setSiteUser(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter') void loadSiteGames(true); }}
+                  className="flex-1 rounded-xl border border-white/10 bg-black/30 px-4 py-2.5 text-sm text-gray-200 placeholder-gray-600 outline-none transition-colors focus:border-amber-400/40"
+                  autoComplete="off"
+                  spellCheck={false}
+                />
+                <button
+                  type="button"
+                  onClick={() => void loadSiteGames(true)}
+                  disabled={siteLoading || !siteUser.trim()}
+                  className="shrink-0 flex items-center gap-1.5 rounded-xl bg-amber-400 px-4 py-2.5 text-sm font-semibold text-[#0f1117] transition-colors hover:bg-amber-300 disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  {siteLoading && !hasGames ? <><SpinnerIcon />Loading</> : 'Load Games'}
+                </button>
+              </div>
+
+              {/* Error message */}
+              {siteError && (
+                <p className="text-xs text-red-400 leading-relaxed">{siteError}</p>
+              )}
+
+              {/* Empty / hint state */}
+              {!siteLoading && !siteError && !hasGames && (
+                <div className="py-12 flex flex-col items-center gap-2 text-center">
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" className="w-8 h-8 text-gray-700">
+                    <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" />
+                  </svg>
+                  <p className="text-sm text-gray-600">
+                    {siteUser.trim()
+                      ? 'No games found'
+                      : `Enter a ${isLichess ? 'Lichess' : 'Chess.com'} username\nto browse recent games`}
+                  </p>
+                </div>
+              )}
+
+              {/* Games list */}
+              {hasGames && (
+                <>
+                  <div className="text-[10px] font-semibold uppercase tracking-widest text-gray-600 pt-1">
+                    Recent Games — {siteUser}
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    {siteGames.map(game => (
+                      <GameCard key={game.id} game={game} onSelect={() => onImport(game.pgn, '')} />
+                    ))}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => void loadSiteGames(false)}
+                    disabled={siteLoading}
+                    className="w-full flex items-center justify-center gap-1.5 rounded-xl border border-white/10 py-2.5 text-sm font-medium text-gray-400 transition-colors hover:border-white/20 hover:text-white disabled:opacity-40"
+                  >
+                    {siteLoading ? <><SpinnerIcon />Loading more...</> : 'Load More Games'}
+                  </button>
+                </>
+              )}
+
+            </div>
+          )}
+
         </div>
       </div>
     </div>
