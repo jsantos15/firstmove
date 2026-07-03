@@ -6,3 +6,4 @@ export * from './queries/openings';
 export * from './queries/openingPositions';
 export * from './queries/progress';
 export * from './queries/repertoires';
+export * from './queries/userGames';

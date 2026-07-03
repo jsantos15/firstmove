@@ -15,6 +15,10 @@ import { getCustomPieces } from '@/lib/piecesets';
 import { BoardSettingsPopover } from '@/components/board/BoardSettingsPopover';
 import { AnalysisWorkerPool, workerPoolSize } from '@/lib/client/analysisPool';
 import { enrichGameMove } from '@/lib/client/enrichGameMove';
+import { useAuth } from '@/app/providers';
+import { useUserGames, useSaveUserGame, useDeleteUserGame } from '@/hooks/useUserGames';
+import { InlineSignIn } from '@/components/ui/InlineSignIn';
+import type { UserGame, UserGameSource } from '@firstmove/supabase';
 import {
   buildAnalyzedGameFromPgn,
   buildGameAnalysisCoachFeedbackFromAnalyzedGameMove,
@@ -105,6 +109,14 @@ function getClocksAtPly(clocks: string[], plyIndex: number): { w: string | null;
   return { w: wClock, b: bClock };
 }
 
+// Formats a provider's base+increment clock (in seconds) as "10+0" style, minutes+seconds.
+function formatTimeControl(initial?: number, increment?: number): string | null {
+  if (initial == null) return null;
+  const minutes = initial >= 60 ? Math.round(initial / 60) : initial;
+  const unit = initial >= 60 ? '' : 's';
+  return `${minutes}${unit}+${increment ?? 0}`;
+}
+
 const PIECE_VALS: Record<string, number> = { p: 1, n: 3, b: 3, r: 5, q: 9 };
 const PIECE_SYMS: Record<string, string> = { q: '♛', r: '♜', b: '♝', n: '♞', p: '♟' };
 const PIECE_ORDER = ['q', 'r', 'b', 'n', 'p'] as const;
@@ -131,10 +143,11 @@ const WHITE_PIECE_STYLE: React.CSSProperties = { color: 'rgb(243,244,246)' };
 const BLACK_PIECE_STYLE: React.CSSProperties = { color: '#1a1a1a', textShadow: '0 0 0 1px rgba(255,255,255,0.45), 0 0 4px rgba(255,255,255,0.25)', WebkitTextStroke: '0.4px rgba(200,200,200,0.5)' };
 
 function PlayerRow({
-  name, elo, avatar, captured, advantage, clock, isActive, playerColor,
+  name, elo, country, avatar, captured, advantage, clock, isActive, playerColor,
 }: {
   name: string;
   elo?: string;
+  country?: string | null;
   avatar?: string | null;
   captured: Record<string, number>;
   advantage: number;
@@ -167,7 +180,8 @@ function PlayerRow({
       <div className="flex flex-col justify-center gap-1.5 min-w-0 flex-1">
         <div className="flex items-baseline gap-1.5 min-w-0">
           <span className="text-sm font-semibold text-gray-200 truncate leading-none">{name || '—'}</span>
-          {elo && <span className="text-xs text-gray-500 shrink-0 leading-none">{elo}</span>}
+          {elo && <span className="text-xs text-gray-500 shrink-0 leading-none">({elo})</span>}
+          {country && <span className="text-xs text-gray-500 shrink-0 leading-none">{country}</span>}
         </div>
         <div className="flex items-center gap-1.5 min-w-0 min-h-[16px]">
           {hasMaterial && (
@@ -821,21 +835,111 @@ function GameReviewReportPanel({
 
 // ─── Import Modal ─────────────────────────────────────────────────────────────
 
-// ─── Import Modal ─────────────────────────────────────────────────────────────
-
-type ImportTab = 'pgn' | 'lichess' | 'chesscom';
+type ImportTab = 'mine' | 'chesscom' | 'lichess' | 'pgn';
 
 interface FetchedGame {
   id: string;
   whiteName: string;
   whiteRating: string | number;
+  whiteResult?: string;
   blackName: string;
   blackRating: string | number;
+  blackResult?: string;
   result: string;
   date: string;
   timeClass?: string;
   opening?: string;
   pgn: string;
+  fen?: string;
+  eco?: string;
+  rated?: boolean;
+  variant?: string;
+  clockInitial?: number;
+  clockIncrement?: number;
+  whiteAccuracy?: number;
+  blackAccuracy?: number;
+  sourceGameId?: string;
+  sourceUrl?: string;
+  providerData?: Record<string, unknown>;
+}
+
+function fetchedGameToImportMeta(game: FetchedGame, source: UserGameSource): ImportMeta {
+  return {
+    source,
+    eco: game.eco,
+    openingName: game.opening,
+    timeClass: game.timeClass,
+    rated: game.rated,
+    variant: game.variant,
+    clockInitial: game.clockInitial,
+    clockIncrement: game.clockIncrement,
+    whiteResult: game.whiteResult,
+    blackResult: game.blackResult,
+    whiteAccuracy: game.whiteAccuracy,
+    blackAccuracy: game.blackAccuracy,
+    sourceGameId: game.sourceGameId,
+    sourceUrl: game.sourceUrl,
+    providerData: game.providerData,
+  };
+}
+
+/** Provenance captured alongside an imported game's PGN so a later Save can store it. */
+interface ImportMeta {
+  source: UserGameSource;
+  eco?: string;
+  openingName?: string;
+  timeClass?: string;
+  rated?: boolean;
+  variant?: string;
+  clockInitial?: number;
+  clockIncrement?: number;
+  whiteResult?: string;
+  blackResult?: string;
+  whiteAccuracy?: number;
+  blackAccuracy?: number;
+  sourceGameId?: string;
+  sourceUrl?: string;
+  providerData?: Record<string, unknown>;
+}
+
+const EMPTY_IMPORT_META: ImportMeta = { source: 'manual' };
+
+function userGameToFetchedGame(g: UserGame): FetchedGame {
+  return {
+    id: g.id,
+    whiteName: g.white || 'White',
+    whiteRating: g.white_elo ?? '',
+    whiteResult: g.white_result ?? undefined,
+    blackName: g.black || 'Black',
+    blackRating: g.black_elo ?? '',
+    blackResult: g.black_result ?? undefined,
+    result: g.result || '*',
+    date: g.played_date || new Date(g.created_at).toLocaleDateString(),
+    timeClass: g.time_class ?? undefined,
+    opening: g.opening_name ?? undefined,
+    pgn: g.pgn,
+    fen: g.fen ?? undefined,
+  };
+}
+
+function userGameToImportMeta(g: UserGame): ImportMeta {
+  return {
+    source: (g.source as UserGameSource) ?? 'manual',
+    eco: g.eco ?? undefined,
+    openingName: g.opening_name ?? undefined,
+    timeClass: g.time_class ?? undefined,
+    rated: g.rated ?? undefined,
+    variant: g.variant ?? undefined,
+    clockInitial: g.clock_initial_seconds ?? undefined,
+    clockIncrement: g.clock_increment_seconds ?? undefined,
+    whiteResult: g.white_result ?? undefined,
+    blackResult: g.black_result ?? undefined,
+    whiteAccuracy: g.white_accuracy ?? undefined,
+    blackAccuracy: g.black_accuracy ?? undefined,
+    sourceGameId: g.source_game_id ?? undefined,
+    sourceUrl: g.source_url ?? undefined,
+    providerData: (g.provider_data as Record<string, unknown> | null) ?? undefined,
+  };
 }
 
 function SpinnerIcon({ className = 'h-3.5 w-3.5' }: { className?: string }) {
@@ -847,7 +951,11 @@ function SpinnerIcon({ className = 'h-3.5 w-3.5' }: { className?: string }) {
   );
 }
 
-function GameCard({ game, onSelect }: { game: FetchedGame; onSelect: () => void }) {
+function GameCard({
+  game, onSelect, onDelete,
+}: {
+  game: FetchedGame; onSelect: () => void; onDelete?: () => void;
+}) {
   const resultColor =
     game.result === '1-0' ? 'text-white' :
     game.result === '0-1' ? 'text-gray-500' : 'text-gray-400';
@@ -862,11 +970,25 @@ function GameCard({ game, onSelect }: { game: FetchedGame; onSelect: () => void 
           <span className="shrink-0 w-10 text-right text-[11px] text-gray-600 font-mono tabular-nums">{game.whiteRating}</span>
           <span className="text-[13px] text-gray-200 font-medium truncate">{game.whiteName}</span>
         </div>
-        <div className="shrink-0 flex items-center gap-1.5 text-gray-600">
+        <div className="shrink-0 flex items-center gap-2 text-gray-600">
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="w-3 h-3 shrink-0">
             <path fillRule="evenodd" d="M4 1.75a.75.75 0 0 1 1.5 0V3h5V1.75a.75.75 0 0 1 1.5 0V3A2.25 2.25 0 0 1 14.25 5.25v7.5A2.25 2.25 0 0 1 12 15H4A2.25 2.25 0 0 1 1.75 12.75v-7.5A2.25 2.25 0 0 1 4 3V1.75ZM3.25 7.5A.75.75 0 0 1 4 6.75h8a.75.75 0 0 1 0 1.5H4A.75.75 0 0 1 3.25 7.5Z" clipRule="evenodd" />
           </svg>
           <span className="text-[11px] tabular-nums">{game.date}</span>
+          {onDelete && (
+            <span
+              role="button"
+              tabIndex={0}
+              title="Remove from My Games"
+              onClick={e => { e.stopPropagation(); onDelete(); }}
+              onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.stopPropagation(); onDelete(); } }}
+              className="shrink-0 -mr-1 rounded p-0.5 text-gray-700 transition-colors hover:text-red-400"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="w-3 h-3">
+                <path fillRule="evenodd" d="M6.5 1.5a.5.5 0 0 0-.5.5v1H3a.75.75 0 0 0 0 1.5h.28l.63 8.19A2 2 0 0 0 5.9 14.5h4.2a2 2 0 0 0 1.99-1.81l.63-8.19H13A.75.75 0 0 0 13 3h-3v-1a.5.5 0 0 0-.5-.5h-3ZM6 4v8.5a.5.5 0 0 0 1 0V4H6Zm3 0v8.5a.5.5 0 0 0 1 0V4H9Z" clipRule="evenodd" />
+              </svg>
+            </span>
+          )}
         </div>
       </div>
       <div className="flex items-center justify-between gap-3 mt-1">
@@ -893,12 +1015,16 @@ function ImportModal({
   error,
 }: {
   onClose: () => void;
-  onImport: (pgn: string, fen: string) => void;
+  onImport: (pgn: string, fen: string, meta?: ImportMeta) => void;
   error: string | null;
 }) {
-  const [tab, setTab] = useState<ImportTab>('pgn');
+  const [tab, setTab] = useState<ImportTab>('mine');
   const [pgn, setPgn] = useState('');
   const [fen, setFen] = useState('');
+
+  const { user } = useAuth();
+  const { data: myGames, isLoading: myGamesLoading } = useUserGames();
+  const deleteUserGame = useDeleteUserGame();
 
   const [lichessUser, setLichessUser] = useState('');
   const [lichessGames, setLichessGames] = useState<FetchedGame[]>([]);
@@ -927,7 +1053,7 @@ function ImportModal({
     const skip = lichessSkipRef.current;
     try {
       const res = await fetch(
-        `https://lichess.org/api/games/user/${encodeURIComponent(username)}?max=20&skip=${skip}&pgnInJson=true&tags=true&opening=true&clocks=false&evals=false`,
+        `https://lichess.org/api/games/user/${encodeURIComponent(username)}?max=20&skip=${skip}&pgnInJson=true&tags=true&opening=true&clocks=true&evals=false`,
         { headers: { Accept: 'application/x-ndjson' } }
       );
       if (!res.ok) {
@@ -944,17 +1070,32 @@ function ImportModal({
         const wUser = w.user as Record<string, unknown> | undefined;
         const bUser = b.user as Record<string, unknown> | undefined;
         const opening = (g.opening as Record<string, unknown> | undefined)?.name as string | undefined;
+        const eco = (g.opening as Record<string, unknown> | undefined)?.eco as string | undefined;
+        const clock = g.clock as Record<string, unknown> | undefined;
+        const winner = g.winner as string | undefined;
+        const status = g.status as string | undefined;
+        const gameId = (g.id as string) ?? `lich-${skip}-${i}`;
         return {
-          id: (g.id as string) ?? `lich-${skip}-${i}`,
+          id: gameId,
           whiteName: (wUser?.name as string) ?? 'White',
           whiteRating: (w.rating as number) ?? '',
+          whiteResult: winner === 'white' ? 'win' : status,
           blackName: (bUser?.name as string) ?? 'Black',
           blackRating: (b.rating as number) ?? '',
-          result: g.winner === 'white' ? '1-0' : g.winner === 'black' ? '0-1' : '½-½',
+          blackResult: winner === 'black' ? 'win' : status,
+          result: winner === 'white' ? '1-0' : winner === 'black' ? '0-1' : '½-½',
           date: g.createdAt ? new Date(g.createdAt as number).toLocaleDateString() : '',
           timeClass: g.speed as string | undefined,
           opening,
           pgn: (g.pgn as string) ?? '',
+          eco,
+          rated: g.rated as boolean | undefined,
+          variant: g.variant as string | undefined,
+          clockInitial: clock?.initial as number | undefined,
+          clockIncrement: clock?.increment as number | undefined,
+          sourceGameId: gameId,
+          sourceUrl: `https://lichess.org/${gameId}`,
+          providerData: g,
         };
       });
       lichessSkipRef.current = skip + games.length;
@@ -995,17 +1136,33 @@ function ImportModal({
         const result = w.result === 'win' ? '1-0' : b.result === 'win' ? '0-1' : '½-½';
         const gamePgn = (g.pgn as string) ?? '';
         const opening = gamePgn.match(/\[Opening\s+"([^"]*)"\]/)?.[1] ?? undefined;
+        const eco = gamePgn.match(/\[ECO\s+"([^"]*)"\]/)?.[1] ?? undefined;
+        const accuracies = g.accuracies as Record<string, unknown> | undefined;
+        const timeControl = g.time_control as string | undefined;
+        const [tcBase, tcInc] = timeControl?.split('+') ?? [];
         return {
-          id: `cc-${yyyy}${mm}-${i}`,
+          id: (g.uuid as string) ?? `cc-${yyyy}${mm}-${i}`,
           whiteName: (w.username as string) ?? 'White',
           whiteRating: (w.rating as number) ?? '',
+          whiteResult: w.result as string | undefined,
           blackName: (b.username as string) ?? 'Black',
           blackRating: (b.rating as number) ?? '',
+          blackResult: b.result as string | undefined,
           result,
           date: g.end_time ? new Date((g.end_time as number) * 1000).toLocaleDateString() : '',
           timeClass: g.time_class as string | undefined,
           opening,
           pgn: gamePgn,
+          eco,
+          rated: g.rated as boolean | undefined,
+          variant: g.rules as string | undefined,
+          clockInitial: tcBase && !Number.isNaN(Number(tcBase)) ? Number(tcBase) : undefined,
+          clockIncrement: tcInc && !Number.isNaN(Number(tcInc)) ? Number(tcInc) : undefined,
+          whiteAccuracy: accuracies?.white as number | undefined,
+          blackAccuracy: accuracies?.black as number | undefined,
+          sourceGameId: g.uuid as string | undefined,
+          sourceUrl: g.url as string | undefined,
+          providerData: g,
         };
       });
       ccMonthBackRef.current = monthBack + 1;
@@ -1051,7 +1208,7 @@ function ImportModal({
 
         {/* Source tabs */}
         <div className="shrink-0 flex gap-1 px-4 pb-3 border-b border-white/8">
-          {(['pgn', 'lichess', 'chesscom'] as const).map(t => (
+          {(['mine', 'chesscom', 'lichess', 'pgn'] as const).map(t => (
             <button
               key={t}
               type="button"
@@ -1062,13 +1219,50 @@ function ImportModal({
                   : 'text-gray-500 hover:text-gray-300 hover:bg-white/5'
               }`}
             >
-              {t === 'pgn' ? 'PGN / FEN' : t === 'lichess' ? 'Lichess' : 'Chess.com'}
+              {t === 'mine' ? 'My Games' : t === 'chesscom' ? 'Chess.com' : t === 'lichess' ? 'Lichess' : 'PGN / FEN'}
             </button>
           ))}
         </div>
 
         {/* Scrollable content area */}
         <div className="flex-1 min-h-0 overflow-y-auto">
+
+          {/* ── My Games tab ── */}
+          {tab === 'mine' && (
+            <div className="p-4 flex flex-col gap-3">
+              {!user ? (
+                <div className="flex flex-col gap-3 py-2">
+                  <p className="text-sm text-gray-500">Sign in to see games you&apos;ve saved from analysis.</p>
+                  <InlineSignIn />
+                </div>
+              ) : myGamesLoading ? (
+                <div className="py-12 flex items-center justify-center text-gray-600">
+                  <SpinnerIcon className="h-5 w-5" />
+                </div>
+              ) : !myGames || myGames.length === 0 ? (
+                <div className="py-12 flex flex-col items-center gap-2 text-center">
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" className="w-8 h-8 text-gray-700">
+                    <path d="M2.5 1A1.5 1.5 0 0 0 1 2.5v11A1.5 1.5 0 0 0 2.5 15h11a1.5 1.5 0 0 0 1.5-1.5V5.457c0-.398-.158-.78-.44-1.06L11.063 1.44A1.5 1.5 0 0 0 10.043 1H2.5Z" />
+                  </svg>
+                  <p className="text-sm text-gray-600">No saved games yet — analyze a game and hit Save to add it here.</p>
+                </div>
+              ) : (
+                <div className="flex flex-col gap-1.5">
+                  {myGames.map(game => {
+                    const fetched = userGameToFetchedGame(game);
+                    return (
+                      <GameCard
+                        key={game.id}
+                        game={fetched}
+                        onSelect={() => onImport(fetched.pgn, fetched.fen ?? '', userGameToImportMeta(game))}
+                        onDelete={() => deleteUserGame.mutate(game.id)}
+                      />
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
 
           {/* ── PGN / FEN tab ── */}
           {tab === 'pgn' && (
@@ -1091,7 +1285,7 @@ function ImportModal({
               <div className="flex items-center gap-2 pt-1">
                 <button
                   type="button"
-                  onClick={() => onImport(pgn, fen)}
+                  onClick={() => onImport(pgn, fen, EMPTY_IMPORT_META)}
                   className="flex-1 rounded-xl bg-amber-400 px-4 py-2.5 text-sm font-semibold text-[#0f1117] transition-colors hover:bg-amber-300"
                 >
                   Analyze
@@ -1165,7 +1359,11 @@ function ImportModal({
                   </div>
                   <div className="flex flex-col gap-1.5">
                     {siteGames.map(game => (
-                      <GameCard key={game.id} game={game} onSelect={() => onImport(game.pgn, '')} />
+                      <GameCard
+                        key={game.id}
+                        game={game}
+                        onSelect={() => onImport(game.pgn, game.fen ?? '', fetchedGameToImportMeta(game, isLichess ? 'lichess' : 'chesscom'))}
+                      />
                     ))}
                   </div>
                   <button
@@ -1309,9 +1507,16 @@ export default function AnalysisPage() {
   const [rawPgn, setRawPgn] = useState('');
   const [whiteAvatar, setWhiteAvatar] = useState<string | null>(null);
   const [blackAvatar, setBlackAvatar] = useState<string | null>(null);
+  const [whiteCountry, setWhiteCountry] = useState<string | null>(null);
+  const [blackCountry, setBlackCountry] = useState<string | null>(null);
   const [showGameDetailsModal, setShowGameDetailsModal] = useState(false);
   const [gameDetailsDraft, setGameDetailsDraft] = useState<GameDetails>(EMPTY_GAME_DETAILS);
   const [showNewAnalysisModal, setShowNewAnalysisModal] = useState(false);
+  const [importMeta, setImportMeta] = useState<ImportMeta>(EMPTY_IMPORT_META);
+  const [showSaveAuthPrompt, setShowSaveAuthPrompt] = useState(false);
+  const [saveConfirmed, setSaveConfirmed] = useState(false);
+  const { user } = useAuth();
+  const saveUserGame = useSaveUserGame();
   const { theme, animationDuration, settings, setSettings } = useBoardSettings();
   const { settings: coachSettings } = useCoachSettings();
   const customPieces = useMemo(() => getCustomPieces(settings.pieceSetId), [settings.pieceSetId]);
@@ -1456,7 +1661,7 @@ export default function AnalysisPage() {
   );
 
 
-  function handleImport(pgn: string, fen: string) {
+  function handleImport(pgn: string, fen: string, meta: ImportMeta = EMPTY_IMPORT_META) {
     try {
       const game = buildAnalyzedGameFromPgn({
         id: `game-${Date.now()}`,
@@ -1475,12 +1680,19 @@ export default function AnalysisPage() {
       setShowImportModal(false);
       setActiveTab('review');
       setReviewSubTab('summary');
+      setImportMeta(meta);
+      setGameDetails(parsePgnHeaders(pgn));
+      setRawPgn(pgn);
+      setWhiteAvatar(null);
+      setBlackAvatar(null);
+      setWhiteCountry(null);
+      setBlackCountry(null);
     } catch (error) {
       setParseError(error instanceof Error ? error.message : 'Could not parse that PGN/FEN.');
     }
   }
 
-  function handleSaveAnalysis() {
+  function handleSaveGame() {
     let pgn = '';
     try {
       if (exploreTree) {
@@ -1494,6 +1706,10 @@ export default function AnalysisPage() {
             ? `[FEN "${exploreTree.rootFen}"]\n\n${movesOnly}`
             : movesOnly;
         }
+      } else if (rawPgn.trim()) {
+        // Prefer the original imported PGN text — preserves headers and [%clk] move
+        // annotations so re-selecting this game from My Games restores clocks/avatar/country.
+        pgn = rawPgn.trim();
       } else if (analyzedGame && analyzedGame.moves.length > 0) {
         const chess = new Chess(analyzedGame.initialFen ?? INITIAL_FEN);
         for (const move of analyzedGame.moves) chess.move(move.san);
@@ -1502,18 +1718,51 @@ export default function AnalysisPage() {
     } catch { /* ignore */ }
     if (!pgn) pgn = positionText.trim();
     if (!pgn) return;
-    const filename = (gameDetails.white && gameDetails.black)
-      ? `${gameDetails.white.replace(/\s+/g, '_')}-vs-${gameDetails.black.replace(/\s+/g, '_')}.pgn`
-      : 'analysis.pgn';
-    const blob = new Blob([pgn], { type: 'application/x-chess-pgn' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = filename;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+
+    if (!user) {
+      setShowSaveAuthPrompt(true);
+      return;
+    }
+
+    const initialFen = exploreTree
+      ? (exploreTree.rootFen !== INITIAL_FEN ? exploreTree.rootFen : undefined)
+      : (analyzedGame?.initialFen && analyzedGame.initialFen !== INITIAL_FEN ? analyzedGame.initialFen : undefined);
+
+    saveUserGame.mutate({
+      pgn,
+      fen: initialFen,
+      white: gameDetails.white || undefined,
+      whiteElo: gameDetails.whiteElo || undefined,
+      whiteResult: importMeta.whiteResult,
+      black: gameDetails.black || undefined,
+      blackElo: gameDetails.blackElo || undefined,
+      blackResult: importMeta.blackResult,
+      result: gameDetails.result && gameDetails.result !== '*' ? gameDetails.result : undefined,
+      termination: gameDetails.termination || undefined,
+      event: gameDetails.event || undefined,
+      round: gameDetails.round || undefined,
+      site: gameDetails.location || undefined,
+      eco: gameDetails.eco || importMeta.eco || undefined,
+      openingName: importMeta.openingName,
+      timeControl: gameDetails.timeControl || undefined,
+      timeClass: importMeta.timeClass,
+      clockInitialSeconds: importMeta.clockInitial,
+      clockIncrementSeconds: importMeta.clockIncrement,
+      rated: importMeta.rated,
+      variant: importMeta.variant,
+      whiteAccuracy: importMeta.whiteAccuracy,
+      blackAccuracy: importMeta.blackAccuracy,
+      playedDate: gameDetails.date || undefined,
+      source: importMeta.source,
+      sourceGameId: importMeta.sourceGameId,
+      sourceUrl: importMeta.sourceUrl,
+      providerData: importMeta.providerData,
+    }, {
+      onSuccess: () => {
+        setSaveConfirmed(true);
+        setTimeout(() => setSaveConfirmed(false), 1500);
+      },
+    });
   }
 
   function clearAnalysis() {
@@ -1533,6 +1782,9 @@ export default function AnalysisPage() {
     setRawPgn('');
     setWhiteAvatar(null);
     setBlackAvatar(null);
+    setWhiteCountry(null);
+    setBlackCountry(null);
+    setImportMeta(EMPTY_IMPORT_META);
     setActiveTab('explore');
     setShowNewAnalysisModal(false);
   }
@@ -1814,6 +2066,9 @@ export default function AnalysisPage() {
         setRawPgn('');
         setWhiteAvatar(null);
         setBlackAvatar(null);
+        setWhiteCountry(null);
+        setBlackCountry(null);
+        setImportMeta(EMPTY_IMPORT_META);
       } catch {
         setPositionError('Invalid FEN');
       }
@@ -1848,6 +2103,9 @@ export default function AnalysisPage() {
         setRawPgn(text);
         setWhiteAvatar(null);
         setBlackAvatar(null);
+        setWhiteCountry(null);
+        setBlackCountry(null);
+        setImportMeta(EMPTY_IMPORT_META);
       } catch {
         setPositionError('Invalid PGN');
       }
@@ -1871,11 +2129,17 @@ export default function AnalysisPage() {
     [pgnClocks, currentPlyIndex]
   );
 
-  // Fetch player avatars from chess.com's public API when a game is imported.
+  // Fetch player avatar + country from the source provider's public API when a game
+  // is imported. Source is detected from importMeta (set when importing via the modal)
+  // and falls back to the PGN's own Site tag so a manually-pasted provider PGN still works.
+  const isChesscomGame = importMeta.source === 'chesscom' || gameDetails.location.toLowerCase().includes('chess.com');
+  const isLichessGame = importMeta.source === 'lichess' || gameDetails.location.toLowerCase().includes('lichess');
+
   useEffect(() => {
-    if (!gameDetails.location.includes('chess.com')) return;
+    if (!isChesscomGame && !isLichessGame) return;
     const controller = new AbortController();
-    const fetchAvatar = async (username: string, set: (url: string | null) => void) => {
+
+    const fetchChesscomProfile = async (username: string, setAvatar: (url: string | null) => void, setCountry: (code: string | null) => void) => {
       if (!username) return;
       try {
         const res = await fetch(
@@ -1883,14 +2147,38 @@ export default function AnalysisPage() {
           { signal: controller.signal }
         );
         if (!res.ok) return;
-        const data = await res.json() as { avatar?: string };
-        set(data.avatar ?? null);
+        const data = await res.json() as { avatar?: string; country?: string };
+        setAvatar(data.avatar ?? null);
+        setCountry(data.country?.split('/').pop()?.toUpperCase() ?? null);
       } catch { /* ignore — network or CORS failure */ }
     };
-    fetchAvatar(gameDetails.white, setWhiteAvatar);
-    fetchAvatar(gameDetails.black, setBlackAvatar);
+
+    const fetchLichessProfile = async (username: string, setCountry: (code: string | null) => void) => {
+      if (!username) return;
+      try {
+        const res = await fetch(
+          `https://lichess.org/api/user/${encodeURIComponent(username)}`,
+          { signal: controller.signal }
+        );
+        if (!res.ok) return;
+        const data = await res.json() as { profile?: { country?: string } };
+        const rawCode = data.profile?.country;
+        // Lichess uses region-qualified codes for sub-national flags (e.g. "GB-ENG") —
+        // take the leading 2-letter country part.
+        setCountry(rawCode ? rawCode.split('-')[0]!.toUpperCase() : null);
+      } catch { /* ignore — network or CORS failure */ }
+    };
+
+    if (isChesscomGame) {
+      fetchChesscomProfile(gameDetails.white, setWhiteAvatar, setWhiteCountry);
+      fetchChesscomProfile(gameDetails.black, setBlackAvatar, setBlackCountry);
+    } else {
+      // Lichess has no avatar/profile-picture feature — only country is available.
+      fetchLichessProfile(gameDetails.white, setWhiteCountry);
+      fetchLichessProfile(gameDetails.black, setBlackCountry);
+    }
     return () => controller.abort();
-  }, [gameDetails.white, gameDetails.black, gameDetails.location]);
+  }, [gameDetails.white, gameDetails.black, isChesscomGame, isLichessGame]);
   const [extendKey, setExtendKey] = useState(0);
 
   // Reset extend key whenever the position changes so each new FEN starts fresh at 8s.
@@ -2319,6 +2607,7 @@ export default function AnalysisPage() {
               <PlayerRow
                 name={settings.flipBoard ? (gameDetails.white || 'White') : (gameDetails.black || 'Black')}
                 elo={settings.flipBoard ? gameDetails.whiteElo : gameDetails.blackElo}
+                country={settings.flipBoard ? whiteCountry : blackCountry}
                 avatar={settings.flipBoard ? whiteAvatar : blackAvatar}
                 captured={settings.flipBoard ? material.whiteCaptured : material.blackCaptured}
                 advantage={settings.flipBoard ? material.advantage : -material.advantage}
@@ -2333,6 +2622,7 @@ export default function AnalysisPage() {
                   <PlayerRow
                     name={settings.flipBoard ? (gameDetails.black || 'Black') : (gameDetails.white || 'White')}
                     elo={settings.flipBoard ? gameDetails.blackElo : gameDetails.whiteElo}
+                    country={settings.flipBoard ? blackCountry : whiteCountry}
                     avatar={settings.flipBoard ? blackAvatar : whiteAvatar}
                     captured={settings.flipBoard ? material.blackCaptured : material.whiteCaptured}
                     advantage={settings.flipBoard ? -material.advantage : material.advantage}
@@ -2659,7 +2949,7 @@ export default function AnalysisPage() {
                       </button>
                     </div>
                     {/* Action buttons below textarea */}
-                    <div className="flex gap-1.5 mt-0.5">
+                    <div className="relative flex gap-1.5 mt-0.5">
                       <button
                         type="button"
                         onClick={handleNewAnalysis}
@@ -2682,14 +2972,36 @@ export default function AnalysisPage() {
                       </button>
                       <button
                         type="button"
-                        onClick={handleSaveAnalysis}
-                        className="flex flex-1 items-center justify-center gap-1 rounded border border-white/10 bg-white/[0.04] px-2 py-1.5 text-[11px] font-medium text-gray-400 transition-colors hover:border-white/20 hover:text-gray-200"
+                        onClick={handleSaveGame}
+                        disabled={saveUserGame.isPending}
+                        className="flex flex-1 items-center justify-center gap-1 rounded border border-white/10 bg-white/[0.04] px-2 py-1.5 text-[11px] font-medium text-gray-400 transition-colors hover:border-white/20 hover:text-gray-200 disabled:opacity-50"
                       >
                         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="h-3 w-3 shrink-0">
                           <path d="M2.5 1A1.5 1.5 0 0 0 1 2.5v11A1.5 1.5 0 0 0 2.5 15h11a1.5 1.5 0 0 0 1.5-1.5V5.457c0-.398-.158-.78-.44-1.06L11.063 1.44A1.5 1.5 0 0 0 10.043 1H2.5Zm0 1h7.5v3a1 1 0 0 0 1 1h3v7.5a.5.5 0 0 1-.5.5h-11a.5.5 0 0 1-.5-.5v-11a.5.5 0 0 1 .5-.5ZM5 11.5a.5.5 0 0 0 0 1h6a.5.5 0 0 0 0-1H5Zm0-2a.5.5 0 0 0 0 1h6a.5.5 0 0 0 0-1H5ZM5 7.5a.5.5 0 0 0 0 1h3a.5.5 0 0 0 0-1H5Z"/>
                         </svg>
-                        Save
+                        {saveConfirmed ? 'Saved ✓' : saveUserGame.isPending ? 'Saving…' : 'Save'}
                       </button>
+
+                      {showSaveAuthPrompt && (
+                        <div
+                          className="absolute bottom-full right-0 mb-2 w-64 rounded-xl border border-white/10 bg-[#14161f] p-3 shadow-2xl shadow-black/60 z-10"
+                          onClick={e => e.stopPropagation()}
+                        >
+                          <div className="flex items-center justify-between mb-2">
+                            <p className="text-xs font-medium text-gray-300">Sign in to save games</p>
+                            <button
+                              type="button"
+                              onClick={() => setShowSaveAuthPrompt(false)}
+                              className="text-gray-600 hover:text-white transition-colors"
+                            >
+                              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="h-3.5 w-3.5">
+                                <path d="M18 6 6 18M6 6l12 12" />
+                              </svg>
+                            </button>
+                          </div>
+                          <InlineSignIn onSuccess={() => setShowSaveAuthPrompt(false)} />
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -3094,6 +3406,48 @@ export default function AnalysisPage() {
                   />
                 ))}
               </div>
+
+              {/* Read-only metadata captured from the source provider (not part of the editable PGN headers) */}
+              {importMeta.source !== 'manual' && (
+                <div className="rounded-lg border border-white/8 bg-white/[0.03] px-3 py-2.5 space-y-1">
+                  <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-600 mb-1.5">
+                    Imported from {importMeta.source === 'chesscom' ? 'Chess.com' : importMeta.source === 'lichess' ? 'Lichess' : 'in-app play'}
+                  </p>
+                  <div className="text-xs text-gray-400 space-y-1">
+                    {importMeta.openingName && (
+                      <p>Opening: <span className="text-gray-300">{importMeta.openingName}</span></p>
+                    )}
+                    {importMeta.timeClass && (
+                      <p>Time class: <span className="text-gray-300 capitalize">{importMeta.timeClass}</span></p>
+                    )}
+                    {formatTimeControl(importMeta.clockInitial, importMeta.clockIncrement) && (
+                      <p>Time control: <span className="text-gray-300">{formatTimeControl(importMeta.clockInitial, importMeta.clockIncrement)}</span></p>
+                    )}
+                    {importMeta.rated != null && (
+                      <p>Rated: <span className="text-gray-300">{importMeta.rated ? 'Yes' : 'No'}</span></p>
+                    )}
+                    {importMeta.variant && importMeta.variant !== 'chess' && (
+                      <p>Variant: <span className="text-gray-300 capitalize">{importMeta.variant}</span></p>
+                    )}
+                    {(importMeta.whiteAccuracy != null || importMeta.blackAccuracy != null) && (
+                      <p>Accuracy: <span className="text-gray-300">{importMeta.whiteAccuracy?.toFixed(1) ?? '—'} / {importMeta.blackAccuracy?.toFixed(1) ?? '—'}</span></p>
+                    )}
+                    {importMeta.whiteResult && (
+                      <p>White result: <span className="text-gray-300 capitalize">{importMeta.whiteResult}</span></p>
+                    )}
+                    {importMeta.blackResult && (
+                      <p>Black result: <span className="text-gray-300 capitalize">{importMeta.blackResult}</span></p>
+                    )}
+                    {importMeta.sourceUrl && (
+                      <p>
+                        <a href={importMeta.sourceUrl} target="_blank" rel="noopener noreferrer" className="text-amber-400 hover:text-amber-300 transition-colors">
+                          View original game ↗
+                        </a>
+                      </p>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
             <div className="shrink-0 flex gap-2 border-t border-white/8 px-5 py-4">
               <button type="button" onClick={() => setShowGameDetailsModal(false)}
