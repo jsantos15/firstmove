@@ -11,6 +11,7 @@ out/
 
 # Generated opening pipeline artifacts
 scripts/output/*.json
+scripts/output/*.tmp
 scripts/output/backups/
 temp
 
