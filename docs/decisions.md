@@ -76,6 +76,14 @@
 
 ---
 
+## 2026-07-04 - Treat Queen's Gambit Accepted/Declined as Queen's Gambit subcourses
+
+**Decision:** Do not expose `Queen's Gambit Accepted` or `Queen's Gambit Declined` as standalone learner-facing course cards. They should stay under the `Queen's Gambit` course as variation hierarchy, with the course taught from White's perspective.
+
+**Reason:** White initiates the Queen's Gambit and Black's accepted/declined response defines subfamilies inside that opening. Showing Accepted/Declined as separate Black course cards duplicates the opening and breaks the learner-facing course model.
+
+---
+
 ## 2026-04-19 - Add Stockfish 17.1 as an offline analysis dependency
 
 **Decision:** Add the `stockfish` npm package pinned to `17.1.0` and start with an offline analysis script workflow before integrating engine output into the app UI.

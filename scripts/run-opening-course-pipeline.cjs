@@ -9,6 +9,10 @@ const OUTPUT_DIR = path.resolve(__dirname, "output");
 const DEFAULT_CLOUD_EVAL_MODE = "authoritative";
 const REST_RETRY_ATTEMPTS = 5;
 const REST_RETRY_BASE_DELAY_MS = 750;
+const NON_STANDALONE_COURSE_NAMES = new Set([
+  "queen's gambit accepted",
+  "queen's gambit declined",
+]);
 
 function slugify(value) {
   return String(value ?? "")
@@ -211,12 +215,16 @@ async function getOpeningIndex(env) {
 }
 
 function resolveSelectedOpenings(indexRows, args) {
+  const courseRows = indexRows.filter(
+    (row) => !NON_STANDALONE_COURSE_NAMES.has(String(row.name ?? "").toLowerCase())
+  );
+
   if (args.nextMissing != null) {
-    return indexRows.filter((row) => !row.course_slug).slice(0, args.nextMissing);
+    return courseRows.filter((row) => !row.course_slug).slice(0, args.nextMissing);
   }
 
   const rowsByKey = new Map();
-  for (const row of indexRows) {
+  for (const row of courseRows) {
     rowsByKey.set(row.name.toLowerCase(), row);
     rowsByKey.set(slugify(row.name), row);
   }
