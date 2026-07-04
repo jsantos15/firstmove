@@ -81,20 +81,40 @@ type ReviewSubTab = 'summary' | 'moves';
 
 // Parse [%clk h:mm:ss] annotations from a PGN string, returning formatted times
 // in the order they appear (ply 0 = white's first move, ply 1 = black's, etc.).
+// Chess.com clocks frequently carry fractional seconds (e.g. "0:02:59.9") — the
+// seconds group must allow a decimal part or those entries silently fail to
+// match, dropping clocks out of the array and desyncing every later ply.
 function parsePgnClocks(pgn: string): string[] {
   const clocks: string[] = [];
-  const re = /\[%clk\s+(\d+):(\d+):(\d+)\]/g;
+  const re = /\[%clk\s+(\d+):(\d+):(\d+(?:\.\d+)?)\]/g;
   let m: RegExpExecArray | null;
   while ((m = re.exec(pgn)) !== null) {
     const h = parseInt(m[1]!, 10);
     const min = parseInt(m[2]!, 10);
-    const s = parseInt(m[3]!, 10);
+    const s = Math.floor(parseFloat(m[3]!));
     clocks.push(h > 0
       ? `${h}:${String(min).padStart(2, '0')}:${String(s).padStart(2, '0')}`
       : `${min}:${String(s).padStart(2, '0')}`
     );
   }
   return clocks;
+}
+
+// Formats a total-seconds duration the same way parsePgnClocks formats a clock reading.
+function formatClockSeconds(totalSeconds?: number): string | null {
+  if (totalSeconds == null || Number.isNaN(totalSeconds)) return null;
+  const h = Math.floor(totalSeconds / 3600);
+  const min = Math.floor((totalSeconds % 3600) / 60);
+  const s = Math.floor(totalSeconds % 60);
+  return h > 0
+    ? `${h}:${String(min).padStart(2, '0')}:${String(s).padStart(2, '0')}`
+    : `${min}:${String(s).padStart(2, '0')}`;
+}
+
+// Reads the base time (seconds) from a PGN TimeControl header like "180" or "600+5".
+function parseTimeControlSeconds(timeControl: string): number | undefined {
+  const match = timeControl.match(/^(\d+)/);
+  return match ? parseInt(match[1]!, 10) : undefined;
 }
 
 // Returns the most recent clock for each color at the given ply index.
@@ -900,9 +920,19 @@ interface ImportMeta {
   sourceGameId?: string;
   sourceUrl?: string;
   providerData?: Record<string, unknown>;
+  /** The Lichess/Chess.com username that was searched for, so the board can
+   *  orient with that player's pieces at the bottom (the usual "my games" view). */
+  importedUsername?: string;
 }
 
 const EMPTY_IMPORT_META: ImportMeta = { source: 'manual' };
+
+// Remembers the last username a signed-in user searched for per provider, so
+// reopening Import doesn't require retyping it (scoped by user id since the
+// browser/profile could be shared).
+function lastImportUsernameKey(provider: 'lichess' | 'chesscom', userId: string): string {
+  return `firstmove:lastImportUsername:${provider}:${userId}`;
+}
 
 function userGameToFetchedGame(g: UserGame): FetchedGame {
   return {
@@ -1038,6 +1068,16 @@ function ImportModal({
   const [ccError, setCcError] = useState<string | null>(null);
   const ccMonthBackRef = useRef(0);
 
+  // Prefill the last username this signed-in user searched for on each provider,
+  // so returning to Import doesn't require retyping (usually their own username).
+  useEffect(() => {
+    if (!user) return;
+    const savedLichess = localStorage.getItem(lastImportUsernameKey('lichess', user.id));
+    const savedCc = localStorage.getItem(lastImportUsernameKey('chesscom', user.id));
+    if (savedLichess) setLichessUser(prev => prev || savedLichess);
+    if (savedCc) setCcUser(prev => prev || savedCc);
+  }, [user]);
+
   async function handleFileUpload(file: File | null) {
     if (!file) return;
     const text = await file.text();
@@ -1059,6 +1099,7 @@ function ImportModal({
       if (!res.ok) {
         throw new Error(res.status === 404 ? `"${username}" not found on Lichess` : `Error ${res.status}`);
       }
+      if (reset && user) localStorage.setItem(lastImportUsernameKey('lichess', user.id), username);
       const text = await res.text();
       const lines = text.trim().split('\n').filter(Boolean);
       if (reset && lines.length === 0) throw new Error(`No games found for "${username}"`);
@@ -1126,6 +1167,7 @@ function ImportModal({
       if (!res.ok) {
         throw new Error(res.status === 404 ? `"${username}" not found on Chess.com` : `Error ${res.status}`);
       }
+      if (reset && user) localStorage.setItem(lastImportUsernameKey('chesscom', user.id), username);
       const data = await res.json() as { games?: unknown[] };
       const rawGames = [...(data.games ?? [])].reverse();
       if (reset && rawGames.length === 0) throw new Error(`No games found for "${username}" this month — try loading more`);
@@ -1190,7 +1232,7 @@ function ImportModal({
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/65 backdrop-blur-sm"
       onClick={e => { if (e.target === e.currentTarget) onClose(); }}
     >
-      <div className="mx-4 w-full max-w-lg flex flex-col rounded-2xl border border-white/10 bg-[#0f1117] shadow-2xl shadow-black/60 max-h-[85vh]">
+      <div className="mx-4 w-full max-w-lg flex flex-col rounded-2xl border border-white/10 bg-[#0f1117] shadow-2xl shadow-black/60 h-[680px] max-h-[85vh]">
 
         {/* Header */}
         <div className="shrink-0 flex items-center justify-between px-5 pt-4 pb-3">
@@ -1229,18 +1271,20 @@ function ImportModal({
 
           {/* ── My Games tab ── */}
           {tab === 'mine' && (
-            <div className="p-4 flex flex-col gap-3">
+            <div className="h-full p-4 flex flex-col gap-3">
               {!user ? (
-                <div className="flex flex-col gap-3 py-2">
+                <div className="flex-1 flex flex-col items-center justify-center gap-3 text-center">
                   <p className="text-sm text-gray-500">Sign in to see games you&apos;ve saved from analysis.</p>
-                  <InlineSignIn />
+                  <div className="w-full max-w-[260px]">
+                    <InlineSignIn />
+                  </div>
                 </div>
               ) : myGamesLoading ? (
-                <div className="py-12 flex items-center justify-center text-gray-600">
+                <div className="flex-1 flex items-center justify-center text-gray-600">
                   <SpinnerIcon className="h-5 w-5" />
                 </div>
               ) : !myGames || myGames.length === 0 ? (
-                <div className="py-12 flex flex-col items-center gap-2 text-center">
+                <div className="flex-1 flex flex-col items-center justify-center gap-2 text-center">
                   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" className="w-8 h-8 text-gray-700">
                     <path d="M2.5 1A1.5 1.5 0 0 0 1 2.5v11A1.5 1.5 0 0 0 2.5 15h11a1.5 1.5 0 0 0 1.5-1.5V5.457c0-.398-.158-.78-.44-1.06L11.063 1.44A1.5 1.5 0 0 0 10.043 1H2.5Z" />
                   </svg>
@@ -1266,13 +1310,12 @@ function ImportModal({
 
           {/* ── PGN / FEN tab ── */}
           {tab === 'pgn' && (
-            <div className="p-4 flex flex-col gap-3">
+            <div className="h-full p-4 flex flex-col gap-3">
               <textarea
                 value={pgn}
                 onChange={e => setPgn(e.target.value)}
                 placeholder={'Paste PGN here...\n\n1. e4 e5 2. Nf3 Nc6 3. Bb5 a6 ...'}
-                rows={8}
-                className="w-full resize-none rounded-xl border border-white/10 bg-black/30 px-4 py-3 font-mono text-xs leading-5 text-gray-200 placeholder-gray-600 outline-none transition-colors focus:border-amber-400/40"
+                className="w-full flex-1 min-h-0 resize-none rounded-xl border border-white/10 bg-black/30 px-4 py-3 font-mono text-xs leading-5 text-gray-200 placeholder-gray-600 outline-none transition-colors focus:border-amber-400/40"
                 spellCheck={false}
               />
               <input
@@ -1308,7 +1351,7 @@ function ImportModal({
 
           {/* ── Lichess / Chess.com tabs ── */}
           {isSite && (
-            <div className="p-4 flex flex-col gap-3">
+            <div className="h-full p-4 flex flex-col gap-3">
 
               {/* Username search bar */}
               <div className="flex gap-2">
@@ -1339,7 +1382,7 @@ function ImportModal({
 
               {/* Empty / hint state */}
               {!siteLoading && !siteError && !hasGames && (
-                <div className="py-12 flex flex-col items-center gap-2 text-center">
+                <div className="flex-1 flex flex-col items-center justify-center gap-2 text-center">
                   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" className="w-8 h-8 text-gray-700">
                     <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" />
                   </svg>
@@ -1362,7 +1405,10 @@ function ImportModal({
                       <GameCard
                         key={game.id}
                         game={game}
-                        onSelect={() => onImport(game.pgn, game.fen ?? '', fetchedGameToImportMeta(game, isLichess ? 'lichess' : 'chesscom'))}
+                        onSelect={() => onImport(game.pgn, game.fen ?? '', {
+                          ...fetchedGameToImportMeta(game, isLichess ? 'lichess' : 'chesscom'),
+                          importedUsername: siteUser,
+                        })}
                       />
                     ))}
                   </div>
@@ -1681,12 +1727,27 @@ export default function AnalysisPage() {
       setActiveTab('review');
       setReviewSubTab('summary');
       setImportMeta(meta);
-      setGameDetails(parsePgnHeaders(pgn));
+      const parsedDetails = parsePgnHeaders(pgn);
+      setGameDetails(parsedDetails);
       setRawPgn(pgn);
       setWhiteAvatar(null);
       setBlackAvatar(null);
       setWhiteCountry(null);
       setBlackCountry(null);
+
+      // Orient the board with the imported Lichess/Chess.com user's pieces at the
+      // bottom — that's the "my games" perspective people expect when reviewing
+      // their own games, regardless of which color they played.
+      if (meta.importedUsername) {
+        const searched = meta.importedUsername.trim().toLowerCase();
+        if (searched && parsedDetails.black.trim().toLowerCase() === searched) {
+          setSettings({ flipBoard: true });
+        } else if (searched && parsedDetails.white.trim().toLowerCase() === searched) {
+          setSettings({ flipBoard: false });
+        }
+      }
+
+      if (game.moves.length > 0) void runStockfish(game);
     } catch (error) {
       setParseError(error instanceof Error ? error.message : 'Could not parse that PGN/FEN.');
     }
@@ -1795,8 +1856,9 @@ export default function AnalysisPage() {
     setShowNewAnalysisModal(true);
   }
 
-  async function runStockfish() {
-    if (!analyzedGame || isEngineRunning) return;
+  async function runStockfish(gameOverride?: AnalyzedGame) {
+    const game = gameOverride ?? analyzedGame;
+    if (!game || isEngineRunning) return;
     setIsEngineRunning(true);
     setEngineProgress(0);
     setEngineError(null);
@@ -1811,7 +1873,7 @@ export default function AnalysisPage() {
       return;
     }
 
-    const moves = [...analyzedGame.moves];
+    const moves = [...game.moves];
     const enriched: AnalyzedGameMove[] = new Array(moves.length);
     let completed = 0;
 
@@ -1828,7 +1890,7 @@ export default function AnalysisPage() {
       );
 
       if (!pool.terminated) {
-        const enrichedGame: AnalyzedGame = { ...analyzedGame, moves: enriched };
+        const enrichedGame: AnalyzedGame = { ...game, moves: enriched };
         setAnalyzedGame(enrichedGame);
 
         const byPly = new Map<number, CoachFeedback | null>();
@@ -2123,11 +2185,17 @@ export default function AnalysisPage() {
   // Material captured by each side at the current board position.
   const material = useMemo(() => computeMaterial(boardFen), [boardFen]);
 
-  // Per-color clock at the current ply (null if no clock data in PGN).
-  const playerClocks = useMemo(
-    () => getClocksAtPly(pgnClocks, currentPlyIndex),
-    [pgnClocks, currentPlyIndex]
-  );
+  // Per-color clock at the current ply. Before either side has moved, show the full
+  // starting time (from the provider's clock config, falling back to the PGN's own
+  // TimeControl header) instead of leaving it blank.
+  const playerClocks = useMemo(() => {
+    if (currentPlyIndex < 0) {
+      const startSeconds = importMeta.clockInitial ?? parseTimeControlSeconds(gameDetails.timeControl);
+      const startClock = formatClockSeconds(startSeconds);
+      return { w: startClock, b: startClock };
+    }
+    return getClocksAtPly(pgnClocks, currentPlyIndex);
+  }, [pgnClocks, currentPlyIndex, importMeta.clockInitial, gameDetails.timeControl]);
 
   // Fetch player avatar + country from the source provider's public API when a game
   // is imported. Source is detected from importMeta (set when importing via the modal)
@@ -3162,31 +3230,12 @@ export default function AnalysisPage() {
                     {!isEngineRunning && (
                       <div className="flex flex-1 min-h-0 flex-col">
 
-                        {/* Actions bar */}
-                        <div className="shrink-0 flex items-center gap-2 border-b border-white/5 px-3 py-2.5">
-                          <button
-                            type="button"
-                            onClick={() => void runStockfish()}
-                            disabled={isEngineRunning || hasEngineAnalysis}
-                            className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors ${
-                              hasEngineAnalysis
-                                ? 'border border-emerald-500/30 bg-emerald-500/10 text-emerald-400 cursor-default'
-                                : 'bg-amber-400 text-[#0f1117] hover:bg-amber-300'
-                            }`}
-                          >
-                            {hasEngineAnalysis ? '✓ Analyzed' : 'Analyze'}
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => { setParseError(null); setShowImportModal(true); }}
-                            className="rounded-lg border border-white/10 px-3 py-1.5 text-xs font-medium text-gray-400 transition-colors hover:border-white/20 hover:text-white"
-                          >
-                            Import
-                          </button>
-                          {engineError && (
+                        {/* Engine error (analysis now runs automatically on import) */}
+                        {engineError && (
+                          <div className="shrink-0 flex items-center gap-2 border-b border-white/5 px-3 py-2.5">
                             <span className="text-[10px] text-red-400">{engineError}</span>
-                          )}
-                        </div>
+                          </div>
+                        )}
 
                         {/* Sub-tabs: Summary | Moves */}
                         <div className="flex shrink-0 border-b border-white/5">
@@ -3260,41 +3309,31 @@ export default function AnalysisPage() {
 
                 {/* Position — FEN / PGN input strip */}
                 <div className="shrink-0 border-t border-white/5">
-                  <div className="flex items-center gap-2 px-3 pt-2 pb-0.5">
-                    <div className="flex overflow-hidden rounded border border-white/8 text-[10px] font-medium">
+                  <div className="flex items-end justify-end gap-2 px-3 pt-2 pb-0">
+                    {positionError && (
+                      <span className="flex-1 text-[10px] text-red-400 leading-none">{positionError}</span>
+                    )}
+                    {/* Mode toggle — tab style, flush against textarea top */}
+                    <div className="flex text-[10px] font-medium">
                       {(['pgn', 'fen'] as const).map((m, i) => (
                         <button
                           key={m}
                           type="button"
                           onClick={() => setPositionMode(m)}
-                          className={`px-2 py-0.5 uppercase tracking-wide transition-colors ${
-                            i > 0 ? 'border-l border-white/8' : ''
+                          className={`px-2.5 py-0.5 uppercase tracking-wide border-t border-b-0 transition-colors ${
+                            i === 0 ? 'rounded-tl-lg border-l' : 'border-l border-r'
                           } ${
                             positionMode === m
-                              ? 'bg-white/10 text-white'
-                              : 'text-gray-500 hover:text-gray-300'
+                              ? 'bg-white/8 text-white border-white/15'
+                              : 'bg-transparent text-gray-500 border-white/8 hover:text-gray-300'
                           }`}
                         >
                           {m}
                         </button>
                       ))}
                     </div>
-                    {positionError && (
-                      <span className="text-[10px] text-red-400 leading-none">{positionError}</span>
-                    )}
-                    <div className="flex-1" />
-                    <button
-                      type="button"
-                      onClick={() => { setParseError(null); setShowImportModal(true); }}
-                      className="flex items-center gap-1 rounded border border-amber-400/35 bg-amber-400/8 px-2.5 py-0.5 text-[10px] font-medium text-amber-300 transition-colors hover:border-amber-400/55 hover:bg-amber-400/15 hover:text-amber-200"
-                    >
-                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="h-3 w-3">
-                        <path d="M1 3.5A1.5 1.5 0 0 1 2.5 2h2.764c.958 0 1.76.56 2.311 1.184C7.985 3.648 8.48 4 9 4h4.5A1.5 1.5 0 0 1 15 5.5v.64c.57.265.94.876.856 1.546l-.64 5.124A2.5 2.5 0 0 1 12.733 15H3.266a2.5 2.5 0 0 1-2.481-2.19l-.64-5.124A1.5 1.5 0 0 1 1 6.14V3.5ZM2 6h12v-.5a.5.5 0 0 0-.5-.5H9c-.964 0-1.71-.629-2.174-1.154C6.374 3.334 5.82 3 5.264 3H2.5a.5.5 0 0 0-.5.5V6Zm-.367 1a.5.5 0 0 0-.496.562l.64 5.124A1.5 1.5 0 0 0 3.266 14h9.468a1.5 1.5 0 0 0 1.489-1.314l.64-5.124A.5.5 0 0 0 14.367 7H1.633Z"/>
-                      </svg>
-                      Import Game
-                    </button>
                   </div>
-                  <div className="px-3 pb-2.5">
+                  <div className="px-3 pb-0">
                     <div className="relative">
                       <textarea
                         ref={positionTextareaRef}
@@ -3302,7 +3341,7 @@ export default function AnalysisPage() {
                         onChange={e => { setPositionText(e.target.value); setPositionDirty(true); setPositionError(null); }}
                         rows={3}
                         spellCheck={false}
-                        className={`w-full resize-none rounded-lg border bg-white/3 px-2.5 py-1.5 pr-8 font-mono text-[10px] leading-relaxed text-gray-300 placeholder-gray-600 focus:outline-none transition-colors ${
+                        className={`w-full resize-none rounded-tl-lg rounded-tr-none rounded-b-lg border bg-white/3 px-2.5 py-1.5 pr-8 font-mono text-[10px] leading-relaxed text-gray-300 placeholder-gray-600 focus:outline-none transition-colors ${
                           positionError
                             ? 'border-red-500/40 focus:border-red-500/60'
                             : 'border-white/8 focus:border-white/20'
@@ -3320,6 +3359,61 @@ export default function AnalysisPage() {
                           <path fillRule="evenodd" d="M8.22 2.97a.75.75 0 0 1 1.06 0l4.25 4.25a.75.75 0 0 1 0 1.06l-4.25 4.25a.75.75 0 0 1-1.042-1.06l2.97-2.97H3.75a.75.75 0 0 1 0-1.5h7.44L8.22 4.03a.75.75 0 0 1 0-1.06Z" clipRule="evenodd" />
                         </svg>
                       </button>
+                    </div>
+                    {/* Action buttons below textarea */}
+                    <div className="relative flex gap-1.5 mt-0.5">
+                      <button
+                        type="button"
+                        onClick={handleNewAnalysis}
+                        className="flex flex-1 items-center justify-center gap-1 rounded border border-white/10 bg-white/[0.04] px-2 py-1.5 text-[11px] font-medium text-gray-400 transition-colors hover:border-white/20 hover:text-gray-200"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="h-3 w-3 shrink-0">
+                          <path d="M8 2a.75.75 0 0 1 .75.75v4.5h4.5a.75.75 0 0 1 0 1.5h-4.5v4.5a.75.75 0 0 1-1.5 0v-4.5h-4.5a.75.75 0 0 1 0-1.5h4.5v-4.5A.75.75 0 0 1 8 2Z" />
+                        </svg>
+                        New
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => { setParseError(null); setShowImportModal(true); }}
+                        className="flex flex-1 items-center justify-center gap-1 rounded border border-white/10 bg-white/[0.04] px-2 py-1.5 text-[11px] font-medium text-gray-400 transition-colors hover:border-white/20 hover:text-gray-200"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="h-3 w-3 shrink-0">
+                          <path d="M1 3.5A1.5 1.5 0 0 1 2.5 2h2.764c.958 0 1.76.56 2.311 1.184C7.985 3.648 8.48 4 9 4h4.5A1.5 1.5 0 0 1 15 5.5v.64c.57.265.94.876.856 1.546l-.64 5.124A2.5 2.5 0 0 1 12.733 15H3.266a2.5 2.5 0 0 1-2.481-2.19l-.64-5.124A1.5 1.5 0 0 1 1 6.14V3.5ZM2 6h12v-.5a.5.5 0 0 0-.5-.5H9c-.964 0-1.71-.629-2.174-1.154C6.374 3.334 5.82 3 5.264 3H2.5a.5.5 0 0 0-.5.5V6Zm-.367 1a.5.5 0 0 0-.496.562l.64 5.124A1.5 1.5 0 0 0 3.266 14h9.468a1.5 1.5 0 0 0 1.489-1.314l.64-5.124A.5.5 0 0 0 14.367 7H1.633Z"/>
+                        </svg>
+                        Import Game
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleSaveGame}
+                        disabled={saveUserGame.isPending}
+                        className="flex flex-1 items-center justify-center gap-1 rounded border border-white/10 bg-white/[0.04] px-2 py-1.5 text-[11px] font-medium text-gray-400 transition-colors hover:border-white/20 hover:text-gray-200 disabled:opacity-50"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="h-3 w-3 shrink-0">
+                          <path d="M2.5 1A1.5 1.5 0 0 0 1 2.5v11A1.5 1.5 0 0 0 2.5 15h11a1.5 1.5 0 0 0 1.5-1.5V5.457c0-.398-.158-.78-.44-1.06L11.063 1.44A1.5 1.5 0 0 0 10.043 1H2.5Zm0 1h7.5v3a1 1 0 0 0 1 1h3v7.5a.5.5 0 0 1-.5.5h-11a.5.5 0 0 1-.5-.5v-11a.5.5 0 0 1 .5-.5ZM5 11.5a.5.5 0 0 0 0 1h6a.5.5 0 0 0 0-1H5Zm0-2a.5.5 0 0 0 0 1h6a.5.5 0 0 0 0-1H5ZM5 7.5a.5.5 0 0 0 0 1h3a.5.5 0 0 0 0-1H5Z"/>
+                        </svg>
+                        {saveConfirmed ? 'Saved ✓' : saveUserGame.isPending ? 'Saving…' : 'Save'}
+                      </button>
+
+                      {showSaveAuthPrompt && (
+                        <div
+                          className="absolute bottom-full right-0 mb-2 w-64 rounded-xl border border-white/10 bg-[#14161f] p-3 shadow-2xl shadow-black/60 z-10"
+                          onClick={e => e.stopPropagation()}
+                        >
+                          <div className="flex items-center justify-between mb-2">
+                            <p className="text-xs font-medium text-gray-300">Sign in to save games</p>
+                            <button
+                              type="button"
+                              onClick={() => setShowSaveAuthPrompt(false)}
+                              className="text-gray-600 hover:text-white transition-colors"
+                            >
+                              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="h-3.5 w-3.5">
+                                <path d="M18 6 6 18M6 6l12 12" />
+                              </svg>
+                            </button>
+                          </div>
+                          <InlineSignIn onSuccess={() => setShowSaveAuthPrompt(false)} />
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
