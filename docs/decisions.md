@@ -76,11 +76,11 @@
 
 ---
 
-## 2026-07-04 - Treat Queen's Gambit Accepted/Declined as Queen's Gambit subcourses
+## 2026-07-04 - Treat Accepted/Declined gambits as parent-gambit subcourses
 
-**Decision:** Do not expose `Queen's Gambit Accepted` or `Queen's Gambit Declined` as standalone learner-facing course cards. They should stay under the `Queen's Gambit` course as variation hierarchy, with the course taught from White's perspective.
+**Decision:** Do not expose accepted/declined response families such as `Queen's Gambit Accepted`, `Queen's Gambit Declined`, or `King's Gambit Accepted` as standalone learner-facing course cards. They should stay under the parent gambit course as variation hierarchy, with the course taught from the gambit's initiating side.
 
-**Reason:** White initiates the Queen's Gambit and Black's accepted/declined response defines subfamilies inside that opening. Showing Accepted/Declined as separate Black course cards duplicates the opening and breaks the learner-facing course model.
+**Reason:** The gambit side initiates the opening and the opponent's accepted/declined response defines subfamilies inside that opening. Showing Accepted/Declined as separate response-side course cards duplicates the opening and breaks the learner-facing course model.
 
 ---
 

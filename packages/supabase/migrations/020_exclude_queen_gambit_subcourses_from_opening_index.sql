@@ -1,7 +1,7 @@
--- Queen's Gambit Accepted and Declined are learner-facing subfamilies of
--- Queen's Gambit, not standalone course cards. Keep their source popularity
--- rows intact, but exclude them from opening_index so --next-missing does not
--- generate duplicate black-side courses.
+-- Accepted/Declined gambit subfamilies are learner-facing subfamilies of their
+-- parent gambits, not standalone course cards. Keep their source popularity rows
+-- intact, but exclude them from opening_index so --next-missing does not
+-- generate duplicate response-side courses.
 
 create or replace view public.opening_index as
 with learner_openings as (
@@ -20,6 +20,8 @@ with learner_openings as (
       'Horwitz Defense',
       'Zukertort Opening',
       'Indian Defense',
+      'King''s Gambit Accepted',
+      'King''s Gambit Declined',
       'Queen''s Gambit Accepted',
       'Queen''s Gambit Declined'
     )

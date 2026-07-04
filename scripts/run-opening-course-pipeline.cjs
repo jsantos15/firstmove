@@ -10,6 +10,8 @@ const DEFAULT_CLOUD_EVAL_MODE = "authoritative";
 const REST_RETRY_ATTEMPTS = 5;
 const REST_RETRY_BASE_DELAY_MS = 750;
 const NON_STANDALONE_COURSE_NAMES = new Set([
+  "king's gambit accepted",
+  "king's gambit declined",
   "queen's gambit accepted",
   "queen's gambit declined",
 ]);
