@@ -175,6 +175,18 @@ function parsePgnClocks(pgn: string): string[] {
   return clocks;
 }
 
+// Same as parsePgnClocks but returns the verbatim "h:mm:ss(.f)?" text captured from
+// each [%clk ...] tag, unrounded — used when a move is carried into an ExploreTree
+// (see buildSeedTree) so its original clock reading can be serialized back out
+// byte-for-byte rather than through parsePgnClocks's display-oriented rounding.
+function parsePgnRawClocks(pgn: string): string[] {
+  const clocks: string[] = [];
+  const re = /\[%clk\s+(\d+:\d+:\d+(?:\.\d+)?)\]/g;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(pgn)) !== null) clocks.push(m[1]!);
+  return clocks;
+}
+
 // Formats a total-seconds duration the same way parsePgnClocks formats a clock reading.
 function formatClockSeconds(totalSeconds?: number): string | null {
   if (totalSeconds == null || Number.isNaN(totalSeconds)) return null;
@@ -427,7 +439,10 @@ function buildExplorePairs(history: ExploreEntry[], startFen: string): ExplorePa
 
 // ─── Variation Tree Types ─────────────────────────────────────────────────────
 
-type MoveEntry = { id: string; san: string; fen: string; from: string; to: string };
+// `clock` is the verbatim [%clk ...] reading for this move, if the source pgn had one —
+// only ever set for moves carried in from an original import (buildSeedTree/parseMovetextToTree);
+// moves the user plays fresh in the Explore tab have none.
+type MoveEntry = { id: string; san: string; fen: string; from: string; to: string; clock?: string };
 
 // A single line in the variation tree (main line or a branch)
 type VariationLine = {
@@ -661,6 +676,8 @@ function serializeExploreTree(tree: ExploreTree): string {
       if (isWhiteMove) tokens.push(`${moveNum}.`);
       else if (i === 0) tokens.push(`${moveNum}...`);
       tokens.push(line.moves[i]!.san);
+      const clock = line.moves[i]!.clock;
+      if (clock) tokens.push(`{[%clk ${clock}]}`);
 
       // Variations diverging right at this ply are alternatives to the move just
       // printed — standard PGN attaches them immediately after it, in parens.
@@ -675,12 +692,13 @@ function serializeExploreTree(tree: ExploreTree): string {
   return serializeLine(mainLine, 0);
 }
 
+// Comments "{...}" are kept as whole tokens (rather than stripped) so parseMovetextToTree
+// can pull a [%clk ...] reading back out of the one immediately following a move.
 function tokenizePgnMovetext(text: string): string[] {
-  const noComments = text.replace(/\{[^}]*\}/g, ' ');
   const tokens: string[] = [];
-  const re = /\(|\)|[^\s()]+/g;
+  const re = /\{[^}]*\}|\(|\)|[^\s(){}]+/g;
   let m: RegExpExecArray | null;
-  while ((m = re.exec(noComments)) !== null) tokens.push(m[0]);
+  while ((m = re.exec(text)) !== null) tokens.push(m[0]);
   return tokens;
 }
 
@@ -725,6 +743,15 @@ function parseMovetextToTree(movetext: string, rootFen: string): ExploreTree {
         const beforeFen = lastIdx === 0 ? startFen : line.moves[lastIdx - 1]!.fen;
         parseSequence(beforeFen, line, lastIdx);
         if (tokens[idx] === ')') idx++;
+        continue;
+      }
+      if (tok.startsWith('{') && tok.endsWith('}')) {
+        // A comment immediately following a move — pull its [%clk ...] reading (if
+        // any) back onto that move; any other comment content is discarded, same as
+        // parsing has always done for this tree-shaped save path.
+        idx++;
+        const clockMatch = tok.match(/\[%clk\s+(\d+:\d+:\d+(?:\.\d+)?)\]/);
+        if (clockMatch && line.moves.length > 0) line.moves[line.moves.length - 1]!.clock = clockMatch[1];
         continue;
       }
       if (/^\$\d+$/.test(tok) || /^\d+\.+$/.test(tok)) { idx++; continue; }
@@ -2402,6 +2429,9 @@ export default function AnalysisPage() {
 
   // Parse clock annotations from the raw PGN once per game load.
   const pgnClocks = useMemo(() => parsePgnClocks(rawPgn), [rawPgn]);
+  // Verbatim (unrounded) per-ply clock text, carried into the explore tree (see
+  // buildSeedTree) so it round-trips through a Save/reload unchanged.
+  const pgnRawClocks = useMemo(() => parsePgnRawClocks(rawPgn), [rawPgn]);
 
   // Material captured by each side at the current board position.
   const material = useMemo(() => computeMaterial(boardFen), [boardFen]);
@@ -2658,7 +2688,7 @@ export default function AnalysisPage() {
       const gm = analyzedGame.moves[i]!;
       const result = chess.move(gm.san);
       if (!result) break;
-      moves.push({ id: gm.id ?? crypto.randomUUID(), san: result.san, fen: chess.fen(), from: result.from, to: result.to });
+      moves.push({ id: gm.id ?? crypto.randomUUID(), san: result.san, fen: chess.fen(), from: result.from, to: result.to, clock: pgnRawClocks[i] });
     }
     if (moves.length === 0) return null;
     const mainId = crypto.randomUUID();
