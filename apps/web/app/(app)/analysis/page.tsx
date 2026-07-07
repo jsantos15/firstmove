@@ -1788,6 +1788,7 @@ export default function AnalysisPage() {
   const [importMeta, setImportMeta] = useState<ImportMeta>(EMPTY_IMPORT_META);
   const [showSaveAuthPrompt, setShowSaveAuthPrompt] = useState(false);
   const [saveConfirmed, setSaveConfirmed] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
   const [showSaveAsMenu, setShowSaveAsMenu] = useState(false);
   const saveAsMenuRef = useRef<HTMLDivElement>(null);
   const [showOverwriteConfirm, setShowOverwriteConfirm] = useState(false);
@@ -2025,6 +2026,8 @@ export default function AnalysisPage() {
       return;
     }
 
+    setSaveError(null);
+
     const initialFen = exploreTree
       ? (exploreTree.rootFen !== INITIAL_FEN ? exploreTree.rootFen : undefined)
       : (analyzedGame?.initialFen && analyzedGame.initialFen !== INITIAL_FEN ? analyzedGame.initialFen : undefined);
@@ -2070,6 +2073,9 @@ export default function AnalysisPage() {
         setSavedBaselinePgn(pgn);
         setSaveConfirmed(true);
         setTimeout(() => setSaveConfirmed(false), 1500);
+      },
+      onError: (error) => {
+        setSaveError(error instanceof Error ? error.message : 'Failed to save. Please try again.');
       },
     });
   }
@@ -3418,6 +3424,26 @@ export default function AnalysisPage() {
                           <InlineSignIn onSuccess={() => setShowSaveAuthPrompt(false)} />
                         </div>
                       )}
+
+                      {saveError && (
+                        <div
+                          className="absolute bottom-full right-0 mb-2 w-64 rounded-xl border border-red-500/30 bg-[#14161f] p-3 shadow-2xl shadow-black/60 z-10"
+                          onClick={e => e.stopPropagation()}
+                        >
+                          <div className="flex items-start justify-between gap-2">
+                            <p className="text-xs text-red-400">Save failed: {saveError}</p>
+                            <button
+                              type="button"
+                              onClick={() => setSaveError(null)}
+                              className="shrink-0 text-gray-600 hover:text-white transition-colors"
+                            >
+                              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="h-3.5 w-3.5">
+                                <path d="M18 6 6 18M6 6l12 12" />
+                              </svg>
+                            </button>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -3790,6 +3816,26 @@ export default function AnalysisPage() {
                             </button>
                           </div>
                           <InlineSignIn onSuccess={() => setShowSaveAuthPrompt(false)} />
+                        </div>
+                      )}
+
+                      {saveError && (
+                        <div
+                          className="absolute bottom-full right-0 mb-2 w-64 rounded-xl border border-red-500/30 bg-[#14161f] p-3 shadow-2xl shadow-black/60 z-10"
+                          onClick={e => e.stopPropagation()}
+                        >
+                          <div className="flex items-start justify-between gap-2">
+                            <p className="text-xs text-red-400">Save failed: {saveError}</p>
+                            <button
+                              type="button"
+                              onClick={() => setSaveError(null)}
+                              className="shrink-0 text-gray-600 hover:text-white transition-colors"
+                            >
+                              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="h-3.5 w-3.5">
+                                <path d="M18 6 6 18M6 6l12 12" />
+                              </svg>
+                            </button>
+                          </div>
                         </div>
                       )}
                     </div>
