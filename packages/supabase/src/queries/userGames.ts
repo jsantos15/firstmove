@@ -11,14 +11,25 @@ export type UserGame = Database['public']['Tables']['user_games']['Row'];
 export type UserGameSource = 'manual' | 'lichess' | 'chesscom' | 'played';
 
 export interface SaveUserGameInput {
+  /** Update this exact saved-game row in place instead of inserting/upserting a new one. */
+  id?: string;
+  /** When inserting (no `id`) and the game has a `sourceGameId`, upsert on
+   *  (user_id, source, source_game_id) so re-saving an unmodified provider game
+   *  updates the existing row instead of duplicating it. Set to `false` for
+   *  "Save As" so a deliberate new copy is created even for provider games. */
+  dedupeBySource?: boolean;
   pgn: string;
   fen?: string | null;
   white?: string | null;
   whiteElo?: string | null;
   whiteResult?: string | null;
+  whiteAvatarUrl?: string | null;
+  whiteCountry?: string | null;
   black?: string | null;
   blackElo?: string | null;
   blackResult?: string | null;
+  blackAvatarUrl?: string | null;
+  blackCountry?: string | null;
   result?: string | null;
   termination?: string | null;
   event?: string | null;
@@ -49,9 +60,13 @@ function toRow(input: SaveUserGameInput, userId: string) {
     white: input.white,
     white_elo: input.whiteElo,
     white_result: input.whiteResult,
+    white_avatar_url: input.whiteAvatarUrl,
+    white_country: input.whiteCountry,
     black: input.black,
     black_elo: input.blackElo,
     black_result: input.blackResult,
+    black_avatar_url: input.blackAvatarUrl,
+    black_country: input.blackCountry,
     result: input.result,
     termination: input.termination,
     event: input.event,
@@ -86,14 +101,33 @@ export async function getUserGames(userId: string): Promise<UserGame[]> {
 }
 
 /**
- * Saves a game to the user's account. Imports with a `sourceGameId` (Lichess/Chess.com)
- * upsert on (user_id, source, source_game_id) so re-saving the same provider game updates
- * it in place instead of creating a duplicate; manual/played saves always insert a new row
- * since they have no stable provider identity.
+ * Saves a game to the user's account.
+ *
+ * - If `input.id` is set, updates that exact row in place (the normal "Save" on an
+ *   already-saved analysis, so edits/branches overwrite the same entry rather than
+ *   piling up duplicates).
+ * - Otherwise inserts a new row. If the game has a `sourceGameId` (Lichess/Chess.com)
+ *   and `dedupeBySource` isn't explicitly `false`, upserts on (user_id, source,
+ *   source_game_id) so re-saving an unmodified provider game updates the existing row
+ *   instead of duplicating it. Pass `dedupeBySource: false` (used by "Save As") to force
+ *   a brand-new row even for provider games.
  */
 export async function saveUserGame(userId: string, input: SaveUserGameInput): Promise<UserGame> {
   const row = toRow(input, userId);
-  const query = row.source_game_id
+
+  if (input.id) {
+    const { data, error } = await supabase
+      .from('user_games')
+      .update(row)
+      .eq('id', input.id)
+      .eq('user_id', userId)
+      .select()
+      .single();
+    if (error) throw error;
+    return data;
+  }
+
+  const query = row.source_game_id && input.dedupeBySource !== false
     ? supabase.from('user_games').upsert(row, { onConflict: 'user_id,source,source_game_id' })
     : supabase.from('user_games').insert(row);
   const { data, error } = await query.select().single();

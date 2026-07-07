@@ -45,9 +45,13 @@ export function useSaveUserGame() {
         white: input.white,
         white_elo: input.whiteElo,
         white_result: input.whiteResult,
+        white_avatar_url: input.whiteAvatarUrl,
+        white_country: input.whiteCountry,
         black: input.black,
         black_elo: input.blackElo,
         black_result: input.blackResult,
+        black_avatar_url: input.blackAvatarUrl,
+        black_country: input.blackCountry,
         result: input.result,
         termination: input.termination,
         event: input.event,
@@ -69,7 +73,19 @@ export function useSaveUserGame() {
         source_url: input.sourceUrl,
         provider_data: input.providerData as Json | null | undefined,
       };
-      const query = row.source_game_id
+      if (input.id) {
+        const { data, error } = await supabase
+          .from('user_games')
+          .update(row)
+          .eq('id', input.id)
+          .eq('user_id', user.id)
+          .select()
+          .single();
+        if (error) throw error;
+        return data;
+      }
+
+      const query = row.source_game_id && input.dedupeBySource !== false
         ? supabase.from('user_games').upsert(row, { onConflict: 'user_id,source,source_game_id' })
         : supabase.from('user_games').insert(row);
       const { data, error } = await query.select().single();

@@ -66,6 +66,81 @@ function parsePgnHeaders(pgn: string): GameDetails {
   };
 }
 
+// Tags GameDetails can edit, in standard PGN "Seven Tag Roster" order followed by
+// the common supplemental tags this app also exposes.
+const EDITABLE_PGN_TAGS: [tag: string, field: keyof GameDetails, required: boolean][] = [
+  ['Event', 'event', true],
+  ['Site', 'location', true],
+  ['Date', 'date', true],
+  ['Round', 'round', true],
+  ['White', 'white', true],
+  ['Black', 'black', true],
+  ['Result', 'result', true],
+  ['WhiteElo', 'whiteElo', false],
+  ['BlackElo', 'blackElo', false],
+  ['ECO', 'eco', false],
+  ['TimeControl', 'timeControl', false],
+  ['Termination', 'termination', false],
+];
+
+// Rewrites a PGN's header tags to match the current (possibly user-edited) GameDetails,
+// leaving the movetext body — including [%clk] annotations — and any non-editable header
+// tags (e.g. a provider's WhiteRatingDiff/Variant/Link) untouched. This is what makes
+// edits made in the "Edit Game Details" modal actually stick: without it, Save wrote the
+// edited fields to their own DB columns but left the *pgn text's own* header tags stale,
+// and re-importing always rebuilds GameDetails by parsing those tags (see parsePgnHeaders)
+// — so the edit would silently revert the moment the game was reloaded.
+// Splits a pgn's leading `[Tag "value"]` header block from its movetext body.
+function splitPgnHeaderAndBody(pgn: string): { tagOrder: string[]; tagValues: Map<string, string>; body: string } {
+  const lines = pgn.split(/\r?\n/);
+  const tagOrder: string[] = [];
+  const tagValues = new Map<string, string>();
+  let bodyStart = 0;
+  for (const line of lines) {
+    const m = line.match(/^\[(\w+)\s+"([^"]*)"\]\s*$/);
+    if (!m) break;
+    tagOrder.push(m[1]!);
+    tagValues.set(m[1]!, m[2]!);
+    bodyStart++;
+  }
+  const body = lines.slice(bodyStart).join('\n').replace(/^\s+/, '');
+  return { tagOrder, tagValues, body };
+}
+
+// The movetext only (no header tags) — used when parsing variations, where header
+// lines would otherwise just be harmless-but-wasted tokens fed through chess.move().
+function extractPgnMovetext(pgn: string): string {
+  return splitPgnHeaderAndBody(pgn).body;
+}
+
+function applyGameDetailsToPgn(pgn: string, details: GameDetails): string {
+  const { tagOrder, tagValues, body } = splitPgnHeaderAndBody(pgn);
+
+  for (const [tag, field, required] of EDITABLE_PGN_TAGS) {
+    const value = details[field].trim();
+    if (!value) {
+      if (required) {
+        if (!tagValues.has(tag)) tagOrder.push(tag);
+        tagValues.set(tag, tag === 'Result' ? '*' : '?');
+      } else {
+        tagValues.delete(tag);
+      }
+      continue;
+    }
+    if (!tagValues.has(tag)) tagOrder.push(tag);
+    tagValues.set(tag, value);
+  }
+
+  const seen = new Set<string>();
+  const headerLines: string[] = [];
+  for (const tag of tagOrder) {
+    if (seen.has(tag) || !tagValues.has(tag)) continue;
+    seen.add(tag);
+    headerLines.push(`[${tag} "${tagValues.get(tag)}"]`);
+  }
+  return `${headerLines.join('\n')}\n\n${body}`;
+}
+
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const INITIAL_FEN = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
@@ -565,6 +640,116 @@ function applyMoveToTree(
   return { tree: { ...tree, lines: [...tree.lines, newBranch] }, nav: { lineId: newBranchId, plyIndex: 0 } };
 }
 
+// ─── Variation-tree PGN round-tripping ───────────────────────────────────────
+// Serializes/parses the *entire* branch tree (not just whichever line is currently
+// navigated) using standard PGN Recursive Annotation Variation syntax — "(...)"
+// attached right after the move it's an alternative to — so branches created in the
+// Explore tab survive a Save/reload instead of only the one line that happened to be
+// active when Save was clicked.
+
+function serializeExploreTree(tree: ExploreTree): string {
+  const rootMeta = getFenMeta(tree.rootFen);
+  const mainLine = tree.lines.find(l => l.parentLineId === null);
+  if (!mainLine || mainLine.moves.length === 0) return '';
+
+  function serializeLine(line: VariationLine, globalStartPly: number): string {
+    const tokens: string[] = [];
+    for (let i = 0; i < line.moves.length; i++) {
+      const globalPly = globalStartPly + i;
+      const isWhiteMove = rootMeta.side === 'w' ? globalPly % 2 === 0 : globalPly % 2 === 1;
+      const moveNum = rootMeta.moveNum + Math.floor((rootMeta.side === 'w' ? globalPly : globalPly + 1) / 2);
+      if (isWhiteMove) tokens.push(`${moveNum}.`);
+      else if (i === 0) tokens.push(`${moveNum}...`);
+      tokens.push(line.moves[i]!.san);
+
+      // Variations diverging right at this ply are alternatives to the move just
+      // printed — standard PGN attaches them immediately after it, in parens.
+      const children = tree.lines.filter(l => l.parentLineId === line.id && l.divergeAtPly === i);
+      for (const child of children) {
+        tokens.push(`(${serializeLine(child, globalPly)})`);
+      }
+    }
+    return tokens.join(' ');
+  }
+
+  return serializeLine(mainLine, 0);
+}
+
+function tokenizePgnMovetext(text: string): string[] {
+  const noComments = text.replace(/\{[^}]*\}/g, ' ');
+  const tokens: string[] = [];
+  const re = /\(|\)|[^\s()]+/g;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(noComments)) !== null) tokens.push(m[0]);
+  return tokens;
+}
+
+function parseMovetextToTree(movetext: string, rootFen: string): ExploreTree {
+  const tokens = tokenizePgnMovetext(movetext);
+  const lines: VariationLine[] = [];
+  let idx = 0;
+
+  function skipBalancedParens() {
+    let depth = 1;
+    while (idx < tokens.length && depth > 0) {
+      if (tokens[idx] === '(') depth++;
+      else if (tokens[idx] === ')') depth--;
+      idx++;
+    }
+  }
+
+  // Depth-first, pre-order: a line's VariationLine object is pushed to `lines` before
+  // its own moves (and any nested variations within them) are parsed, so the main line
+  // — parsed first, at the top level — always ends up at lines[0], matching the
+  // convention the rest of this file's ExploreTree code relies on.
+  function parseSequence(startFen: string, parentLine: VariationLine | null, divergeAtPly: number) {
+    const chess = new Chess(startFen);
+    const line: VariationLine = {
+      id: crypto.randomUUID(),
+      parentLineId: parentLine?.id ?? null,
+      divergeAtPly,
+      depth: parentLine ? parentLine.depth + 1 : 0,
+      moves: [],
+    };
+    lines.push(line);
+
+    while (idx < tokens.length) {
+      const tok = tokens[idx]!;
+      if (tok === ')') break;
+      if (tok === '(') {
+        idx++;
+        if (line.moves.length === 0) { skipBalancedParens(); continue; }
+        // A variation is an alternative to the move just played in this line — it
+        // resumes from the position *before* that move.
+        const lastIdx = line.moves.length - 1;
+        const beforeFen = lastIdx === 0 ? startFen : line.moves[lastIdx - 1]!.fen;
+        parseSequence(beforeFen, line, lastIdx);
+        if (tokens[idx] === ')') idx++;
+        continue;
+      }
+      if (/^\$\d+$/.test(tok) || /^\d+\.+$/.test(tok)) { idx++; continue; }
+      if (/^(1-0|0-1|1\/2-1\/2|\*)$/.test(tok)) { idx++; break; }
+      idx++;
+      const sanRaw = tok.replace(/^\d+\.+/, '');
+      try {
+        const mv = chess.move(sanRaw);
+        if (mv) line.moves.push({ id: crypto.randomUUID(), san: mv.san, fen: chess.fen(), from: mv.from, to: mv.to });
+      } catch { /* illegal/unrecognized token — skip it rather than aborting the whole parse */ }
+    }
+  }
+
+  parseSequence(rootFen, null, 0);
+  return { rootFen, lines };
+}
+
+// Whether a pgn's movetext contains RAV variations "(...)" outside of {comments} — import
+// only pre-builds the full explore tree when there's actually a branch to restore;
+// otherwise exploreTree stays null and lazily seeds itself on the user's first free move,
+// matching prior behavior for the common (unbranched) case.
+function pgnHasVariations(pgn: string): boolean {
+  return /\(/.test(pgn.replace(/\{[^}]*\}/g, ''));
+}
+
 function extractGameTitle(pgn: string): string | null {
   const white = pgn.match(/\[White "([^"]+)"\]/)?.[1];
   const black = pgn.match(/\[Black "([^"]+)"\]/)?.[1];
@@ -923,6 +1108,16 @@ interface ImportMeta {
   /** The Lichess/Chess.com username that was searched for, so the board can
    *  orient with that player's pieces at the bottom (the usual "my games" view). */
   importedUsername?: string;
+  /** Avatar (Chess.com only) and 2-letter country code resolved from the provider's
+   *  public profile API, persisted so a reload from My Games doesn't depend on a
+   *  fresh network round-trip. */
+  whiteAvatar?: string | null;
+  blackAvatar?: string | null;
+  whiteCountry?: string | null;
+  blackCountry?: string | null;
+  /** The Saved Analysis row this game was loaded from, if any — lets Save update
+   *  that same row in place instead of creating a new one. */
+  savedGameId?: string;
 }
 
 const EMPTY_IMPORT_META: ImportMeta = { source: 'manual' };
@@ -954,6 +1149,7 @@ function userGameToFetchedGame(g: UserGame): FetchedGame {
 
 function userGameToImportMeta(g: UserGame): ImportMeta {
   return {
+    savedGameId: g.id,
     source: (g.source as UserGameSource) ?? 'manual',
     eco: g.eco ?? undefined,
     openingName: g.opening_name ?? undefined,
@@ -969,6 +1165,10 @@ function userGameToImportMeta(g: UserGame): ImportMeta {
     sourceGameId: g.source_game_id ?? undefined,
     sourceUrl: g.source_url ?? undefined,
     providerData: (g.provider_data as Record<string, unknown> | null) ?? undefined,
+    whiteAvatar: g.white_avatar_url ?? undefined,
+    blackAvatar: g.black_avatar_url ?? undefined,
+    whiteCountry: g.white_country ?? undefined,
+    blackCountry: g.black_country ?? undefined,
   };
 }
 
@@ -1009,7 +1209,7 @@ function GameCard({
             <span
               role="button"
               tabIndex={0}
-              title="Remove from My Games"
+              title="Remove from Saved Analysis"
               onClick={e => { e.stopPropagation(); onDelete(); }}
               onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.stopPropagation(); onDelete(); } }}
               className="shrink-0 -mr-1 rounded p-0.5 text-gray-700 transition-colors hover:text-red-400"
@@ -1261,7 +1461,7 @@ function ImportModal({
                   : 'text-gray-500 hover:text-gray-300 hover:bg-white/5'
               }`}
             >
-              {t === 'mine' ? 'My Games' : t === 'chesscom' ? 'Chess.com' : t === 'lichess' ? 'Lichess' : 'PGN / FEN'}
+              {t === 'mine' ? 'Saved Analysis' : t === 'chesscom' ? 'Chess.com' : t === 'lichess' ? 'Lichess' : 'PGN / FEN'}
             </button>
           ))}
         </div>
@@ -1269,7 +1469,7 @@ function ImportModal({
         {/* Scrollable content area */}
         <div className="flex-1 min-h-0 overflow-y-auto">
 
-          {/* ── My Games tab ── */}
+          {/* ── Saved Analysis tab ── */}
           {tab === 'mine' && (
             <div className="h-full p-4 flex flex-col gap-3">
               {!user ? (
@@ -1561,6 +1761,18 @@ export default function AnalysisPage() {
   const [importMeta, setImportMeta] = useState<ImportMeta>(EMPTY_IMPORT_META);
   const [showSaveAuthPrompt, setShowSaveAuthPrompt] = useState(false);
   const [saveConfirmed, setSaveConfirmed] = useState(false);
+  const [showSaveAsMenu, setShowSaveAsMenu] = useState(false);
+  const saveAsMenuRef = useRef<HTMLDivElement>(null);
+  const [showOverwriteConfirm, setShowOverwriteConfirm] = useState(false);
+
+  useEffect(() => {
+    if (!showSaveAsMenu) return;
+    function onPointerDown(e: MouseEvent) {
+      if (saveAsMenuRef.current && !saveAsMenuRef.current.contains(e.target as Node)) setShowSaveAsMenu(false);
+    }
+    document.addEventListener('mousedown', onPointerDown);
+    return () => document.removeEventListener('mousedown', onPointerDown);
+  }, [showSaveAsMenu]);
   const { user } = useAuth();
   const saveUserGame = useSaveUserGame();
   const { theme, animationDuration, settings, setSettings } = useBoardSettings();
@@ -1717,8 +1929,20 @@ export default function AnalysisPage() {
       setAnalyzedGame(game);
       setBaseFen(null);
       setCurrentPlyIndex(-1);
-      setExploreTree(null);
-      setExploreNav({ lineId: null, plyIndex: -1 });
+
+      // Restore branches from a previous Save (see serializeExploreTree/parseMovetextToTree)
+      // instead of always starting flat — otherwise every branch made in the Explore tab
+      // would silently vanish the moment the game is reimported.
+      let importedTree: ExploreTree | null = null;
+      if (pgnHasVariations(pgn)) {
+        try {
+          const rootFen = fen.trim() || INITIAL_FEN;
+          const tree = parseMovetextToTree(extractPgnMovetext(pgn), rootFen);
+          if (tree.lines[0] && tree.lines[0].moves.length > 0) importedTree = tree;
+        } catch { /* fall back to the flat (no-tree) import below */ }
+      }
+      setExploreTree(importedTree);
+      setExploreNav(importedTree ? { lineId: importedTree.lines[0]!.id, plyIndex: -1 } : { lineId: null, plyIndex: -1 });
       setLastMoveSquares(null);
       setParseError(null);
       setEngineError(null);
@@ -1730,10 +1954,10 @@ export default function AnalysisPage() {
       const parsedDetails = parsePgnHeaders(pgn);
       setGameDetails(parsedDetails);
       setRawPgn(pgn);
-      setWhiteAvatar(null);
-      setBlackAvatar(null);
-      setWhiteCountry(null);
-      setBlackCountry(null);
+      setWhiteAvatar(meta.whiteAvatar ?? null);
+      setBlackAvatar(meta.blackAvatar ?? null);
+      setWhiteCountry(meta.whiteCountry ?? null);
+      setBlackCountry(meta.blackCountry ?? null);
 
       // Orient the board with the imported Lichess/Chess.com user's pieces at the
       // bottom — that's the "my games" perspective people expect when reviewing
@@ -1753,31 +1977,20 @@ export default function AnalysisPage() {
     }
   }
 
-  function handleSaveGame() {
-    let pgn = '';
-    try {
-      if (exploreTree) {
-        const activeMoves = getActivePath(exploreTree, exploreNav);
-        const source = activeMoves.length > 0 ? activeMoves : (exploreTree.lines[0]?.moves ?? []);
-        if (source.length > 0) {
-          const chess = new Chess(exploreTree.rootFen);
-          for (const entry of source) chess.move(entry.san);
-          const movesOnly = chess.pgn().replace(/^\[.*?\]\r?\n?/gm, '').replace(/\s*\*\s*$/, '').trim();
-          pgn = exploreTree.rootFen !== INITIAL_FEN
-            ? `[FEN "${exploreTree.rootFen}"]\n\n${movesOnly}`
-            : movesOnly;
-        }
-      } else if (rawPgn.trim()) {
-        // Prefer the original imported PGN text — preserves headers and [%clk] move
-        // annotations so re-selecting this game from My Games restores clocks/avatar/country.
-        pgn = rawPgn.trim();
-      } else if (analyzedGame && analyzedGame.moves.length > 0) {
-        const chess = new Chess(analyzedGame.initialFen ?? INITIAL_FEN);
-        for (const move of analyzedGame.moves) chess.move(move.san);
-        pgn = chess.pgn().replace(/^\[.*?\]\r?\n?/gm, '').replace(/\s*\*\s*$/, '').trim();
-      }
-    } catch { /* ignore */ }
-    if (!pgn) pgn = positionText.trim();
+  // Save always overwrites the currently-loaded Saved Analysis entry in place, so
+  // gate it behind a confirmation — otherwise clicking Save could silently clobber
+  // a previous analysis the user didn't mean to touch yet.
+  function handleSaveGame(asNew = false) {
+    if (!isDirty) return; // matches the Save button's disabled state — nothing new to persist
+    if (!asNew && importMeta.savedGameId) {
+      setShowOverwriteConfirm(true);
+      return;
+    }
+    performSaveGame(asNew);
+  }
+
+  function performSaveGame(asNew: boolean) {
+    const pgn = currentPgn;
     if (!pgn) return;
 
     if (!user) {
@@ -1790,14 +2003,20 @@ export default function AnalysisPage() {
       : (analyzedGame?.initialFen && analyzedGame.initialFen !== INITIAL_FEN ? analyzedGame.initialFen : undefined);
 
     saveUserGame.mutate({
+      id: asNew ? undefined : importMeta.savedGameId,
+      dedupeBySource: !asNew,
       pgn,
       fen: initialFen,
       white: gameDetails.white || undefined,
       whiteElo: gameDetails.whiteElo || undefined,
       whiteResult: importMeta.whiteResult,
+      whiteAvatarUrl: whiteAvatar ?? undefined,
+      whiteCountry: whiteCountry ?? undefined,
       black: gameDetails.black || undefined,
       blackElo: gameDetails.blackElo || undefined,
       blackResult: importMeta.blackResult,
+      blackAvatarUrl: blackAvatar ?? undefined,
+      blackCountry: blackCountry ?? undefined,
       result: gameDetails.result && gameDetails.result !== '*' ? gameDetails.result : undefined,
       termination: gameDetails.termination || undefined,
       event: gameDetails.event || undefined,
@@ -1819,7 +2038,9 @@ export default function AnalysisPage() {
       sourceUrl: importMeta.sourceUrl,
       providerData: importMeta.providerData,
     }, {
-      onSuccess: () => {
+      onSuccess: (saved) => {
+        if (saved) setImportMeta(prev => ({ ...prev, savedGameId: saved.id }));
+        setSavedBaselinePgn(pgn);
         setSaveConfirmed(true);
         setTimeout(() => setSaveConfirmed(false), 1500);
       },
@@ -2197,6 +2418,55 @@ export default function AnalysisPage() {
     return getClocksAtPly(pgnClocks, currentPlyIndex);
   }, [pgnClocks, currentPlyIndex, importMeta.clockInitial, gameDetails.timeControl]);
 
+  // The pgn Save would currently write — same source-selection logic as performSaveGame,
+  // kept here as a memo so both the Save button's dirty-check and the actual save reuse
+  // one computation rather than drifting apart.
+  const currentPgn = useMemo(() => {
+    let pgn = '';
+    try {
+      if (exploreTree) {
+        // Serialize the *whole* tree (every branch), not just whichever line is
+        // currently navigated — otherwise Save silently drops every branch except
+        // the one the user happened to be viewing when they clicked it.
+        const movesOnly = serializeExploreTree(exploreTree);
+        if (movesOnly) {
+          pgn = exploreTree.rootFen !== INITIAL_FEN
+            ? `[FEN "${exploreTree.rootFen}"]\n\n${movesOnly}`
+            : movesOnly;
+        }
+      } else if (rawPgn.trim()) {
+        pgn = rawPgn.trim();
+      } else if (analyzedGame && analyzedGame.moves.length > 0) {
+        const chess = new Chess(analyzedGame.initialFen ?? INITIAL_FEN);
+        for (const move of analyzedGame.moves) chess.move(move.san);
+        pgn = chess.pgn().replace(/^\[.*?\]\r?\n?/gm, '').replace(/\s*\*\s*$/, '').trim();
+      }
+    } catch { /* ignore */ }
+    if (!pgn) pgn = positionText.trim();
+    if (!pgn) return '';
+    try {
+      return applyGameDetailsToPgn(pgn, gameDetails);
+    } catch {
+      return pgn;
+    }
+  }, [exploreTree, exploreNav, rawPgn, analyzedGame, positionText, gameDetails]);
+
+  // The pgn as of the last successful save (or the freshly-imported game, if never
+  // saved) — Save is only meaningful once currentPgn drifts from this baseline.
+  const [savedBaselinePgn, setSavedBaselinePgn] = useState('');
+  useEffect(() => {
+    setSavedBaselinePgn(currentPgn);
+    // Only reset the baseline when a *new* game is loaded (analyzedGame.id changes on
+    // every import) — not on every keystroke, which would make currentPgn === baseline
+    // forever and Save would never enable.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [analyzedGame?.id]);
+
+  // Nothing to save if the pgn is empty, or (once tied to a saved entry) nothing has
+  // changed since import/last save — a brand-new, never-saved analysis is always
+  // considered save-able since that first Save is the meaningful "add to library" action.
+  const isDirty = currentPgn !== '' && (!importMeta.savedGameId || currentPgn !== savedBaselinePgn);
+
   // Fetch player avatar + country from the source provider's public API when a game
   // is imported. Source is detected from importMeta (set when importing via the modal)
   // and falls back to the PGN's own Site tag so a manually-pasted provider PGN still works.
@@ -2237,16 +2507,28 @@ export default function AnalysisPage() {
       } catch { /* ignore — network or CORS failure */ }
     };
 
+    // Skip the live re-fetch for a player whose avatar/country was already restored
+    // from a previous Save (importMeta) — trusts persisted data instead of depending
+    // on a fresh network round-trip every time a saved game is reloaded.
     if (isChesscomGame) {
-      fetchChesscomProfile(gameDetails.white, setWhiteAvatar, setWhiteCountry);
-      fetchChesscomProfile(gameDetails.black, setBlackAvatar, setBlackCountry);
+      if (!importMeta.whiteAvatar) fetchChesscomProfile(gameDetails.white, setWhiteAvatar, setWhiteCountry);
+      if (!importMeta.blackAvatar) fetchChesscomProfile(gameDetails.black, setBlackAvatar, setBlackCountry);
     } else {
       // Lichess has no avatar/profile-picture feature — only country is available.
-      fetchLichessProfile(gameDetails.white, setWhiteCountry);
-      fetchLichessProfile(gameDetails.black, setBlackCountry);
+      if (!importMeta.whiteCountry) fetchLichessProfile(gameDetails.white, setWhiteCountry);
+      if (!importMeta.blackCountry) fetchLichessProfile(gameDetails.black, setBlackCountry);
     }
     return () => controller.abort();
-  }, [gameDetails.white, gameDetails.black, isChesscomGame, isLichessGame]);
+  }, [
+    // analyzedGame?.id is included so this effect re-runs on every import even when
+    // re-importing the exact same game back-to-back — gameDetails/importMeta would
+    // otherwise be value-identical to the previous render (React skips effects whose
+    // deps didn't change), which previously left a freshly-reset avatar/country stuck
+    // at null forever since the live re-fetch below never got a chance to run.
+    analyzedGame?.id,
+    gameDetails.white, gameDetails.black, isChesscomGame, isLichessGame,
+    importMeta.whiteAvatar, importMeta.blackAvatar, importMeta.whiteCountry, importMeta.blackCountry,
+  ]);
   const [extendKey, setExtendKey] = useState(0);
 
   // Reset extend key whenever the position changes so each new FEN starts fresh at 8s.
@@ -2672,17 +2954,23 @@ export default function AnalysisPage() {
             maxWidth={maxBoardWidth}
             overlay={knightArrowOverlay}
             topBar={
-              <PlayerRow
-                name={settings.flipBoard ? (gameDetails.white || 'White') : (gameDetails.black || 'Black')}
-                elo={settings.flipBoard ? gameDetails.whiteElo : gameDetails.blackElo}
-                country={settings.flipBoard ? whiteCountry : blackCountry}
-                avatar={settings.flipBoard ? whiteAvatar : blackAvatar}
-                captured={settings.flipBoard ? material.whiteCaptured : material.blackCaptured}
-                advantage={settings.flipBoard ? material.advantage : -material.advantage}
-                clock={analyzedGame ? (settings.flipBoard ? playerClocks.w : playerClocks.b) : null}
-                isActive={settings.flipBoard ? boardFen.split(' ')[1] === 'w' : boardFen.split(' ')[1] === 'b'}
-                playerColor={settings.flipBoard ? 'white' : 'black'}
-              />
+              <div className="flex items-center h-full gap-2">
+                <div className="flex-1 min-w-0 h-full">
+                  <PlayerRow
+                    name={settings.flipBoard ? (gameDetails.white || 'White') : (gameDetails.black || 'Black')}
+                    elo={settings.flipBoard ? gameDetails.whiteElo : gameDetails.blackElo}
+                    country={settings.flipBoard ? whiteCountry : blackCountry}
+                    avatar={settings.flipBoard ? whiteAvatar : blackAvatar}
+                    captured={settings.flipBoard ? material.whiteCaptured : material.blackCaptured}
+                    advantage={settings.flipBoard ? material.advantage : -material.advantage}
+                    clock={analyzedGame ? (settings.flipBoard ? playerClocks.w : playerClocks.b) : null}
+                    isActive={settings.flipBoard ? boardFen.split(' ')[1] === 'w' : boardFen.split(' ')[1] === 'b'}
+                    playerColor={settings.flipBoard ? 'white' : 'black'}
+                  />
+                </div>
+                {/* Invisible spacer matching the BoardSettingsPopover button in the bottom row, so the clock lands at the same x-position in both rows */}
+                <div className="h-8 w-8 shrink-0" />
+              </div>
             }
             bottomBar={
               <div className="flex items-center py-1.5 gap-2">
@@ -3038,17 +3326,47 @@ export default function AnalysisPage() {
                         </svg>
                         Import Game
                       </button>
-                      <button
-                        type="button"
-                        onClick={handleSaveGame}
-                        disabled={saveUserGame.isPending}
-                        className="flex flex-1 items-center justify-center gap-1 rounded border border-white/10 bg-white/[0.04] px-2 py-1.5 text-[11px] font-medium text-gray-400 transition-colors hover:border-white/20 hover:text-gray-200 disabled:opacity-50"
-                      >
-                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="h-3 w-3 shrink-0">
-                          <path d="M2.5 1A1.5 1.5 0 0 0 1 2.5v11A1.5 1.5 0 0 0 2.5 15h11a1.5 1.5 0 0 0 1.5-1.5V5.457c0-.398-.158-.78-.44-1.06L11.063 1.44A1.5 1.5 0 0 0 10.043 1H2.5Zm0 1h7.5v3a1 1 0 0 0 1 1h3v7.5a.5.5 0 0 1-.5.5h-11a.5.5 0 0 1-.5-.5v-11a.5.5 0 0 1 .5-.5ZM5 11.5a.5.5 0 0 0 0 1h6a.5.5 0 0 0 0-1H5Zm0-2a.5.5 0 0 0 0 1h6a.5.5 0 0 0 0-1H5ZM5 7.5a.5.5 0 0 0 0 1h3a.5.5 0 0 0 0-1H5Z"/>
-                        </svg>
-                        {saveConfirmed ? 'Saved ✓' : saveUserGame.isPending ? 'Saving…' : 'Save'}
-                      </button>
+                      <div className="relative flex flex-1">
+                        <button
+                          type="button"
+                          onClick={() => handleSaveGame()}
+                          disabled={saveUserGame.isPending || !isDirty}
+                          title={!isDirty && importMeta.savedGameId ? 'No changes to save' : undefined}
+                          className={`flex flex-1 items-center justify-center gap-1 border border-white/10 bg-white/[0.04] px-2 py-1.5 text-[11px] font-medium text-gray-400 transition-colors hover:border-white/20 hover:text-gray-200 disabled:opacity-50 ${importMeta.savedGameId ? 'rounded-l' : 'rounded'}`}
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="h-3 w-3 shrink-0">
+                            <path d="M2.5 1A1.5 1.5 0 0 0 1 2.5v11A1.5 1.5 0 0 0 2.5 15h11a1.5 1.5 0 0 0 1.5-1.5V5.457c0-.398-.158-.78-.44-1.06L11.063 1.44A1.5 1.5 0 0 0 10.043 1H2.5Zm0 1h7.5v3a1 1 0 0 0 1 1h3v7.5a.5.5 0 0 1-.5.5h-11a.5.5 0 0 1-.5-.5v-11a.5.5 0 0 1 .5-.5ZM5 11.5a.5.5 0 0 0 0 1h6a.5.5 0 0 0 0-1H5Zm0-2a.5.5 0 0 0 0 1h6a.5.5 0 0 0 0-1H5ZM5 7.5a.5.5 0 0 0 0 1h3a.5.5 0 0 0 0-1H5Z"/>
+                          </svg>
+                          {saveConfirmed ? 'Saved ✓' : saveUserGame.isPending ? 'Saving…' : 'Save'}
+                        </button>
+                        {importMeta.savedGameId && (
+                          <button
+                            type="button"
+                            onClick={() => setShowSaveAsMenu(v => !v)}
+                            disabled={saveUserGame.isPending}
+                            title="Save as a new copy"
+                            className="flex shrink-0 items-center justify-center rounded-r border border-l-0 border-white/10 bg-white/[0.04] px-1 text-gray-400 transition-colors hover:border-white/20 hover:text-gray-200 disabled:opacity-50"
+                          >
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="h-3 w-3">
+                              <path fillRule="evenodd" d="M4.22 6.22a.75.75 0 0 1 1.06 0L8 8.94l2.72-2.72a.75.75 0 1 1 1.06 1.06l-3.25 3.25a.75.75 0 0 1-1.06 0L4.22 7.28a.75.75 0 0 1 0-1.06Z" clipRule="evenodd" />
+                            </svg>
+                          </button>
+                        )}
+                        {showSaveAsMenu && (
+                          <div
+                            ref={saveAsMenuRef}
+                            className="absolute bottom-full right-0 mb-1 w-40 rounded-lg border border-white/10 bg-[#14161f] p-1 shadow-2xl shadow-black/60 z-10"
+                          >
+                            <button
+                              type="button"
+                              onClick={() => { setShowSaveAsMenu(false); handleSaveGame(true); }}
+                              className="w-full rounded px-2 py-1.5 text-left text-[11px] font-medium text-gray-300 transition-colors hover:bg-white/8 hover:text-white"
+                            >
+                              Save as new copy
+                            </button>
+                          </div>
+                        )}
+                      </div>
 
                       {showSaveAuthPrompt && (
                         <div
@@ -3382,17 +3700,47 @@ export default function AnalysisPage() {
                         </svg>
                         Import Game
                       </button>
-                      <button
-                        type="button"
-                        onClick={handleSaveGame}
-                        disabled={saveUserGame.isPending}
-                        className="flex flex-1 items-center justify-center gap-1 rounded border border-white/10 bg-white/[0.04] px-2 py-1.5 text-[11px] font-medium text-gray-400 transition-colors hover:border-white/20 hover:text-gray-200 disabled:opacity-50"
-                      >
-                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="h-3 w-3 shrink-0">
-                          <path d="M2.5 1A1.5 1.5 0 0 0 1 2.5v11A1.5 1.5 0 0 0 2.5 15h11a1.5 1.5 0 0 0 1.5-1.5V5.457c0-.398-.158-.78-.44-1.06L11.063 1.44A1.5 1.5 0 0 0 10.043 1H2.5Zm0 1h7.5v3a1 1 0 0 0 1 1h3v7.5a.5.5 0 0 1-.5.5h-11a.5.5 0 0 1-.5-.5v-11a.5.5 0 0 1 .5-.5ZM5 11.5a.5.5 0 0 0 0 1h6a.5.5 0 0 0 0-1H5Zm0-2a.5.5 0 0 0 0 1h6a.5.5 0 0 0 0-1H5ZM5 7.5a.5.5 0 0 0 0 1h3a.5.5 0 0 0 0-1H5Z"/>
-                        </svg>
-                        {saveConfirmed ? 'Saved ✓' : saveUserGame.isPending ? 'Saving…' : 'Save'}
-                      </button>
+                      <div className="relative flex flex-1">
+                        <button
+                          type="button"
+                          onClick={() => handleSaveGame()}
+                          disabled={saveUserGame.isPending || !isDirty}
+                          title={!isDirty && importMeta.savedGameId ? 'No changes to save' : undefined}
+                          className={`flex flex-1 items-center justify-center gap-1 border border-white/10 bg-white/[0.04] px-2 py-1.5 text-[11px] font-medium text-gray-400 transition-colors hover:border-white/20 hover:text-gray-200 disabled:opacity-50 ${importMeta.savedGameId ? 'rounded-l' : 'rounded'}`}
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="h-3 w-3 shrink-0">
+                            <path d="M2.5 1A1.5 1.5 0 0 0 1 2.5v11A1.5 1.5 0 0 0 2.5 15h11a1.5 1.5 0 0 0 1.5-1.5V5.457c0-.398-.158-.78-.44-1.06L11.063 1.44A1.5 1.5 0 0 0 10.043 1H2.5Zm0 1h7.5v3a1 1 0 0 0 1 1h3v7.5a.5.5 0 0 1-.5.5h-11a.5.5 0 0 1-.5-.5v-11a.5.5 0 0 1 .5-.5ZM5 11.5a.5.5 0 0 0 0 1h6a.5.5 0 0 0 0-1H5Zm0-2a.5.5 0 0 0 0 1h6a.5.5 0 0 0 0-1H5ZM5 7.5a.5.5 0 0 0 0 1h3a.5.5 0 0 0 0-1H5Z"/>
+                          </svg>
+                          {saveConfirmed ? 'Saved ✓' : saveUserGame.isPending ? 'Saving…' : 'Save'}
+                        </button>
+                        {importMeta.savedGameId && (
+                          <button
+                            type="button"
+                            onClick={() => setShowSaveAsMenu(v => !v)}
+                            disabled={saveUserGame.isPending}
+                            title="Save as a new copy"
+                            className="flex shrink-0 items-center justify-center rounded-r border border-l-0 border-white/10 bg-white/[0.04] px-1 text-gray-400 transition-colors hover:border-white/20 hover:text-gray-200 disabled:opacity-50"
+                          >
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="h-3 w-3">
+                              <path fillRule="evenodd" d="M4.22 6.22a.75.75 0 0 1 1.06 0L8 8.94l2.72-2.72a.75.75 0 1 1 1.06 1.06l-3.25 3.25a.75.75 0 0 1-1.06 0L4.22 7.28a.75.75 0 0 1 0-1.06Z" clipRule="evenodd" />
+                            </svg>
+                          </button>
+                        )}
+                        {showSaveAsMenu && (
+                          <div
+                            ref={saveAsMenuRef}
+                            className="absolute bottom-full right-0 mb-1 w-40 rounded-lg border border-white/10 bg-[#14161f] p-1 shadow-2xl shadow-black/60 z-10"
+                          >
+                            <button
+                              type="button"
+                              onClick={() => { setShowSaveAsMenu(false); handleSaveGame(true); }}
+                              className="w-full rounded px-2 py-1.5 text-left text-[11px] font-medium text-gray-300 transition-colors hover:bg-white/8 hover:text-white"
+                            >
+                              Save as new copy
+                            </button>
+                          </div>
+                        )}
+                      </div>
 
                       {showSaveAuthPrompt && (
                         <div
@@ -3436,11 +3784,15 @@ export default function AnalysisPage() {
 
       {/* Game Details modal */}
       {showGameDetailsModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-          <div className="w-full max-w-md rounded-2xl border border-white/10 bg-[#1a1a2e] shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
-            <div className="shrink-0 flex items-center justify-between border-b border-white/8 px-5 py-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/65 backdrop-blur-sm p-4">
+          <div className="w-full max-w-md rounded-2xl border border-white/10 bg-[#0f1117] shadow-2xl shadow-black/60 overflow-hidden flex flex-col max-h-[90vh]">
+            <div className="shrink-0 flex items-center justify-between px-5 pt-4 pb-3">
               <h2 className="text-base font-semibold text-white">Game Details</h2>
-              <button type="button" onClick={() => setShowGameDetailsModal(false)} className="text-gray-500 hover:text-white transition-colors">
+              <button
+                type="button"
+                onClick={() => setShowGameDetailsModal(false)}
+                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-gray-500 transition-colors hover:bg-white/5 hover:text-white"
+              >
                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="h-5 w-5">
                   <path d="M6.28 5.22a.75.75 0 0 0-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 1 0 1.06 1.06L10 11.06l3.72 3.72a.75.75 0 1 0 1.06-1.06L11.06 10l3.72-3.72a.75.75 0 0 0-1.06-1.06L10 8.94 6.28 5.22Z" />
                 </svg>
@@ -3455,14 +3807,14 @@ export default function AnalysisPage() {
                     placeholder={color === 'white' ? 'White Player' : 'Black Player'}
                     value={gameDetailsDraft[color]}
                     onChange={e => setGameDetailsDraft(d => ({ ...d, [color]: e.target.value }))}
-                    className="flex-1 rounded-lg border border-white/8 bg-white/5 px-3 py-2 text-sm text-gray-200 placeholder-gray-600 focus:border-white/20 focus:outline-none"
+                    className="min-w-0 flex-1 rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-gray-200 placeholder-gray-600 outline-none transition-colors focus:border-amber-400/40"
                   />
                   <input
                     type="text"
                     placeholder="Rating"
                     value={gameDetailsDraft[color === 'white' ? 'whiteElo' : 'blackElo']}
                     onChange={e => setGameDetailsDraft(d => ({ ...d, [color === 'white' ? 'whiteElo' : 'blackElo']: e.target.value }))}
-                    className="w-20 rounded-lg border border-white/8 bg-white/5 px-3 py-2 text-sm text-gray-200 placeholder-gray-600 focus:border-white/20 focus:outline-none"
+                    className="min-w-0 w-20 shrink-0 rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-gray-200 placeholder-gray-600 outline-none transition-colors focus:border-amber-400/40"
                   />
                 </div>
               ))}
@@ -3470,10 +3822,10 @@ export default function AnalysisPage() {
               <select
                 value={gameDetailsDraft.result}
                 onChange={e => setGameDetailsDraft(d => ({ ...d, result: e.target.value }))}
-                className="w-full rounded-lg border border-white/8 bg-white/5 px-3 py-2 text-sm text-gray-200 focus:border-white/20 focus:outline-none"
+                className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-gray-200 outline-none transition-colors focus:border-amber-400/40"
               >
                 {[['*', 'No Result (*)'], ['1-0', 'White wins (1-0)'], ['0-1', 'Black wins (0-1)'], ['1/2-1/2', 'Draw (½-½)']].map(([v, l]) => (
-                  <option key={v} value={v} className="bg-[#1a1a2e]">{l}</option>
+                  <option key={v} value={v} className="bg-[#0f1117]">{l}</option>
                 ))}
               </select>
               {/* Single-line fields */}
@@ -3484,7 +3836,7 @@ export default function AnalysisPage() {
                   placeholder={{ event: 'Event', timeControl: 'Time Control', termination: 'Termination', location: 'Location' }[field]}
                   value={gameDetailsDraft[field]}
                   onChange={e => setGameDetailsDraft(d => ({ ...d, [field]: e.target.value }))}
-                  className="w-full rounded-lg border border-white/8 bg-white/5 px-3 py-2 text-sm text-gray-200 placeholder-gray-600 focus:border-white/20 focus:outline-none"
+                  className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-gray-200 placeholder-gray-600 outline-none transition-colors focus:border-amber-400/40"
                 />
               ))}
               {/* Round / ECO / Date row */}
@@ -3496,14 +3848,14 @@ export default function AnalysisPage() {
                     placeholder={{ round: 'Round', eco: 'ECO', date: 'Date' }[field]}
                     value={gameDetailsDraft[field]}
                     onChange={e => setGameDetailsDraft(d => ({ ...d, [field]: e.target.value }))}
-                    className="flex-1 rounded-lg border border-white/8 bg-white/5 px-3 py-2 text-sm text-gray-200 placeholder-gray-600 focus:border-white/20 focus:outline-none"
+                    className="min-w-0 flex-1 rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-gray-200 placeholder-gray-600 outline-none transition-colors focus:border-amber-400/40"
                   />
                 ))}
               </div>
 
               {/* Read-only metadata captured from the source provider (not part of the editable PGN headers) */}
               {importMeta.source !== 'manual' && (
-                <div className="rounded-lg border border-white/8 bg-white/[0.03] px-3 py-2.5 space-y-1">
+                <div className="rounded-lg border border-white/10 bg-black/30 px-3 py-2.5 space-y-1">
                   <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-600 mb-1.5">
                     Imported from {importMeta.source === 'chesscom' ? 'Chess.com' : importMeta.source === 'lichess' ? 'Lichess' : 'in-app play'}
                   </p>
@@ -3551,6 +3903,32 @@ export default function AnalysisPage() {
               <button type="button" onClick={() => { setGameDetails(gameDetailsDraft); setShowGameDetailsModal(false); }}
                 className="flex-1 rounded-lg bg-amber-500 py-2 text-sm font-semibold text-black transition-colors hover:bg-amber-400">
                 Save
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Overwrite Saved Analysis confirmation modal */}
+      {showOverwriteConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={() => setShowOverwriteConfirm(false)}>
+          <div className="w-80 rounded-xl border border-white/10 bg-[#14161f] p-5 shadow-2xl" onClick={e => e.stopPropagation()}>
+            <h2 className="text-base font-semibold text-white">Overwrite Saved Analysis?</h2>
+            <p className="mt-1.5 text-sm text-gray-400">This will replace the saved version with your current changes. This can&apos;t be undone.</p>
+            <div className="mt-5 flex gap-2">
+              <button
+                type="button"
+                onClick={() => setShowOverwriteConfirm(false)}
+                className="flex-1 rounded-lg border border-white/10 py-2 text-sm font-medium text-gray-400 transition-colors hover:border-white/20 hover:text-gray-200"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => { setShowOverwriteConfirm(false); performSaveGame(false); }}
+                className="flex-1 rounded-lg bg-amber-500 py-2 text-sm font-semibold text-black transition-colors hover:bg-amber-400"
+              >
+                Overwrite
               </button>
             </div>
           </div>

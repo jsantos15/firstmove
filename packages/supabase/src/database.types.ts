@@ -702,6 +702,8 @@ export type Database = {
         Row: {
           black: string | null;
           black_accuracy: number | null;
+          black_avatar_url: string | null;
+          black_country: string | null;
           black_elo: string | null;
           black_result: string | null;
           clock_increment_seconds: number | null;
@@ -729,12 +731,16 @@ export type Database = {
           variant: string | null;
           white: string | null;
           white_accuracy: number | null;
+          white_avatar_url: string | null;
+          white_country: string | null;
           white_elo: string | null;
           white_result: string | null;
         };
         Insert: {
           black?: string | null;
           black_accuracy?: number | null;
+          black_avatar_url?: string | null;
+          black_country?: string | null;
           black_elo?: string | null;
           black_result?: string | null;
           clock_increment_seconds?: number | null;
@@ -762,12 +768,16 @@ export type Database = {
           variant?: string | null;
           white?: string | null;
           white_accuracy?: number | null;
+          white_avatar_url?: string | null;
+          white_country?: string | null;
           white_elo?: string | null;
           white_result?: string | null;
         };
         Update: {
           black?: string | null;
           black_accuracy?: number | null;
+          black_avatar_url?: string | null;
+          black_country?: string | null;
           black_elo?: string | null;
           black_result?: string | null;
           clock_increment_seconds?: number | null;
@@ -795,6 +805,8 @@ export type Database = {
           variant?: string | null;
           white?: string | null;
           white_accuracy?: number | null;
+          white_avatar_url?: string | null;
+          white_country?: string | null;
           white_elo?: string | null;
           white_result?: string | null;
         };
