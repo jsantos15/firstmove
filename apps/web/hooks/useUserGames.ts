@@ -72,6 +72,8 @@ export function useSaveUserGame() {
         source_game_id: input.sourceGameId,
         source_url: input.sourceUrl,
         provider_data: input.providerData as Json | null | undefined,
+        imported_username: input.importedUsername,
+        label: input.label,
       };
       if (input.id) {
         const { data, error } = await supabase

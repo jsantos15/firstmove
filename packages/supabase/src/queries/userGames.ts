@@ -50,6 +50,12 @@ export interface SaveUserGameInput {
   sourceGameId?: string | null;
   sourceUrl?: string | null;
   providerData?: ProviderData | null;
+  /** The Lichess/Chess.com username that was searched for on import, so the analysis
+   *  page can re-orient the board with that player's pieces at the bottom on reload. */
+  importedUsername?: string | null;
+  /** User-editable label so multiple saved copies of the same game (via "Save As")
+   *  can be told apart in the Saved Analysis list. */
+  label?: string | null;
 }
 
 function toRow(input: SaveUserGameInput, userId: string) {
@@ -87,6 +93,8 @@ function toRow(input: SaveUserGameInput, userId: string) {
     source_game_id: input.sourceGameId,
     source_url: input.sourceUrl,
     provider_data: input.providerData as Json | null | undefined,
+    imported_username: input.importedUsername,
+    label: input.label,
   };
 }
 

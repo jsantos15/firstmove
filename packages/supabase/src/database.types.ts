@@ -713,6 +713,8 @@ export type Database = {
           event: string | null;
           fen: string | null;
           id: string;
+          imported_username: string | null;
+          label: string | null;
           opening_name: string | null;
           pgn: string;
           played_date: string | null;
@@ -750,6 +752,8 @@ export type Database = {
           event?: string | null;
           fen?: string | null;
           id?: string;
+          imported_username?: string | null;
+          label?: string | null;
           opening_name?: string | null;
           pgn: string;
           played_date?: string | null;
@@ -787,6 +791,8 @@ export type Database = {
           event?: string | null;
           fen?: string | null;
           id?: string;
+          imported_username?: string | null;
+          label?: string | null;
           opening_name?: string | null;
           pgn?: string;
           played_date?: string | null;
