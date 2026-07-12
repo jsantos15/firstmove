@@ -1460,6 +1460,7 @@ function GameCard({
 
         <div className="col-start-2 row-start-1 flex min-w-0 items-center gap-1">
           <span className="truncate text-[13px] font-medium text-gray-200">{game.whiteName}</span>
+          {game.whiteRating !== '' && <span className="shrink-0 text-[11px] text-gray-600 font-mono">({game.whiteRating})</span>}
           {game.whiteCountry && (
             <span
               className={`fi fi-${game.whiteCountry.trim().toLowerCase()} shrink-0 rounded-[1px]`}
@@ -1467,7 +1468,6 @@ function GameCard({
               title={game.whiteCountry}
             />
           )}
-          {game.whiteRating !== '' && <span className="shrink-0 text-[11px] text-gray-600 font-mono">({game.whiteRating})</span>}
         </div>
         <span className={`col-start-4 row-start-1 text-center text-[12px] font-semibold tabular-nums ${game.result === '1-0' ? 'text-white' : 'text-gray-500'}`}>
           {whiteDigit}
@@ -1495,6 +1495,7 @@ function GameCard({
 
         <div className="col-start-2 row-start-2 flex min-w-0 items-center gap-1">
           <span className="truncate text-[13px] font-medium text-gray-300">{game.blackName}</span>
+          {game.blackRating !== '' && <span className="shrink-0 text-[11px] text-gray-600 font-mono">({game.blackRating})</span>}
           {game.blackCountry && (
             <span
               className={`fi fi-${game.blackCountry.trim().toLowerCase()} shrink-0 rounded-[1px]`}
@@ -1502,7 +1503,6 @@ function GameCard({
               title={game.blackCountry}
             />
           )}
-          {game.blackRating !== '' && <span className="shrink-0 text-[11px] text-gray-600 font-mono">({game.blackRating})</span>}
         </div>
         <span className={`col-start-4 row-start-2 text-center text-[12px] font-semibold tabular-nums ${game.result === '0-1' ? 'text-white' : 'text-gray-500'}`}>
           {blackDigit}
