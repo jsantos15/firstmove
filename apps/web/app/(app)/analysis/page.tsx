@@ -159,19 +159,7 @@ type PanelTab = 'explore' | 'review';
 // seconds group must allow a decimal part or those entries silently fail to
 // match, dropping clocks out of the array and desyncing every later ply.
 function parsePgnClocks(pgn: string): string[] {
-  const clocks: string[] = [];
-  const re = /\[%clk\s+(\d+):(\d+):(\d+(?:\.\d+)?)\]/g;
-  let m: RegExpExecArray | null;
-  while ((m = re.exec(pgn)) !== null) {
-    const h = parseInt(m[1]!, 10);
-    const min = parseInt(m[2]!, 10);
-    const s = Math.floor(parseFloat(m[3]!));
-    clocks.push(h > 0
-      ? `${h}:${String(min).padStart(2, '0')}:${String(s).padStart(2, '0')}`
-      : `${min}:${String(s).padStart(2, '0')}`
-    );
-  }
-  return clocks;
+  return parsePgnRawClocks(pgn).map(formatRawClock);
 }
 
 // Same as parsePgnClocks but returns the verbatim "h:mm:ss(.f)?" text captured from
@@ -184,6 +172,20 @@ function parsePgnRawClocks(pgn: string): string[] {
   let m: RegExpExecArray | null;
   while ((m = re.exec(pgn)) !== null) clocks.push(m[1]!);
   return clocks;
+}
+
+// Formats a raw "h:mm:ss(.f)?" clock reading (as captured by parsePgnRawClocks, or
+// carried verbatim on a MoveEntry.clock) into the same display form parsePgnClocks
+// produces — dropping a zero hour component and any fractional seconds.
+function formatRawClock(raw: string): string {
+  const m = raw.match(/^(\d+):(\d+):(\d+(?:\.\d+)?)$/);
+  if (!m) return raw;
+  const h = parseInt(m[1]!, 10);
+  const min = parseInt(m[2]!, 10);
+  const s = Math.floor(parseFloat(m[3]!));
+  return h > 0
+    ? `${h}:${String(min).padStart(2, '0')}:${String(s).padStart(2, '0')}`
+    : `${min}:${String(s).padStart(2, '0')}`;
 }
 
 // Formats a total-seconds duration the same way parsePgnClocks formats a clock reading.
@@ -211,6 +213,25 @@ function getClocksAtPly(clocks: string[], plyIndex: number): { w: string | null;
   for (let i = 0; i <= Math.min(plyIndex, clocks.length - 1); i++) {
     if (i % 2 === 0) wClock = clocks[i] ?? null;
     else bClock = clocks[i] ?? null;
+  }
+  return { w: wClock, b: bClock };
+}
+
+// Same as getClocksAtPly, but for a move path that may cross from the main line into
+// a branch (see getActivePath) — reads each move's own carried-over MoveEntry.clock
+// instead of indexing into a flat top-level-PGN clocks array, since a branch's moves
+// aren't part of that array. A move with no clock (e.g. one the user played fresh in
+// Explore, which never had a [%clk] reading to begin with) leaves the last-known
+// value in place rather than resetting to null, matching getClocksAtPly's behavior
+// once a game runs past the end of its own clock annotations.
+function getClocksAtPath(path: MoveEntry[]): { w: string | null; b: string | null } {
+  let wClock: string | null = null;
+  let bClock: string | null = null;
+  for (let i = 0; i < path.length; i++) {
+    const raw = path[i]?.clock;
+    if (!raw) continue;
+    if (i % 2 === 0) wClock = formatRawClock(raw);
+    else bClock = formatRawClock(raw);
   }
   return { w: wClock, b: bClock };
 }
@@ -2927,13 +2948,21 @@ export default function AnalysisPage() {
   // TimeControl header) instead of leaving it blank.
   const playerClocks = useMemo(() => {
     if (hideMoveClocks) return { w: null, b: null };
+    // Navigating inside a branch moves exploreNav, not currentPlyIndex (which stays
+    // pinned at the branch point) — reading the top-level pgnClocks array by
+    // currentPlyIndex here was why the clock froze the instant a branch was created.
+    // getActivePath walks the full path (main line prefix + branch moves) so this
+    // stays correct however deep the branch goes.
+    if (isExploring && exploreTree) {
+      return getClocksAtPath(getActivePath(exploreTree, exploreNav));
+    }
     if (currentPlyIndex < 0) {
       const startSeconds = importMeta.clockInitial ?? parseTimeControlSeconds(gameDetails.timeControl);
       const startClock = formatClockSeconds(startSeconds);
       return { w: startClock, b: startClock };
     }
     return getClocksAtPly(pgnClocks, currentPlyIndex);
-  }, [pgnClocks, currentPlyIndex, importMeta.clockInitial, gameDetails.timeControl, hideMoveClocks]);
+  }, [pgnClocks, currentPlyIndex, importMeta.clockInitial, gameDetails.timeControl, hideMoveClocks, isExploring, exploreTree, exploreNav]);
 
   // The pgn Save would currently write — derived purely from the actual loaded game
   // state (exploreTree / rawPgn / analyzedGame / baseFen + gameDetails), never from

@@ -741,3 +741,11 @@ Rebuilt `GameCard`/`GameListHeader` as an actual grid/table instead of independe
 **Decision:** Add a shared `useEscapeClose(onClose, active?)` hook (alongside the existing `useBackdropClose`) and wire it into every overlay on the analysis screen: the Import Game modal, Game Details modal, Overwrite-confirm and New-Analysis confirm modals, the sign-in-to-save popover, and the move right-click context menu (added to its existing outside-click-close effect instead of a second hook, since it already had one).
 
 **Reason:** Escape-to-dismiss is standard modal/popover behavior users expect alongside the X/Cancel button and backdrop click — several of these overlays (Game Details, the two confirm modals, the sign-in popover) had no keyboard dismissal at all before this.
+
+---
+
+## 2026-07-12 - Fix player clock freezing once a branch is created
+
+**Decision:** `playerClocks` now branches on `isExploring`: while exploring, it reads clocks from `getActivePath(exploreTree, exploreNav)` (the full move path from root through the current branch position, walking through parent lines as needed) via a new `getClocksAtPath` helper, instead of always indexing the flat top-level `pgnClocks` array by `currentPlyIndex`.
+
+**Reason:** `currentPlyIndex` stays pinned at the ply where a branch diverged — only `exploreNav` advances while navigating inside a branch — so reading `pgnClocks[currentPlyIndex]` made the displayed clock freeze solid the instant a branch was created, no matter how far the user then moved inside it. `getClocksAtPath` reads each move's own carried-over `MoveEntry.clock` (present on moves that originated from the import; absent on moves the user plays fresh in Explore, in which case the last-known clock is left in place, mirroring how `getClocksAtPly` already behaves past the end of a game's own clock annotations).
