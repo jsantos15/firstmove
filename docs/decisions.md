@@ -733,3 +733,11 @@ Rebuilt `GameCard`/`GameListHeader` as an actual grid/table instead of independe
 **Decision:** Extend the `flag-icons`-based flag (already used for the board's top/bottom player rows) to every `GameCard` row in the Import Game modal, placed as name → flag → `(ELO)` in that order for both players. Saved Analysis rows get the flag for free from the already-persisted `white_country`/`black_country` columns. Chess.com/Lichess list rows don't carry country on the game-list endpoints themselves (only the player's name/rating do) — resolving it requires a separate per-username profile call (`api.chess.com/pub/player/{user}` / `lichess.org/api/user/{user}`), so cards render immediately without a flag and it fills in once resolved. Lookups are deduped through a `Map` cached by `(provider, username)` for the modal instance's lifetime, so repeat opponents across games — or across "Load more" pages — cost one fetch each, not one per game row.
 
 **Reason:** Mirrors the same visual language as the board's player rows without guessing at country for providers whose game-list payload doesn't include it, and avoids redundant profile fetches (or a large burst of parallel requests) for names that repeat often within one person's game history.
+
+---
+
+## 2026-07-12 - Escape closes every popup on the analysis screen
+
+**Decision:** Add a shared `useEscapeClose(onClose, active?)` hook (alongside the existing `useBackdropClose`) and wire it into every overlay on the analysis screen: the Import Game modal, Game Details modal, Overwrite-confirm and New-Analysis confirm modals, the sign-in-to-save popover, and the move right-click context menu (added to its existing outside-click-close effect instead of a second hook, since it already had one).
+
+**Reason:** Escape-to-dismiss is standard modal/popover behavior users expect alongside the X/Cancel button and backdrop click — several of these overlays (Game Details, the two confirm modals, the sign-in popover) had no keyboard dismissal at all before this.

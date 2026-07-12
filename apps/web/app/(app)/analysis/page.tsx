@@ -1536,6 +1536,18 @@ function useBackdropClose(onClose: () => void) {
   };
 }
 
+// Escape closing a modal is standard OS/browser dialog behavior, alongside the X/Cancel
+// button and (where present) backdrop click — active gates the listener for modals that
+// stay mounted in the parent component even while hidden (state-toggled, not unmounted).
+function useEscapeClose(onClose: () => void, active = true) {
+  useEffect(() => {
+    if (!active) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [active, onClose]);
+}
+
 function ImportModal({
   onClose,
   onImport,
@@ -1549,6 +1561,7 @@ function ImportModal({
   const [pgn, setPgn] = useState('');
   const [fen, setFen] = useState('');
   const backdropClose = useBackdropClose(onClose);
+  useEscapeClose(onClose);
   const [timeClassFilter, setTimeClassFilter] = useState<'all' | TimeClassKey>('all');
   // Reset the filter when switching tabs — a class present in one list may not exist
   // in another, and carrying it over would silently leave the list looking empty.
@@ -2176,6 +2189,10 @@ export default function AnalysisPage() {
   const [showOverwriteConfirm, setShowOverwriteConfirm] = useState(false);
   const overwriteConfirmBackdrop = useBackdropClose(() => setShowOverwriteConfirm(false));
   const newAnalysisModalBackdrop = useBackdropClose(() => setShowNewAnalysisModal(false));
+  useEscapeClose(() => setShowGameDetailsModal(false), showGameDetailsModal);
+  useEscapeClose(() => setShowOverwriteConfirm(false), showOverwriteConfirm);
+  useEscapeClose(() => setShowNewAnalysisModal(false), showNewAnalysisModal);
+  useEscapeClose(() => setShowSaveAuthPrompt(false), showSaveAuthPrompt);
 
   useEffect(() => {
     if (!showSaveAsMenu) return;
@@ -2695,13 +2712,19 @@ export default function AnalysisPage() {
     }
   }
 
-  // Close context menu on any outside click
+  // Close context menu on any outside click, or Escape
   useEffect(() => {
     if (!moveContextMenu) return;
     const close = () => setMoveContextMenu(null);
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') close(); };
     window.addEventListener('click', close);
     window.addEventListener('contextmenu', close);
-    return () => { window.removeEventListener('click', close); window.removeEventListener('contextmenu', close); };
+    window.addEventListener('keydown', onKey);
+    return () => {
+      window.removeEventListener('click', close);
+      window.removeEventListener('contextmenu', close);
+      window.removeEventListener('keydown', onKey);
+    };
   }, [moveContextMenu]);
 
   function handleMakeMainLine(lineId: string, plyIndex: number) {
