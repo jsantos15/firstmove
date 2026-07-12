@@ -150,7 +150,6 @@ const STOCKFISH_DEPTH = 10;
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 type PanelTab = 'explore' | 'review';
-type ReviewSubTab = 'summary' | 'moves';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -249,6 +248,99 @@ function computeMaterial(fen: string): MaterialData {
 const WHITE_PIECE_STYLE: React.CSSProperties = { color: 'rgb(243,244,246)' };
 const BLACK_PIECE_STYLE: React.CSSProperties = { color: '#1a1a1a', textShadow: '0 0 0 1px rgba(255,255,255,0.45), 0 0 4px rgba(255,255,255,0.25)', WebkitTextStroke: '0.4px rgba(200,200,200,0.5)' };
 
+// ─── Time class icons ─────────────────────────────────────────────────────────
+// Original hand-drawn icons (not Chess.com's/Lichess's own brand assets — those are
+// proprietary) conveying the same at-a-glance concept per speed, in the same inline-SVG
+// style used for every other icon in this file (no icon package/font, no image assets).
+// Covers every time class either provider reports: Chess.com's `time_class` is exactly
+// bullet/blitz/rapid/daily; Lichess's `speed` is ultraBullet/bullet/blitz/rapid/
+// classical/correspondence (verified against each provider's API docs) — daily and
+// correspondence are the same UI concept (very slow, days-per-move) so they share an icon.
+
+type TimeClassKey = 'ultrabullet' | 'bullet' | 'blitz' | 'rapid' | 'classical' | 'daily' | 'correspondence';
+
+const TIME_CLASS_LABELS: Record<TimeClassKey, string> = {
+  ultrabullet: 'UltraBullet',
+  bullet: 'Bullet',
+  blitz: 'Blitz',
+  rapid: 'Rapid',
+  classical: 'Classical',
+  daily: 'Daily',
+  correspondence: 'Correspondence',
+};
+
+const TIME_CLASS_COLORS: Record<TimeClassKey, string> = {
+  ultrabullet: 'text-red-400',
+  bullet: 'text-orange-400',
+  blitz: 'text-amber-400',
+  rapid: 'text-emerald-400',
+  classical: 'text-sky-400',
+  daily: 'text-amber-300',
+  correspondence: 'text-amber-300',
+};
+
+function normalizeTimeClass(raw: string | undefined | null): TimeClassKey | null {
+  if (!raw) return null;
+  const key = raw.toLowerCase();
+  return key in TIME_CLASS_LABELS ? (key as TimeClassKey) : null;
+}
+
+/** A small icon for a game's time class — ready to drop into GameCard/etc. once wired up. */
+function TimeClassIcon({ timeClass, className = 'h-3.5 w-3.5' }: { timeClass: string | undefined | null; className?: string }) {
+  const key = normalizeTimeClass(timeClass);
+  if (!key) return null;
+  const common = `shrink-0 ${TIME_CLASS_COLORS[key]} ${className}`;
+
+  switch (key) {
+    case 'bullet':
+    case 'ultrabullet':
+      return (
+        <svg viewBox="0 0 20 20" fill="currentColor" className={common} aria-label={TIME_CLASS_LABELS[key]}>
+          <path d="M10 1.4c2.6 1.9 4.1 5.1 4.1 8.3 0 1.7-.4 3.2-1.1 4.6l-1.5-1c.5-1.1.8-2.3.8-3.6 0-2.4-1-4.7-2.3-6.1-1.3 1.4-2.3 3.7-2.3 6.1 0 1.3.3 2.5.8 3.6l-1.5 1C6.4 13 6 11.4 6 9.7c0-3.2 1.5-6.4 4-8.3Z" />
+          <path d="M7.8 13.9 5.7 17.6l2-.4L8.9 15l1.1 1.9 2 .4-2.1-3.7a5.9 5.9 0 0 1-2.1.3Z" />
+          {key === 'ultrabullet' && (
+            <path fillRule="evenodd" d="M2.5 9.7a.75.75 0 0 1 .75-.75h.5a.75.75 0 0 1 0 1.5h-.5a.75.75 0 0 1-.75-.75Zm13.25-.75h.5a.75.75 0 0 1 0 1.5h-.5a.75.75 0 0 1 0-1.5Z" clipRule="evenodd" />
+          )}
+        </svg>
+      );
+    case 'blitz':
+      return (
+        <svg viewBox="0 0 20 20" fill="currentColor" className={common} aria-label={TIME_CLASS_LABELS[key]}>
+          <path fillRule="evenodd" d="M11.983 1.907a.75.75 0 0 0-1.292-.657L4.204 9.75a.75.75 0 0 0 .557 1.25h4.038l-1.782 6.093a.75.75 0 0 0 1.292.657l6.487-8.5a.75.75 0 0 0-.557-1.25H10.2l1.783-6.093Z" clipRule="evenodd" />
+        </svg>
+      );
+    case 'rapid':
+      return (
+        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth={1.5} className={common} aria-label={TIME_CLASS_LABELS[key]}>
+          <circle cx="10" cy="11" r="6.5" />
+          <path d="M10 8v3l2 1.5" strokeLinecap="round" strokeLinejoin="round" />
+          <path d="M8 2h4M10 2v2" strokeLinecap="round" />
+        </svg>
+      );
+    case 'classical':
+      return (
+        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth={1.5} className={common} aria-label={TIME_CLASS_LABELS[key]}>
+          <path
+            d="M5.5 2.5h9M5.5 17.5h9M6.5 2.5c0 3 1.5 5 3.5 6.5-2 1.5-3.5 3.5-3.5 6.5M13.5 2.5c0 3-1.5 5-3.5 6.5 2 1.5 3.5 3.5 3.5 6.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </svg>
+      );
+    case 'daily':
+    case 'correspondence':
+      return (
+        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth={1.5} className={common} aria-label={TIME_CLASS_LABELS[key]}>
+          <circle cx="10" cy="10" r="3.25" />
+          <path
+            d="M10 2.5v2M10 15.5v2M17.5 10h-2M4.5 10h-2M15.3 4.7l-1.4 1.4M6.1 13.9l-1.4 1.4M15.3 15.3l-1.4-1.4M6.1 6.1 4.7 4.7"
+            strokeLinecap="round"
+          />
+        </svg>
+      );
+  }
+}
+
 function PlayerRow({
   name, elo, country, avatar, captured, advantage, clock, isActive, playerColor,
 }: {
@@ -288,25 +380,31 @@ function PlayerRow({
         <div className="flex items-baseline gap-1.5 min-w-0">
           <span className="text-sm font-semibold text-gray-200 truncate leading-none">{name || '—'}</span>
           {elo && <span className="text-xs text-gray-500 shrink-0 leading-none">({elo})</span>}
-          {country && <span className="text-xs text-gray-500 shrink-0 leading-none">{country}</span>}
+          {country && (
+            <span
+              className={`fi fi-${country.trim().toLowerCase()} shrink-0 rounded-[1px]`}
+              style={{ width: '1rem', height: '0.75rem' }}
+              title={country}
+            />
+          )}
         </div>
-        <div className="flex items-center gap-1.5 min-w-0 min-h-[16px]">
+        <div className="flex items-center min-w-0 min-h-[16px]">
           {hasMaterial && (
             <>
               {pieceGroups.map((group, gi) => (
-                <div key={gi} className="flex items-center">
+                <div key={gi} className="flex items-center" style={{ marginLeft: gi > 0 ? '0.2em' : undefined }}>
                   {Array(group.count).fill(null).map((_, i) => (
                     <span
                       key={i}
-                      className="text-base leading-none select-none"
-                      style={{ ...capturedPieceStyle, marginLeft: i > 0 ? '-0.3em' : undefined }}
+                      className="text-sm leading-none select-none"
+                      style={{ ...capturedPieceStyle, marginLeft: i > 0 ? '-0.55em' : undefined }}
                     >
                       {group.sym}
                     </span>
                   ))}
                 </div>
               ))}
-              {advantage > 0 && <span className="text-base font-semibold text-gray-300 leading-none">+{advantage}</span>}
+              {advantage > 0 && <span className="ml-1 text-sm font-semibold text-gray-300 leading-none">+{advantage}</span>}
             </>
           )}
         </div>
@@ -1069,6 +1167,26 @@ function GameReviewReportPanel({
 
 type ImportTab = 'mine' | 'chesscom' | 'lichess' | 'pgn';
 
+// Variants whose moves follow standard chess movement/legality rules *and* whose win
+// condition is a regular checkmate/resignation/draw — i.e. actually analyzable by a
+// standard chess engine in a way that means what the game was actually about.
+// Chess960/fromPosition just change the starting position, so they're included.
+// Excluded: crazyhouse/bughouse (drop mechanic — illegal-for-standard positions),
+// antichess/atomic/horde/racingKings (illegal-for-standard positions and/or the goal
+// isn't a normal win — antichess's goal is literally to lose all your pieces),
+// kingOfTheHill/threeCheck (fully legal standard moves, but an alternate win condition
+// means engine eval — which only measures normal-win chances — doesn't reflect what
+// the game was actually being played for).
+// Chess.com `rules` values: chess, chess960, bughouse, kingofthehill, threecheck, crazyhouse.
+// Lichess `variant` values: standard, chess960, crazyhouse, antichess, atomic, horde,
+// kingOfTheHill, racingKings, threeCheck, fromPosition.
+const ANALYZABLE_VARIANTS = new Set(['chess', 'standard', 'chess960', 'fromposition']);
+
+function isAnalyzableVariant(variant: string | undefined | null): boolean {
+  if (!variant) return true; // absent almost always means standard chess
+  return ANALYZABLE_VARIANTS.has(variant.toLowerCase());
+}
+
 interface FetchedGame {
   id: string;
   whiteName: string;
@@ -1093,6 +1211,7 @@ interface FetchedGame {
   sourceGameId?: string;
   sourceUrl?: string;
   providerData?: Record<string, unknown>;
+  label?: string;
 }
 
 function fetchedGameToImportMeta(game: FetchedGame, source: UserGameSource): ImportMeta {
@@ -1145,6 +1264,9 @@ interface ImportMeta {
   /** The Saved Analysis row this game was loaded from, if any — lets Save update
    *  that same row in place instead of creating a new one. */
   savedGameId?: string;
+  /** User-editable label so multiple saved copies of the same game (via "Save As")
+   *  can be told apart in the Saved Analysis list. */
+  label?: string;
 }
 
 const EMPTY_IMPORT_META: ImportMeta = { source: 'manual' };
@@ -1171,6 +1293,7 @@ function userGameToFetchedGame(g: UserGame): FetchedGame {
     opening: g.opening_name ?? undefined,
     pgn: g.pgn,
     fen: g.fen ?? undefined,
+    label: g.label ?? undefined,
   };
 }
 
@@ -1196,6 +1319,8 @@ function userGameToImportMeta(g: UserGame): ImportMeta {
     blackAvatar: g.black_avatar_url ?? undefined,
     whiteCountry: g.white_country ?? undefined,
     blackCountry: g.black_country ?? undefined,
+    importedUsername: g.imported_username ?? undefined,
+    label: g.label ?? undefined,
   };
 }
 
@@ -1208,30 +1333,111 @@ function SpinnerIcon({ className = 'h-3.5 w-3.5' }: { className?: string }) {
   );
 }
 
+// Counts only the main line's plies — ignoring any RAV variations our own Saved
+// Analysis format may contain — for the "N moves" shown on a game card.
+function countPlies(pgn: string): number {
+  const tokens = tokenizePgnMovetext(extractPgnMovetext(pgn));
+  let count = 0;
+  let depth = 0;
+  for (const tok of tokens) {
+    if (tok === '(') { depth++; continue; }
+    if (tok === ')') { depth = Math.max(0, depth - 1); continue; }
+    if (depth > 0) continue;
+    if (tok.startsWith('{') && tok.endsWith('}')) continue;
+    if (/^\$\d+$/.test(tok) || /^\d+\.+$/.test(tok)) continue;
+    if (/^(1-0|0-1|1\/2-1\/2|\*)$/.test(tok)) continue;
+    count++;
+  }
+  return count;
+}
+
+function matchesTimeClassFilter(rawTimeClass: string | null | undefined, filter: 'all' | TimeClassKey): boolean {
+  return filter === 'all' || normalizeTimeClass(rawTimeClass) === filter;
+}
+
+// Shared column template between GameListHeader and every GameCard row so headers
+// line up with data — mirrors Chess.com's game-history table (icon | players |
+// result | accuracy | moves | date | delete), adapted to the widths this modal has.
+// Players is capped (not a growing 1fr) so Result doesn't get pushed far away from
+// the names; the flexible column sits right after Players instead, absorbing
+// whatever width a wider modal leaves over — which pushes the Result/Accuracy/
+// Moves/Date/Delete cluster as a whole toward the right edge, with Delete (the true
+// last column, nothing trailing it) landing flush against it. Result/Accuracy/Moves/
+// Date are sized to fit their own header *labels* ("ACCURACY" etc.), not just their
+// (much narrower) data — that mismatch was what made adjacent headers collide.
+const GAME_ROW_GRID_COLS = 'grid-cols-[22px_minmax(0,170px)_1fr_40px_58px_46px_66px_24px]';
+
+function GameListHeader() {
+  return (
+    <div className={`grid ${GAME_ROW_GRID_COLS} items-center gap-x-3 border-b border-white/8 px-2 py-1.5 text-[9px] font-semibold uppercase tracking-wide text-gray-600`}>
+      <span className="col-start-1" aria-hidden="true" />
+      <span className="col-start-2">Players</span>
+      <span className="col-start-4 text-center">Result</span>
+      <span className="col-start-5 text-center">Accuracy</span>
+      <span className="col-start-6 text-center">Moves</span>
+      <span className="col-start-7 text-center">Date</span>
+      <span className="col-start-8" aria-hidden="true" />
+    </div>
+  );
+}
+
 function GameCard({
-  game, onSelect, onDelete,
+  game, onSelect, onDelete, highlightUsername,
 }: {
-  game: FetchedGame; onSelect: () => void; onDelete?: () => void;
+  game: FetchedGame;
+  onSelect: () => void;
+  onDelete?: () => void;
+  /** The Chess.com/Lichess username this list was searched for — only passed for the
+   *  Chess.com/Lichess import tabs, never for Saved Analysis, so only there does the
+   *  card get a win/loss edge color for that specific player. */
+  highlightUsername?: string;
 }) {
-  const resultColor =
-    game.result === '1-0' ? 'text-white' :
-    game.result === '0-1' ? 'text-gray-500' : 'text-gray-400';
+  const moveCount = useMemo(() => countPlies(game.pgn), [game.pgn]);
+  const whiteDigit = game.result === '1-0' ? '1' : game.result === '0-1' ? '0' : '½';
+  const blackDigit = game.result === '0-1' ? '1' : game.result === '1-0' ? '0' : '½';
+  const whiteAccuracyText = game.whiteAccuracy != null ? game.whiteAccuracy.toFixed(1) : '–';
+  const blackAccuracyText = game.blackAccuracy != null ? game.blackAccuracy.toFixed(1) : '–';
+
+  // Only Chess.com/Lichess lists pass highlightUsername, and only a decisive result for
+  // that specific player gets the edge color — anything else (Saved Analysis, a draw,
+  // or a name that doesn't match either side) gets a transparent (invisible) edge.
+  let edgeColorClass = 'border-l-transparent';
+  if (highlightUsername) {
+    const searched = highlightUsername.trim().toLowerCase();
+    const isWhite = game.whiteName.trim().toLowerCase() === searched;
+    const isBlack = game.blackName.trim().toLowerCase() === searched;
+    const ownResult = isWhite ? game.whiteResult : isBlack ? game.blackResult : undefined;
+    const oppResult = isWhite ? game.blackResult : isBlack ? game.whiteResult : undefined;
+    if (ownResult === 'win') edgeColorClass = 'border-l-emerald-400';
+    else if (oppResult === 'win') edgeColorClass = 'border-l-red-400';
+  }
+
   return (
     <button
       type="button"
       onClick={onSelect}
-      className="w-full text-left rounded-xl border border-white/8 bg-white/[0.02] px-4 py-3 transition-all hover:border-amber-400/25 hover:bg-amber-400/[0.04]"
+      className={`w-full border-l-2 ${edgeColorClass} px-2 py-1.5 text-left transition-colors hover:bg-amber-400/[0.04]`}
     >
-      <div className="flex items-center justify-between gap-3">
-        <div className="flex items-center gap-2.5 min-w-0">
-          <span className="shrink-0 w-10 text-right text-[11px] text-gray-600 font-mono tabular-nums">{game.whiteRating}</span>
-          <span className="text-[13px] text-gray-200 font-medium truncate">{game.whiteName}</span>
+      {game.label && (
+        <div className="mb-1 truncate text-[11px] font-semibold text-gray-400">{game.label}</div>
+      )}
+      <div className={`grid ${GAME_ROW_GRID_COLS} items-center gap-x-3 gap-y-0.5`}>
+        <div className="col-start-1 row-start-1 row-span-2 flex items-center justify-center">
+          <TimeClassIcon timeClass={game.timeClass} className="h-4 w-4" />
         </div>
-        <div className="shrink-0 flex items-center gap-2 text-gray-600">
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="w-3 h-3 shrink-0">
-            <path fillRule="evenodd" d="M4 1.75a.75.75 0 0 1 1.5 0V3h5V1.75a.75.75 0 0 1 1.5 0V3A2.25 2.25 0 0 1 14.25 5.25v7.5A2.25 2.25 0 0 1 12 15H4A2.25 2.25 0 0 1 1.75 12.75v-7.5A2.25 2.25 0 0 1 4 3V1.75ZM3.25 7.5A.75.75 0 0 1 4 6.75h8a.75.75 0 0 1 0 1.5H4A.75.75 0 0 1 3.25 7.5Z" clipRule="evenodd" />
-          </svg>
-          <span className="text-[11px] tabular-nums">{game.date}</span>
+
+        <div className="col-start-2 row-start-1 flex min-w-0 items-baseline gap-1">
+          <span className="truncate text-[13px] font-medium text-gray-200">{game.whiteName}</span>
+          {game.whiteRating !== '' && <span className="shrink-0 text-[11px] text-gray-600 font-mono">({game.whiteRating})</span>}
+        </div>
+        <span className={`col-start-4 row-start-1 text-center text-[12px] font-semibold tabular-nums ${game.result === '1-0' ? 'text-white' : 'text-gray-500'}`}>
+          {whiteDigit}
+        </span>
+        <span className="col-start-5 row-start-1 text-center text-[11px] tabular-nums text-gray-600">{whiteAccuracyText}</span>
+
+        <span className="col-start-6 row-start-1 row-span-2 text-center text-[11px] tabular-nums text-gray-500">{moveCount}</span>
+        <span className="col-start-7 row-start-1 row-span-2 text-center text-[11px] tabular-nums text-gray-500">{game.date}</span>
+        <span className="col-start-8 row-start-1 row-span-2 flex items-center justify-center">
           {onDelete && (
             <span
               role="button"
@@ -1239,31 +1445,49 @@ function GameCard({
               title="Remove from Saved Analysis"
               onClick={e => { e.stopPropagation(); onDelete(); }}
               onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.stopPropagation(); onDelete(); } }}
-              className="shrink-0 -mr-1 rounded p-0.5 text-gray-700 transition-colors hover:text-red-400"
+              className="rounded p-1 text-gray-700 transition-colors hover:text-red-400"
             >
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="w-3 h-3">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="w-3.5 h-3.5">
                 <path fillRule="evenodd" d="M6.5 1.5a.5.5 0 0 0-.5.5v1H3a.75.75 0 0 0 0 1.5h.28l.63 8.19A2 2 0 0 0 5.9 14.5h4.2a2 2 0 0 0 1.99-1.81l.63-8.19H13A.75.75 0 0 0 13 3h-3v-1a.5.5 0 0 0-.5-.5h-3ZM6 4v8.5a.5.5 0 0 0 1 0V4H6Zm3 0v8.5a.5.5 0 0 0 1 0V4H9Z" clipRule="evenodd" />
               </svg>
             </span>
           )}
+        </span>
+
+        <div className="col-start-2 row-start-2 flex min-w-0 items-baseline gap-1">
+          <span className="truncate text-[13px] font-medium text-gray-300">{game.blackName}</span>
+          {game.blackRating !== '' && <span className="shrink-0 text-[11px] text-gray-600 font-mono">({game.blackRating})</span>}
         </div>
+        <span className={`col-start-4 row-start-2 text-center text-[12px] font-semibold tabular-nums ${game.result === '0-1' ? 'text-white' : 'text-gray-500'}`}>
+          {blackDigit}
+        </span>
+        <span className="col-start-5 row-start-2 text-center text-[11px] tabular-nums text-gray-600">{blackAccuracyText}</span>
       </div>
-      <div className="flex items-center justify-between gap-3 mt-1">
-        <div className="flex items-center gap-2.5 min-w-0">
-          <span className="shrink-0 w-10 text-right text-[11px] text-gray-600 font-mono tabular-nums">{game.blackRating}</span>
-          <span className="text-[13px] text-gray-300 font-medium truncate">{game.blackName}</span>
-        </div>
-        <span className={`shrink-0 text-[12px] font-semibold tabular-nums ${resultColor}`}>{game.result}</span>
-      </div>
-      {(game.timeClass ?? game.opening) && (
-        <div className="mt-1.5 ml-[52px] flex items-center gap-1.5 min-w-0">
-          {game.timeClass && <span className="shrink-0 text-[10px] text-gray-700 capitalize">{game.timeClass}</span>}
-          {game.timeClass && game.opening && <span className="text-[10px] text-gray-700">·</span>}
-          {game.opening && <span className="text-[10px] text-gray-600 truncate">{game.opening}</span>}
-        </div>
+      {game.opening && (
+        <div className="mt-1 truncate pl-[30px] text-[10px] text-gray-600">{game.opening}</div>
       )}
     </button>
   );
+}
+
+// A plain `onClick` + target-check on a modal backdrop is the standard "click outside
+// to close" pattern, but it's wrong: the native `click` event's target is whatever
+// element the mouse *released* over, not where the mousedown started. So starting a
+// drag or text selection inside the modal and releasing over the backdrop (e.g. while
+// scrolling a long list, or just an imprecise drag) reads as "clicked outside" and
+// closes it. Only close when *both* the mousedown and the resulting click land
+// directly on the backdrop itself.
+function useBackdropClose(onClose: () => void) {
+  const mouseDownOnBackdrop = useRef(false);
+  return {
+    onMouseDown: (e: React.MouseEvent<HTMLDivElement>) => {
+      mouseDownOnBackdrop.current = e.target === e.currentTarget;
+    },
+    onClick: (e: React.MouseEvent<HTMLDivElement>) => {
+      if (mouseDownOnBackdrop.current && e.target === e.currentTarget) onClose();
+      mouseDownOnBackdrop.current = false;
+    },
+  };
 }
 
 function ImportModal({
@@ -1278,6 +1502,11 @@ function ImportModal({
   const [tab, setTab] = useState<ImportTab>('mine');
   const [pgn, setPgn] = useState('');
   const [fen, setFen] = useState('');
+  const backdropClose = useBackdropClose(onClose);
+  const [timeClassFilter, setTimeClassFilter] = useState<'all' | TimeClassKey>('all');
+  // Reset the filter when switching tabs — a class present in one list may not exist
+  // in another, and carrying it over would silently leave the list looking empty.
+  useEffect(() => { setTimeClassFilter('all'); }, [tab]);
 
   const { user } = useAuth();
   const { data: myGames, isLoading: myGamesLoading } = useUserGames();
@@ -1366,9 +1595,12 @@ function ImportModal({
           providerData: g,
         };
       });
+      // Advance the pagination cursor by the raw (unfiltered) count so "load more"
+      // still lines up with Lichess's own skip parameter — only what's displayed is filtered.
       lichessSkipRef.current = skip + games.length;
-      if (reset) setLichessGames(games);
-      else setLichessGames(prev => [...prev, ...games]);
+      const analyzableGames = games.filter(g => isAnalyzableVariant(g.variant));
+      if (reset) setLichessGames(analyzableGames);
+      else setLichessGames(prev => [...prev, ...analyzableGames]);
     } catch (e) {
       setLichessError(e instanceof Error ? e.message : 'Failed to load games');
     } finally {
@@ -1435,8 +1667,9 @@ function ImportModal({
         };
       });
       ccMonthBackRef.current = monthBack + 1;
-      if (reset) setCcGames(games);
-      else setCcGames(prev => [...prev, ...games]);
+      const analyzableGames = games.filter(g => isAnalyzableVariant(g.variant));
+      if (reset) setCcGames(analyzableGames);
+      else setCcGames(prev => [...prev, ...analyzableGames]);
     } catch (e) {
       setCcError(e instanceof Error ? e.message : 'Failed to load games');
     } finally {
@@ -1454,12 +1687,48 @@ function ImportModal({
   const loadSiteGames = isLichess ? loadLichessGames : loadChesscomGames;
   const hasGames = siteGames.length > 0;
 
+  // A row of filter chips for whichever time classes are actually present in the given
+  // list — hidden entirely if there's nothing to filter (0 or 1 distinct class).
+  function renderTimeClassFilters(rawTimeClasses: (string | null | undefined)[]) {
+    const available = Array.from(new Set(
+      rawTimeClasses.map(normalizeTimeClass).filter((k): k is TimeClassKey => k !== null)
+    ));
+    if (available.length < 2) return null;
+    return (
+      <div className="flex flex-wrap gap-1.5">
+        <button
+          type="button"
+          onClick={() => setTimeClassFilter('all')}
+          className={`rounded-lg px-2.5 py-1 text-[11px] font-medium transition-colors ${
+            timeClassFilter === 'all' ? 'bg-white/10 text-white' : 'text-gray-500 hover:text-gray-300 hover:bg-white/5'
+          }`}
+        >
+          All
+        </button>
+        {available.map(k => (
+          <button
+            key={k}
+            type="button"
+            onClick={() => setTimeClassFilter(k)}
+            className={`flex items-center gap-1 rounded-lg px-2.5 py-1 text-[11px] font-medium transition-colors ${
+              timeClassFilter === k ? 'bg-white/10 text-white' : 'text-gray-500 hover:text-gray-300 hover:bg-white/5'
+            }`}
+          >
+            <TimeClassIcon timeClass={k} className="h-3 w-3" />
+            {TIME_CLASS_LABELS[k]}
+          </button>
+        ))}
+      </div>
+    );
+  }
+
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/65 backdrop-blur-sm"
-      onClick={e => { if (e.target === e.currentTarget) onClose(); }}
+      onMouseDown={backdropClose.onMouseDown}
+      onClick={backdropClose.onClick}
     >
-      <div className="mx-4 w-full max-w-lg flex flex-col rounded-2xl border border-white/10 bg-[#0f1117] shadow-2xl shadow-black/60 h-[680px] max-h-[85vh]">
+      <div className="mx-4 w-full max-w-[37rem] flex flex-col rounded-2xl border border-white/10 bg-[#14161f] shadow-2xl shadow-black/60 h-[680px] max-h-[85vh]">
 
         {/* Header */}
         <div className="shrink-0 flex items-center justify-between px-5 pt-4 pb-3">
@@ -1518,19 +1787,31 @@ function ImportModal({
                   <p className="text-sm text-gray-600">No saved games yet — analyze a game and hit Save to add it here.</p>
                 </div>
               ) : (
-                <div className="flex flex-col gap-1.5">
-                  {myGames.map(game => {
-                    const fetched = userGameToFetchedGame(game);
-                    return (
-                      <GameCard
-                        key={game.id}
-                        game={fetched}
-                        onSelect={() => onImport(fetched.pgn, fetched.fen ?? '', userGameToImportMeta(game))}
-                        onDelete={() => deleteUserGame.mutate(game.id)}
-                      />
-                    );
-                  })}
-                </div>
+                <>
+                  {renderTimeClassFilters(myGames.map(g => g.time_class))}
+                  <div className="flex-1 min-h-0 overflow-y-auto rounded-xl border border-white/8">
+                    <GameListHeader />
+                    {/* [&>button:last-child] closes off the bottom of the list with its own
+                        border, since the flex-1 container can be taller than its content
+                        (few saved games) — without this the last card floats with no edge
+                        near it, and only the outer container's border is far below it. */}
+                    <div className="divide-y divide-white/5 [&>button:last-child]:border-b [&>button:last-child]:border-white/8">
+                      {myGames
+                        .filter(g => matchesTimeClassFilter(g.time_class, timeClassFilter))
+                        .map(game => {
+                          const fetched = userGameToFetchedGame(game);
+                          return (
+                            <GameCard
+                              key={game.id}
+                              game={fetched}
+                              onSelect={() => onImport(fetched.pgn, fetched.fen ?? '', userGameToImportMeta(game))}
+                              onDelete={() => deleteUserGame.mutate(game.id)}
+                            />
+                          );
+                        })}
+                    </div>
+                  </div>
+                </>
               )}
             </div>
           )}
@@ -1627,17 +1908,24 @@ function ImportModal({
                   <div className="text-[10px] font-semibold uppercase tracking-widest text-gray-600 pt-1">
                     Recent Games — {siteUser}
                   </div>
-                  <div className="flex flex-col gap-1.5">
-                    {siteGames.map(game => (
-                      <GameCard
-                        key={game.id}
-                        game={game}
-                        onSelect={() => onImport(game.pgn, game.fen ?? '', {
-                          ...fetchedGameToImportMeta(game, isLichess ? 'lichess' : 'chesscom'),
-                          importedUsername: siteUser,
-                        })}
-                      />
-                    ))}
+                  {renderTimeClassFilters(siteGames.map(g => g.timeClass))}
+                  <div className="flex-1 min-h-0 overflow-y-auto rounded-xl border border-white/8">
+                    <GameListHeader />
+                    <div className="divide-y divide-white/5">
+                      {siteGames
+                        .filter(g => matchesTimeClassFilter(g.timeClass, timeClassFilter))
+                        .map(game => (
+                          <GameCard
+                            key={game.id}
+                            game={game}
+                            highlightUsername={siteUser}
+                            onSelect={() => onImport(game.pgn, game.fen ?? '', {
+                              ...fetchedGameToImportMeta(game, isLichess ? 'lichess' : 'chesscom'),
+                              importedUsername: siteUser,
+                            })}
+                          />
+                        ))}
+                    </div>
                   </div>
                   <button
                     type="button"
@@ -1758,7 +2046,6 @@ export default function AnalysisPage() {
   const [engineError, setEngineError] = useState<string | null>(null);
   const enginePoolRef = useRef<AnalysisWorkerPool | null>(null);
   const [activeTab, setActiveTab] = useState<PanelTab>('explore');
-  const [reviewSubTab, setReviewSubTab] = useState<ReviewSubTab>('summary');
   const [coachByPly, setCoachByPly] = useState<Map<number, CoachFeedback | null>>(new Map());
   const [boardSize, setBoardSize] = useState(480);
   const [maxBoardWidth, setMaxBoardWidth] = useState<number | undefined>(undefined);
@@ -1784,6 +2071,10 @@ export default function AnalysisPage() {
   const [blackCountry, setBlackCountry] = useState<string | null>(null);
   const [showGameDetailsModal, setShowGameDetailsModal] = useState(false);
   const [gameDetailsDraft, setGameDetailsDraft] = useState<GameDetails>(EMPTY_GAME_DETAILS);
+  // User-editable label distinguishing saved copies of the same game — DB-only
+  // metadata, never embedded in the pgn text (unlike gameDetails' PGN header fields).
+  const [analysisLabel, setAnalysisLabel] = useState('');
+  const [labelDraft, setLabelDraft] = useState('');
   const [showNewAnalysisModal, setShowNewAnalysisModal] = useState(false);
   const [importMeta, setImportMeta] = useState<ImportMeta>(EMPTY_IMPORT_META);
   const [showSaveAuthPrompt, setShowSaveAuthPrompt] = useState(false);
@@ -1792,6 +2083,8 @@ export default function AnalysisPage() {
   const [showSaveAsMenu, setShowSaveAsMenu] = useState(false);
   const saveAsMenuRef = useRef<HTMLDivElement>(null);
   const [showOverwriteConfirm, setShowOverwriteConfirm] = useState(false);
+  const overwriteConfirmBackdrop = useBackdropClose(() => setShowOverwriteConfirm(false));
+  const newAnalysisModalBackdrop = useBackdropClose(() => setShowNewAnalysisModal(false));
 
   useEffect(() => {
     if (!showSaveAsMenu) return;
@@ -1830,14 +2123,27 @@ export default function AnalysisPage() {
   currentPlyRef.current = currentPlyIndex;
   const totalMovesRef = useRef(0);
   totalMovesRef.current = analyzedGame?.moves.length ?? 0;
+  const exploreTreeRef = useRef<ExploreTree | null>(null);
+  exploreTreeRef.current = exploreTree;
 
   const goTo = useCallback((plyIndex: number, game?: AnalyzedGame) => {
     const g = game ?? analyzedGameRef.current;
     if (!g) return;
     const clamped = Math.max(-1, Math.min(plyIndex, g.moves.length - 1));
-    setExploreTree(null);
-    setExploreNav({ lineId: null, plyIndex: -1 });
     setCurrentPlyIndex(clamped);
+
+    // Move the explore cursor along the tree's main line instead of discarding the
+    // whole tree — this used to unconditionally null exploreTree on every call, so
+    // pressing Next/Previous (or an arrow key) after branching in the Explore tab
+    // silently threw the branch away before the user ever got to Save.
+    const tree = exploreTreeRef.current;
+    if (tree) {
+      const mainLine = tree.lines.find(l => l.parentLineId === null);
+      const mainClamped = mainLine ? Math.max(-1, Math.min(clamped, mainLine.moves.length - 1)) : -1;
+      setExploreNav({ lineId: mainLine?.id ?? null, plyIndex: mainClamped });
+    } else {
+      setExploreNav({ lineId: null, plyIndex: -1 });
+    }
 
     if (clamped >= 0) {
       const move = g.moves[clamped];
@@ -1889,8 +2195,6 @@ export default function AnalysisPage() {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [engineSettingsOpen]);
 
-  const currentMove = analyzedGame?.moves[currentPlyIndex] ?? null;
-
   const currentFen = useMemo(() => {
     if (!analyzedGame) return baseFen ?? INITIAL_FEN;
     if (currentPlyIndex < 0) return analyzedGame.initialFen ?? INITIAL_FEN;
@@ -1919,9 +2223,27 @@ export default function AnalysisPage() {
   }
   const lastExploreMove = getLastExploreMove(exploreTree, exploreNav);
 
+  // Every position already covered by the initial deep analysis — whether reached via
+  // the flat Review tab, or by browsing the Explore tab's *unmodified* main line —
+  // has a pre-computed eval keyed by its resulting fen, so it should show instantly
+  // instead of re-running live analysis. Only genuinely new positions (an actual
+  // branch/deviation the user created) fall through to the live engine below.
+  // Keyed by fen rather than currentPlyIndex because currentPlyIndex only tracks the
+  // flat Review-tab position — clicking around the Explore tab's tree only moves
+  // exploreNav, so a ply-indexed lookup would freeze on a stale value the moment
+  // exploring starts.
+  const analyzedFenEvalMap = useMemo(() => {
+    const map = new Map<string, number>();
+    if (!analyzedGame) return map;
+    for (const move of analyzedGame.moves) {
+      if (move.hasEngineAnalysis && move.afterFen) map.set(move.afterFen, move.afterPlayedEvalCp);
+    }
+    return map;
+  }, [analyzedGame]);
+
   const currentEvalCp = useMemo(
-    () => (currentMove?.hasEngineAnalysis ? currentMove.afterPlayedEvalCp : undefined),
-    [currentMove]
+    () => analyzedFenEvalMap.get(freeExploreFen ?? currentFen),
+    [analyzedFenEvalMap, freeExploreFen, currentFen]
   );
 
   const summaryFeedbacks = useMemo(() => {
@@ -1977,7 +2299,6 @@ export default function AnalysisPage() {
       setCoachByPly(new Map());
       setShowImportModal(false);
       setActiveTab('review');
-      setReviewSubTab('summary');
       setImportMeta(meta);
       const parsedDetails = parsePgnHeaders(pgn);
       setGameDetails(parsedDetails);
@@ -1986,6 +2307,7 @@ export default function AnalysisPage() {
       setBlackAvatar(meta.blackAvatar ?? null);
       setWhiteCountry(meta.whiteCountry ?? null);
       setBlackCountry(meta.blackCountry ?? null);
+      setAnalysisLabel(meta.label ?? '');
 
       // Orient the board with the imported Lichess/Chess.com user's pieces at the
       // bottom — that's the "my games" perspective people expect when reviewing
@@ -2009,7 +2331,10 @@ export default function AnalysisPage() {
   // gate it behind a confirmation — otherwise clicking Save could silently clobber
   // a previous analysis the user didn't mean to touch yet.
   function handleSaveGame(asNew = false) {
-    if (!isDirty) return; // matches the Save button's disabled state — nothing new to persist
+    // The isDirty gate only applies to the regular Save (matches its disabled state —
+    // nothing new to persist) — Save As should stay usable even with no changes, since
+    // deliberately forking an unmodified copy is still a meaningful action.
+    if (!asNew && !isDirty) return;
     if (!asNew && importMeta.savedGameId) {
       setShowOverwriteConfirm(true);
       return;
@@ -2028,9 +2353,20 @@ export default function AnalysisPage() {
 
     setSaveError(null);
 
+    // "Save As" always forks a brand-new row (see sourceGameId note below) — the fork
+    // needs its own label so it's distinguishable from the original in the Saved
+    // Analysis list even before the user renames it via Game Details.
+    const label = asNew
+      ? (analysisLabel.trim()
+          ? `${analysisLabel.trim()} (copy)`
+          : `${gameDetails.white || 'White'} vs ${gameDetails.black || 'Black'} (copy)`)
+      : (analysisLabel.trim() || undefined);
+
     const initialFen = exploreTree
       ? (exploreTree.rootFen !== INITIAL_FEN ? exploreTree.rootFen : undefined)
-      : (analyzedGame?.initialFen && analyzedGame.initialFen !== INITIAL_FEN ? analyzedGame.initialFen : undefined);
+      : analyzedGame?.initialFen && analyzedGame.initialFen !== INITIAL_FEN
+        ? analyzedGame.initialFen
+        : (baseFen && baseFen !== INITIAL_FEN ? baseFen : undefined);
 
     saveUserGame.mutate({
       id: asNew ? undefined : importMeta.savedGameId,
@@ -2064,18 +2400,35 @@ export default function AnalysisPage() {
       blackAccuracy: importMeta.blackAccuracy,
       playedDate: gameDetails.date || undefined,
       source: importMeta.source,
-      sourceGameId: importMeta.sourceGameId,
+      // "Save As" always plain-inserts (see dedupeBySource above) but user_games still
+      // has a `unique (user_id, source, source_game_id)` constraint from the normal
+      // upsert-dedupe path — carrying over the same sourceGameId as the row we're
+      // forking from would violate it. Omit it for the fork (NULLs don't collide in a
+      // unique constraint); the fork becomes its own standalone saved analysis and
+      // stops tracking back to the provider game for future re-sync/upsert purposes.
+      sourceGameId: asNew ? undefined : importMeta.sourceGameId,
       sourceUrl: importMeta.sourceUrl,
       providerData: importMeta.providerData,
+      importedUsername: importMeta.importedUsername,
+      label,
     }, {
       onSuccess: (saved) => {
         if (saved) setImportMeta(prev => ({ ...prev, savedGameId: saved.id }));
         setSavedBaselinePgn(pgn);
+        if (asNew) setAnalysisLabel(label ?? '');
+        setSavedBaselineLabel(label ?? '');
         setSaveConfirmed(true);
         setTimeout(() => setSaveConfirmed(false), 1500);
       },
       onError: (error) => {
-        setSaveError(error instanceof Error ? error.message : 'Failed to save. Please try again.');
+        // Supabase/Postgrest errors are plain objects (not Error instances), so
+        // `instanceof Error` alone missed them and always showed the generic fallback
+        // — exactly the kind of failure (e.g. a constraint violation) worth surfacing.
+        const message =
+          typeof error === 'object' && error !== null && 'message' in error && typeof (error as { message: unknown }).message === 'string'
+            ? (error as { message: string }).message
+            : 'Failed to save. Please try again.';
+        setSaveError(message);
       },
     });
   }
@@ -2100,6 +2453,7 @@ export default function AnalysisPage() {
     setWhiteCountry(null);
     setBlackCountry(null);
     setImportMeta(EMPTY_IMPORT_META);
+    setAnalysisLabel('');
     setActiveTab('explore');
     setShowNewAnalysisModal(false);
   }
@@ -2161,7 +2515,6 @@ export default function AnalysisPage() {
           }
         }
         setCoachByPly(byPly);
-        setReviewSubTab('summary');
         goTo(currentPlyRef.current, enrichedGame);
       }
     } catch (error) {
@@ -2385,6 +2738,7 @@ export default function AnalysisPage() {
         setWhiteCountry(null);
         setBlackCountry(null);
         setImportMeta(EMPTY_IMPORT_META);
+        setAnalysisLabel('');
       } catch {
         setPositionError('Invalid FEN');
       }
@@ -2422,6 +2776,7 @@ export default function AnalysisPage() {
         setWhiteCountry(null);
         setBlackCountry(null);
         setImportMeta(EMPTY_IMPORT_META);
+        setAnalysisLabel('');
       } catch {
         setPositionError('Invalid PGN');
       }
@@ -2433,11 +2788,22 @@ export default function AnalysisPage() {
   const boardFen = freeExploreFen ?? currentFen;
   const openingPosition = useOpeningName(boardFen);
 
+  // Daily/correspondence games (days-per-move, not a real countdown clock) — move
+  // timing there reflects real-world elapsed days, not a chess clock, so skip showing
+  // per-move times entirely for them. Bullet/Blitz/Rapid are unaffected.
+  const hideMoveClocks = importMeta.timeClass === 'daily' || importMeta.timeClass === 'correspondence';
+
   // Parse clock annotations from the raw PGN once per game load.
-  const pgnClocks = useMemo(() => parsePgnClocks(rawPgn), [rawPgn]);
+  const pgnClocks = useMemo(
+    () => (hideMoveClocks ? [] : parsePgnClocks(rawPgn)),
+    [rawPgn, hideMoveClocks]
+  );
   // Verbatim (unrounded) per-ply clock text, carried into the explore tree (see
   // buildSeedTree) so it round-trips through a Save/reload unchanged.
-  const pgnRawClocks = useMemo(() => parsePgnRawClocks(rawPgn), [rawPgn]);
+  const pgnRawClocks = useMemo(
+    () => (hideMoveClocks ? [] : parsePgnRawClocks(rawPgn)),
+    [rawPgn, hideMoveClocks]
+  );
 
   // Material captured by each side at the current board position.
   const material = useMemo(() => computeMaterial(boardFen), [boardFen]);
@@ -2446,17 +2812,23 @@ export default function AnalysisPage() {
   // starting time (from the provider's clock config, falling back to the PGN's own
   // TimeControl header) instead of leaving it blank.
   const playerClocks = useMemo(() => {
+    if (hideMoveClocks) return { w: null, b: null };
     if (currentPlyIndex < 0) {
       const startSeconds = importMeta.clockInitial ?? parseTimeControlSeconds(gameDetails.timeControl);
       const startClock = formatClockSeconds(startSeconds);
       return { w: startClock, b: startClock };
     }
     return getClocksAtPly(pgnClocks, currentPlyIndex);
-  }, [pgnClocks, currentPlyIndex, importMeta.clockInitial, gameDetails.timeControl]);
+  }, [pgnClocks, currentPlyIndex, importMeta.clockInitial, gameDetails.timeControl, hideMoveClocks]);
 
-  // The pgn Save would currently write — same source-selection logic as performSaveGame,
-  // kept here as a memo so both the Save button's dirty-check and the actual save reuse
-  // one computation rather than drifting apart.
+  // The pgn Save would currently write — derived purely from the actual loaded game
+  // state (exploreTree / rawPgn / analyzedGame / baseFen + gameDetails), never from
+  // the FEN/PGN position textbox itself. That box is just a staging area for input;
+  // typing in it, or even clicking Load, isn't what makes an update — only a resulting
+  // change to the game's actual position/moves or details does, and that's judged by
+  // comparing this computed pgn against savedBaselinePgn, not by tracking that an
+  // action happened. Kept as a memo so both the Save button's dirty-check and the
+  // actual save (performSaveGame) reuse one computation rather than drifting apart.
   const currentPgn = useMemo(() => {
     let pgn = '';
     try {
@@ -2476,22 +2848,28 @@ export default function AnalysisPage() {
         const chess = new Chess(analyzedGame.initialFen ?? INITIAL_FEN);
         for (const move of analyzedGame.moves) chess.move(move.san);
         pgn = chess.pgn().replace(/^\[.*?\]\r?\n?/gm, '').replace(/\s*\*\s*$/, '').trim();
+      } else if (baseFen && baseFen !== INITIAL_FEN) {
+        // A custom starting position was loaded (FEN mode + Load) but no moves have
+        // been played yet — the standard starting position doesn't count (that's
+        // indistinguishable from a blank New Analysis).
+        pgn = `[FEN "${baseFen}"]\n\n*`;
       }
     } catch { /* ignore */ }
-    if (!pgn) pgn = positionText.trim();
     if (!pgn) return '';
     try {
       return applyGameDetailsToPgn(pgn, gameDetails);
     } catch {
       return pgn;
     }
-  }, [exploreTree, exploreNav, rawPgn, analyzedGame, positionText, gameDetails]);
+  }, [exploreTree, rawPgn, analyzedGame, baseFen, gameDetails]);
 
-  // The pgn as of the last successful save (or the freshly-imported game, if never
-  // saved) — Save is only meaningful once currentPgn drifts from this baseline.
+  // The pgn/label as of the last successful save (or the freshly-imported game, if
+  // never saved) — Save is only meaningful once either drifts from this baseline.
   const [savedBaselinePgn, setSavedBaselinePgn] = useState('');
+  const [savedBaselineLabel, setSavedBaselineLabel] = useState('');
   useEffect(() => {
     setSavedBaselinePgn(currentPgn);
+    setSavedBaselineLabel(analysisLabel);
     // Only reset the baseline when a *new* game is loaded (analyzedGame.id changes on
     // every import) — not on every keystroke, which would make currentPgn === baseline
     // forever and Save would never enable.
@@ -2501,7 +2879,9 @@ export default function AnalysisPage() {
   // Nothing to save if the pgn is empty, or (once tied to a saved entry) nothing has
   // changed since import/last save — a brand-new, never-saved analysis is always
   // considered save-able since that first Save is the meaningful "add to library" action.
-  const isDirty = currentPgn !== '' && (!importMeta.savedGameId || currentPgn !== savedBaselinePgn);
+  const isDirty = currentPgn !== '' && (
+    !importMeta.savedGameId || currentPgn !== savedBaselinePgn || analysisLabel !== savedBaselineLabel
+  );
 
   // Fetch player avatar + country from the source provider's public API when a game
   // is imported. Source is detected from importMeta (set when importing via the modal)
@@ -3073,7 +3453,7 @@ export default function AnalysisPage() {
             }
             topBar={
               <div className="flex h-full w-full">
-                {(['explore', 'review'] as const).map(tab => (
+                {(['review', 'explore'] as const).map(tab => (
                   <button
                     key={tab}
                     type="button"
@@ -3082,7 +3462,7 @@ export default function AnalysisPage() {
                       activeTab === tab ? 'text-white' : 'text-gray-500 hover:text-gray-300'
                     }`}
                   >
-                    {tab === 'explore' ? 'Explore' : 'Game Review'}
+                    {tab === 'explore' ? 'Analysis' : 'Game Review'}
                     {activeTab === tab && (
                       <span className="absolute inset-x-0 bottom-0 h-0.5 bg-amber-400" />
                     )}
@@ -3261,7 +3641,7 @@ export default function AnalysisPage() {
                     <button
                       type="button"
                       title="Edit game details"
-                      onClick={() => { setGameDetailsDraft(gameDetails); setShowGameDetailsModal(true); }}
+                      onClick={() => { setGameDetailsDraft(gameDetails); setLabelDraft(analysisLabel); setShowGameDetailsModal(true); }}
                       className="shrink-0 text-gray-600 transition-colors hover:text-gray-300"
                     >
                       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4">
@@ -3611,68 +3991,17 @@ export default function AnalysisPage() {
                           </div>
                         )}
 
-                        {/* Sub-tabs: Summary | Moves */}
-                        <div className="flex shrink-0 border-b border-white/5">
-                          {(['summary', 'moves'] as const).map(sub => (
-                            <button
-                              key={sub}
-                              type="button"
-                              onClick={() => setReviewSubTab(sub)}
-                              className={`relative flex-1 py-2.5 text-xs font-medium capitalize transition-colors ${
-                                reviewSubTab === sub ? 'text-white' : 'text-gray-500 hover:text-gray-300'
-                              }`}
-                            >
-                              {sub === 'summary' ? 'Summary' : 'Moves'}
-                              {reviewSubTab === sub && (
-                                <span className="absolute inset-x-0 bottom-0 h-px bg-amber-400" />
-                              )}
-                            </button>
-                          ))}
-                        </div>
-
-                        {/* Tab content */}
-                        <div className="flex flex-1 min-h-0 flex-col overflow-hidden">
-                          {reviewSubTab === 'summary' ? (
-                            <div className="flex flex-1 min-h-0 flex-col overflow-y-auto">
-                              <GameReviewReportPanel
-                                report={gameReviewReport}
-                                hasEngineAnalysis={hasEngineAnalysis}
-                              />
-                              {summaryFeedbacks.length > 0 && (
-                                <GameRecapPanel
-                                  summaries={summaryFeedbacks}
-                                  hasEngineAnalysis={hasEngineAnalysis}
-                                />
-                              )}
-                            </div>
-                          ) : (
-                            <div className="flex flex-1 min-h-0 flex-col">
-                              <div className="flex items-center gap-2 border-b border-white/5 px-3 py-2 shrink-0">
-                                <span className="flex-1 truncate text-sm font-medium text-gray-300">
-                                  {gameDetails.white || 'White'}
-                                  {gameDetails.whiteElo ? ` (${gameDetails.whiteElo})` : ''}
-                                  {' – '}
-                                  {gameDetails.black || 'Black'}
-                                  {gameDetails.blackElo ? ` (${gameDetails.blackElo})` : ''}
-                                </span>
-                                <button
-                                  type="button"
-                                  title="Edit game details"
-                                  onClick={() => { setGameDetailsDraft(gameDetails); setShowGameDetailsModal(true); }}
-                                  className="shrink-0 text-gray-600 transition-colors hover:text-gray-300"
-                                >
-                                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4">
-                                    <path d="M5.433 13.917l1.262-3.155A4 4 0 0 1 7.58 9.42l6.92-6.918a2.121 2.121 0 0 1 3 3l-6.92 6.918c-.383.383-.84.685-1.343.886l-3.154 1.262a.5.5 0 0 1-.65-.65Z" />
-                                    <path d="M3.5 5.75c0-.69.56-1.25 1.25-1.25H10A.75.75 0 0 0 10 3H4.75A2.75 2.75 0 0 0 2 5.75v9.5A2.75 2.75 0 0 0 4.75 18h9.5A2.75 2.75 0 0 0 17 15.25V10a.75.75 0 0 0-1.5 0v5.25c0 .69-.56 1.25-1.25 1.25h-9.5c-.69 0-1.25-.56-1.25-1.25v-9.5Z" />
-                                  </svg>
-                                </button>
-                              </div>
-                              <AnalysisMoveList
-                                game={analyzedGame}
-                                currentPlyIndex={currentPlyIndex}
-                                onNavigate={goTo}
-                              />
-                            </div>
+                        {/* Summary — the only Game Review content now; sub-tabs (Summary/Moves) removed */}
+                        <div className="flex flex-1 min-h-0 flex-col overflow-y-auto">
+                          <GameReviewReportPanel
+                            report={gameReviewReport}
+                            hasEngineAnalysis={hasEngineAnalysis}
+                          />
+                          {summaryFeedbacks.length > 0 && (
+                            <GameRecapPanel
+                              summaries={summaryFeedbacks}
+                              hasEngineAnalysis={hasEngineAnalysis}
+                            />
                           )}
                         </div>
 
@@ -3861,7 +4190,7 @@ export default function AnalysisPage() {
       {/* Game Details modal */}
       {showGameDetailsModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/65 backdrop-blur-sm p-4">
-          <div className="w-full max-w-md rounded-2xl border border-white/10 bg-[#0f1117] shadow-2xl shadow-black/60 overflow-hidden flex flex-col max-h-[90vh]">
+          <div className="w-full max-w-md rounded-2xl border border-white/10 bg-[#14161f] shadow-2xl shadow-black/60 overflow-hidden flex flex-col max-h-[90vh]">
             <div className="shrink-0 flex items-center justify-between px-5 pt-4 pb-3">
               <h2 className="text-base font-semibold text-white">Game Details</h2>
               <button
@@ -3875,6 +4204,15 @@ export default function AnalysisPage() {
               </button>
             </div>
             <div className="overflow-y-auto space-y-2.5 px-5 py-4">
+              {/* Analysis label — DB-only organizing metadata, distinguishes saved copies
+                  of the same game; never embedded in the pgn text like the fields below. */}
+              <input
+                type="text"
+                placeholder={'Analysis label (optional) — e.g. "Sicilian sideline"'}
+                value={labelDraft}
+                onChange={e => setLabelDraft(e.target.value)}
+                className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-gray-200 placeholder-gray-600 outline-none transition-colors focus:border-amber-400/40"
+              />
               {/* White / Black rows */}
               {(['white', 'black'] as const).map(color => (
                 <div key={color} className="flex gap-2">
@@ -3901,7 +4239,7 @@ export default function AnalysisPage() {
                 className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-gray-200 outline-none transition-colors focus:border-amber-400/40"
               >
                 {[['*', 'No Result (*)'], ['1-0', 'White wins (1-0)'], ['0-1', 'Black wins (0-1)'], ['1/2-1/2', 'Draw (½-½)']].map(([v, l]) => (
-                  <option key={v} value={v} className="bg-[#0f1117]">{l}</option>
+                  <option key={v} value={v} className="bg-[#14161f]">{l}</option>
                 ))}
               </select>
               {/* Single-line fields */}
@@ -3976,7 +4314,7 @@ export default function AnalysisPage() {
                 className="flex-1 rounded-lg border border-white/10 py-2 text-sm font-medium text-gray-300 transition-colors hover:border-white/20 hover:text-white">
                 Cancel
               </button>
-              <button type="button" onClick={() => { setGameDetails(gameDetailsDraft); setShowGameDetailsModal(false); }}
+              <button type="button" onClick={() => { setGameDetails(gameDetailsDraft); setAnalysisLabel(labelDraft); setShowGameDetailsModal(false); }}
                 className="flex-1 rounded-lg bg-amber-500 py-2 text-sm font-semibold text-black transition-colors hover:bg-amber-400">
                 Save
               </button>
@@ -3987,8 +4325,12 @@ export default function AnalysisPage() {
 
       {/* Overwrite Saved Analysis confirmation modal */}
       {showOverwriteConfirm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={() => setShowOverwriteConfirm(false)}>
-          <div className="w-80 rounded-xl border border-white/10 bg-[#14161f] p-5 shadow-2xl" onClick={e => e.stopPropagation()}>
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
+          onMouseDown={overwriteConfirmBackdrop.onMouseDown}
+          onClick={overwriteConfirmBackdrop.onClick}
+        >
+          <div className="w-80 rounded-xl border border-white/10 bg-[#14161f] p-5 shadow-2xl">
             <h2 className="text-base font-semibold text-white">Overwrite Saved Analysis?</h2>
             <p className="mt-1.5 text-sm text-gray-400">This will replace the saved version with your current changes. This can&apos;t be undone.</p>
             <div className="mt-5 flex gap-2">
@@ -4013,8 +4355,12 @@ export default function AnalysisPage() {
 
       {/* New Analysis confirmation modal */}
       {showNewAnalysisModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={() => setShowNewAnalysisModal(false)}>
-          <div className="w-80 rounded-xl border border-white/10 bg-[#14161f] p-5 shadow-2xl" onClick={e => e.stopPropagation()}>
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
+          onMouseDown={newAnalysisModalBackdrop.onMouseDown}
+          onClick={newAnalysisModalBackdrop.onClick}
+        >
+          <div className="w-80 rounded-xl border border-white/10 bg-[#14161f] p-5 shadow-2xl">
             <h2 className="text-base font-semibold text-white">Start New Analysis?</h2>
             <p className="mt-1.5 text-sm text-gray-400">Any unsaved progress will be lost.</p>
             <div className="mt-5 flex gap-2">
