@@ -1445,7 +1445,10 @@ function GameCard({
    *  card get a win/loss edge color for that specific player. */
   highlightUsername?: string;
 }) {
-  const moveCount = useMemo(() => countPlies(game.pgn), [game.pgn]);
+  // The Moves column shows the move-number count (the game's own move list's first
+  // column, e.g. "24") rather than a raw ply count (which would double-count each
+  // pair as 2) — a move is "reached" as soon as White plays it, so this rounds up.
+  const moveCount = useMemo(() => Math.ceil(countPlies(game.pgn) / 2), [game.pgn]);
   const whiteDigit = game.result === '1-0' ? '1' : game.result === '0-1' ? '0' : '½';
   const blackDigit = game.result === '0-1' ? '1' : game.result === '1-0' ? '0' : '½';
   const whiteAccuracyText = game.whiteAccuracy != null ? game.whiteAccuracy.toFixed(1) : '–';
