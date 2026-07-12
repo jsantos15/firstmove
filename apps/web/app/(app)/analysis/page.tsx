@@ -2331,14 +2331,26 @@ export default function AnalysisPage() {
   }, [analyzedGame, currentPlyIndex, baseFen]);
 
   // Derived from exploreTree — placed here because they depend on currentFen.
+  // isExploring specifically means "sitting on a played move" (a real ply to step
+  // back from) — used to gate the Back button. hasExploreLine is broader: true the
+  // moment a tree exists and nav points at any line in it, *including* that line's
+  // own root (plyIndex -1). The two used to be conflated under one flag, which broke
+  // the board/clock the instant navigation returned to a tree's root — at that exact
+  // point currentPlyIndex (frozen since the tree was first created; see goTo/tryMove/
+  // navGoBack etc., none of which touch it once a tree exists) would silently take
+  // back over as the position source, showing a stale, unrelated ply's fen and clock
+  // instead of the actual start of the line.
   const isExploring = exploreTree !== null && exploreNav.plyIndex >= 0;
+  const hasExploreLine = exploreTree !== null && exploreNav.lineId !== null;
 
   function getNavFen(tree: ExploreTree | null, nav: ExploreNav, fallback: string): string {
-    if (!tree || !nav.lineId || nav.plyIndex < 0) return fallback;
+    if (!tree || !nav.lineId) return fallback;
     const line = tree.lines.find(l => l.id === nav.lineId);
-    return line?.moves[nav.plyIndex]?.fen ?? fallback;
+    if (!line) return fallback;
+    if (nav.plyIndex < 0) return getLineStartFen(tree, line);
+    return line.moves[nav.plyIndex]?.fen ?? fallback;
   }
-  const freeExploreFen = isExploring ? getNavFen(exploreTree, exploreNav, currentFen) : null;
+  const freeExploreFen = hasExploreLine ? getNavFen(exploreTree, exploreNav, currentFen) : null;
 
   function getLastExploreMove(tree: ExploreTree | null, nav: ExploreNav): { san: string; prevFen: string } | null {
     if (!tree || !nav.lineId || nav.plyIndex < 0) return null;
@@ -2948,21 +2960,26 @@ export default function AnalysisPage() {
   // TimeControl header) instead of leaving it blank.
   const playerClocks = useMemo(() => {
     if (hideMoveClocks) return { w: null, b: null };
-    // Navigating inside a branch moves exploreNav, not currentPlyIndex (which stays
-    // pinned at the branch point) — reading the top-level pgnClocks array by
-    // currentPlyIndex here was why the clock froze the instant a branch was created.
-    // getActivePath walks the full path (main line prefix + branch moves) so this
-    // stays correct however deep the branch goes.
-    if (isExploring && exploreTree) {
-      return getClocksAtPath(getActivePath(exploreTree, exploreNav));
-    }
-    if (currentPlyIndex < 0) {
+    const startingClocks = () => {
       const startSeconds = importMeta.clockInitial ?? parseTimeControlSeconds(gameDetails.timeControl);
       const startClock = formatClockSeconds(startSeconds);
       return { w: startClock, b: startClock };
+    };
+    // Navigating inside a branch moves exploreNav, not currentPlyIndex (which stays
+    // pinned wherever it was when the tree was first created — nothing that navigates
+    // an existing tree, including returning to a line's own root, ever updates it) —
+    // reading the top-level pgnClocks array by currentPlyIndex here was why the clock
+    // froze the instant a branch was created. getActivePath walks the full path (main
+    // line prefix + branch moves) so this stays correct however deep the branch goes,
+    // and returns [] at a line's root (ply -1), which is exactly when the starting
+    // clock should show — not whatever stale ply currentPlyIndex is still pointing at.
+    if (hasExploreLine && exploreTree) {
+      const path = getActivePath(exploreTree, exploreNav);
+      return path.length === 0 ? startingClocks() : getClocksAtPath(path);
     }
+    if (currentPlyIndex < 0) return startingClocks();
     return getClocksAtPly(pgnClocks, currentPlyIndex);
-  }, [pgnClocks, currentPlyIndex, importMeta.clockInitial, gameDetails.timeControl, hideMoveClocks, isExploring, exploreTree, exploreNav]);
+  }, [pgnClocks, currentPlyIndex, importMeta.clockInitial, gameDetails.timeControl, hideMoveClocks, hasExploreLine, exploreTree, exploreNav]);
 
   // The pgn Save would currently write — derived purely from the actual loaded game
   // state (exploreTree / rawPgn / analyzedGame / baseFen + gameDetails), never from
