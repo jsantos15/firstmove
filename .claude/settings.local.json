@@ -6,7 +6,12 @@
       "Bash(curl -s -o /dev/null -w \"cardinal: %{http_code}\\\\n\" \"https://cdn.jsdelivr.net/gh/lichess-org/lila@master/public/piece/cardinal/wK.svg\")",
       "Bash(perl -i -pe ' *)",
       "Bash(node -e ' *)",
-      "WebFetch(domain:github.com)"
+      "WebFetch(domain:github.com)",
+      "Bash(node verify-scroll.mjs)",
+      "Bash(python3 -c ' *)",
+      "Bash(find /Users/jesantos/Documents/Projects/FirstMove/node_modules/.pnpm/react-chessboard@4.7.3_@types+node@20.19.39_@types+react@19.1.17_react-dom@19.2.4_react@19.2.4__react@19.2.4/node_modules/react-chessboard/dist -iname *.d.ts)",
+      "Bash(npx tsc *)",
+      "Bash(node verify-board-badge.mjs)"
     ]
   }
 }

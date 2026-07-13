@@ -3851,12 +3851,30 @@ export default function AnalysisPage() {
                   </div>
                   {/* Players header row — always visible */}
                   <div className="flex items-center gap-2 border-b border-white/5 px-3 py-2">
-                    <span className="flex-1 truncate text-sm font-medium text-gray-300">
-                      {gameDetails.white || 'White'}
-                      {gameDetails.whiteElo ? ` (${gameDetails.whiteElo})` : ''}
-                      {' – '}
-                      {gameDetails.black || 'Black'}
-                      {gameDetails.blackElo ? ` (${gameDetails.blackElo})` : ''}
+                    <span className="flex flex-1 min-w-0 items-center gap-1 text-sm font-medium text-gray-300">
+                      <span className="truncate">
+                        {gameDetails.white || 'White'}
+                        {gameDetails.whiteElo ? ` (${gameDetails.whiteElo})` : ''}
+                      </span>
+                      {whiteCountry && (
+                        <span
+                          className={`fi fi-${whiteCountry.trim().toLowerCase()} shrink-0 rounded-[1px]`}
+                          style={{ width: '1rem', height: '0.75rem' }}
+                          title={whiteCountry}
+                        />
+                      )}
+                      <span className="shrink-0">–</span>
+                      <span className="truncate">
+                        {gameDetails.black || 'Black'}
+                        {gameDetails.blackElo ? ` (${gameDetails.blackElo})` : ''}
+                      </span>
+                      {blackCountry && (
+                        <span
+                          className={`fi fi-${blackCountry.trim().toLowerCase()} shrink-0 rounded-[1px]`}
+                          style={{ width: '1rem', height: '0.75rem' }}
+                          title={blackCountry}
+                        />
+                      )}
                     </span>
                     <button
                       type="button"
