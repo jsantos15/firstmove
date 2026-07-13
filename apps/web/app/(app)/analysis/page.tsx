@@ -18,6 +18,12 @@ import { enrichGameMove } from '@/lib/client/enrichGameMove';
 import { useAuth } from '@/app/providers';
 import { useUserGames, useSaveUserGame, useDeleteUserGame } from '@/hooks/useUserGames';
 import { InlineSignIn } from '@/components/ui/InlineSignIn';
+import {
+  MoveClassificationIcon,
+  CLASSIFICATION_COLOR,
+  MOVE_LABEL_TEXT_COLOR,
+  UNBADGED_REVIEW_CATEGORIES,
+} from '@/components/ui/MoveClassificationIcon';
 import type { UserGame, UserGameSource } from '@firstmove/supabase';
 import {
   buildAnalyzedGameFromPgn,
@@ -445,18 +451,7 @@ function PlayerRow({
   );
 }
 
-const CLASSIFICATION_DOT: Record<GameReviewCategory, string> = {
-  brilliant: 'bg-cyan-400',
-  great: 'bg-blue-400',
-  book: 'bg-orange-300',
-  best: 'bg-lime-400',
-  excellent: 'bg-green-400',
-  good: 'bg-emerald-300',
-  miss: 'bg-rose-400',
-  inaccuracy: 'bg-yellow-400',
-  mistake: 'bg-orange-400',
-  blunder: 'bg-red-500',
-};
+const CLASSIFICATION_DOT = CLASSIFICATION_COLOR;
 
 function formatPvLine(startFen: string, pvUci: string[], maxMoves = 6): string {
   try {
@@ -952,20 +947,24 @@ function MoveChip({
   onNavigate: (plyIndex: number) => void;
 }) {
   const isActive = item.plyIndex === currentPlyIndex;
-  const dotColor = item.classification ? CLASSIFICATION_DOT[item.classification] : undefined;
+  const category = item.classification;
+  const showBadge = category !== null && !UNBADGED_REVIEW_CATEGORIES.includes(category);
+  const labelColor = showBadge
+    ? MOVE_LABEL_TEXT_COLOR[category]
+    : isActive
+      ? 'text-amber-300'
+      : 'text-gray-300 group-hover:text-white';
 
   return (
     <button
       type="button"
       onClick={() => onNavigate(item.plyIndex)}
-      className={`flex min-w-0 flex-1 items-center gap-1 rounded px-2 py-[5px] font-mono text-[13px] transition-colors ${
-        isActive
-          ? 'bg-amber-400/15 text-amber-300'
-          : 'text-gray-300 hover:bg-white/5 hover:text-white'
+      className={`group flex min-w-0 flex-1 items-center gap-1 rounded px-2 py-[5px] font-mono text-[13px] transition-colors hover:bg-white/5 ${
+        isActive ? 'bg-amber-400/15' : ''
       }`}
     >
-      <span className="truncate">{item.san}</span>
-      {dotColor && <span className={`ml-0.5 h-1.5 w-1.5 shrink-0 rounded-full ${dotColor}`} />}
+      {showBadge && <MoveClassificationIcon category={category} size={16} className="mr-0.5" />}
+      <span className={`truncate ${labelColor}`}>{item.san}</span>
     </button>
   );
 }
@@ -2161,6 +2160,39 @@ function KnightArrow({
   );
 }
 
+// Move-quality badge overlaid on the board itself, at the current ply's destination
+// square — always shown (unlike MoveChip's move-list badge, which hides book/excellent/
+// good/best). Same absolute-overlay pattern as KnightArrow above: an inert boardSize x
+// boardSize layer, sibling to (not inside) the board's own overflow-hidden wrapper, so the
+// badge can overhang the square's corner like chess.com/Chessigma without getting clipped.
+function MoveBoardBadge({
+  square, category, boardSize, flipped,
+}: {
+  square: string; category: GameReviewCategory; boardSize: number; flipped: boolean;
+}) {
+  const sq = boardSize / 8;
+  const file = square.charCodeAt(0) - 97;
+  const rank = Number(square[1]) - 1;
+  const col = flipped ? 7 - file : file;
+  const row = flipped ? rank : 7 - rank;
+  const badgeSize = Math.max(16, Math.min(28, Math.round(sq * 0.4)));
+  const cx = col * sq + sq;
+  const cy = row * sq;
+
+  return (
+    <div
+      style={{
+        position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)',
+        width: boardSize, height: boardSize, pointerEvents: 'none',
+      }}
+    >
+      <div style={{ position: 'absolute', left: cx, top: cy, transform: 'translate(-50%, -50%)' }}>
+        <MoveClassificationIcon category={category} size={badgeSize} className="shadow-[0_1px_4px_rgba(0,0,0,0.5)]" />
+      </div>
+    </div>
+  );
+}
+
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function AnalysisPage() {
@@ -3149,6 +3181,31 @@ export default function AnalysisPage() {
     return styles;
   }, [lastMoveSquares, selectedSquare, legalTargets]);
 
+  // The on-board badge shows every classification (unlike the move-list, which hides
+  // book/excellent/good/best) — but only on the main line: currentPlyIndex stays pinned
+  // at the branch point once exploring (see hasExploreLine usages above), so indexing
+  // analyzedGame.moves by it once inside a branch would label the wrong move entirely,
+  // and branch moves (MoveEntry) don't carry engine classification data to show anyway.
+  const currentBoardBadge = useMemo(() => {
+    if (hasExploreLine || !analyzedGame || currentPlyIndex < 0 || !lastMoveSquares) return null;
+    const move = analyzedGame.moves[currentPlyIndex];
+    if (!move) return null;
+    const category = getAnalyzedGameMoveReviewCategory(move);
+    return category ? { square: lastMoveSquares.to, category } : null;
+  }, [hasExploreLine, analyzedGame, currentPlyIndex, lastMoveSquares]);
+
+  const moveBadgeOverlay = useMemo(() => {
+    if (!currentBoardBadge) return null;
+    return (
+      <MoveBoardBadge
+        square={currentBoardBadge.square}
+        category={currentBoardBadge.category}
+        boardSize={boardSize}
+        flipped={settings.flipBoard}
+      />
+    );
+  }, [currentBoardBadge, boardSize, settings.flipBoard]);
+
   const { lines, bestMoveUci, evalCp: liveEvalCp, depth, isAnalyzing, isDone } = usePositionAnalysis(
     boardFen,
     extendKey,
@@ -3531,7 +3588,7 @@ export default function AnalysisPage() {
             boardSize={boardSize}
             onBoardSizeChange={setBoardSize}
             maxWidth={maxBoardWidth}
-            overlay={knightArrowOverlay}
+            overlay={<>{knightArrowOverlay}{moveBadgeOverlay}</>}
             topBar={
               <div className="flex items-center h-full gap-2">
                 <div className="flex-1 min-w-0 h-full">
