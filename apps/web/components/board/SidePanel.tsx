@@ -11,7 +11,7 @@ export function SidePanel({ topBar, coach, bottomBar, children }: SidePanelProps
   return (
     <div className="w-104 lg:w-114 shrink-0 h-full rounded-xl border border-white/5 bg-(--bg-panel) overflow-hidden flex flex-col">
       {/* Top row — flex so button children can be flex-1 */}
-      <div className="h-15 shrink-0 border-b border-white/5 flex">
+      <div className="h-12 shrink-0 border-b border-white/5 flex">
         {topBar}
       </div>
 

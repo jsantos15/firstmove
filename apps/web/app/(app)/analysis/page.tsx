@@ -519,6 +519,82 @@ function formatEval(cp: number | null): string {
   return (cp >= 0 ? '+' : '') + pawns.toFixed(1);
 }
 
+interface BestMoveRecommendation {
+  san: string;
+  evalCp?: number;
+  category: GameReviewCategory | null;
+}
+
+// The engine-line panel shows the best *continuation* from wherever the board is
+// right now; this answers a different question — for the move that was actually
+// selected, was there something better available at the time? When the played move
+// already was the engine's top choice, that's simply reported back (classification
+// and eval come straight from the move's own already-computed data). Otherwise a
+// synthetic "what if this had been played instead" move is classified through the
+// same getAnalyzedGameMoveReviewCategory logic the move-list badges use — san and
+// afterPlayedEvalCp swapped to the best move's own values, bestMoveSan left equal to
+// itself so the classifier's isBestMove check resolves true and centipawn loss comes
+// out to exactly 0, same as it would if this actually were the played move.
+function getBestMoveRecommendation(move: AnalyzedGameMove | undefined): BestMoveRecommendation | null {
+  if (!move || !move.hasEngineAnalysis) return null;
+  if (!move.bestMoveSan || move.bestMoveSan === move.san) {
+    return { san: move.san, evalCp: move.afterPlayedEvalCp, category: getAnalyzedGameMoveReviewCategory(move) };
+  }
+  const asBestMove: AnalyzedGameMove = {
+    ...move,
+    san: move.bestMoveSan,
+    afterPlayedEvalCp: move.afterBestEvalCp ?? move.afterPlayedEvalCp,
+  };
+  return { san: move.bestMoveSan, evalCp: move.afterBestEvalCp, category: getAnalyzedGameMoveReviewCategory(asBestMove) };
+}
+
+// Sits between the coach bubble and the Engine settings row — only for an imported/
+// pasted game (never open/blank-position analysis), and only for a real, undeviated
+// position (a branch move has no precomputed best-move data of its own to compare
+// against). Reserves height for two text rows: the recommendation itself today, with
+// a second row free for a later "why" explanation alongside it.
+function BestMoveSection({
+  move,
+  isExploringBranch,
+}: {
+  move: AnalyzedGameMove | undefined;
+  isExploringBranch: boolean;
+}) {
+  const rec = useMemo(
+    () => (isExploringBranch ? null : getBestMoveRecommendation(move)),
+    [move, isExploringBranch]
+  );
+  const placeholder = isExploringBranch
+    ? 'Not available while exploring a branch.'
+    : !move
+      ? 'Select a move to see the best continuation.'
+      : 'Analyzing…';
+
+  return (
+    <div className="h-[42px] shrink-0 border-b border-white/5 px-3 flex flex-col justify-center gap-0.5">
+      {rec && rec.category ? (
+        <div className="flex min-w-0 items-center gap-1.5">
+          <MoveClassificationIcon category={rec.category} size={16} />
+          <span className={`shrink-0 text-xs font-semibold ${MOVE_LABEL_TEXT_COLOR[rec.category] ?? 'text-white'}`}>
+            {rec.san}
+          </span>
+          <span className="min-w-0 truncate text-xs text-gray-500">is {GAME_REVIEW_CATEGORY_LABELS[rec.category]}</span>
+          <span className="min-w-0 flex-1" />
+          <span
+            className={`shrink-0 rounded border px-1.5 py-px font-mono text-xs font-bold tabular-nums ${
+              (rec.evalCp ?? 0) >= 0 ? 'border-zinc-500/60 text-white' : 'border-red-400/40 text-red-400'
+            }`}
+          >
+            {formatEval(rec.evalCp ?? null)}
+          </span>
+        </div>
+      ) : (
+        <p className="truncate text-xs text-gray-600">{placeholder}</p>
+      )}
+    </div>
+  );
+}
+
 type ExplorePair = {
   moveNumber: number;
   white: { san: string; idx: number } | null;
@@ -2213,6 +2289,10 @@ export default function AnalysisPage() {
   const activeExploreMoveRef = useRef<HTMLButtonElement | null>(null);
   const [engineSettingsOpen, setEngineSettingsOpen] = useState(false);
   const engineSettingsRef = useRef<HTMLDivElement>(null);
+  // Tracks whether the user has ever manually adjusted the engine-lines slider this
+  // session — until they do, the count auto-defaults contextually (see the effect
+  // below), so it stops overriding their choice the moment they express one.
+  const [engineLinesTouched, setEngineLinesTouched] = useState(false);
   const [exploreTree, setExploreTree] = useState<ExploreTree | null>(null);
   const [exploreNav, setExploreNav] = useState<ExploreNav>({ lineId: null, plyIndex: -1 });
   const [moveContextMenu, setMoveContextMenu] = useState<{ x: number; y: number; lineId: string; plyIndex: number } | null>(null);
@@ -2263,6 +2343,19 @@ export default function AnalysisPage() {
   const { theme, animationDuration, settings, setSettings } = useBoardSettings();
   const { settings: coachSettings } = useCoachSettings();
   const customPieces = useMemo(() => getCustomPieces(settings.pieceSetId), [settings.pieceSetId]);
+
+  // Default engine-line count is contextual: 1 line for an imported/pasted game (the
+  // best-move-recommendation section below already surfaces the single top line, so
+  // a busy 2-3 line panel isn't the useful default there), 2 for open/blank-position
+  // analysis (unchanged from before). Only the *default* is contextual — the moment
+  // the user drags the Lines slider themselves, engineLinesTouched flips true and
+  // this stops overriding their explicit choice for the rest of the session.
+  useEffect(() => {
+    if (engineLinesTouched) return;
+    const isImportedGame = analyzedGame !== null && analyzedGame.moves.length > 0;
+    setSettings({ engineLines: isImportedGame ? 1 : 2 });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [analyzedGame, engineLinesTouched]);
 
   // Cap board size to the available horizontal space so the board shrinks instead
   // of clipping when the viewport is narrow (e.g. DevTools open). The centered
@@ -3691,23 +3784,32 @@ export default function AnalysisPage() {
               </div>
             }
             coach={
-              <CoachBubble
-                feedback={activeCoach}
-                fallbackText={
-                  activeTab === 'explore'
-                    ? lastExploreMove
-                      ? 'Analyzing your move...'
-                      : 'Move pieces freely. The engine arrow shows the best continuation.'
-                    : !analyzedGame
-                      ? 'Import a game to get coach feedback on every move.'
-                      : !hasEngineAnalysis
-                        ? 'Click Analyze to enable move-by-move coach feedback.'
-                        : currentPlyIndex < 0
-                          ? 'Navigate to a move to see coach feedback.'
-                          : 'No specific feedback for this position.'
-                }
-                dark
-              />
+              <>
+                <CoachBubble
+                  feedback={activeCoach}
+                  fallbackText={
+                    activeTab === 'explore'
+                      ? lastExploreMove
+                        ? 'Analyzing your move...'
+                        : 'Move pieces freely. The engine arrow shows the best continuation.'
+                      : !analyzedGame
+                        ? 'Import a game to get coach feedback on every move.'
+                        : !hasEngineAnalysis
+                          ? 'Click Analyze to enable move-by-move coach feedback.'
+                          : currentPlyIndex < 0
+                            ? 'Navigate to a move to see coach feedback.'
+                            : 'No specific feedback for this position.'
+                  }
+                  dark
+                  heightPx={82}
+                />
+                {analyzedGame && analyzedGame.moves.length > 0 && (
+                  <BestMoveSection
+                    move={currentPlyIndex >= 0 ? analyzedGame.moves[currentPlyIndex] : undefined}
+                    isExploringBranch={Boolean(freeExploreFen)}
+                  />
+                )}
+              </>
             }
           >
             {/* ── EXPLORE TAB ─────────────────────────────────────────────── */}
@@ -4108,7 +4210,10 @@ export default function AnalysisPage() {
                           max={3}
                           step={1}
                           value={settings.engineLines}
-                          onChange={e => setSettings({ engineLines: Number(e.target.value) as 1 | 2 | 3 })}
+                          onChange={e => {
+                            setEngineLinesTouched(true);
+                            setSettings({ engineLines: Number(e.target.value) as 1 | 2 | 3 });
+                          }}
                           className="w-full cursor-pointer accent-violet-500"
                         />
                       </div>

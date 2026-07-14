@@ -7,6 +7,11 @@ interface CoachBubbleProps {
   feedback: CoachFeedback | null;
   fallbackText: string;
   dark?: boolean;
+  /** Height (px) of the coach image + speech bubble, dark variant only. Defaults to
+   *  the original 103px — callers that need a more compact panel (e.g. to make room
+   *  for extra content below) can pass a smaller value; both the image and bubble
+   *  stay pinned to this same height so their alignment never drifts apart. */
+  heightPx?: number;
 }
 
 const TONE_STYLES = {
@@ -37,14 +42,14 @@ const TONE_STYLES = {
 } as const;
 
 
-export function CoachBubble({ feedback, fallbackText, dark = false }: CoachBubbleProps) {
+export function CoachBubble({ feedback, fallbackText, dark = false, heightPx = 103 }: CoachBubbleProps) {
   const tone = feedback?.tone ?? 'neutral';
   const styles = TONE_STYLES[tone];
 
   if (dark) {
     return (
       <div className="flex items-start pl-3 pr-3 pt-2 pb-2 gap-2">
-        <div className="relative shrink-0 w-20" style={{ height: '103px' }}>
+        <div className="relative shrink-0 w-20" style={{ height: `${heightPx}px` }}>
           <Image
             src="/coaches/jazmin.png"
             alt="Jazmin, your opening coach"
@@ -57,7 +62,7 @@ export function CoachBubble({ feedback, fallbackText, dark = false }: CoachBubbl
         </div>
         <div
           className="relative min-w-0 flex-1 flex flex-col justify-center rounded-xl bg-white px-3 py-2 shadow-sm"
-          style={{ height: '103px' }}
+          style={{ height: `${heightPx}px` }}
           aria-live="polite"
         >
           <svg
