@@ -16,7 +16,7 @@ export function SidePanel({ topBar, coach, bottomBar, children }: SidePanelProps
       </div>
 
       {/* Coach — sizes to content so the engine section starts immediately below */}
-      <div className="shrink-0 overflow-hidden">
+      <div className="shrink-0 overflow-hidden pt-1">
         {coach}
       </div>
 

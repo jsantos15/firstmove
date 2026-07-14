@@ -567,7 +567,7 @@ function BestMoveSection({
   message: string;
 }) {
   return (
-    <div className="h-[42px] shrink-0 border-b border-white/5 px-3 flex flex-col justify-center gap-0.5">
+    <div className="h-[52px] shrink-0 border-b border-white/5 px-3 flex flex-col justify-center gap-0.5">
       {recommendation && recommendation.category ? (
         <div className="flex min-w-0 items-center gap-1.5">
           <MoveClassificationIcon category={recommendation.category} size={16} />
@@ -3396,14 +3396,17 @@ export default function AnalysisPage() {
   // browsing (isOnBranch false) still has it, so the mode itself never "switches" just
   // because exploreTree exists. A book-classified move draws no arrow at all: an engine
   // preferring something else at that point doesn't make the book move wrong, just a
-  // different (equally fine) way into the same theory.
+  // different (equally fine) way into the same theory. Same for a move that already WAS
+  // the engine's top choice (rec.san === move.san, per getBestMoveRecommendation) — the
+  // arrow would just retrace the move already highlighted as the last move played, so it's
+  // suppressed rather than drawn on top of itself.
   const displayBestMoveUci = useMemo(() => {
     if (!isImportedGameMode || isOnBranch || !analyzedGame || currentPlyIndex < 0) {
       return bestMoveUci;
     }
     const move = analyzedGame.moves[currentPlyIndex];
     const rec = getBestMoveRecommendation(move);
-    if (!rec || rec.category === 'book' || !move?.beforeFen) return null;
+    if (!rec || rec.category === 'book' || !move?.beforeFen || rec.san === move.san) return null;
     try {
       const chess = new Chess(move.beforeFen);
       const result = chess.move(rec.san);
