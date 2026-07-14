@@ -548,48 +548,47 @@ function getBestMoveRecommendation(move: AnalyzedGameMove | undefined): BestMove
   return { san: move.bestMoveSan, evalCp: move.afterBestEvalCp, category: getAnalyzedGameMoveReviewCategory(asBestMove) };
 }
 
-// Sits between the coach bubble and the Engine settings row — only for an imported/
-// pasted game (never open/blank-position analysis), and only for a real, undeviated
-// position (a branch move has no precomputed best-move data of its own to compare
-// against). Reserves height for two text rows: the recommendation itself today, with
-// a second row free for a later "why" explanation alongside it.
+// Sits between the coach bubble and the Engine settings row. Shows the same
+// recommendation the board arrow does — precomputed "what was the best move here" for a
+// real Imported Game position, or a live "what's best to play next" (with a loading spinner
+// until the engine has an answer) for Open Analysis or a genuine branch — so the two never
+// disagree; the caller (which has access to both the precomputed and live data sources)
+// decides which applies and hands down the single already-resolved recommendation. Only
+// rendered at all for a loaded game with moves (see call site). Reserves height for two
+// text rows: the recommendation itself today, with a second row free for a later "why"
+// explanation alongside it.
 function BestMoveSection({
-  move,
-  isExploringBranch,
+  recommendation,
+  loading,
+  message,
 }: {
-  move: AnalyzedGameMove | undefined;
-  isExploringBranch: boolean;
+  recommendation: BestMoveRecommendation | null;
+  loading: boolean;
+  message: string;
 }) {
-  const rec = useMemo(
-    () => (isExploringBranch ? null : getBestMoveRecommendation(move)),
-    [move, isExploringBranch]
-  );
-  const placeholder = isExploringBranch
-    ? 'Not available while exploring a branch.'
-    : !move
-      ? 'Select a move to see the best continuation.'
-      : 'Analyzing…';
-
   return (
     <div className="h-[42px] shrink-0 border-b border-white/5 px-3 flex flex-col justify-center gap-0.5">
-      {rec && rec.category ? (
+      {recommendation && recommendation.category ? (
         <div className="flex min-w-0 items-center gap-1.5">
-          <MoveClassificationIcon category={rec.category} size={16} />
-          <span className={`shrink-0 text-xs font-semibold ${MOVE_LABEL_TEXT_COLOR[rec.category] ?? 'text-white'}`}>
-            {rec.san}
+          <MoveClassificationIcon category={recommendation.category} size={16} />
+          <span className={`shrink-0 text-xs font-semibold ${MOVE_LABEL_TEXT_COLOR[recommendation.category] ?? 'text-white'}`}>
+            {recommendation.san}
           </span>
-          <span className="min-w-0 truncate text-xs text-gray-500">is {GAME_REVIEW_CATEGORY_LABELS[rec.category]}</span>
+          <span className="min-w-0 truncate text-xs text-gray-500">is {GAME_REVIEW_CATEGORY_LABELS[recommendation.category]}</span>
           <span className="min-w-0 flex-1" />
           <span
             className={`shrink-0 rounded border px-1.5 py-px font-mono text-xs font-bold tabular-nums ${
-              (rec.evalCp ?? 0) >= 0 ? 'border-zinc-500/60 text-white' : 'border-red-400/40 text-red-400'
+              (recommendation.evalCp ?? 0) >= 0 ? 'border-zinc-500/60 text-white' : 'border-red-400/40 text-red-400'
             }`}
           >
-            {formatEval(rec.evalCp ?? null)}
+            {formatEval(recommendation.evalCp ?? null)}
           </span>
         </div>
       ) : (
-        <p className="truncate text-xs text-gray-600">{placeholder}</p>
+        <div className="flex min-w-0 items-center gap-1.5 text-gray-600">
+          {loading && <SpinnerIcon className="h-3 w-3 shrink-0" />}
+          <p className="truncate text-xs">{message}</p>
+        </div>
       )}
     </div>
   );
@@ -2470,6 +2469,14 @@ export default function AnalysisPage() {
   // instead of the actual start of the line.
   const isExploring = exploreTree !== null && exploreNav.plyIndex >= 0;
   const hasExploreLine = exploreTree !== null && exploreNav.lineId !== null;
+  // True only when actually standing on a *branch* line (a genuine divergence from the
+  // tree's own main line) — narrower than hasExploreLine, which is also true while just
+  // browsing the main line via the tree (e.g. after playing a move that happened to match
+  // history, which still seeds/uses exploreTree). Used to decide when Imported Game mode's
+  // arrow/best-move section should fall back to live engine data instead of the
+  // precomputed "what was the best move here" history, since only a real branch lacks that
+  // precomputed data — plain main-line tree browsing still has it.
+  const isOnBranch = exploreTree !== null && exploreNav.lineId !== null && exploreNav.lineId !== exploreTree.lines[0]?.id;
 
   function getNavFen(tree: ExploreTree | null, nav: ExploreNav, fallback: string): string {
     if (!tree || !nav.lineId) return fallback;
@@ -2806,7 +2813,11 @@ export default function AnalysisPage() {
   const navCanGoForward = (() => {
     if (!exploreTree || !exploreNav.lineId || exploreNav.plyIndex < 0) return canGoForward;
     const line = exploreTree.lines.find(l => l.id === exploreNav.lineId);
-    return line ? exploreNav.plyIndex < line.moves.length - 1 : false;
+    if (!line) return false;
+    if (exploreNav.plyIndex < line.moves.length - 1) return true;
+    // At a branch's last move, Next now exits it (see navGoForward) — the main line
+    // itself has nowhere further to go, same as before.
+    return line.parentLineId !== null;
   })();
 
   function navGoFirst() {
@@ -2854,9 +2865,21 @@ export default function AnalysisPage() {
     const currentLine = exploreTree.lines.find(l => l.id === exploreNav.lineId)!;
     const nextPly = exploreNav.plyIndex + 1;
     const entry = currentLine.moves[nextPly];
-    if (!entry) return;
-    setExploreNav({ lineId: currentLine.id, plyIndex: nextPly });
-    setLastMoveSquares({ from: entry.from, to: entry.to });
+    if (entry) {
+      setExploreNav({ lineId: currentLine.id, plyIndex: nextPly });
+      setLastMoveSquares({ from: entry.from, to: entry.to });
+      return;
+    }
+    // At the last move of a branch (not the main line, which has nowhere further to go
+    // — same as before) — exit back to the position right before this branch started,
+    // symmetric to navGoBack's exit at a branch's first move.
+    if (currentLine.parentLineId === null) return;
+    const parentPly = currentLine.divergeAtPly - 1;
+    setExploreNav({ lineId: currentLine.parentLineId, plyIndex: parentPly });
+    const parentLine = exploreTree.lines.find(l => l.id === currentLine.parentLineId);
+    const parentEntry = parentPly >= 0 ? parentLine?.moves[parentPly] : null;
+    if (parentEntry) setLastMoveSquares({ from: parentEntry.from, to: parentEntry.to });
+    else setLastMoveSquares(null);
   }
 
   function navGoLast() {
@@ -3367,13 +3390,15 @@ export default function AnalysisPage() {
   // move at the position that was actually selected — the same recommendation
   // BestMoveSection shows — instead of the live engine's best move to play *next* from
   // wherever the board currently sits. That live behavior is what Open Analysis mode
-  // always uses, and what Imported Game mode also falls back to the moment the user
-  // deviates into a branch (freeExploreFen), since a hypothetical branch position has no
-  // precomputed "what was played here" history to compare against. A book-classified
-  // move draws no arrow at all: an engine preferring something else at that point doesn't
-  // make the book move wrong, just a different (equally fine) way into the same theory.
+  // always uses, and what Imported Game mode also falls back to the moment the user is
+  // genuinely on a branch (isOnBranch), since a hypothetical branch position has no
+  // precomputed "what was played here" history to compare against — plain main-line tree
+  // browsing (isOnBranch false) still has it, so the mode itself never "switches" just
+  // because exploreTree exists. A book-classified move draws no arrow at all: an engine
+  // preferring something else at that point doesn't make the book move wrong, just a
+  // different (equally fine) way into the same theory.
   const displayBestMoveUci = useMemo(() => {
-    if (!isImportedGameMode || freeExploreFen || !analyzedGame || currentPlyIndex < 0) {
+    if (!isImportedGameMode || isOnBranch || !analyzedGame || currentPlyIndex < 0) {
       return bestMoveUci;
     }
     const move = analyzedGame.moves[currentPlyIndex];
@@ -3386,14 +3411,19 @@ export default function AnalysisPage() {
     } catch {
       return null;
     }
-  }, [isImportedGameMode, freeExploreFen, analyzedGame, currentPlyIndex, bestMoveUci]);
+  }, [isImportedGameMode, isOnBranch, analyzedGame, currentPlyIndex, bestMoveUci]);
+
+  // Blue while genuinely on a branch (live "best next move," same as Open Analysis) so
+  // it reads visually distinct from the green "what was actually best here" shown for a
+  // real Imported Game position or regular Open Analysis browsing.
+  const bestMoveArrowColor = isOnBranch ? 'rgb(59, 130, 246)' : 'rgb(22, 163, 74)';
 
   const bestMoveArrow = useMemo(
     () =>
       !settings.hideArrows && displayBestMoveUci && displayBestMoveUci.length >= 4 && !isKnightMove(displayBestMoveUci)
-        ? [[displayBestMoveUci.slice(0, 2), displayBestMoveUci.slice(2, 4), 'rgb(22, 163, 74)']]
+        ? [[displayBestMoveUci.slice(0, 2), displayBestMoveUci.slice(2, 4), bestMoveArrowColor]]
         : [],
-    [displayBestMoveUci, settings.hideArrows]
+    [displayBestMoveUci, settings.hideArrows, bestMoveArrowColor]
   );
 
   const knightArrowOverlay = useMemo(() => {
@@ -3402,12 +3432,46 @@ export default function AnalysisPage() {
       <KnightArrow
         from={displayBestMoveUci.slice(0, 2)}
         to={displayBestMoveUci.slice(2, 4)}
-        color="rgb(22, 163, 74)"
+        color={bestMoveArrowColor}
         boardSize={boardSize}
         flipped={settings.flipBoard}
       />
     );
-  }, [displayBestMoveUci, boardSize, settings.flipBoard, settings.hideArrows]);
+  }, [displayBestMoveUci, boardSize, settings.flipBoard, settings.hideArrows, bestMoveArrowColor]);
+
+  // Feeds BestMoveSection — mirrors displayBestMoveUci's own mode/branch logic exactly so
+  // the section and the arrow never disagree: precomputed history for a real Imported Game
+  // position, live engine data (same source the arrow/eval bar use) for Open Analysis or a
+  // genuine branch. Live mode has no "was this good" history to compare against, so it's
+  // always reported as the engine's current top choice rather than classified by loss.
+  const activeBestMoveRecommendation = useMemo((): BestMoveRecommendation | null => {
+    if (isImportedGameMode && !isOnBranch) {
+      if (!analyzedGame || currentPlyIndex < 0) return null;
+      return getBestMoveRecommendation(analyzedGame.moves[currentPlyIndex]);
+    }
+    if (!bestMoveUci || bestMoveUci.length < 4) return null;
+    try {
+      const chess = new Chess(boardFen);
+      const result = chess.move({
+        from: bestMoveUci.slice(0, 2),
+        to: bestMoveUci.slice(2, 4),
+        promotion: (bestMoveUci[4] ?? 'q') as 'q' | 'r' | 'b' | 'n',
+      });
+      return result ? { san: result.san, evalCp: lines[0]?.evalCp ?? liveEvalCp ?? undefined, category: 'best' } : null;
+    } catch {
+      return null;
+    }
+  }, [isImportedGameMode, isOnBranch, analyzedGame, currentPlyIndex, bestMoveUci, boardFen, lines, liveEvalCp]);
+
+  const isBestMoveLive = !isImportedGameMode || isOnBranch;
+  const bestMoveStatusMessage = activeBestMoveRecommendation
+    ? ''
+    : isBestMoveLive
+      ? (settings.engineEnabled ? 'Analyzing…' : 'Turn on the engine to see the best move.')
+      : (!analyzedGame || currentPlyIndex < 0)
+        ? 'Select a move to see the best continuation.'
+        : 'Analyzing…';
+  const bestMoveStatusLoading = isBestMoveLive && !activeBestMoveRecommendation && settings.engineEnabled;
 
   // When a PGN game is loaded and the user makes their first free move, seed the explore
   // tree with the game's history up to the current ply so the full sequence is preserved.
@@ -3839,8 +3903,9 @@ export default function AnalysisPage() {
                 />
                 {analyzedGame && analyzedGame.moves.length > 0 && (
                   <BestMoveSection
-                    move={currentPlyIndex >= 0 ? analyzedGame.moves[currentPlyIndex] : undefined}
-                    isExploringBranch={Boolean(freeExploreFen)}
+                    recommendation={activeBestMoveRecommendation}
+                    loading={bestMoveStatusLoading}
+                    message={bestMoveStatusMessage}
                   />
                 )}
               </>
