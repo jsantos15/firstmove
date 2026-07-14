@@ -3177,6 +3177,15 @@ export default function AnalysisPage() {
   const isChesscomGame = importMeta.source === 'chesscom' || gameDetails.location.toLowerCase().includes('chess.com');
   const isLichessGame = importMeta.source === 'lichess' || gameDetails.location.toLowerCase().includes('lichess');
 
+  // Imported Game mode vs Open Analysis mode — determines whether the board arrow (and
+  // the best-move section) show "what was the best move here" (a real imported game's
+  // own history) or "what's the best move to play next" (free/open exploration). New
+  // Analysis always resets to Open Analysis; reloading a Saved Analysis that started as
+  // an open (manual/pasted) session stays Open Analysis too, since importMeta.source is
+  // persisted with the save — only a game whose source really is Lichess/Chess.com (and,
+  // later, in-app matchmaking) counts, regardless of whether it ended in a decisive result.
+  const isImportedGameMode = isChesscomGame || isLichessGame;
+
   useEffect(() => {
     if (!isChesscomGame && !isLichessGame) return;
     const controller = new AbortController();
@@ -3354,26 +3363,51 @@ export default function AnalysisPage() {
     return exploreCoach;
   }, [activeTab, freeExploreFen, coachByPly, currentPlyIndex, exploreCoach]);
 
+  // In Imported Game mode (Lichess/Chess.com), the board arrow shows what WAS the best
+  // move at the position that was actually selected — the same recommendation
+  // BestMoveSection shows — instead of the live engine's best move to play *next* from
+  // wherever the board currently sits. That live behavior is what Open Analysis mode
+  // always uses, and what Imported Game mode also falls back to the moment the user
+  // deviates into a branch (freeExploreFen), since a hypothetical branch position has no
+  // precomputed "what was played here" history to compare against. A book-classified
+  // move draws no arrow at all: an engine preferring something else at that point doesn't
+  // make the book move wrong, just a different (equally fine) way into the same theory.
+  const displayBestMoveUci = useMemo(() => {
+    if (!isImportedGameMode || freeExploreFen || !analyzedGame || currentPlyIndex < 0) {
+      return bestMoveUci;
+    }
+    const move = analyzedGame.moves[currentPlyIndex];
+    const rec = getBestMoveRecommendation(move);
+    if (!rec || rec.category === 'book' || !move?.beforeFen) return null;
+    try {
+      const chess = new Chess(move.beforeFen);
+      const result = chess.move(rec.san);
+      return result ? `${result.from}${result.to}${result.promotion ?? ''}` : null;
+    } catch {
+      return null;
+    }
+  }, [isImportedGameMode, freeExploreFen, analyzedGame, currentPlyIndex, bestMoveUci]);
+
   const bestMoveArrow = useMemo(
     () =>
-      !settings.hideArrows && bestMoveUci && bestMoveUci.length >= 4 && !isKnightMove(bestMoveUci)
-        ? [[bestMoveUci.slice(0, 2), bestMoveUci.slice(2, 4), 'rgb(22, 163, 74)']]
+      !settings.hideArrows && displayBestMoveUci && displayBestMoveUci.length >= 4 && !isKnightMove(displayBestMoveUci)
+        ? [[displayBestMoveUci.slice(0, 2), displayBestMoveUci.slice(2, 4), 'rgb(22, 163, 74)']]
         : [],
-    [bestMoveUci, settings.hideArrows]
+    [displayBestMoveUci, settings.hideArrows]
   );
 
   const knightArrowOverlay = useMemo(() => {
-    if (settings.hideArrows || !bestMoveUci || !isKnightMove(bestMoveUci)) return null;
+    if (settings.hideArrows || !displayBestMoveUci || !isKnightMove(displayBestMoveUci)) return null;
     return (
       <KnightArrow
-        from={bestMoveUci.slice(0, 2)}
-        to={bestMoveUci.slice(2, 4)}
+        from={displayBestMoveUci.slice(0, 2)}
+        to={displayBestMoveUci.slice(2, 4)}
         color="rgb(22, 163, 74)"
         boardSize={boardSize}
         flipped={settings.flipBoard}
       />
     );
-  }, [bestMoveUci, boardSize, settings.flipBoard, settings.hideArrows]);
+  }, [displayBestMoveUci, boardSize, settings.flipBoard, settings.hideArrows]);
 
   // When a PGN game is loaded and the user makes their first free move, seed the explore
   // tree with the game's history up to the current ply so the full sequence is preserved.
