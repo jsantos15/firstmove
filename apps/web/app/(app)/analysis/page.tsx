@@ -523,6 +523,10 @@ interface BestMoveRecommendation {
   san: string;
   evalCp?: number;
   category: GameReviewCategory | null;
+  /** True when san is simply confirming the move that was actually played (it already
+   * was the engine's top choice) rather than suggesting a different one — Import Game
+   * mode only; getBestMoveRecommendation is the only place that ever sets this. */
+  alreadyPlayed?: boolean;
 }
 
 // The engine-line panel shows the best *continuation* from wherever the board is
@@ -538,7 +542,7 @@ interface BestMoveRecommendation {
 function getBestMoveRecommendation(move: AnalyzedGameMove | undefined): BestMoveRecommendation | null {
   if (!move || !move.hasEngineAnalysis) return null;
   if (!move.bestMoveSan || move.bestMoveSan === move.san) {
-    return { san: move.san, evalCp: move.afterPlayedEvalCp, category: getAnalyzedGameMoveReviewCategory(move) };
+    return { san: move.san, evalCp: move.afterPlayedEvalCp, category: getAnalyzedGameMoveReviewCategory(move), alreadyPlayed: true };
   }
   const asBestMove: AnalyzedGameMove = {
     ...move,
@@ -546,6 +550,79 @@ function getBestMoveRecommendation(move: AnalyzedGameMove | undefined): BestMove
     afterPlayedEvalCp: move.afterBestEvalCp ?? move.afterPlayedEvalCp,
   };
   return { san: move.bestMoveSan, evalCp: move.afterBestEvalCp, category: getAnalyzedGameMoveReviewCategory(asBestMove) };
+}
+
+// Import Game mode phrases the recommendation as retrospective commentary ("X was a
+// better move") rather than the live panel's present-tense "X is Best", since here a
+// move has actually already been played. These are suffixes only — the move itself is
+// already rendered separately as its own colored span to the left (see BestMoveSection),
+// so no phrase repeats it. A large, varied pool — keyed off san+evalCp so the same
+// position always reads the same way, but different positions rarely repeat — stands in
+// for what would otherwise be one flat, repetitive "is Best" sentence read over and over
+// across a whole game review. Split by how large the miss was: BIGGER_EDGE for a
+// genuinely stronger alternative (brilliant/great), SMALL_EDGE for a move that was
+// already fine but not quite the top engine choice (best/excellent/good/book).
+const BIGGER_EDGE_SUFFIXES = [
+  'was a much stronger continuation.',
+  'was significantly better here.',
+  'would have been a far stronger choice.',
+  'was a considerably sharper try.',
+  'packed a lot more punch.',
+  'was clearly the stronger path.',
+  'made a much bigger difference.',
+  'was the decisive continuation here.',
+  'was a far more forcing choice.',
+  'hit much harder.',
+  'was the move that really mattered.',
+  'was a major step up.',
+];
+const SMALL_EDGE_SUFFIXES = [
+  'was a better move.',
+  'was even a better option.',
+  'edged this one out slightly.',
+  'was a touch more accurate.',
+  'was marginally stronger.',
+  'was the more precise choice.',
+  'held a slightly firmer grip.',
+  'was a small step up.',
+  'was a cleaner choice here.',
+  'nudged the evaluation further.',
+  'was slightly more exact.',
+  'kept a small edge.',
+  'was a bit more accurate.',
+  'was the tidier option.',
+  'squeezed out a little more.',
+];
+const ALREADY_BEST_SUFFIXES = [
+  'was the best move here.',
+  'was exactly right.',
+  'was the top choice.',
+  "couldn't be improved on.",
+  'was spot on.',
+  'was the strongest option available.',
+  'was precisely what the position called for.',
+  'nailed it.',
+];
+
+function hashStringToIndex(value: string, modulo: number): number {
+  let hash = 0;
+  for (let i = 0; i < value.length; i++) hash = (hash * 31 + value.charCodeAt(i)) >>> 0;
+  return hash % modulo;
+}
+
+// Returns just the part of the sentence after the move — pair with the move's own
+// colored span (already rendered separately) to read as one continuous sentence.
+function pastTenseBestMoveSuffix(recommendation: BestMoveRecommendation): string {
+  // Book moves get one fixed, plain label instead of the varied pools below — a book
+  // move being "better" or "best" isn't a meaningful judgment, it's just still theory.
+  if (recommendation.category === 'book') return 'is a book move';
+  const key = `${recommendation.san}:${recommendation.evalCp ?? 0}`;
+  const pool = recommendation.alreadyPlayed
+    ? ALREADY_BEST_SUFFIXES
+    : recommendation.category === 'brilliant' || recommendation.category === 'great'
+      ? BIGGER_EDGE_SUFFIXES
+      : SMALL_EDGE_SUFFIXES;
+  return pool[hashStringToIndex(key, pool.length)]!;
 }
 
 // Sits between the coach bubble and the Engine settings row. Shows the same
@@ -561,10 +638,12 @@ function BestMoveSection({
   recommendation,
   loading,
   message,
+  isImportedGameMode,
 }: {
   recommendation: BestMoveRecommendation | null;
   loading: boolean;
   message: string;
+  isImportedGameMode: boolean;
 }) {
   return (
     <div className="h-[52px] shrink-0 border-b border-white/5 px-3 flex flex-col justify-center gap-0.5">
@@ -574,7 +653,9 @@ function BestMoveSection({
           <span className={`shrink-0 text-xs font-semibold ${MOVE_LABEL_TEXT_COLOR[recommendation.category] ?? 'text-white'}`}>
             {recommendation.san}
           </span>
-          <span className="min-w-0 truncate text-xs text-gray-500">is {GAME_REVIEW_CATEGORY_LABELS[recommendation.category]}</span>
+          <span className="min-w-0 truncate text-xs text-gray-500">
+            {isImportedGameMode ? pastTenseBestMoveSuffix(recommendation) : `is ${GAME_REVIEW_CATEGORY_LABELS[recommendation.category]}`}
+          </span>
           <span className="min-w-0 flex-1" />
           <span
             className={`shrink-0 rounded border px-1.5 py-px font-mono text-xs font-bold tabular-nums ${
@@ -3909,6 +3990,7 @@ export default function AnalysisPage() {
                     recommendation={activeBestMoveRecommendation}
                     loading={bestMoveStatusLoading}
                     message={bestMoveStatusMessage}
+                    isImportedGameMode={isImportedGameMode && !isOnBranch}
                   />
                 )}
               </>
