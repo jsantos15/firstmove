@@ -2331,9 +2331,13 @@ function MoveBoardBadge({
   const rank = Number(square[1]) - 1;
   const col = flipped ? 7 - file : file;
   const row = flipped ? rank : 7 - rank;
-  const badgeSize = Math.max(16, Math.min(28, Math.round(sq * 0.4)));
-  const cx = col * sq + sq;
-  const cy = row * sq;
+  const badgeSize = Math.max(32, Math.min(56, Math.round(sq * 0.8)));
+  // Nudged in from the square's exact corner toward its center (by a fraction of the
+  // badge's own size, so it scales naturally) — sitting right on the corner read as too
+  // detached from the piece it's badging.
+  const inset = badgeSize * 0.3;
+  const cx = col * sq + sq - inset;
+  const cy = row * sq + inset;
 
   return (
     <div
