@@ -1193,6 +1193,20 @@ function AnalysisMoveList({
 // rather than jumping straight to the final shape.
 const DOMINANCE_GRAPH_MAX_PAWNS = 10;
 
+// Hex equivalents of the Tailwind bg-* classes CLASSIFICATION_COLOR uses for these five
+// categories — the graph's move-quality dots are plain positioned elements (see below),
+// styled with an inline backgroundColor, so they can't consume a Tailwind class directly.
+// Only the categories explicitly called out as "significant" get a dot; the rest (book/
+// best/excellent/good/inaccuracy) are common enough that marking every one would just
+// clutter the line.
+const DOMINANCE_MARKER_COLORS: Partial<Record<GameReviewCategory, string>> = {
+  brilliant: '#22d3ee', // cyan-400
+  great: '#60a5fa', // blue-400
+  mistake: '#fb923c', // orange-400
+  miss: '#fb7185', // rose-400
+  blunder: '#ef4444', // red-500
+};
+
 function DominanceGraphPanel({
   game,
   currentPlyIndex,
@@ -1214,28 +1228,25 @@ function DominanceGraphPanel({
     return pts;
   }, [game]);
 
-  const header = (
-    <p className="shrink-0 px-3 pt-2 text-xs font-semibold text-white">Dominance</p>
-  );
-
   if (!game || points.length < 2) {
     return (
-      <div className={`flex flex-col ${className}`}>
-        {header}
-        <div className="flex flex-1 items-center justify-center px-4 py-3 text-center">
-          <p className="text-xs leading-5 text-gray-600">
-            {game ? 'Analyzing — the graph fills in as moves are reviewed.' : 'Import and analyze a game to see how the advantage swung.'}
-          </p>
-        </div>
+      <div className={`flex items-center justify-center px-4 py-2 text-center ${className}`}>
+        <p className="text-xs leading-5 text-gray-600">
+          {game ? 'Analyzing — the graph fills in as moves are reviewed.' : 'Import and analyze a game to see how the advantage swung.'}
+        </p>
       </div>
     );
   }
 
   const totalPly = game.moves.length - 1;
   const toX = (ply: number) => (totalPly <= 0 ? 0 : ((ply + 1) / (totalPly + 1)) * 100);
+  // y=0 is the chart's top edge, y=100 its bottom, and the white fill always runs from
+  // the top down to this curve — so a *larger* y (further down) means more of that
+  // column is white. White being ahead (positive cp) must push the curve DOWN, not up,
+  // to read as "more white," matching the eval bar's own positive-is-white convention.
   const toY = (cp: number) => {
     const pawns = Math.max(-DOMINANCE_GRAPH_MAX_PAWNS, Math.min(DOMINANCE_GRAPH_MAX_PAWNS, cp / 100));
-    return 50 - (pawns / DOMINANCE_GRAPH_MAX_PAWNS) * 50;
+    return 50 + (pawns / DOMINANCE_GRAPH_MAX_PAWNS) * 50;
   };
 
   const curve = points.map(p => `${toX(p.ply).toFixed(2)} ${toY(p.evalCp).toFixed(2)}`);
@@ -1245,30 +1256,46 @@ function DominanceGraphPanel({
   const whiteAreaPath = `M ${firstX.toFixed(2)} 0 L ${curve.join(' L ')} L ${lastX.toFixed(2)} 0 Z`;
   const markerX = toX(currentPlyIndex);
 
+  const moveMarkers = game.moves.flatMap(move => {
+    if (!move.hasEngineAnalysis) return [];
+    const category = getAnalyzedGameMoveReviewCategory(move);
+    const color = category ? DOMINANCE_MARKER_COLORS[category] : undefined;
+    if (!category || !color) return [];
+    return [{ ply: move.plyIndex, evalCp: move.afterPlayedEvalCp, color, label: `${move.san} (${GAME_REVIEW_CATEGORY_LABELS[category]})` }];
+  });
+
   return (
-    <div className={`flex flex-col ${className}`}>
-      {header}
-      <div className="min-h-0 flex-1 px-3 py-1.5">
-        <svg
-          viewBox="0 0 100 100"
-          preserveAspectRatio="none"
-          className="h-full w-full cursor-pointer rounded"
-          onClick={e => {
-            const rect = e.currentTarget.getBoundingClientRect();
-            const frac = (e.clientX - rect.left) / rect.width;
-            const ply = Math.round(frac * (totalPly + 1)) - 1;
-            onSelectPly(Math.max(-1, Math.min(totalPly, ply)));
-          }}
-        >
-          <rect x="0" y="0" width="100" height="100" fill="#2a2d3a" />
-          <path d={whiteAreaPath} fill="#e5e5e5" />
-          <path d={linePath} fill="none" stroke="#000" strokeOpacity="0.35" strokeWidth="0.6" vectorEffect="non-scaling-stroke" />
-          <line x1="0" y1="50" x2="100" y2="50" stroke="rgba(0,0,0,0.25)" strokeWidth="0.4" vectorEffect="non-scaling-stroke" />
-          {currentPlyIndex >= -1 && (
-            <line x1={markerX} y1="0" x2={markerX} y2="100" stroke="rgb(245,158,11)" strokeWidth="0.8" vectorEffect="non-scaling-stroke" />
-          )}
-        </svg>
-      </div>
+    <div className={`relative ${className}`}>
+      <svg
+        viewBox="0 0 100 100"
+        preserveAspectRatio="none"
+        className="h-full w-full cursor-pointer rounded"
+        onClick={e => {
+          const rect = e.currentTarget.getBoundingClientRect();
+          const frac = (e.clientX - rect.left) / rect.width;
+          const ply = Math.round(frac * (totalPly + 1)) - 1;
+          onSelectPly(Math.max(-1, Math.min(totalPly, ply)));
+        }}
+      >
+        <rect x="0" y="0" width="100" height="100" fill="#2a2d3a" />
+        <path d={whiteAreaPath} fill="#e5e5e5" />
+        <path d={linePath} fill="none" stroke="#000" strokeOpacity="0.35" strokeWidth="0.6" vectorEffect="non-scaling-stroke" />
+        <line x1="0" y1="50" x2="100" y2="50" stroke="rgba(0,0,0,0.25)" strokeWidth="0.4" vectorEffect="non-scaling-stroke" />
+        {currentPlyIndex >= -1 && (
+          <line x1={markerX} y1="0" x2={markerX} y2="100" stroke="rgb(245,158,11)" strokeWidth="0.8" vectorEffect="non-scaling-stroke" />
+        )}
+      </svg>
+      {/* Move-quality dots are separate positioned elements, not SVG <circle>s — the
+          chart above uses preserveAspectRatio="none" to fill a wide-and-short box, which
+          would squash a plain circle into an ellipse at that aspect ratio. */}
+      {moveMarkers.map(m => (
+        <span
+          key={m.ply}
+          title={m.label}
+          className="pointer-events-none absolute h-[7px] w-[7px] -translate-x-1/2 -translate-y-1/2 rounded-full border border-black/40"
+          style={{ left: `${toX(m.ply)}%`, top: `${toY(m.evalCp)}%`, backgroundColor: m.color }}
+        />
+      ))}
     </div>
   );
 }
@@ -4526,7 +4553,7 @@ export default function AnalysisPage() {
                             game={analyzedGame}
                             currentPlyIndex={currentPlyIndex}
                             onSelectPly={goTo}
-                            className="h-[22%] shrink-0 border-b border-white/5"
+                            className="h-[11%] shrink-0 border-b border-white/5"
                           />
                           <GameReviewReportPanel
                             report={gameReviewReport}
