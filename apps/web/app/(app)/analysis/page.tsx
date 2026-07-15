@@ -29,7 +29,6 @@ import {
   buildAnalyzedGameFromPgn,
   buildGameAnalysisCoachFeedbackFromAnalyzedGameMove,
   buildGameReviewReport,
-  buildGameAnalysisSummaryFeedback,
   GAME_REVIEW_CATEGORIES,
   GAME_REVIEW_CATEGORY_LABELS,
   getAnalyzedGameMoveReviewCategory,
@@ -1186,81 +1185,90 @@ function AnalysisMoveList({
 
 // ─── Session Games List ────────────────────────────────────────────────────────
 
-function GameRecapPanel({
-  summaries,
-  hasEngineAnalysis,
+// Eval-over-time "dominance" graph — white fill from the top down to the eval curve,
+// dark fill below it, so the split point tracks who's better exactly the way Chess.com/
+// Lichess's own game graphs read. Mate/extreme scores are clamped to ±MAX_PAWNS so one
+// spike doesn't flatten the rest of the game's swings into invisibility. Only plots as
+// far as analysis has actually reached (hasEngineAnalysis), so it fills in progressively
+// rather than jumping straight to the final shape.
+const DOMINANCE_GRAPH_MAX_PAWNS = 10;
+
+function DominanceGraphPanel({
+  game,
+  currentPlyIndex,
+  onSelectPly,
+  className = '',
 }: {
-  summaries: CoachFeedback[];
-  hasEngineAnalysis: boolean;
+  game: AnalyzedGame | null;
+  currentPlyIndex: number;
+  onSelectPly: (ply: number) => void;
+  className?: string;
 }) {
-  if (summaries.length === 0) {
+  const points = useMemo(() => {
+    if (!game) return [];
+    const pts: { ply: number; evalCp: number }[] = [{ ply: -1, evalCp: 0 }];
+    for (const move of game.moves) {
+      if (!move.hasEngineAnalysis) break;
+      pts.push({ ply: move.plyIndex, evalCp: move.afterPlayedEvalCp });
+    }
+    return pts;
+  }, [game]);
+
+  const header = (
+    <p className="shrink-0 px-3 pt-2 text-xs font-semibold text-white">Dominance</p>
+  );
+
+  if (!game || points.length < 2) {
     return (
-      <div className="flex flex-1 items-center justify-center px-4 py-3 text-center">
-        <p className="text-xs leading-5 text-gray-600">
-          Import and analyze a game to generate phase and game recap notes.
-        </p>
+      <div className={`flex flex-col ${className}`}>
+        {header}
+        <div className="flex flex-1 items-center justify-center px-4 py-3 text-center">
+          <p className="text-xs leading-5 text-gray-600">
+            {game ? 'Analyzing — the graph fills in as moves are reviewed.' : 'Import and analyze a game to see how the advantage swung.'}
+          </p>
+        </div>
       </div>
     );
   }
 
-  const gameSummary = summaries.find(summary => summary.event.eventType === 'game_summary');
-  const phaseSummaries = summaries.filter(summary => summary.event.eventType === 'phase_summary');
+  const totalPly = game.moves.length - 1;
+  const toX = (ply: number) => (totalPly <= 0 ? 0 : ((ply + 1) / (totalPly + 1)) * 100);
+  const toY = (cp: number) => {
+    const pawns = Math.max(-DOMINANCE_GRAPH_MAX_PAWNS, Math.min(DOMINANCE_GRAPH_MAX_PAWNS, cp / 100));
+    return 50 - (pawns / DOMINANCE_GRAPH_MAX_PAWNS) * 50;
+  };
+
+  const curve = points.map(p => `${toX(p.ply).toFixed(2)} ${toY(p.evalCp).toFixed(2)}`);
+  const linePath = `M ${curve.join(' L ')}`;
+  const lastX = toX(points[points.length - 1]!.ply);
+  const firstX = toX(points[0]!.ply);
+  const whiteAreaPath = `M ${firstX.toFixed(2)} 0 L ${curve.join(' L ')} L ${lastX.toFixed(2)} 0 Z`;
+  const markerX = toX(currentPlyIndex);
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto px-3 py-2">
-      {gameSummary && (
-        <div className="rounded-lg border border-amber-400/15 bg-amber-400/5 px-3 py-2.5">
-          <div className="mb-1.5 flex items-center justify-between gap-2">
-            <span className="text-[10px] font-medium uppercase tracking-wider text-amber-400/70">
-              Game recap
-            </span>
-            {!hasEngineAnalysis && (
-              <span className="text-[10px] font-medium text-gray-500">structure only</span>
-            )}
-          </div>
-          <p className="text-sm font-semibold leading-5 text-white">{gameSummary.title}</p>
-          <p className="mt-1 text-xs leading-5 text-gray-400">{gameSummary.message}</p>
-          <div className="mt-2 grid grid-cols-2 gap-1.5">
-            {typeof gameSummary.variables.bestMoveSan === 'string' && (
-              <div className="rounded border border-white/5 bg-white/3 px-2 py-1.5">
-                <span className="block text-[10px] uppercase tracking-wider text-gray-600">
-                  Best move
-                </span>
-                <span className="font-mono text-xs font-semibold text-emerald-300">
-                  {gameSummary.variables.bestMoveSan}
-                </span>
-              </div>
-            )}
-            {typeof gameSummary.variables.worstMoveSan === 'string' && (
-              <div className="rounded border border-white/5 bg-white/3 px-2 py-1.5">
-                <span className="block text-[10px] uppercase tracking-wider text-gray-600">
-                  Key mistake
-                </span>
-                <span className="font-mono text-xs font-semibold text-rose-300">
-                  {gameSummary.variables.worstMoveSan}
-                </span>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
-      {phaseSummaries.map(summary => (
-        <div
-          key={summary.id}
-          className="rounded-lg border border-white/5 bg-white/[0.02] px-3 py-2"
+    <div className={`flex flex-col ${className}`}>
+      {header}
+      <div className="min-h-0 flex-1 px-3 py-1.5">
+        <svg
+          viewBox="0 0 100 100"
+          preserveAspectRatio="none"
+          className="h-full w-full cursor-pointer rounded"
+          onClick={e => {
+            const rect = e.currentTarget.getBoundingClientRect();
+            const frac = (e.clientX - rect.left) / rect.width;
+            const ply = Math.round(frac * (totalPly + 1)) - 1;
+            onSelectPly(Math.max(-1, Math.min(totalPly, ply)));
+          }}
         >
-          <div className="mb-1 flex items-center justify-between gap-2">
-            <span className="text-[10px] font-medium uppercase tracking-wider text-gray-500">
-              {summary.event.phase ?? 'phase'}
-            </span>
-            <span className="rounded-full border border-white/10 px-2 py-0.5 text-[10px] font-semibold uppercase leading-4 text-gray-500">
-              {summary.label}
-            </span>
-          </div>
-          <p className="text-xs leading-5 text-gray-400">{summary.message}</p>
-        </div>
-      ))}
+          <rect x="0" y="0" width="100" height="100" fill="#2a2d3a" />
+          <path d={whiteAreaPath} fill="#e5e5e5" />
+          <path d={linePath} fill="none" stroke="#000" strokeOpacity="0.35" strokeWidth="0.6" vectorEffect="non-scaling-stroke" />
+          <line x1="0" y1="50" x2="100" y2="50" stroke="rgba(0,0,0,0.25)" strokeWidth="0.4" vectorEffect="non-scaling-stroke" />
+          {currentPlyIndex >= -1 && (
+            <line x1={markerX} y1="0" x2={markerX} y2="100" stroke="rgb(245,158,11)" strokeWidth="0.8" vectorEffect="non-scaling-stroke" />
+          )}
+        </svg>
+      </div>
     </div>
   );
 }
@@ -1268,13 +1276,15 @@ function GameRecapPanel({
 function GameReviewReportPanel({
   report,
   hasEngineAnalysis,
+  className = '',
 }: {
   report: GameReviewReport | null;
   hasEngineAnalysis: boolean;
+  className?: string;
 }) {
   if (!report) {
     return (
-      <div className="flex flex-1 items-center justify-center px-4 py-3 text-center">
+      <div className={`flex items-center justify-center px-4 py-3 text-center ${className}`}>
         <p className="text-xs leading-5 text-gray-600">
           Import and analyze a game to see review categories.
         </p>
@@ -1283,14 +1293,9 @@ function GameReviewReportPanel({
   }
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col overflow-y-auto px-3 py-2">
+    <div className={`flex min-h-0 flex-col overflow-y-auto px-3 py-2 ${className}`}>
       <div className="mb-2 flex items-center justify-between gap-3 border-b border-white/5 pb-2">
-        <div>
-          <p className="text-xs font-semibold text-white">Game Review</p>
-          <p className="mt-0.5 text-[10px] text-gray-600">
-            FirstMove categories, not Chess.com exact scoring
-          </p>
-        </div>
+        <p className="text-xs font-semibold text-white">Game Review</p>
         {!hasEngineAnalysis && (
           <span className="rounded-full border border-white/10 px-2 py-0.5 text-[10px] font-medium text-gray-500">
             needs engine
@@ -2606,18 +2611,6 @@ export default function AnalysisPage() {
     () => analyzedFenEvalMap.get(freeExploreFen ?? currentFen),
     [analyzedFenEvalMap, freeExploreFen, currentFen]
   );
-
-  const summaryFeedbacks = useMemo(() => {
-    if (!analyzedGame) return [];
-    try {
-      return buildGameAnalysisSummaryFeedback({
-        game: analyzedGame,
-        persona: coachSettings.persona,
-      });
-    } catch {
-      return [];
-    }
-  }, [analyzedGame, coachSettings.persona]);
 
   const gameReviewReport = useMemo(() => {
     if (!analyzedGame) return null;
@@ -4522,18 +4515,24 @@ export default function AnalysisPage() {
                           </div>
                         )}
 
-                        {/* Summary — the only Game Review content now; sub-tabs (Summary/Moves) removed */}
-                        <div className="flex flex-1 min-h-0 flex-col overflow-y-auto">
+                        {/* Each section below is a fixed percentage of this flex-1 area's own
+                            height (not the whole right panel — topBar/coach sit above it and
+                            aren't part of this budget), so proportions hold across screen
+                            sizes the same way the reference screenshots did on one screen.
+                            Deliberately not flex-1: whatever's left below these two sections
+                            stays blank, ahead of the static PGN/FEN strip + buttons below. */}
+                        <div className="flex flex-1 min-h-0 flex-col">
+                          <DominanceGraphPanel
+                            game={analyzedGame}
+                            currentPlyIndex={currentPlyIndex}
+                            onSelectPly={goTo}
+                            className="h-[22%] shrink-0 border-b border-white/5"
+                          />
                           <GameReviewReportPanel
                             report={gameReviewReport}
                             hasEngineAnalysis={hasEngineAnalysis}
+                            className="h-[45%] shrink-0"
                           />
-                          {summaryFeedbacks.length > 0 && (
-                            <GameRecapPanel
-                              summaries={summaryFeedbacks}
-                              hasEngineAnalysis={hasEngineAnalysis}
-                            />
-                          )}
                         </div>
 
                       </div>
