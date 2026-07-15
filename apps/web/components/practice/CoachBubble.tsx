@@ -48,7 +48,7 @@ export function CoachBubble({ feedback, fallbackText, dark = false, heightPx = 1
 
   if (dark) {
     return (
-      <div className="flex items-start pl-3 pr-3 pt-2 pb-2 gap-2">
+      <div className="flex items-start pl-1 pr-3 pt-2 pb-2 gap-0.5">
         <div className="relative shrink-0 w-20" style={{ height: `${heightPx}px` }}>
           <Image
             src="/coaches/jazmin.png"
