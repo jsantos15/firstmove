@@ -1207,6 +1207,23 @@ const DOMINANCE_MARKER_COLORS: Partial<Record<GameReviewCategory, string>> = {
   blunder: '#ef4444', // red-500
 };
 
+// Stockfish has nothing to search in a position with no legal moves (checkmate), so it
+// replies with no score at all rather than a mate value — that flows back through
+// enrichGameMove's `?? move.afterPlayedEvalCp` fallback as the neutral default (0),
+// reading as "dead even" instead of a decisive result for whoever just delivered mate.
+// Overridden here rather than trusted from the stored eval, for both the curve and its
+// move-quality dots.
+function dominanceGraphEvalCp(move: AnalyzedGameMove): number {
+  if (move.afterFen) {
+    try {
+      if (new Chess(move.afterFen).isCheckmate()) {
+        return move.playedBy === 'white' ? DOMINANCE_GRAPH_MAX_PAWNS * 100 : -DOMINANCE_GRAPH_MAX_PAWNS * 100;
+      }
+    } catch { /* malformed fen — fall through with the stored eval */ }
+  }
+  return move.afterPlayedEvalCp;
+}
+
 function DominanceGraphPanel({
   game,
   currentPlyIndex,
@@ -1223,7 +1240,7 @@ function DominanceGraphPanel({
     const pts: { ply: number; evalCp: number }[] = [{ ply: -1, evalCp: 0 }];
     for (const move of game.moves) {
       if (!move.hasEngineAnalysis) break;
-      pts.push({ ply: move.plyIndex, evalCp: move.afterPlayedEvalCp });
+      pts.push({ ply: move.plyIndex, evalCp: dominanceGraphEvalCp(move) });
     }
     return pts;
   }, [game]);
@@ -1261,20 +1278,32 @@ function DominanceGraphPanel({
     const category = getAnalyzedGameMoveReviewCategory(move);
     const color = category ? DOMINANCE_MARKER_COLORS[category] : undefined;
     if (!category || !color) return [];
-    return [{ ply: move.plyIndex, evalCp: move.afterPlayedEvalCp, color, label: `${move.san} (${GAME_REVIEW_CATEGORY_LABELS[category]})` }];
+    return [{ ply: move.plyIndex, evalCp: dominanceGraphEvalCp(move), color, label: `${move.san} (${GAME_REVIEW_CATEGORY_LABELS[category]})` }];
   });
+
+  // Selecting a ply from a client X coordinate — shared by click and drag-scrub so
+  // pressing down and moving the pointer (without releasing) scrubs the board live,
+  // not just a single point per click. Cheap: onSelectPly is just goTo, a state update
+  // with no engine/network work, so firing it on every pointermove is fine.
+  const selectFromClientX = (clientX: number, rect: DOMRect) => {
+    const frac = (clientX - rect.left) / rect.width;
+    const ply = Math.round(frac * (totalPly + 1)) - 1;
+    onSelectPly(Math.max(-1, Math.min(totalPly, ply)));
+  };
 
   return (
     <div className={`relative ${className}`}>
       <svg
         viewBox="0 0 100 100"
         preserveAspectRatio="none"
-        className="h-full w-full cursor-pointer rounded"
-        onClick={e => {
-          const rect = e.currentTarget.getBoundingClientRect();
-          const frac = (e.clientX - rect.left) / rect.width;
-          const ply = Math.round(frac * (totalPly + 1)) - 1;
-          onSelectPly(Math.max(-1, Math.min(totalPly, ply)));
+        className="h-full w-full cursor-pointer rounded touch-none"
+        onPointerDown={e => {
+          e.currentTarget.setPointerCapture(e.pointerId);
+          selectFromClientX(e.clientX, e.currentTarget.getBoundingClientRect());
+        }}
+        onPointerMove={e => {
+          if (e.buttons !== 1) return;
+          selectFromClientX(e.clientX, e.currentTarget.getBoundingClientRect());
         }}
       >
         <rect x="0" y="0" width="100" height="100" fill="#2a2d3a" />
