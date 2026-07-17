@@ -8,6 +8,7 @@ import { BoardPanel } from '@/components/board/BoardPanel';
 import { SidePanel } from '@/components/board/SidePanel';
 import { NavBtn } from '@/components/board/NavBtn';
 import { useBoardSettings } from '@/hooks/useBoardSettings';
+import { playMoveSound, unlockMoveSound, keepMoveSoundAwake, stopMoveSoundWake } from '@/lib/moveSound';
 import { usePositionAnalysis, ENGINE_DISPLAY_NAME } from '@/hooks/usePositionAnalysis';
 import { useCoachSettings } from '@/hooks/useCoachSettings';
 import { useOpeningName } from '@/hooks/useOpeningName';
@@ -2527,11 +2528,46 @@ export default function AnalysisPage() {
   totalMovesRef.current = analyzedGame?.moves.length ?? 0;
   const exploreTreeRef = useRef<ExploreTree | null>(null);
   exploreTreeRef.current = exploreTree;
+  const moveSoundEnabledRef = useRef(settings.moveSound);
+  moveSoundEnabledRef.current = settings.moveSound;
+
+  // Primes/keeps the move-sound AudioContext alive across the same user gestures
+  // PracticeBoard listens for, so the very first move's click isn't silently dropped
+  // by the browser's autoplay-gesture requirement.
+  useEffect(() => {
+    if (!settings.moveSound) return;
+
+    const unlock = () => unlockMoveSound(settings.moveSound);
+    const unlockWhenVisible = () => {
+      if (document.visibilityState === 'visible') unlockMoveSound(settings.moveSound);
+    };
+    const keepAwake = () => keepMoveSoundAwake(settings.moveSound);
+    const listenerOptions: AddEventListenerOptions = { passive: true, capture: true };
+    const keyListenerOptions: AddEventListenerOptions = { capture: true };
+
+    window.addEventListener('pointerdown', keepAwake, listenerOptions);
+    window.addEventListener('pointerup', unlock, listenerOptions);
+    window.addEventListener('pointercancel', stopMoveSoundWake, listenerOptions);
+    window.addEventListener('keydown', unlock, keyListenerOptions);
+    window.addEventListener('focus', unlock);
+    document.addEventListener('visibilitychange', unlockWhenVisible);
+
+    return () => {
+      stopMoveSoundWake();
+      window.removeEventListener('pointerdown', keepAwake, { capture: true });
+      window.removeEventListener('pointerup', unlock, { capture: true });
+      window.removeEventListener('pointercancel', stopMoveSoundWake, { capture: true });
+      window.removeEventListener('keydown', unlock, { capture: true });
+      window.removeEventListener('focus', unlock);
+      document.removeEventListener('visibilitychange', unlockWhenVisible);
+    };
+  }, [settings.moveSound]);
 
   const goTo = useCallback((plyIndex: number, game?: AnalyzedGame) => {
     const g = game ?? analyzedGameRef.current;
     if (!g) return;
     const clamped = Math.max(-1, Math.min(plyIndex, g.moves.length - 1));
+    if (clamped !== currentPlyRef.current) playMoveSound(moveSoundEnabledRef.current);
     setCurrentPlyIndex(clamped);
 
     // Move the explore cursor along the tree's main line instead of discarding the
@@ -2957,6 +2993,7 @@ export default function AnalysisPage() {
   function navGoFirst() {
     if (exploreTree && exploreNav.lineId) {
       const mainLine = exploreTree.lines[0]!;
+      if (mainLine.id !== exploreNav.lineId || exploreNav.plyIndex !== -1) playMoveSound(settings.moveSound);
       setExploreNav({ lineId: mainLine.id, plyIndex: -1 });
       setLastMoveSquares(null);
     } else {
@@ -2970,6 +3007,7 @@ export default function AnalysisPage() {
       return;
     }
     const currentLine = exploreTree.lines.find(l => l.id === exploreNav.lineId)!;
+    playMoveSound(settings.moveSound);
     if (exploreNav.plyIndex > 0) {
       const newPly = exploreNav.plyIndex - 1;
       setExploreNav({ lineId: currentLine.id, plyIndex: newPly });
@@ -3000,6 +3038,7 @@ export default function AnalysisPage() {
     const nextPly = exploreNav.plyIndex + 1;
     const entry = currentLine.moves[nextPly];
     if (entry) {
+      playMoveSound(settings.moveSound);
       setExploreNav({ lineId: currentLine.id, plyIndex: nextPly });
       setLastMoveSquares({ from: entry.from, to: entry.to });
       return;
@@ -3008,6 +3047,7 @@ export default function AnalysisPage() {
     // — same as before) — exit back to the position right before this branch started,
     // symmetric to navGoBack's exit at a branch's first move.
     if (currentLine.parentLineId === null) return;
+    playMoveSound(settings.moveSound);
     const parentPly = currentLine.divergeAtPly - 1;
     setExploreNav({ lineId: currentLine.parentLineId, plyIndex: parentPly });
     const parentLine = exploreTree.lines.find(l => l.id === currentLine.parentLineId);
@@ -3021,6 +3061,7 @@ export default function AnalysisPage() {
       const currentLine = exploreTree.lines.find(l => l.id === exploreNav.lineId);
       if (currentLine && currentLine.moves.length > 0) {
         const lastPly = currentLine.moves.length - 1;
+        if (lastPly !== exploreNav.plyIndex) playMoveSound(settings.moveSound);
         setExploreNav({ lineId: currentLine.id, plyIndex: lastPly });
         const entry = currentLine.moves[lastPly];
         if (entry) setLastMoveSquares({ from: entry.from, to: entry.to });
@@ -3643,6 +3684,7 @@ export default function AnalysisPage() {
       const baseNav = seed?.nav ?? exploreNav;
       const rootFen = baseTree?.rootFen ?? currentFen;
       const { tree: newTree, nav: newNav } = applyMoveToTree(baseTree, baseNav, entry, rootFen);
+      playMoveSound(settings.moveSound);
       setExploreTree(newTree);
       setExploreNav(newNav);
       setLastMoveSquares({ from: move.from, to: move.to });
@@ -3672,6 +3714,7 @@ export default function AnalysisPage() {
         lastEntry = entry;
       }
       if (!lastEntry || !workTree) return;
+      playMoveSound(settings.moveSound);
       setExploreTree(workTree);
       setExploreNav(workNav);
       setLastMoveSquares({ from: lastEntry.from, to: lastEntry.to });
@@ -3732,6 +3775,7 @@ export default function AnalysisPage() {
 
   function navigateTo(lineId: string, plyIndex: number) {
     if (!exploreTree) return;
+    if (lineId !== exploreNav.lineId || plyIndex !== exploreNav.plyIndex) playMoveSound(settings.moveSound);
     setExploreNav({ lineId, plyIndex });
     const line = exploreTree.lines.find(l => l.id === lineId);
     const entry = line?.moves[plyIndex];
