@@ -8,7 +8,7 @@ import { BoardPanel } from '@/components/board/BoardPanel';
 import { SidePanel } from '@/components/board/SidePanel';
 import { NavBtn } from '@/components/board/NavBtn';
 import { useBoardSettings } from '@/hooks/useBoardSettings';
-import { playMoveSound, unlockMoveSound, keepMoveSoundAwake, stopMoveSoundWake } from '@/lib/moveSound';
+import { playMoveOrCaptureSound, isCaptureSan, unlockMoveSound, keepMoveSoundAwake, stopMoveSoundWake } from '@/lib/moveSound';
 import { usePositionAnalysis, ENGINE_DISPLAY_NAME } from '@/hooks/usePositionAnalysis';
 import { useCoachSettings } from '@/hooks/useCoachSettings';
 import { useOpeningName } from '@/hooks/useOpeningName';
@@ -2567,7 +2567,9 @@ export default function AnalysisPage() {
     const g = game ?? analyzedGameRef.current;
     if (!g) return;
     const clamped = Math.max(-1, Math.min(plyIndex, g.moves.length - 1));
-    if (clamped !== currentPlyRef.current) playMoveSound(moveSoundEnabledRef.current);
+    if (clamped !== currentPlyRef.current) {
+      playMoveOrCaptureSound(moveSoundEnabledRef.current, clamped >= 0 && isCaptureSan(g.moves[clamped]?.san));
+    }
     setCurrentPlyIndex(clamped);
 
     // Move the explore cursor along the tree's main line instead of discarding the
@@ -2993,7 +2995,8 @@ export default function AnalysisPage() {
   function navGoFirst() {
     if (exploreTree && exploreNav.lineId) {
       const mainLine = exploreTree.lines[0]!;
-      if (mainLine.id !== exploreNav.lineId || exploreNav.plyIndex !== -1) playMoveSound(settings.moveSound);
+      // Landing at plyIndex -1 (the root) is never a move, so always the quiet sound.
+      if (mainLine.id !== exploreNav.lineId || exploreNav.plyIndex !== -1) playMoveOrCaptureSound(settings.moveSound, false);
       setExploreNav({ lineId: mainLine.id, plyIndex: -1 });
       setLastMoveSquares(null);
     } else {
@@ -3007,22 +3010,24 @@ export default function AnalysisPage() {
       return;
     }
     const currentLine = exploreTree.lines.find(l => l.id === exploreNav.lineId)!;
-    playMoveSound(settings.moveSound);
     if (exploreNav.plyIndex > 0) {
       const newPly = exploreNav.plyIndex - 1;
-      setExploreNav({ lineId: currentLine.id, plyIndex: newPly });
       const entry = currentLine.moves[newPly];
+      playMoveOrCaptureSound(settings.moveSound, isCaptureSan(entry?.san));
+      setExploreNav({ lineId: currentLine.id, plyIndex: newPly });
       if (entry) setLastMoveSquares({ from: entry.from, to: entry.to });
     } else {
       // plyIndex === 0 — go to parent or root
       if (currentLine.parentLineId === null) {
+        playMoveOrCaptureSound(settings.moveSound, false);
         setExploreNav({ lineId: currentLine.id, plyIndex: -1 });
         setLastMoveSquares(null);
       } else {
         const parentPly = currentLine.divergeAtPly - 1;
-        setExploreNav({ lineId: currentLine.parentLineId, plyIndex: parentPly });
         const parentLine = exploreTree.lines.find(l => l.id === currentLine.parentLineId);
         const entry = parentPly >= 0 ? parentLine?.moves[parentPly] : null;
+        playMoveOrCaptureSound(settings.moveSound, isCaptureSan(entry?.san));
+        setExploreNav({ lineId: currentLine.parentLineId, plyIndex: parentPly });
         if (entry) setLastMoveSquares({ from: entry.from, to: entry.to });
         else setLastMoveSquares(null);
       }
@@ -3038,7 +3043,7 @@ export default function AnalysisPage() {
     const nextPly = exploreNav.plyIndex + 1;
     const entry = currentLine.moves[nextPly];
     if (entry) {
-      playMoveSound(settings.moveSound);
+      playMoveOrCaptureSound(settings.moveSound, isCaptureSan(entry.san));
       setExploreNav({ lineId: currentLine.id, plyIndex: nextPly });
       setLastMoveSquares({ from: entry.from, to: entry.to });
       return;
@@ -3047,11 +3052,11 @@ export default function AnalysisPage() {
     // — same as before) — exit back to the position right before this branch started,
     // symmetric to navGoBack's exit at a branch's first move.
     if (currentLine.parentLineId === null) return;
-    playMoveSound(settings.moveSound);
     const parentPly = currentLine.divergeAtPly - 1;
-    setExploreNav({ lineId: currentLine.parentLineId, plyIndex: parentPly });
     const parentLine = exploreTree.lines.find(l => l.id === currentLine.parentLineId);
     const parentEntry = parentPly >= 0 ? parentLine?.moves[parentPly] : null;
+    playMoveOrCaptureSound(settings.moveSound, isCaptureSan(parentEntry?.san));
+    setExploreNav({ lineId: currentLine.parentLineId, plyIndex: parentPly });
     if (parentEntry) setLastMoveSquares({ from: parentEntry.from, to: parentEntry.to });
     else setLastMoveSquares(null);
   }
@@ -3061,9 +3066,9 @@ export default function AnalysisPage() {
       const currentLine = exploreTree.lines.find(l => l.id === exploreNav.lineId);
       if (currentLine && currentLine.moves.length > 0) {
         const lastPly = currentLine.moves.length - 1;
-        if (lastPly !== exploreNav.plyIndex) playMoveSound(settings.moveSound);
-        setExploreNav({ lineId: currentLine.id, plyIndex: lastPly });
         const entry = currentLine.moves[lastPly];
+        if (lastPly !== exploreNav.plyIndex) playMoveOrCaptureSound(settings.moveSound, isCaptureSan(entry?.san));
+        setExploreNav({ lineId: currentLine.id, plyIndex: lastPly });
         if (entry) setLastMoveSquares({ from: entry.from, to: entry.to });
       }
     } else {
@@ -3684,7 +3689,7 @@ export default function AnalysisPage() {
       const baseNav = seed?.nav ?? exploreNav;
       const rootFen = baseTree?.rootFen ?? currentFen;
       const { tree: newTree, nav: newNav } = applyMoveToTree(baseTree, baseNav, entry, rootFen);
-      playMoveSound(settings.moveSound);
+      playMoveOrCaptureSound(settings.moveSound, move.captured !== undefined);
       setExploreTree(newTree);
       setExploreNav(newNav);
       setLastMoveSquares({ from: move.from, to: move.to });
@@ -3714,7 +3719,7 @@ export default function AnalysisPage() {
         lastEntry = entry;
       }
       if (!lastEntry || !workTree) return;
-      playMoveSound(settings.moveSound);
+      playMoveOrCaptureSound(settings.moveSound, isCaptureSan(lastEntry.san));
       setExploreTree(workTree);
       setExploreNav(workNav);
       setLastMoveSquares({ from: lastEntry.from, to: lastEntry.to });
@@ -3775,10 +3780,12 @@ export default function AnalysisPage() {
 
   function navigateTo(lineId: string, plyIndex: number) {
     if (!exploreTree) return;
-    if (lineId !== exploreNav.lineId || plyIndex !== exploreNav.plyIndex) playMoveSound(settings.moveSound);
-    setExploreNav({ lineId, plyIndex });
     const line = exploreTree.lines.find(l => l.id === lineId);
     const entry = line?.moves[plyIndex];
+    if (lineId !== exploreNav.lineId || plyIndex !== exploreNav.plyIndex) {
+      playMoveOrCaptureSound(settings.moveSound, isCaptureSan(entry?.san));
+    }
+    setExploreNav({ lineId, plyIndex });
     if (entry) setLastMoveSquares({ from: entry.from, to: entry.to });
     else setLastMoveSquares(null);
   }

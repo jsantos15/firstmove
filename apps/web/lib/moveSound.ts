@@ -1,9 +1,16 @@
 // Synthesized wooden move-click sound, shared by every board surface (Openings
 // practice, Analysis). Module-level so the AudioContext/buffer are created once
 // and reused across boards/remounts instead of per-component.
+//
+// Two distinct sounds, matching the move/capture split every major chess site
+// (Lichess, Chess.com) makes: a soft single "tap" for a quiet move, and a
+// sharper, louder "knock" — an extra bright, fast-decaying transient layered on
+// top of a deeper body — for a capture, standing in for two pieces colliding
+// rather than one piece being placed.
 
 let moveSoundCtx: AudioContext | null = null;
 let moveSoundBuffer: AudioBuffer | null = null;
+let captureSoundBuffer: AudioBuffer | null = null;
 let moveSoundGain: GainNode | null = null;
 let moveSoundWakeSource: OscillatorNode | null = null;
 let moveSoundWakeGain: GainNode | null = null;
@@ -44,6 +51,33 @@ function getMoveSoundBuffer(ctx: AudioContext) {
   return buffer;
 }
 
+function getCaptureSoundBuffer(ctx: AudioContext) {
+  if (captureSoundBuffer && captureSoundBuffer.sampleRate === ctx.sampleRate) {
+    return captureSoundBuffer;
+  }
+
+  const sampleCount = Math.floor(ctx.sampleRate * 0.085);
+  const buffer = ctx.createBuffer(1, sampleCount, ctx.sampleRate);
+  const data = buffer.getChannelData(0);
+  let seed = 0x9e3779b1;
+
+  for (let i = 0; i < sampleCount; i += 1) {
+    const t = i / ctx.sampleRate;
+    seed = (seed * 1664525 + 1013904223) >>> 0;
+    const noise = (seed / 0xffffffff) * 2 - 1;
+    const envelope = Math.exp(-i / (sampleCount * 0.14));
+    // Deeper body than a quiet move (lower fundamental, more of it) plus a
+    // bright, very fast-decaying transient up top — the "knock" of impact.
+    const wood = Math.sin(2 * Math.PI * 175 * t) * 0.2;
+    const clackEnvelope = Math.exp(-i / (sampleCount * 0.025));
+    const clack = Math.sin(2 * Math.PI * 900 * t) * 0.4 * clackEnvelope;
+    data[i] = (noise * 0.9 + wood + clack) * envelope;
+  }
+
+  captureSoundBuffer = buffer;
+  return buffer;
+}
+
 function startMoveSound(ctx: AudioContext) {
   const destination = moveSoundGain;
   if (!destination) return;
@@ -62,12 +96,31 @@ function startMoveSound(ctx: AudioContext) {
   };
 }
 
+function startCaptureSound(ctx: AudioContext) {
+  const destination = moveSoundGain;
+  if (!destination) return;
+
+  const source = ctx.createBufferSource();
+  const filter = ctx.createBiquadFilter();
+  source.buffer = getCaptureSoundBuffer(ctx);
+  filter.type = 'lowpass';
+  filter.frequency.value = 1500;
+  source.connect(filter);
+  filter.connect(destination);
+  source.start(ctx.currentTime + 0.001);
+  source.onended = () => {
+    source.disconnect();
+    filter.disconnect();
+  };
+}
+
 export function unlockMoveSound(enabled: boolean) {
   if (!enabled) return;
 
   try {
     const ctx = getMoveSoundCtx();
     getMoveSoundBuffer(ctx);
+    getCaptureSoundBuffer(ctx);
     if (ctx.state === 'suspended') {
       void ctx.resume().catch(() => {});
     }
@@ -98,6 +151,7 @@ export function keepMoveSoundAwake(enabled: boolean) {
   try {
     const ctx = getMoveSoundCtx();
     getMoveSoundBuffer(ctx);
+    getCaptureSoundBuffer(ctx);
     if (ctx.state === 'suspended') {
       void ctx.resume().catch(() => {});
     }
@@ -138,4 +192,38 @@ export function playMoveSound(enabled: boolean) {
       })
       .catch(() => {});
   } catch {}
+}
+
+export function playCaptureSound(enabled: boolean) {
+  if (!enabled) return;
+
+  try {
+    const ctx = getMoveSoundCtx();
+    getCaptureSoundBuffer(ctx);
+
+    if (ctx.state === 'running') {
+      startCaptureSound(ctx);
+      return;
+    }
+
+    void ctx
+      .resume()
+      .then(() => {
+        if (ctx.state === 'running') startCaptureSound(ctx);
+      })
+      .catch(() => {});
+  } catch {}
+}
+
+/** Convenience wrapper for call sites that already know whether the move was a capture. */
+export function playMoveOrCaptureSound(enabled: boolean, isCapture: boolean) {
+  if (isCapture) playCaptureSound(enabled);
+  else playMoveSound(enabled);
+}
+
+/** SAN unambiguously marks a capture with an "x" (e.g. "Nxe4", "exd5") — the
+ * cheapest capture check when only the SAN string is on hand, no Chess/Move
+ * object required. */
+export function isCaptureSan(san: string | undefined | null): boolean {
+  return typeof san === 'string' && san.includes('x');
 }

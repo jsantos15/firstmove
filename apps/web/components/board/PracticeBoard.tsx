@@ -16,7 +16,7 @@ import {
 } from '@/lib/coachFeedback';
 import { useOpeningPositionEval } from '@/hooks/useOpeningPositionEval';
 import { NavBtn } from './NavBtn';
-import { playMoveSound, unlockMoveSound, keepMoveSoundAwake, stopMoveSoundWake } from '@/lib/moveSound';
+import { playMoveOrCaptureSound, isCaptureSan, unlockMoveSound, keepMoveSoundAwake, stopMoveSoundWake } from '@/lib/moveSound';
 
 export type PracticeMode = 'learn' | 'practice';
 
@@ -175,7 +175,9 @@ export const PracticeBoard = forwardRef<PracticeBoardHandle, PracticeBoardProps>
 
   const navigateTo = (index: number) => {
     const clamped = Math.max(0, Math.min(index, maxNavigableIndex));
-    if (clamped !== displayIndex) playMoveSound(settings.moveSound);
+    if (clamped !== displayIndex) {
+      playMoveOrCaptureSound(settings.moveSound, clamped > 0 && isCaptureSan(moves[clamped - 1]?.san));
+    }
     setViewIndex(clamped === currentMoveIndex ? null : clamped);
   };
 
@@ -312,12 +314,13 @@ export const PracticeBoard = forwardRef<PracticeBoardHandle, PracticeBoardProps>
       const reply = moves[currentMoveIndex];
       if (!reply) return;
       const nextChess = new Chess(chessRef.current.fen());
+      let replyMove;
       try {
-        nextChess.move(reply.san);
+        replyMove = nextChess.move(reply.san);
       } catch {
         return;
       }
-      playMoveSound(settings.moveSound);
+      playMoveOrCaptureSound(settings.moveSound, isCaptureStyleMove(replyMove));
       chessRef.current = nextChess;
       setPosition(nextChess.fen());
       const nextIndex = currentMoveIndex + 1;
@@ -567,7 +570,7 @@ export const PracticeBoard = forwardRef<PracticeBoardHandle, PracticeBoardProps>
         resetWrongMove();
         return false;
       }
-      playMoveSound(settings.moveSound);
+      playMoveOrCaptureSound(settings.moveSound, isCaptureStyleMove(move));
       chessRef.current = baseChess;
       setPosition(baseChess.fen());
       setSelectedSquare(null);
