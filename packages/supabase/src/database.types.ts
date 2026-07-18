@@ -706,6 +706,7 @@ export type Database = {
           black_country: string | null;
           black_elo: string | null;
           black_result: string | null;
+          black_title: string | null;
           clock_increment_seconds: number | null;
           clock_initial_seconds: number | null;
           created_at: string;
@@ -737,6 +738,7 @@ export type Database = {
           white_country: string | null;
           white_elo: string | null;
           white_result: string | null;
+          white_title: string | null;
         };
         Insert: {
           black?: string | null;
@@ -745,6 +747,7 @@ export type Database = {
           black_country?: string | null;
           black_elo?: string | null;
           black_result?: string | null;
+          black_title?: string | null;
           clock_increment_seconds?: number | null;
           clock_initial_seconds?: number | null;
           created_at?: string;
@@ -776,6 +779,7 @@ export type Database = {
           white_country?: string | null;
           white_elo?: string | null;
           white_result?: string | null;
+          white_title?: string | null;
         };
         Update: {
           black?: string | null;
@@ -784,6 +788,7 @@ export type Database = {
           black_country?: string | null;
           black_elo?: string | null;
           black_result?: string | null;
+          black_title?: string | null;
           clock_increment_seconds?: number | null;
           clock_initial_seconds?: number | null;
           created_at?: string;
@@ -815,6 +820,7 @@ export type Database = {
           white_country?: string | null;
           white_elo?: string | null;
           white_result?: string | null;
+          white_title?: string | null;
         };
         Relationships: [];
       };

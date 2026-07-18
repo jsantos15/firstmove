@@ -25,11 +25,13 @@ export interface SaveUserGameInput {
   whiteResult?: string | null;
   whiteAvatarUrl?: string | null;
   whiteCountry?: string | null;
+  whiteTitle?: string | null;
   black?: string | null;
   blackElo?: string | null;
   blackResult?: string | null;
   blackAvatarUrl?: string | null;
   blackCountry?: string | null;
+  blackTitle?: string | null;
   result?: string | null;
   termination?: string | null;
   event?: string | null;
@@ -68,11 +70,13 @@ function toRow(input: SaveUserGameInput, userId: string) {
     white_result: input.whiteResult,
     white_avatar_url: input.whiteAvatarUrl,
     white_country: input.whiteCountry,
+    white_title: input.whiteTitle,
     black: input.black,
     black_elo: input.blackElo,
     black_result: input.blackResult,
     black_avatar_url: input.blackAvatarUrl,
     black_country: input.blackCountry,
+    black_title: input.blackTitle,
     result: input.result,
     termination: input.termination,
     event: input.event,

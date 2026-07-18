@@ -369,9 +369,10 @@ function TimeClassIcon({ timeClass, className = 'h-3.5 w-3.5' }: { timeClass: st
 }
 
 function PlayerRow({
-  name, elo, country, avatar, captured, advantage, clock, isActive, playerColor,
+  name, title, elo, country, avatar, captured, advantage, clock, isActive, playerColor,
 }: {
   name: string;
+  title?: string | null;
   elo?: string;
   country?: string | null;
   avatar?: string | null;
@@ -405,6 +406,7 @@ function PlayerRow({
       {/* Name on top row, material on bottom row */}
       <div className="flex flex-col justify-center gap-1.5 min-w-0 flex-1">
         <div className="flex items-baseline gap-1.5 min-w-0">
+          <TitleBadge title={title} className="self-center" />
           <span className="text-sm font-semibold text-gray-200 truncate leading-none">{name || '—'}</span>
           {elo && <span className="text-xs text-gray-500 shrink-0 leading-none">({elo})</span>}
           {country && (
@@ -1454,6 +1456,9 @@ interface FetchedGame {
    *  read straight from the DB for Saved Analysis) so GameCard can show a flag. */
   whiteCountry?: string | null;
   blackCountry?: string | null;
+  /** FIDE/provider title (GM, IM, WGM, etc.), resolved the same way as country. */
+  whiteTitle?: string | null;
+  blackTitle?: string | null;
 }
 
 function fetchedGameToImportMeta(game: FetchedGame, source: UserGameSource): ImportMeta {
@@ -1475,6 +1480,8 @@ function fetchedGameToImportMeta(game: FetchedGame, source: UserGameSource): Imp
     providerData: game.providerData,
     whiteCountry: game.whiteCountry,
     blackCountry: game.blackCountry,
+    whiteTitle: game.whiteTitle,
+    blackTitle: game.blackTitle,
   };
 }
 
@@ -1505,6 +1512,10 @@ interface ImportMeta {
   blackAvatar?: string | null;
   whiteCountry?: string | null;
   blackCountry?: string | null;
+  /** FIDE/provider title (GM, IM, WGM, etc.), resolved from the same provider
+   *  profile lookup as avatar/country. */
+  whiteTitle?: string | null;
+  blackTitle?: string | null;
   /** The Saved Analysis row this game was loaded from, if any — lets Save update
    *  that same row in place instead of creating a new one. */
   savedGameId?: string;
@@ -1540,6 +1551,8 @@ function userGameToFetchedGame(g: UserGame): FetchedGame {
     label: g.label ?? undefined,
     whiteCountry: g.white_country ?? undefined,
     blackCountry: g.black_country ?? undefined,
+    whiteTitle: g.white_title ?? undefined,
+    blackTitle: g.black_title ?? undefined,
   };
 }
 
@@ -1565,6 +1578,8 @@ function userGameToImportMeta(g: UserGame): ImportMeta {
     blackAvatar: g.black_avatar_url ?? undefined,
     whiteCountry: g.white_country ?? undefined,
     blackCountry: g.black_country ?? undefined,
+    whiteTitle: g.white_title ?? undefined,
+    blackTitle: g.black_title ?? undefined,
     importedUsername: g.imported_username ?? undefined,
     label: g.label ?? undefined,
   };
@@ -1601,27 +1616,39 @@ function matchesTimeClassFilter(rawTimeClass: string | null | undefined, filter:
   return filter === 'all' || normalizeTimeClass(rawTimeClass) === filter;
 }
 
-// Chess.com/Lichess game-list endpoints don't include a player's country on the game
-// itself (only their name/rating) — it lives on the separate public profile endpoint,
-// so list rows need their own lookup rather than reusing the single-game fetch below.
-async function fetchProviderCountry(provider: 'lichess' | 'chesscom', username: string): Promise<string | null> {
-  if (!username) return null;
+// Chess.com/Lichess game-list endpoints don't include a player's country or title on
+// the game itself (only their name/rating) — those live on the separate public profile
+// endpoint, so list rows need their own lookup rather than reusing the single-game
+// fetch below.
+interface ProviderProfileInfo {
+  country: string | null;
+  title: string | null;
+}
+
+async function fetchProviderProfile(provider: 'lichess' | 'chesscom', username: string): Promise<ProviderProfileInfo> {
+  if (!username) return { country: null, title: null };
   try {
     if (provider === 'chesscom') {
       const res = await fetch(`https://api.chess.com/pub/player/${encodeURIComponent(username.toLowerCase())}`);
-      if (!res.ok) return null;
-      const data = await res.json() as { country?: string };
-      return data.country?.split('/').pop()?.toUpperCase() ?? null;
+      if (!res.ok) return { country: null, title: null };
+      const data = await res.json() as { country?: string; title?: string };
+      return {
+        country: data.country?.split('/').pop()?.toUpperCase() ?? null,
+        title: data.title ?? null,
+      };
     }
     const res = await fetch(`https://lichess.org/api/user/${encodeURIComponent(username)}`);
-    if (!res.ok) return null;
-    const data = await res.json() as { profile?: { country?: string } };
+    if (!res.ok) return { country: null, title: null };
+    const data = await res.json() as { profile?: { country?: string }; title?: string };
     const rawCode = data.profile?.country;
     // Lichess uses region-qualified codes for sub-national flags (e.g. "GB-ENG") —
     // take the leading 2-letter country part, same as the single-game fetch does.
-    return rawCode ? rawCode.split('-')[0]!.toUpperCase() : null;
+    return {
+      country: rawCode ? rawCode.split('-')[0]!.toUpperCase() : null,
+      title: data.title ?? null,
+    };
   } catch {
-    return null;
+    return { country: null, title: null };
   }
 }
 
@@ -1636,6 +1663,35 @@ async function fetchProviderCountry(provider: 'lichess' | 'chesscom', username: 
 // Date are sized to fit their own header *labels* ("ACCURACY" etc.), not just their
 // (much narrower) data — that mismatch was what made adjacent headers collide.
 const GAME_ROW_GRID_COLS = 'grid-cols-[22px_minmax(0,170px)_1fr_40px_58px_46px_66px_24px]';
+
+// FIDE/provider titles Chess.com and Lichess both surface on their public profile
+// APIs. Deliberately excludes non-title statuses either provider's `title` field can
+// also return (e.g. Chess.com's "BOT") — those aren't a rank badge and shouldn't be
+// styled like one.
+const TITLE_LABELS: Record<string, string> = {
+  GM: 'Grandmaster',
+  WGM: 'Woman Grandmaster',
+  IM: 'International Master',
+  WIM: 'Woman International Master',
+  FM: 'FIDE Master',
+  WFM: 'Woman FIDE Master',
+  CM: 'Candidate Master',
+  WCM: 'Woman Candidate Master',
+  NM: 'National Master',
+  WNM: 'Woman National Master',
+};
+
+function TitleBadge({ title, className = '' }: { title?: string | null; className?: string }) {
+  if (!title || !(title in TITLE_LABELS)) return null;
+  return (
+    <span
+      className={`shrink-0 rounded-sm bg-amber-500/90 px-1 py-px text-[10px] font-bold leading-none text-black ${className}`}
+      title={TITLE_LABELS[title]}
+    >
+      {title}
+    </span>
+  );
+}
 
 function GameListHeader() {
   return (
@@ -1700,6 +1756,7 @@ function GameCard({
         </div>
 
         <div className="col-start-2 row-start-1 flex min-w-0 items-center gap-1">
+          <TitleBadge title={game.whiteTitle} />
           <span className="truncate text-[13px] font-medium text-gray-200">{game.whiteName}</span>
           {game.whiteRating !== '' && <span className="shrink-0 text-[11px] text-gray-600 font-mono">({game.whiteRating})</span>}
           {game.whiteCountry && (
@@ -1735,6 +1792,7 @@ function GameCard({
         </span>
 
         <div className="col-start-2 row-start-2 flex min-w-0 items-center gap-1">
+          <TitleBadge title={game.blackTitle} />
           <span className="truncate text-[13px] font-medium text-gray-300">{game.blackName}</span>
           {game.blackRating !== '' && <span className="shrink-0 text-[11px] text-gray-600 font-mono">({game.blackRating})</span>}
           {game.blackCountry && (
@@ -1824,31 +1882,37 @@ function ImportModal({
   const [ccError, setCcError] = useState<string | null>(null);
   const ccMonthBackRef = useRef(0);
 
-  // Country lookups are cached per (provider, username) across both the initial load
-  // and any "Load more" pages, so the same opponent appearing in several games (or
+  // Country/title lookups are cached per (provider, username) across both the initial
+  // load and any "Load more" pages, so the same opponent appearing in several games (or
   // pages) only costs one profile fetch for the life of this modal instance.
-  const countryCacheRef = useRef<Map<string, string | null>>(new Map());
+  const profileCacheRef = useRef<Map<string, ProviderProfileInfo>>(new Map());
   const isMountedRef = useRef(true);
   useEffect(() => () => { isMountedRef.current = false; }, []);
 
-  function applyCachedCountries(games: FetchedGame[], provider: 'lichess' | 'chesscom'): FetchedGame[] {
-    const cache = countryCacheRef.current;
-    return games.map(g => ({
-      ...g,
-      whiteCountry: g.whiteCountry ?? cache.get(`${provider}:${g.whiteName.toLowerCase()}`),
-      blackCountry: g.blackCountry ?? cache.get(`${provider}:${g.blackName.toLowerCase()}`),
-    }));
+  function applyCachedProfiles(games: FetchedGame[], provider: 'lichess' | 'chesscom'): FetchedGame[] {
+    const cache = profileCacheRef.current;
+    return games.map(g => {
+      const white = cache.get(`${provider}:${g.whiteName.toLowerCase()}`);
+      const black = cache.get(`${provider}:${g.blackName.toLowerCase()}`);
+      return {
+        ...g,
+        whiteCountry: g.whiteCountry ?? white?.country,
+        blackCountry: g.blackCountry ?? black?.country,
+        whiteTitle: g.whiteTitle ?? white?.title,
+        blackTitle: g.blackTitle ?? black?.title,
+      };
+    });
   }
 
-  // Fires after a batch of games loads — resolves country for whichever names in that
-  // batch aren't already cached, then patches the flags into state once they land.
-  // Doesn't block the initial render: cards show without a flag until this resolves.
-  async function enrichGamesWithCountry(
+  // Fires after a batch of games loads — resolves country/title for whichever names in
+  // that batch aren't already cached, then patches them into state once they land.
+  // Doesn't block the initial render: cards show without a flag/title until this resolves.
+  async function enrichGamesWithProfiles(
     provider: 'lichess' | 'chesscom',
     games: FetchedGame[],
     setGames: React.Dispatch<React.SetStateAction<FetchedGame[]>>,
   ) {
-    const cache = countryCacheRef.current;
+    const cache = profileCacheRef.current;
     const names = new Set<string>();
     for (const g of games) {
       names.add(g.whiteName.toLowerCase());
@@ -1856,15 +1920,15 @@ function ImportModal({
     }
     const toFetch = Array.from(names).filter(n => n && !cache.has(`${provider}:${n}`));
     if (toFetch.length === 0) {
-      setGames(prev => applyCachedCountries(prev, provider));
+      setGames(prev => applyCachedProfiles(prev, provider));
       return;
     }
     await Promise.allSettled(toFetch.map(async name => {
-      const code = await fetchProviderCountry(provider, name);
-      cache.set(`${provider}:${name}`, code);
+      const info = await fetchProviderProfile(provider, name);
+      cache.set(`${provider}:${name}`, info);
     }));
     if (!isMountedRef.current) return;
-    setGames(prev => applyCachedCountries(prev, provider));
+    setGames(prev => applyCachedProfiles(prev, provider));
   }
 
   // Prefill the last username this signed-in user searched for on each provider,
@@ -1944,7 +2008,7 @@ function ImportModal({
       const analyzableGames = games.filter(g => isAnalyzableVariant(g.variant));
       if (reset) setLichessGames(analyzableGames);
       else setLichessGames(prev => [...prev, ...analyzableGames]);
-      void enrichGamesWithCountry('lichess', analyzableGames, setLichessGames);
+      void enrichGamesWithProfiles('lichess', analyzableGames, setLichessGames);
     } catch (e) {
       setLichessError(e instanceof Error ? e.message : 'Failed to load games');
     } finally {
@@ -2014,7 +2078,7 @@ function ImportModal({
       const analyzableGames = games.filter(g => isAnalyzableVariant(g.variant));
       if (reset) setCcGames(analyzableGames);
       else setCcGames(prev => [...prev, ...analyzableGames]);
-      void enrichGamesWithCountry('chesscom', analyzableGames, setCcGames);
+      void enrichGamesWithProfiles('chesscom', analyzableGames, setCcGames);
     } catch (e) {
       setCcError(e instanceof Error ? e.message : 'Failed to load games');
     } finally {
@@ -2455,6 +2519,8 @@ export default function AnalysisPage() {
   const [blackAvatar, setBlackAvatar] = useState<string | null>(null);
   const [whiteCountry, setWhiteCountry] = useState<string | null>(null);
   const [blackCountry, setBlackCountry] = useState<string | null>(null);
+  const [whiteTitle, setWhiteTitle] = useState<string | null>(null);
+  const [blackTitle, setBlackTitle] = useState<string | null>(null);
   const [showGameDetailsModal, setShowGameDetailsModal] = useState(false);
   const [gameDetailsDraft, setGameDetailsDraft] = useState<GameDetails>(EMPTY_GAME_DETAILS);
   // User-editable label distinguishing saved copies of the same game — DB-only
@@ -2755,6 +2821,8 @@ export default function AnalysisPage() {
       setBlackAvatar(meta.blackAvatar ?? null);
       setWhiteCountry(meta.whiteCountry ?? null);
       setBlackCountry(meta.blackCountry ?? null);
+      setWhiteTitle(meta.whiteTitle ?? null);
+      setBlackTitle(meta.blackTitle ?? null);
       setAnalysisLabel(meta.label ?? '');
 
       // Orient the board with the imported Lichess/Chess.com user's pieces at the
@@ -2826,11 +2894,13 @@ export default function AnalysisPage() {
       whiteResult: importMeta.whiteResult,
       whiteAvatarUrl: whiteAvatar ?? undefined,
       whiteCountry: whiteCountry ?? undefined,
+      whiteTitle: whiteTitle ?? undefined,
       black: gameDetails.black || undefined,
       blackElo: gameDetails.blackElo || undefined,
       blackResult: importMeta.blackResult,
       blackAvatarUrl: blackAvatar ?? undefined,
       blackCountry: blackCountry ?? undefined,
+      blackTitle: blackTitle ?? undefined,
       result: gameDetails.result && gameDetails.result !== '*' ? gameDetails.result : undefined,
       termination: gameDetails.termination || undefined,
       event: gameDetails.event || undefined,
@@ -2900,6 +2970,8 @@ export default function AnalysisPage() {
     setBlackAvatar(null);
     setWhiteCountry(null);
     setBlackCountry(null);
+    setWhiteTitle(null);
+    setBlackTitle(null);
     setImportMeta(EMPTY_IMPORT_META);
     setAnalysisLabel('');
     setActiveTab('explore');
@@ -3215,6 +3287,8 @@ export default function AnalysisPage() {
         setBlackAvatar(null);
         setWhiteCountry(null);
         setBlackCountry(null);
+        setWhiteTitle(null);
+        setBlackTitle(null);
         setImportMeta(EMPTY_IMPORT_META);
         setAnalysisLabel('');
       } catch {
@@ -3253,6 +3327,8 @@ export default function AnalysisPage() {
         setBlackAvatar(null);
         setWhiteCountry(null);
         setBlackCountry(null);
+        setWhiteTitle(null);
+        setBlackTitle(null);
         setImportMeta(EMPTY_IMPORT_META);
         setAnalysisLabel('');
       } catch {
@@ -3393,7 +3469,12 @@ export default function AnalysisPage() {
     if (!isChesscomGame && !isLichessGame) return;
     const controller = new AbortController();
 
-    const fetchChesscomProfile = async (username: string, setAvatar: (url: string | null) => void, setCountry: (code: string | null) => void) => {
+    const fetchChesscomProfile = async (
+      username: string,
+      setAvatar: (url: string | null) => void,
+      setCountry: (code: string | null) => void,
+      setTitle: (title: string | null) => void,
+    ) => {
       if (!username) return;
       try {
         const res = await fetch(
@@ -3401,13 +3482,18 @@ export default function AnalysisPage() {
           { signal: controller.signal }
         );
         if (!res.ok) return;
-        const data = await res.json() as { avatar?: string; country?: string };
+        const data = await res.json() as { avatar?: string; country?: string; title?: string };
         setAvatar(data.avatar ?? null);
         setCountry(data.country?.split('/').pop()?.toUpperCase() ?? null);
+        setTitle(data.title ?? null);
       } catch { /* ignore — network or CORS failure */ }
     };
 
-    const fetchLichessProfile = async (username: string, setCountry: (code: string | null) => void) => {
+    const fetchLichessProfile = async (
+      username: string,
+      setCountry: (code: string | null) => void,
+      setTitle: (title: string | null) => void,
+    ) => {
       if (!username) return;
       try {
         const res = await fetch(
@@ -3415,24 +3501,25 @@ export default function AnalysisPage() {
           { signal: controller.signal }
         );
         if (!res.ok) return;
-        const data = await res.json() as { profile?: { country?: string } };
+        const data = await res.json() as { profile?: { country?: string }; title?: string };
         const rawCode = data.profile?.country;
         // Lichess uses region-qualified codes for sub-national flags (e.g. "GB-ENG") —
         // take the leading 2-letter country part.
         setCountry(rawCode ? rawCode.split('-')[0]!.toUpperCase() : null);
+        setTitle(data.title ?? null);
       } catch { /* ignore — network or CORS failure */ }
     };
 
-    // Skip the live re-fetch for a player whose avatar/country was already restored
-    // from a previous Save (importMeta) — trusts persisted data instead of depending
-    // on a fresh network round-trip every time a saved game is reloaded.
+    // Skip the live re-fetch for a player whose avatar/country/title was already
+    // restored from a previous Save (importMeta) — trusts persisted data instead of
+    // depending on a fresh network round-trip every time a saved game is reloaded.
     if (isChesscomGame) {
-      if (!importMeta.whiteAvatar) fetchChesscomProfile(gameDetails.white, setWhiteAvatar, setWhiteCountry);
-      if (!importMeta.blackAvatar) fetchChesscomProfile(gameDetails.black, setBlackAvatar, setBlackCountry);
+      if (!importMeta.whiteAvatar) fetchChesscomProfile(gameDetails.white, setWhiteAvatar, setWhiteCountry, setWhiteTitle);
+      if (!importMeta.blackAvatar) fetchChesscomProfile(gameDetails.black, setBlackAvatar, setBlackCountry, setBlackTitle);
     } else {
-      // Lichess has no avatar/profile-picture feature — only country is available.
-      if (!importMeta.whiteCountry) fetchLichessProfile(gameDetails.white, setWhiteCountry);
-      if (!importMeta.blackCountry) fetchLichessProfile(gameDetails.black, setBlackCountry);
+      // Lichess has no avatar/profile-picture feature — only country/title are available.
+      if (!importMeta.whiteCountry) fetchLichessProfile(gameDetails.white, setWhiteCountry, setWhiteTitle);
+      if (!importMeta.blackCountry) fetchLichessProfile(gameDetails.black, setBlackCountry, setBlackTitle);
     }
     return () => controller.abort();
   }, [
@@ -3973,6 +4060,7 @@ export default function AnalysisPage() {
                 <div className="flex-1 min-w-0 h-full">
                   <PlayerRow
                     name={settings.flipBoard ? (gameDetails.white || 'White') : (gameDetails.black || 'Black')}
+                    title={settings.flipBoard ? whiteTitle : blackTitle}
                     elo={settings.flipBoard ? gameDetails.whiteElo : gameDetails.blackElo}
                     country={settings.flipBoard ? whiteCountry : blackCountry}
                     avatar={settings.flipBoard ? whiteAvatar : blackAvatar}
@@ -3992,6 +4080,7 @@ export default function AnalysisPage() {
                 <div className="flex-1 min-w-0">
                   <PlayerRow
                     name={settings.flipBoard ? (gameDetails.black || 'Black') : (gameDetails.white || 'White')}
+                    title={settings.flipBoard ? blackTitle : whiteTitle}
                     elo={settings.flipBoard ? gameDetails.blackElo : gameDetails.whiteElo}
                     country={settings.flipBoard ? blackCountry : whiteCountry}
                     avatar={settings.flipBoard ? blackAvatar : whiteAvatar}
