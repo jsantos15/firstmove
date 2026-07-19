@@ -15,6 +15,9 @@ scripts/output/*.tmp
 scripts/output/backups/
 temp
 
+# Generated accuracy-research engine-eval cache (large, reproducible from samples/)
+scripts/accuracy-research/output/
+
 # Environment files — never commit real secrets
 .env
 .env.local

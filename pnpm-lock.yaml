@@ -30,6 +30,9 @@ importers:
       prettier:
         specifier: ^3.3.0
         version: 3.8.2
+      stockfish:
+        specifier: 18.0.8
+        version: 18.0.8
       turbo:
         specifier: ^2.3.0
         version: 2.9.6
@@ -4292,6 +4295,10 @@ packages:
 
   stockfish@17.1.0:
     resolution: {integrity: sha512-LvxdOzngaMjwdDKkZML4riABX9EWUkIE2ZJUsNvR2yFnM4WLiM6ggEXcBY8v53dK7uAfbxdJFcBiKTIQyGg6Zg==}
+    hasBin: true
+
+  stockfish@18.0.8:
+    resolution: {integrity: sha512-z+f2UMPXLylDBGjv9e9zU8QulY7hUl8MYHesLRrdddewlOXjJrUSmtNmbtID1/F72EPhq0CCkCNxgWS5MQVWtQ==}
     hasBin: true
 
   stop-iteration-iterator@1.1.0:
@@ -9770,6 +9777,8 @@ snapshots:
   statuses@2.0.2: {}
 
   stockfish@17.1.0: {}
+
+  stockfish@18.0.8: {}
 
   stop-iteration-iterator@1.1.0:
     dependencies:
