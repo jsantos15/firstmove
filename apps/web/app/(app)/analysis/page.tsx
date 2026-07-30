@@ -3574,17 +3574,22 @@ export default function AnalysisPage() {
   }, [lastMoveSquares, selectedSquare, legalTargets]);
 
   // The on-board badge shows every classification (unlike the move-list, which hides
-  // book/excellent/good/best) — but only on the main line: currentPlyIndex stays pinned
-  // at the branch point once exploring (see hasExploreLine usages above), so indexing
-  // analyzedGame.moves by it once inside a branch would label the wrong move entirely,
-  // and branch moves (MoveEntry) don't carry engine classification data to show anyway.
+  // book/excellent/good/best) — gated on isOnBranch (not hasExploreLine), since
+  // hasExploreLine is also true while just browsing the tree's own main line, and those
+  // are still real analyzed moves that should keep their badge. currentPlyIndex stays
+  // pinned at the branch point once exploring (see hasExploreLine usages above), so once
+  // a tree exists the actual current ply on the main line comes from exploreNav.plyIndex
+  // instead (line 0's moves mirror analyzedGame.moves 1:1 — see buildSeedTree). Genuine
+  // branch moves (MoveEntry) don't carry engine classification data to show, hence isOnBranch.
   const currentBoardBadge = useMemo(() => {
-    if (hasExploreLine || !analyzedGame || currentPlyIndex < 0 || !lastMoveSquares) return null;
-    const move = analyzedGame.moves[currentPlyIndex];
+    if (isOnBranch || !analyzedGame || !lastMoveSquares) return null;
+    const plyIndex = hasExploreLine ? exploreNav.plyIndex : currentPlyIndex;
+    if (plyIndex < 0) return null;
+    const move = analyzedGame.moves[plyIndex];
     if (!move) return null;
     const category = getAnalyzedGameMoveReviewCategory(move);
     return category ? { square: lastMoveSquares.to, category } : null;
-  }, [hasExploreLine, analyzedGame, currentPlyIndex, lastMoveSquares]);
+  }, [isOnBranch, hasExploreLine, exploreNav, analyzedGame, currentPlyIndex, lastMoveSquares]);
 
   const moveBadgeOverlay = useMemo(() => {
     if (!currentBoardBadge) return null;
@@ -3987,8 +3992,23 @@ export default function AnalysisPage() {
       }
     }
 
+    // Line 0 (this function only ever renders tree.lines[0]) mirrors analyzedGame.moves
+    // 1:1 by ply index (see buildSeedTree) — so even though MoveEntry itself carries no
+    // classification, the original analyzed move at the same ply does, and main-line
+    // moves should keep their badge exactly like the flat (non-tree) AnalysisMoveList
+    // does. Real branch moves (rendered separately via renderBranchContent) have no
+    // analyzed counterpart and correctly stay unbadged.
+    function cellCategory(ply: number): GameReviewCategory | null {
+      const move = analyzedGame?.moves[ply];
+      return move ? getAnalyzedGameMoveReviewCategory(move) : null;
+    }
+
     const rows: React.ReactNode[] = [];
     for (const pair of pairs) {
+      const whiteCategory = pair.white ? cellCategory(pair.white.ply) : null;
+      const whiteShowBadge = whiteCategory !== null && !UNBADGED_REVIEW_CATEGORIES.includes(whiteCategory);
+      const blackCategory = pair.black ? cellCategory(pair.black.ply) : null;
+      const blackShowBadge = blackCategory !== null && !UNBADGED_REVIEW_CATEGORIES.includes(blackCategory);
       rows.push(
         <div key={`ml-${pair.moveNum}-${pair.white?.ply ?? 'bx'}`} className="flex items-center">
           <span className="w-8 shrink-0 text-right font-mono text-[13px] text-gray-600 pr-1">{pair.moveNum}.</span>
@@ -3998,20 +4018,26 @@ export default function AnalysisPage() {
                 ref={nav.lineId === line.id && nav.plyIndex === pair.white.ply ? activeExploreMoveRef : undefined}
                 onClick={() => navigateTo(line.id, pair.white!.ply)}
                 onContextMenu={e => { e.preventDefault(); e.stopPropagation(); setMoveContextMenu({ x: e.clientX, y: e.clientY, lineId: line.id, plyIndex: pair.white!.ply }); }}
-                className={`flex min-w-0 flex-1 items-center rounded px-2 py-[5px] font-mono text-[13px] transition-colors ${
+                className={`flex min-w-0 flex-1 items-center gap-1 rounded px-2 py-[5px] font-mono text-[13px] transition-colors ${
                   nav.lineId === line.id && nav.plyIndex === pair.white.ply
                     ? 'bg-amber-400/15 text-amber-300' : 'text-gray-200 hover:bg-white/5 hover:text-white'
-                }`}>{pair.white.san}</button>
+                }`}>
+                {whiteShowBadge && <MoveClassificationIcon category={whiteCategory} size={16} className="mr-0.5" />}
+                {pair.white.san}
+              </button>
             ) : <span className="flex-1" />}
             {pair.black ? (
               <button type="button"
                 ref={nav.lineId === line.id && nav.plyIndex === pair.black.ply ? activeExploreMoveRef : undefined}
                 onClick={() => navigateTo(line.id, pair.black!.ply)}
                 onContextMenu={e => { e.preventDefault(); e.stopPropagation(); setMoveContextMenu({ x: e.clientX, y: e.clientY, lineId: line.id, plyIndex: pair.black!.ply }); }}
-                className={`flex min-w-0 flex-1 items-center rounded px-2 py-[5px] font-mono text-[13px] transition-colors ${
+                className={`flex min-w-0 flex-1 items-center gap-1 rounded px-2 py-[5px] font-mono text-[13px] transition-colors ${
                   nav.lineId === line.id && nav.plyIndex === pair.black.ply
                     ? 'bg-amber-400/15 text-amber-300' : 'text-gray-200 hover:bg-white/5 hover:text-white'
-                }`}>{pair.black.san}</button>
+                }`}>
+                {blackShowBadge && <MoveClassificationIcon category={blackCategory} size={16} className="mr-0.5" />}
+                {pair.black.san}
+              </button>
             ) : <span className="flex-1" />}
           </div>
         </div>

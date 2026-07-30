@@ -41,7 +41,8 @@ const PRIMARY_DATASET = { file: 'category-breakdowns.json', label: 'kik1n (prima
 const HELDOUT_DATASET = { file: 'category-breakdowns_MagnusCarlsen.json', label: 'MagnusCarlsen (held-out)' };
 
 const depthArg = process.argv.find(a => a.startsWith('--depth='));
-const DEPTH = depthArg ? Number(depthArg.split('=')[1]) : 16;
+const DEPTH = depthArg ? Number(depthArg.split('=')[1]) : 20;
+const THREADS = 8;
 
 // ─── Parsing ────────────────────────────────────────────────────────────────
 
@@ -67,8 +68,14 @@ function loadDataset({ file, label }) {
 
 // ─── Engine ─────────────────────────────────────────────────────────────────
 
+// Multi-threaded "lite" build -- same net Chess.com's own game-review engine
+// uses ("SF 17.1/18 lite"), just single-threaded in this package by default.
+// On this 24-core machine, 8 threads takes a sharp tactical position from
+// 77s to ~1s at depth 24 (verified directly against Lichess/Chess.com's own
+// analysis, which found a forced mate depth-16 single-threaded search missed
+// entirely -- see scripts/accuracy-research/README.md).
 async function createEngine() {
-  const engine = await initEngine('lite-single');
+  const engine = await initEngine('lite');
   let resolveCurrent = null;
   let bestScoreCp = null;
   let currentFenSide = 'w';
@@ -88,6 +95,10 @@ async function createEngine() {
       r(bestScoreCp);
     }
   };
+
+  engine.sendCommand('uci');
+  engine.sendCommand(`setoption name Threads value ${THREADS}`);
+  engine.sendCommand('setoption name Hash value 256');
 
   return {
     evalFen(fen, depth) {

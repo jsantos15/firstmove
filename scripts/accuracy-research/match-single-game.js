@@ -17,7 +17,7 @@ const { Chess } = require('chess.js');
 const SAMPLES_DIR = path.join(__dirname, 'samples');
 const CACHE_PATH = path.join(__dirname, 'output', 'evals-cache.json');
 const EXPLORER_CACHE_PATH = path.join(__dirname, 'output', 'lichess-explorer-cache.json');
-const DEPTH = 16;
+const DEPTH = 20;
 
 // Current calibrated params (count-level fits — the baseline being tested).
 const BOOK_THRESHOLD = 250000;

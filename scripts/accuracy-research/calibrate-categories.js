@@ -54,7 +54,7 @@ const { Chess } = require('chess.js');
 const SAMPLES_DIR = path.join(__dirname, 'samples');
 const CACHE_PATH = path.join(__dirname, 'output', 'evals-cache.json');
 const EXPLORER_CACHE_PATH = path.join(__dirname, 'output', 'lichess-explorer-cache.json');
-const DEPTH = 16;
+const DEPTH = 20;
 
 const PRIMARY_DATASET = { file: 'category-breakdowns.json', label: 'kik1n (primary fit set)' };
 const HELDOUT_DATASET = { file: 'category-breakdowns_MagnusCarlsen.json', label: 'MagnusCarlsen (held-out)' };

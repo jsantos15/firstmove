@@ -40,7 +40,8 @@ const SAMPLES_DIR = path.join(__dirname, 'samples');
 const EVALS_CACHE_PATH = path.join(__dirname, 'output', 'evals-cache.json');
 const EXPLORER_CACHE_PATH = path.join(__dirname, 'output', 'lichess-explorer-cache.json');
 const BRILLIANT_CACHE_PATH = path.join(__dirname, 'output', 'brilliant-cache.json');
-const DEPTH = 16;
+const DEPTH = 20;
+const THREADS = 8;
 const BOOK_THRESHOLD = 250000;
 
 // Candidate pre-filter — an ENGINE-TIME SAVER ONLY, not a rule. The real rule
@@ -185,7 +186,7 @@ function baitExistedBefore(preFen, baitSquare) {
 // ─── Engine (bestmove + eval, cached by fen+depth) ─────────────────────────
 
 async function createEngine() {
-  const engine = await initEngine('lite-single');
+  const engine = await initEngine('lite');
   let resolveCurrent = null, lastScore = null, currentFenSide = 'w';
   engine.listener = line => {
     if (typeof line !== 'string') return;
@@ -200,6 +201,9 @@ async function createEngine() {
       r({ cpWhite: lastScore, bestmove: line.split(' ')[1] });
     }
   };
+  engine.sendCommand('uci');
+  engine.sendCommand(`setoption name Threads value ${THREADS}`);
+  engine.sendCommand('setoption name Hash value 256');
   return {
     analyzeFen(fen, depth) {
       return new Promise(resolve => {
