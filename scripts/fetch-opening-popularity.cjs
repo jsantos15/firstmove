@@ -14,7 +14,10 @@
 //   node scripts/fetch-opening-popularity.cjs --delay-ms 1200  (slower cadence if desired)
 
 const path = require("path");
-const { loadScriptEnv } = require("./lib/local-env.cjs");
+const {
+  assertLocalPipelineSupabaseUrl,
+  loadScriptEnv,
+} = require("./lib/local-env.cjs");
 const { fetchLichessExplorer } = require("./lib/lichess-explorer.cjs");
 const { Chess } = require("./lib/chess-js.cjs");
 
@@ -27,6 +30,7 @@ if (!SUPABASE_URL || !SERVICE_ROLE_KEY) {
   console.error("Missing NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY in scripts/.env");
   process.exit(1);
 }
+assertLocalPipelineSupabaseUrl(SUPABASE_URL, "fetch-opening-popularity.cjs");
 
 const DEFAULT_DELAY_MS = 800; // matches generate-opening-candidates.cjs default
 

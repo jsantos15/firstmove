@@ -2,7 +2,11 @@
 
 const fs = require("fs");
 const path = require("path");
-const { loadEnvFile, loadScriptEnv } = require("./lib/local-env.cjs");
+const {
+  assertLocalPipelineSupabaseUrl,
+  loadEnvFile,
+  loadScriptEnv,
+} = require("./lib/local-env.cjs");
 
 const DEFAULT_INPUT = path.resolve(
   __dirname,
@@ -92,6 +96,7 @@ async function main() {
       "Missing NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY."
     );
   }
+  assertLocalPipelineSupabaseUrl(supabaseUrl, "import-opening-position-index.cjs");
 
   const headers = {
     "Content-Type": "application/json",

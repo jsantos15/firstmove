@@ -3,7 +3,11 @@
 const { spawnSync } = require("child_process");
 const fs = require("fs");
 const path = require("path");
-const { loadEnvFile, loadScriptEnv } = require("./lib/local-env.cjs");
+const {
+  assertLocalPipelineSupabaseUrl,
+  loadEnvFile,
+  loadScriptEnv,
+} = require("./lib/local-env.cjs");
 
 const OUTPUT_DIR = path.resolve(__dirname, "output");
 const DEFAULT_CLOUD_EVAL_MODE = "authoritative";
@@ -114,6 +118,7 @@ function getEnv() {
   if (!supabaseUrl || !serviceRoleKey) {
     throw new Error("Missing NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY.");
   }
+  assertLocalPipelineSupabaseUrl(supabaseUrl, "run-opening-course-pipeline.cjs");
 
   return {
     supabaseUrl,

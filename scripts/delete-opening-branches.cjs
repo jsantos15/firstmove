@@ -1,7 +1,11 @@
 #!/usr/bin/env node
 
 const path = require("path");
-const { loadEnvFile, loadScriptEnv } = require("./lib/local-env.cjs");
+const {
+  assertLocalPipelineSupabaseUrl,
+  loadEnvFile,
+  loadScriptEnv,
+} = require("./lib/local-env.cjs");
 
 function parseArgs(argv) {
   const args = {
@@ -48,6 +52,7 @@ function getEnv() {
   if (!supabaseUrl || !serviceRoleKey) {
     throw new Error("Missing NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY.");
   }
+  assertLocalPipelineSupabaseUrl(supabaseUrl, "delete-opening-branches.cjs");
 
   return {
     supabaseUrl,

@@ -22,7 +22,10 @@
 //   node scripts/fetch-lichess-popularity.cjs --delay-ms 1200    (slower cadence)
 
 const path = require("path");
-const { loadScriptEnv } = require("./lib/local-env.cjs");
+const {
+  assertLocalPipelineSupabaseUrl,
+  loadScriptEnv,
+} = require("./lib/local-env.cjs");
 const { fetchChessOpeningsDataset, normalizeText } = require("./lib/chess-openings-source.cjs");
 const { fetchLichessExplorer } = require("./lib/lichess-explorer.cjs");
 const { Chess } = require("./lib/chess-js.cjs");
@@ -36,6 +39,7 @@ if (!SUPABASE_URL || !SERVICE_ROLE_KEY) {
   console.error("Missing NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY in scripts/.env");
   process.exit(1);
 }
+assertLocalPipelineSupabaseUrl(SUPABASE_URL, "fetch-lichess-popularity.cjs");
 
 // ─── Args ─────────────────────────────────────────────────────────────────────
 

@@ -38,7 +38,32 @@ function loadScriptEnv() {
   loadEnvFile(path.resolve(__dirname, "..", ".env"));
 }
 
+function isLocalSupabaseUrl(value) {
+  return (
+    typeof value === "string" &&
+    (value.startsWith("http://127.0.0.1:54321") ||
+      value.startsWith("http://localhost:54321"))
+  );
+}
+
+function assertLocalPipelineSupabaseUrl(supabaseUrl, label = "opening pipeline") {
+  if (process.env.FIRSTMOVE_ALLOW_CLOUD_PIPELINE === "1") {
+    return;
+  }
+
+  if (isLocalSupabaseUrl(supabaseUrl)) {
+    return;
+  }
+
+  throw new Error(
+    `${label} refuses to write to non-local Supabase URL: ${
+      supabaseUrl || "missing"
+    }. Set NEXT_PUBLIC_SUPABASE_URL=http://127.0.0.1:54321 and SUPABASE_SERVICE_ROLE_KEY to the local Secret key in scripts/.env, or set FIRSTMOVE_ALLOW_CLOUD_PIPELINE=1 for an intentional cloud write.`
+  );
+}
+
 module.exports = {
+  assertLocalPipelineSupabaseUrl,
   loadEnvFile,
   loadScriptEnv,
 };
