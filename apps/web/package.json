@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "node scripts/copy-stockfish.js && next dev",
+    "dev": "node ../../scripts/configure-local-app-supabase.cjs --check web && node scripts/copy-stockfish.js && next dev",
     "build": "node scripts/copy-stockfish.js && next build",
     "copy-engine": "node scripts/copy-stockfish.js",
     "start": "next start",

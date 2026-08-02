@@ -76,7 +76,9 @@ const OPENING_INTRO_COPY: Record<string, string> = {
   'caro-kann-defense':
     'The Caro-Kann Defense is a solid answer to 1.e4 where Black supports ...d5 with ...c6. It teaches sturdy pawn structures, patient development, and clean counterplay without weakening the king.',
 };
-const OPENING_LIST_CACHE_KEY = 'firstmove:opening-list:v2';
+const SUPABASE_CACHE_NAMESPACE = process.env.NEXT_PUBLIC_SUPABASE_URL ?? 'unconfigured';
+const OPENINGS_QUERY_KEY = ['openings', SUPABASE_CACHE_NAMESPACE] as const;
+const OPENING_LIST_CACHE_KEY = `firstmove:opening-list:v2:${SUPABASE_CACHE_NAMESPACE}`;
 const OPENING_LIST_STALE_TIME_MS = 5 * 60 * 1000;
 const OPENING_LIST_GC_TIME_MS = 24 * 60 * 60 * 1000;
 
@@ -349,7 +351,7 @@ function buildOpeningIndexCard(row: OpeningIndexRow): AppOpening | null {
 export function useOpenings() {
   const queryClient = useQueryClient();
   const query = useQuery<AppOpening[]>({
-    queryKey: ['openings'],
+    queryKey: OPENINGS_QUERY_KEY,
     staleTime: OPENING_LIST_STALE_TIME_MS,
     gcTime: OPENING_LIST_GC_TIME_MS,
     queryFn: async () => {
@@ -367,7 +369,7 @@ export function useOpenings() {
     const cached = readCachedOpeningList();
     if (!cached?.length) return;
 
-    queryClient.setQueryData<AppOpening[]>(['openings'], current => current ?? cached);
+    queryClient.setQueryData<AppOpening[]>(OPENINGS_QUERY_KEY, current => current ?? cached);
   }, [queryClient]);
 
   return query;

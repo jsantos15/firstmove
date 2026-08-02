@@ -4,6 +4,25 @@
 
 ---
 
+## 2026-08-02 - Use local Supabase for the entire app during active development
+
+**Decision:** While the opening-course dataset exceeds the Supabase free-plan
+storage allowance, route the web app, mobile app, opening pipeline, Auth, and all
+other development-time Supabase access to the local Supabase stack. Keep cloud
+credentials only in ignored backup/deployment configuration. Normal app startup
+must validate that its development target is local, and the opening pipeline
+must continue rejecting cloud writes unless explicitly overridden.
+
+**Reason:** Moving only pipeline writes left the app reading stale opening data
+from Supabase Cloud, so newly generated courses could not be exercised through
+the product. A single local backend preserves one coherent runtime source of
+truth during development and avoids the complexity and authentication problems
+of routing different tables through separate Supabase clients. Before launch,
+FirstMove will provision sufficient hosted capacity, migrate the approved local
+dataset, and switch all deployment connections back to Supabase Cloud together.
+
+---
+
 ## 2026-04-10 - Monorepo with Turborepo + pnpm workspaces
 
 **Decision:** Use a Turborepo monorepo with two apps (`apps/web`, `apps/mobile`) and two shared packages (`packages/core`, `packages/supabase`).

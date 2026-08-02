@@ -53,19 +53,19 @@ function requireLocalTarget() {
 
 function requireCloudSource() {
   const webEnv = readEnvFile(
-    path.resolve(__dirname, "..", "apps", "web", ".env.local")
+    path.resolve(__dirname, "..", "apps", "web", ".env.cloud.local")
   );
   const cloudUrl = webEnv.NEXT_PUBLIC_SUPABASE_URL;
   const cloudAnonKey = webEnv.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
   if (!cloudUrl || !cloudAnonKey) {
     throw new Error(
-      "Missing NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_ANON_KEY in apps/web/.env.local."
+      "Missing NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_ANON_KEY in apps/web/.env.cloud.local."
     );
   }
 
   if (cloudUrl.startsWith("http://127.0.0.1:54321")) {
-    throw new Error("Cloud source in apps/web/.env.local points to local Supabase.");
+    throw new Error("Cloud source in apps/web/.env.cloud.local points to local Supabase.");
   }
 
   return { cloudUrl, cloudAnonKey };
