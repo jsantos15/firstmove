@@ -13,6 +13,8 @@ const OUTPUT_DIR = path.resolve(__dirname, "output");
 const DEFAULT_CLOUD_EVAL_MODE = "authoritative";
 const REST_RETRY_ATTEMPTS = 5;
 const REST_RETRY_BASE_DELAY_MS = 750;
+const LOCAL_SUPABASE_START_TIMEOUT_MS = 5 * 60 * 1000;
+const LOCAL_SUPABASE_HEALTH_TIMEOUT_MS = 3000;
 const NON_STANDALONE_COURSE_NAMES = new Set([
   "king's gambit accepted",
   "king's gambit declined",
@@ -147,6 +149,49 @@ function describeFetchError(error) {
   }
   if (error?.cause?.hostname) parts.push(`host=${error.cause.hostname}`);
   return parts.length ? parts.join("; ") : String(error);
+}
+
+async function canReachLocalSupabase(supabaseUrl, headers) {
+  try {
+    await fetch(`${supabaseUrl}/rest/v1/`, {
+      headers,
+      signal: AbortSignal.timeout(LOCAL_SUPABASE_HEALTH_TIMEOUT_MS),
+    });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function ensureLocalSupabaseStarted(env) {
+  if (process.env.FIRSTMOVE_ALLOW_CLOUD_PIPELINE === "1") {
+    return;
+  }
+
+  if (await canReachLocalSupabase(env.supabaseUrl, env.headers)) {
+    return;
+  }
+
+  console.log("Local Supabase is not responding; starting it with `supabase start`...");
+  const result = spawnSync("supabase", ["start"], {
+    cwd: path.resolve(__dirname, ".."),
+    shell: process.platform === "win32",
+    stdio: "inherit",
+    timeout: LOCAL_SUPABASE_START_TIMEOUT_MS,
+  });
+
+  if (result.error) {
+    throw new Error(`Could not start local Supabase: ${result.error.message}`);
+  }
+  if (result.status !== 0) {
+    throw new Error(`Could not start local Supabase; supabase start exited with code ${result.status}.`);
+  }
+
+  if (!(await canReachLocalSupabase(env.supabaseUrl, env.headers))) {
+    throw new Error(
+      `Local Supabase started but ${env.supabaseUrl} is still not responding. Check Docker Desktop and run \`supabase status\`.`
+    );
+  }
 }
 
 async function fetchWithRetry(url, options, label) {
@@ -511,6 +556,7 @@ async function main() {
   }
 
   const env = getEnv();
+  await ensureLocalSupabaseStarted(env);
   if (args.syncPopularityOnly) {
     await patchCatalogPopularityFromIndex(env);
     console.log("SUCCESS: catalog popularity fields synced from opening_index.");
