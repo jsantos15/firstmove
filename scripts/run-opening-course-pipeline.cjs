@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-const { spawnSync } = require("child_process");
+const { spawn, spawnSync } = require("child_process");
 const fs = require("fs");
 const path = require("path");
 const {
@@ -15,6 +15,8 @@ const REST_RETRY_ATTEMPTS = 5;
 const REST_RETRY_BASE_DELAY_MS = 750;
 const LOCAL_SUPABASE_START_TIMEOUT_MS = 5 * 60 * 1000;
 const LOCAL_SUPABASE_HEALTH_TIMEOUT_MS = 3000;
+const DOCKER_START_TIMEOUT_MS = 5 * 60 * 1000;
+const DOCKER_POLL_INTERVAL_MS = 5000;
 const NON_STANDALONE_COURSE_NAMES = new Set([
   "king's gambit accepted",
   "king's gambit declined",
@@ -163,6 +165,69 @@ async function canReachLocalSupabase(supabaseUrl, headers) {
   }
 }
 
+function isDockerReady() {
+  const result = spawnSync("docker", ["info"], {
+    shell: process.platform === "win32",
+    stdio: "ignore",
+    timeout: 10000,
+  });
+  return result.status === 0;
+}
+
+function dockerDesktopPaths() {
+  return [
+    process.env.ProgramFiles &&
+      path.join(process.env.ProgramFiles, "Docker", "Docker", "Docker Desktop.exe"),
+    process.env.ProgramW6432 &&
+      path.join(process.env.ProgramW6432, "Docker", "Docker", "Docker Desktop.exe"),
+    process.env["ProgramFiles(x86)"] &&
+      path.join(process.env["ProgramFiles(x86)"], "Docker", "Docker", "Docker Desktop.exe"),
+    process.env.LOCALAPPDATA &&
+      path.join(process.env.LOCALAPPDATA, "Docker", "Docker Desktop.exe"),
+  ].filter(Boolean);
+}
+
+function startDockerDesktop() {
+  if (process.platform !== "win32") {
+    throw new Error("Docker is not responding. Start Docker, then run the pipeline again.");
+  }
+
+  const executable = dockerDesktopPaths().find((candidate) => fs.existsSync(candidate));
+  if (!executable) {
+    throw new Error(
+      "Docker is not responding, and Docker Desktop was not found in the default Windows install locations."
+    );
+  }
+
+  const child = spawn(executable, [], {
+    detached: true,
+    stdio: "ignore",
+    windowsHide: true,
+  });
+  child.unref();
+}
+
+async function ensureDockerStarted() {
+  if (isDockerReady()) {
+    return;
+  }
+
+  console.log("Docker is not responding; starting Docker Desktop...");
+  startDockerDesktop();
+
+  const deadline = Date.now() + DOCKER_START_TIMEOUT_MS;
+  while (Date.now() < deadline) {
+    await sleep(DOCKER_POLL_INTERVAL_MS);
+    if (isDockerReady()) {
+      return;
+    }
+  }
+
+  throw new Error(
+    "Docker Desktop was started, but Docker did not become ready within 5 minutes. Open Docker Desktop and check its status."
+  );
+}
+
 async function ensureLocalSupabaseStarted(env) {
   if (process.env.FIRSTMOVE_ALLOW_CLOUD_PIPELINE === "1") {
     return;
@@ -171,6 +236,8 @@ async function ensureLocalSupabaseStarted(env) {
   if (await canReachLocalSupabase(env.supabaseUrl, env.headers)) {
     return;
   }
+
+  await ensureDockerStarted();
 
   console.log("Local Supabase is not responding; starting it with `supabase start`...");
   const result = spawnSync("supabase", ["start"], {
