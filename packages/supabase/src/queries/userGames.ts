@@ -155,3 +155,34 @@ export async function deleteUserGame(userId: string, gameId: string): Promise<vo
     .eq('user_id', userId);
   if (error) throw error;
 }
+
+/** Owner-scoped single-game fetch — for reloading `/analysis?id=...` as the signed-in
+ *  owner (e.g. after a refresh or from a bookmark), same shape as a Saved Analysis pick. */
+export async function getUserGameById(userId: string, gameId: string): Promise<UserGame | null> {
+  const { data, error } = await supabase
+    .from('user_games')
+    .select('*')
+    .eq('id', gameId)
+    .eq('user_id', userId)
+    .maybeSingle();
+  if (error) throw error;
+  return data;
+}
+
+/** Public read for a link (`/analysis?id=...`) opened by someone who isn't the owner,
+ *  including signed-out visitors — no user_id filter, relies entirely on the "Anyone can
+ *  view any game by id" RLS policy to scope access. Every saved game is reachable this
+ *  way by design (an unguessable UUID, not a browsable listing — see that policy's
+ *  comment); there's no per-game private/shared toggle. Returns null only when the id
+ *  genuinely doesn't exist. Access here is currently gated on nothing but knowing the id
+ *  — a privilege/subscription check on *viewing* a shared link is planned but belongs in
+ *  the app layer once that model exists, not here. */
+export async function getSharedUserGameById(gameId: string): Promise<UserGame | null> {
+  const { data, error } = await supabase
+    .from('user_games')
+    .select('*')
+    .eq('id', gameId)
+    .maybeSingle();
+  if (error) throw error;
+  return data;
+}

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
+import { useState, useMemo, useEffect, useRef, useCallback, Suspense } from 'react';
 import { Chessboard } from 'react-chessboard';
 import { Chess } from '@firstmove/core';
 import { CoachBubble } from '@/components/practice/CoachBubble';
@@ -17,7 +17,14 @@ import { BoardSettingsPopover } from '@/components/board/BoardSettingsPopover';
 import { AnalysisWorkerPool, workerPoolSize } from '@/lib/client/analysisPool';
 import { enrichGameMove } from '@/lib/client/enrichGameMove';
 import { useAuth } from '@/app/providers';
-import { useUserGames, useSaveUserGame, useDeleteUserGame } from '@/hooks/useUserGames';
+import {
+  useUserGames,
+  useSaveUserGame,
+  useDeleteUserGame,
+  useUserGameById,
+  useSharedUserGame,
+} from '@/hooks/useUserGames';
+import { useRouter, useSearchParams, usePathname } from 'next/navigation';
 import { InlineSignIn } from '@/components/ui/InlineSignIn';
 import {
   MoveClassificationIcon,
@@ -25,6 +32,7 @@ import {
   MOVE_LABEL_TEXT_COLOR,
   UNBADGED_REVIEW_CATEGORIES,
 } from '@/components/ui/MoveClassificationIcon';
+import { getAllOpeningPositionSans } from '@firstmove/supabase';
 import type { UserGame, UserGameSource } from '@firstmove/supabase';
 import {
   buildAnalyzedGameFromPgn,
@@ -2481,7 +2489,27 @@ function MoveBoardBadge({
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
+// useSearchParams() requires a Suspense boundary in the App Router (otherwise the whole
+// route de-opts out of static rendering and Next warns/fails the production build) — the
+// actual page content is unchanged, just wrapped one level down.
 export default function AnalysisPage() {
+  return (
+    <Suspense fallback={null}>
+      <AnalysisPageContent />
+    </Suspense>
+  );
+}
+
+// Every named opening's move sequence — static, shared across every game any session
+// imports, so fetched at most once per page load rather than per-import (see
+// computeBookPlyCount below for how it's used to prefix-match a played game against theory).
+let openingPositionSansCache: Promise<string[][]> | null = null;
+function loadOpeningPositionSans(): Promise<string[][]> {
+  if (!openingPositionSansCache) openingPositionSansCache = getAllOpeningPositionSans();
+  return openingPositionSansCache;
+}
+
+function AnalysisPageContent() {
   const [analyzedGame, setAnalyzedGame] = useState<AnalyzedGame | null>(null);
   const [currentPlyIndex, setCurrentPlyIndex] = useState(-1);
   const [lastMoveSquares, setLastMoveSquares] = useState<{ from: string; to: string } | null>(null);
@@ -2552,6 +2580,24 @@ export default function AnalysisPage() {
   }, [showSaveAsMenu]);
   const { user } = useAuth();
   const saveUserGame = useSaveUserGame();
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const urlGameId = searchParams.get('id') ?? undefined;
+  const { data: ownedUrlGame, isFetched: ownedUrlGameFetched } = useUserGameById(urlGameId);
+  // Passing undefined (not urlGameId) while signed out disables the fetch entirely — the
+  // point of requiresSignInForUrl below is that a signed-out visitor gets nothing back at
+  // all, not just an unrendered response; a real network fetch still returning the full
+  // game to the client would defeat the gate even if the UI never displays it.
+  const { data: sharedUrlGame, isFetched: sharedUrlGameFetched } = useSharedUserGame(user ? urlGameId : undefined);
+  // Every /analysis?id=... open requires being signed in — own game or someone else's
+  // shared link, doesn't matter (RLS's "Anyone can view any game by id" policy doesn't
+  // distinguish; the gate is enforced here, app-side). Plain /analysis (no id — pasting a
+  // PGN, Open Analysis) is unaffected and stays fully usable while signed out, matching
+  // the rest of the app's try-before-signup pattern.
+  const requiresSignInForUrl = !!urlGameId && !user;
+  const [urlLoadNotFound, setUrlLoadNotFound] = useState(false);
+  const [pendingUrlPosition, setPendingUrlPosition] = useState<{ move: number; line: number; flip: boolean | null } | null>(null);
   const { theme, animationDuration, settings, setSettings } = useBoardSettings();
   const { settings: coachSettings } = useCoachSettings();
   const customPieces = useMemo(() => getCustomPieces(settings.pieceSetId), [settings.pieceSetId]);
@@ -2594,6 +2640,8 @@ export default function AnalysisPage() {
   totalMovesRef.current = analyzedGame?.moves.length ?? 0;
   const exploreTreeRef = useRef<ExploreTree | null>(null);
   exploreTreeRef.current = exploreTree;
+  const isEngineRunningRef = useRef(false);
+  isEngineRunningRef.current = isEngineRunning;
   const moveSoundEnabledRef = useRef(settings.moveSound);
   moveSoundEnabledRef.current = settings.moveSound;
 
@@ -2672,6 +2720,7 @@ export default function AnalysisPage() {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLInputElement) return;
+      if (isEngineRunningRef.current) return;
       if (e.key === 'ArrowLeft') {
         e.preventDefault();
         goTo(currentPlyRef.current - 1);
@@ -2727,6 +2776,15 @@ export default function AnalysisPage() {
   // precomputed "what was the best move here" history, since only a real branch lacks that
   // precomputed data — plain main-line tree browsing still has it.
   const isOnBranch = exploreTree !== null && exploreNav.lineId !== null && exploreNav.lineId !== exploreTree.lines[0]?.id;
+
+  // The real current ply for indexing analyzedGame.moves, whether or not a tree exists.
+  // currentPlyIndex itself freezes the instant a tree is created (goTo/tryMove/navGoForward
+  // etc. all move exploreNav instead once one exists, per isExploring's comment above) — so
+  // reading currentPlyIndex directly once hasExploreLine is true means permanently reusing
+  // whatever move was on screen at that exact moment (e.g. every "best move" lookup silently
+  // sticking to the game's first move forever). Line 0 mirrors analyzedGame.moves 1:1 by ply
+  // (see buildSeedTree), so exploreNav.plyIndex is the correct substitute while browsing it.
+  const activeMainLinePlyIndex = hasExploreLine ? exploreNav.plyIndex : currentPlyIndex;
 
   function getNavFen(tree: ExploreTree | null, nav: ExploreNav, fallback: string): string {
     if (!tree || !nav.lineId) return fallback;
@@ -2842,6 +2900,96 @@ export default function AnalysisPage() {
       setParseError(error instanceof Error ? error.message : 'Could not parse that PGN/FEN.');
     }
   }
+
+  // ─── Public, refresh-safe URL (?id=&move=&line=&flip=) ───────────────────────
+  // Mirrors Chess.com's analysis URLs: /analysis?id=<uuid>&move=<ply>&line=<index>&flip=1.
+  // Every saved game is reachable by its id (no per-game private/shared toggle — see the
+  // "Anyone can view any game by id" RLS policy's comment; an id is an unguessable UUID,
+  // not a public listing). A privilege/subscription gate on *viewing* someone else's link
+  // is planned but doesn't exist yet — not implemented here. `line` is an *index* into
+  // exploreTree.lines, not a lineId — lineIds are random per parse (crypto.randomUUID
+  // in buildSeedTree/parseMovetextToTree) and wouldn't mean anything to a different
+  // session loading the same saved PGN fresh; the index is stable because
+  // parseMovetextToTree is a pure function of the PGN text.
+
+  // One-time: kick off loading the game named in the URL, if any (tries the owner-scoped
+  // fetch and the public/shared fetch in parallel above; whichever resolves with data wins).
+  // The owner-scoped query is disabled entirely (useUserGameById's `enabled: !!user`) for
+  // a signed-out visitor, so it never reaches isFetched — only wait on it when there's
+  // actually a user for it to run for, or "not found" would never fire for signed-out
+  // visitors opening a real shared link.
+  const urlLoadStartedRef = useRef(false);
+  const urlFetchesSettled = user ? ownedUrlGameFetched && sharedUrlGameFetched : sharedUrlGameFetched;
+  useEffect(() => {
+    // Waits out requiresSignInForUrl rather than resolving it as "not found" — the shared
+    // fetch is disabled while signed out (see useSharedUserGame call above), so
+    // urlFetchesSettled would never actually go true here anyway; this guard just makes
+    // that intentional instead of an accident of the disabled-query plumbing.
+    if (urlLoadStartedRef.current || !urlGameId || requiresSignInForUrl) return;
+    const game = ownedUrlGame ?? sharedUrlGame;
+    if (game) {
+      urlLoadStartedRef.current = true;
+      handleImport(game.pgn, game.fen ?? '', userGameToImportMeta(game));
+      const moveParam = searchParams.get('move');
+      const lineParam = searchParams.get('line');
+      const flipParam = searchParams.get('flip');
+      setPendingUrlPosition({
+        move: moveParam !== null ? Number(moveParam) : -1,
+        line: lineParam !== null ? Number(lineParam) : 0,
+        flip: flipParam !== null ? (flipParam === '1' || flipParam === 'true') : null,
+      });
+    } else if (urlFetchesSettled) {
+      // Both the owner-scoped and public lookups came back empty — the id doesn't
+      // exist, or it does but isn't shared and this viewer isn't the owner. RLS makes
+      // those two cases indistinguishable from here, which is intentional (see
+      // getSharedUserGameById's comment) — same "not found" message either way.
+      urlLoadStartedRef.current = true;
+      setUrlLoadNotFound(true);
+    }
+  }, [urlGameId, ownedUrlGame, sharedUrlGame, urlFetchesSettled, requiresSignInForUrl, searchParams]);
+
+  // Once the freshly-imported game has actually landed in state, apply the position
+  // pending from the URL — handleImport always resets to the start of the game first,
+  // so this has to happen as a follow-up, not inline with the load above.
+  useEffect(() => {
+    if (!pendingUrlPosition || !analyzedGame || analyzedGame.moves.length === 0) return;
+    const { move, line, flip } = pendingUrlPosition;
+    if (flip !== null) setSettings({ flipBoard: flip });
+    if (Number.isFinite(move) && move >= -1) {
+      if (line > 0 && exploreTree?.lines[line]) {
+        navigateTo(exploreTree.lines[line]!.id, move);
+      } else {
+        goTo(move);
+      }
+    }
+    setPendingUrlPosition(null);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingUrlPosition, analyzedGame, exploreTree]);
+
+  // Keep the URL in sync with the live position — what makes refreshing not lose
+  // everything, and what a Share/copy-link action just reads off window.location.
+  // Skipped while a URL-driven load is still applying its target position
+  // (pendingUrlPosition), so it can't stomp that target with an intermediate state.
+  useEffect(() => {
+    if (pendingUrlPosition) return;
+    if (!importMeta.savedGameId) return;
+    const params = new URLSearchParams();
+    params.set('id', importMeta.savedGameId);
+    const plyIndex = hasExploreLine ? exploreNav.plyIndex : currentPlyIndex;
+    if (plyIndex >= 0) params.set('move', String(plyIndex));
+    if (hasExploreLine && exploreTree && exploreNav.lineId) {
+      const lineIndex = exploreTree.lines.findIndex(l => l.id === exploreNav.lineId);
+      if (lineIndex > 0) params.set('line', String(lineIndex));
+    }
+    if (settings.flipBoard) params.set('flip', '1');
+    const nextQuery = params.toString();
+    if (nextQuery !== searchParams.toString()) {
+      router.replace(`${pathname}?${nextQuery}`, { scroll: false });
+    }
+  }, [
+    pendingUrlPosition, importMeta.savedGameId, currentPlyIndex, hasExploreLine,
+    exploreNav, exploreTree, settings.flipBoard, pathname, router, searchParams,
+  ]);
 
   // Save always overwrites the currently-loaded Saved Analysis entry in place, so
   // gate it behind a confirmation — otherwise clicking Save could silently clobber
@@ -2976,6 +3124,10 @@ export default function AnalysisPage() {
     setAnalysisLabel('');
     setActiveTab('explore');
     setShowNewAnalysisModal(false);
+    setUrlLoadNotFound(false);
+    setPendingUrlPosition(null);
+    urlLoadStartedRef.current = false;
+    if (searchParams.toString()) router.replace(pathname, { scroll: false });
   }
 
   function handleNewAnalysis() {
@@ -2983,6 +3135,63 @@ export default function AnalysisPage() {
     if (!hasContent) { clearAnalysis(); return; }
     setShowNewAnalysisModal(true);
   }
+
+  // Book detection: matches the played move *sequence* against every named opening's own
+  // sans[] from opening_positions (the same table useOpeningName queries), not the exact
+  // position each ply lands on. lichess-org/chess-openings only assigns a new row where a
+  // name actually changes — e.g. after 1.e4 g6 2.d4, black hasn't committed to a specific
+  // reply yet, so that exact 3-ply position has no row of its own even though it's still
+  // theory (several rows — "Modern Defense: Standard Line", "...Norwegian Defense", etc. —
+  // all have sans starting with exactly [e4, g6, d4]). So: book continues for as long as
+  // the moves played so far are a *prefix* of at least one named line's sans, and ends at
+  // the first ply that breaks every remaining candidate — i.e. the first genuine deviation
+  // from theory, not the first position lacking its own distinct name.
+  // Static lichess-org/chess-openings data, already in Supabase, no live Lichess calls —
+  // and a table the Openings section's own course content (openings_catalog/opening_lines)
+  // never touches, so this can't affect that data. Supplements (never shrinks) whatever
+  // buildAnalyzedGameFromPgn's ECOUrl-header parsing already set, so a tagged Chess.com
+  // import that's already correct is left alone.
+  async function computeBookPlyCount(moves: AnalyzedGameMove[]): Promise<number> {
+    const allSans = await loadOpeningPositionSans();
+    const playedSans = moves.map(m => m.san);
+    let candidates = allSans;
+    let count = 0;
+    for (let i = 0; i < playedSans.length; i++) {
+      candidates = candidates.filter(sans => sans.length > i && sans[i] === playedSans[i]);
+      if (candidates.length === 0) break;
+      count++;
+    }
+    return count;
+  }
+
+  // No cancellation flag here on purpose — Strict Mode's dev-only double-invoke (mount,
+  // cleanup, mount again) would poison a per-invocation `cancelled` flag from the first
+  // invocation's spurious cleanup while the ref-based dedup below blocks the second
+  // invocation from ever starting a fresh request, silently dropping the result every
+  // time. Staleness is instead checked once, where it actually matters, inside the
+  // updater against the *current* state at resolution time (prev.id !== gameId) — correct
+  // regardless of how many times the effect itself was invoked.
+  const bookCheckedGameIdRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!analyzedGame || analyzedGame.moves.length === 0) return;
+    if (bookCheckedGameIdRef.current === analyzedGame.id) return;
+    bookCheckedGameIdRef.current = analyzedGame.id;
+    const gameId = analyzedGame.id;
+    computeBookPlyCount(analyzedGame.moves)
+      .then(bookPlyCount => {
+        if (bookPlyCount <= 0) return;
+        setAnalyzedGame(prev => {
+          if (!prev || prev.id !== gameId) return prev;
+          let changed = false;
+          const moves = prev.moves.map((m, i) => {
+            if (i < bookPlyCount && !m.isBookMove) { changed = true; return { ...m, isBookMove: true }; }
+            return m;
+          });
+          return changed ? { ...prev, moves } : prev;
+        });
+      })
+      .catch(() => { /* offline/unreachable — keep whatever ECOUrl parsing already set */ });
+  }, [analyzedGame]);
 
   async function runStockfish(gameOverride?: AnalyzedGame) {
     const game = gameOverride ?? analyzedGame;
@@ -3018,7 +3227,20 @@ export default function AnalysisPage() {
       );
 
       if (!pool.terminated) {
-        const enrichedGame: AnalyzedGame = { ...game, moves: enriched };
+        // Merge onto the *latest* state (via the ref, always synchronously current — unlike
+        // reading analyzedGame back out of a just-called setState) rather than blindly
+        // overwriting with `enriched`, which was built from `game`'s snapshot at the moment
+        // this function started. The book-detection effect below runs concurrently and (being
+        // faster, a single Supabase round-trip vs. a full engine pass) usually finishes first;
+        // committing `enriched` outright would silently discard whatever isBookMove it had
+        // just set, since enrichGameMove only carries forward the isBookMove each move already
+        // had *in that stale snapshot*.
+        const latest = analyzedGameRef.current;
+        const mergedMoves = enriched.map((e, i) => ({
+          ...e,
+          isBookMove: (latest?.id === game.id ? latest.moves[i]?.isBookMove : undefined) || e.isBookMove,
+        }));
+        const enrichedGame: AnalyzedGame = { ...game, moves: mergedMoves };
         setAnalyzedGame(enrichedGame);
 
         const byPly = new Map<number, CoachFeedback | null>();
@@ -3053,8 +3275,12 @@ export default function AnalysisPage() {
   const canGoForward = analyzedGame !== null && currentPlyIndex < totalMoves - 1;
 
   // Navigation helpers — Explore tab navigates the variation tree; other tabs navigate the analyzed game.
-  const navCanGoBack = isExploring || canGoBack;
-  const navCanGoForward = (() => {
+  // Disabled outright while the post-import engine pass is still running (isEngineRunning):
+  // moves.length is already final at that point, but per-move data (eval, classification,
+  // bestMoveSan) fills in progressively, so jumping ahead mid-analysis would land on
+  // positions whose badges/recommendation haven't been computed yet.
+  const navCanGoBack = !isEngineRunning && (isExploring || canGoBack);
+  const navCanGoForward = !isEngineRunning && (() => {
     if (!exploreTree || !exploreNav.lineId || exploreNav.plyIndex < 0) return canGoForward;
     const line = exploreTree.lines.find(l => l.id === exploreNav.lineId);
     if (!line) return false;
@@ -3065,6 +3291,7 @@ export default function AnalysisPage() {
   })();
 
   function navGoFirst() {
+    if (isEngineRunning) return;
     if (exploreTree && exploreNav.lineId) {
       const mainLine = exploreTree.lines[0]!;
       // Landing at plyIndex -1 (the root) is never a move, so always the quiet sound.
@@ -3077,6 +3304,7 @@ export default function AnalysisPage() {
   }
 
   function navGoBack() {
+    if (isEngineRunning) return;
     if (!exploreTree || !exploreNav.lineId || exploreNav.plyIndex < 0) {
       goTo(currentPlyIndex - 1);
       return;
@@ -3107,6 +3335,7 @@ export default function AnalysisPage() {
   }
 
   function navGoForward() {
+    if (isEngineRunning) return;
     if (!exploreTree || !exploreNav.lineId || exploreNav.plyIndex < 0) {
       goTo(currentPlyIndex + 1);
       return;
@@ -3134,6 +3363,7 @@ export default function AnalysisPage() {
   }
 
   function navGoLast() {
+    if (isEngineRunning) return;
     if (exploreTree && exploreNav.lineId) {
       const currentLine = exploreTree.lines.find(l => l.id === exploreNav.lineId);
       if (currentLine && currentLine.moves.length > 0) {
@@ -3582,14 +3812,12 @@ export default function AnalysisPage() {
   // instead (line 0's moves mirror analyzedGame.moves 1:1 — see buildSeedTree). Genuine
   // branch moves (MoveEntry) don't carry engine classification data to show, hence isOnBranch.
   const currentBoardBadge = useMemo(() => {
-    if (isOnBranch || !analyzedGame || !lastMoveSquares) return null;
-    const plyIndex = hasExploreLine ? exploreNav.plyIndex : currentPlyIndex;
-    if (plyIndex < 0) return null;
-    const move = analyzedGame.moves[plyIndex];
+    if (isOnBranch || !analyzedGame || !lastMoveSquares || activeMainLinePlyIndex < 0) return null;
+    const move = analyzedGame.moves[activeMainLinePlyIndex];
     if (!move) return null;
     const category = getAnalyzedGameMoveReviewCategory(move);
     return category ? { square: lastMoveSquares.to, category } : null;
-  }, [isOnBranch, hasExploreLine, exploreNav, analyzedGame, currentPlyIndex, lastMoveSquares]);
+  }, [isOnBranch, analyzedGame, activeMainLinePlyIndex, lastMoveSquares]);
 
   const moveBadgeOverlay = useMemo(() => {
     if (!currentBoardBadge) return null;
@@ -3673,10 +3901,10 @@ export default function AnalysisPage() {
   // arrow would just retrace the move already highlighted as the last move played, so it's
   // suppressed rather than drawn on top of itself.
   const displayBestMoveUci = useMemo(() => {
-    if (!isImportedGameMode || isOnBranch || !analyzedGame || currentPlyIndex < 0) {
+    if (!isImportedGameMode || isOnBranch || !analyzedGame || activeMainLinePlyIndex < 0) {
       return bestMoveUci;
     }
-    const move = analyzedGame.moves[currentPlyIndex];
+    const move = analyzedGame.moves[activeMainLinePlyIndex];
     const rec = getBestMoveRecommendation(move);
     if (!rec || rec.category === 'book' || !move?.beforeFen || rec.san === move.san) return null;
     try {
@@ -3686,7 +3914,7 @@ export default function AnalysisPage() {
     } catch {
       return null;
     }
-  }, [isImportedGameMode, isOnBranch, analyzedGame, currentPlyIndex, bestMoveUci]);
+  }, [isImportedGameMode, isOnBranch, analyzedGame, activeMainLinePlyIndex, bestMoveUci]);
 
   // Blue while genuinely on a branch (live "best next move," same as Open Analysis) so
   // it reads visually distinct from the green "what was actually best here" shown for a
@@ -3721,8 +3949,8 @@ export default function AnalysisPage() {
   // always reported as the engine's current top choice rather than classified by loss.
   const activeBestMoveRecommendation = useMemo((): BestMoveRecommendation | null => {
     if (isImportedGameMode && !isOnBranch) {
-      if (!analyzedGame || currentPlyIndex < 0) return null;
-      return getBestMoveRecommendation(analyzedGame.moves[currentPlyIndex]);
+      if (!analyzedGame || activeMainLinePlyIndex < 0) return null;
+      return getBestMoveRecommendation(analyzedGame.moves[activeMainLinePlyIndex]);
     }
     if (!bestMoveUci || bestMoveUci.length < 4) return null;
     try {
@@ -3736,14 +3964,14 @@ export default function AnalysisPage() {
     } catch {
       return null;
     }
-  }, [isImportedGameMode, isOnBranch, analyzedGame, currentPlyIndex, bestMoveUci, boardFen, lines, liveEvalCp]);
+  }, [isImportedGameMode, isOnBranch, analyzedGame, activeMainLinePlyIndex, bestMoveUci, boardFen, lines, liveEvalCp]);
 
   const isBestMoveLive = !isImportedGameMode || isOnBranch;
   const bestMoveStatusMessage = activeBestMoveRecommendation
     ? ''
     : isBestMoveLive
       ? (settings.engineEnabled ? 'Analyzing…' : 'Turn on the engine to see the best move.')
-      : (!analyzedGame || currentPlyIndex < 0)
+      : (!analyzedGame || activeMainLinePlyIndex < 0)
         ? 'Select a move to see the best continuation.'
         : 'Analyzing…';
   const bestMoveStatusLoading = isBestMoveLive && !activeBestMoveRecommendation && settings.engineEnabled;
@@ -4068,8 +4296,41 @@ export default function AnalysisPage() {
     return rows;
   }
 
+  // Blocks the whole screen instead of a dismissible banner (unlike urlLoadNotFound
+  // below) — this fires before any board/panel renders, and before the shared-game fetch
+  // even runs (useSharedUserGame is passed undefined while signed out, see above), so a
+  // signed-out visitor never receives the game's data over the network at all, not just a
+  // UI that hides it.
+  if (requiresSignInForUrl) {
+    return (
+      <div className="h-full flex items-center justify-center p-6">
+        <div className="w-full max-w-sm text-center">
+          <h2 className="mb-1 text-lg font-semibold text-white">Sign in to view this analysis</h2>
+          <p className="mb-4 text-sm text-gray-500">This analysis link requires an account to open.</p>
+          <InlineSignIn />
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="h-full flex flex-col overflow-hidden">
+      {urlLoadNotFound && (
+        <div className="shrink-0 flex items-center justify-between gap-2 border-b border-red-500/20 bg-red-500/10 px-4 py-2">
+          <span className="text-xs text-red-300">
+            This analysis isn&apos;t available — it may be private, or the link may be wrong.
+          </span>
+          <button
+            type="button"
+            onClick={() => setUrlLoadNotFound(false)}
+            className="shrink-0 text-red-300/70 transition-colors hover:text-red-200"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="h-3.5 w-3.5">
+              <path d="M18 6 6 18M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+      )}
       <div ref={boardContainerRef} className="flex-1 min-h-0 overflow-hidden p-3 flex justify-center">
         <div className="flex h-full gap-3">
 
@@ -4172,14 +4433,13 @@ export default function AnalysisPage() {
                     key={tab}
                     type="button"
                     onClick={() => setActiveTab(tab)}
-                    className={`relative flex-1 h-full text-xs font-medium transition-colors ${
-                      activeTab === tab ? 'text-white' : 'text-gray-500 hover:text-gray-300'
+                    className={`flex-1 h-full text-xs font-semibold transition-colors ${
+                      activeTab === tab
+                        ? 'bg-amber-400/15 text-amber-300'
+                        : 'text-gray-400 hover:bg-white/5 hover:text-white'
                     }`}
                   >
                     {tab === 'explore' ? 'Analysis' : 'Game Review'}
-                    {activeTab === tab && (
-                      <span className="absolute inset-x-0 bottom-0 h-0.5 bg-amber-400" />
-                    )}
                   </button>
                 ))}
               </div>
@@ -4526,6 +4786,7 @@ export default function AnalysisPage() {
                           </div>
                         )}
                       </div>
+
 
                       {showSaveAuthPrompt && (
                         <div
@@ -4878,6 +5139,7 @@ export default function AnalysisPage() {
                           </div>
                         )}
                       </div>
+
 
                       {showSaveAuthPrompt && (
                         <div

@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { Json, SaveUserGameInput, UserGame } from '@firstmove/supabase';
+import { getSharedUserGameById } from '@firstmove/supabase';
 import { createClient } from '@/lib/supabase/client';
 import { useAuth } from '@/app/providers';
 
@@ -27,6 +28,39 @@ export function useUserGames() {
       if (error) throw error;
       return data;
     },
+  });
+}
+
+/** Owner-scoped single-game fetch, for reloading `/analysis?id=...` as the signed-in
+ *  owner (e.g. a refresh or a bookmark) — same session-bearing client as useUserGames. */
+export function useUserGameById(gameId: string | undefined) {
+  const { user } = useAuth();
+
+  return useQuery({
+    queryKey: ['user-game', gameId, user?.id],
+    enabled: !!user && !!gameId,
+    queryFn: async (): Promise<UserGame | null> => {
+      const supabase = createClient();
+      const { data, error } = await supabase
+        .from('user_games')
+        .select('*')
+        .eq('id', gameId!)
+        .eq('user_id', user!.id)
+        .maybeSingle();
+      if (error) throw error;
+      return data;
+    },
+  });
+}
+
+/** Public fetch for a link opened by someone who isn't the owner (including signed-out
+ *  visitors) — the anon-key singleton client is fine here, no session needed; the
+ *  "Anyone can view any game by id" RLS policy is what actually scopes access. */
+export function useSharedUserGame(gameId: string | undefined) {
+  return useQuery({
+    queryKey: ['shared-user-game', gameId],
+    enabled: !!gameId,
+    queryFn: () => getSharedUserGameById(gameId!),
   });
 }
 
