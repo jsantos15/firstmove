@@ -850,3 +850,33 @@ Deliberately did **not** add a membership-tier badge (the "diamond" icon Chess.c
 **Reason:** User asked to replicate a Chess.com player-card screenshot (title badge + diamond icon) as closely as possible. Title is safe to replicate exactly since both providers expose it faithfully; the membership icon isn't, since Chess.com's public API can't actually tell tiers apart — surfaced that constraint and let the user pick the tradeoff rather than guessing or silently shipping an inaccurate badge.
 
 **Follow-up needed:** The migration (`packages/supabase/migrations/024_user_games_title.sql`) has not been applied to the database yet — run it before relying on `white_title`/`black_title` persisting across a Save/reload.
+
+---
+
+## 2026-08-03 - Shareable analysis URLs: public-by-id, sign-in gated, no per-game toggle
+
+**Decision:** Analysis sessions are now addressable at `/analysis?id=<gameId>&move=&line=&flip=`, mirroring Chess.com's own analysis links. `id` loads the game on mount (owner read via `useUserGameById`, or a public read via the new `getSharedUserGameById`/`useSharedUserGame` for a non-owner); `move`/`line`/`flip` position the board once loaded (`line` is the *array index* into `exploreTree.lines`, not a `lineId`, since `lineId`s are `crypto.randomUUID()`-random per PGN parse and not stable across reloads of the same game). The live position syncs back into the URL via `router.replace` as you navigate, so refreshing no longer loses the session.
+
+Access is a flat `using (true)` RLS policy on `user_games` select — every saved game is reachable by anyone who has its (unguessable UUID) id, gated only on being signed in at all (`requiresSignInForUrl` early-returns an inline sign-in prompt for a signed-out visitor). Explicitly **not** a per-game "shareable" toggle: an earlier pass added an `is_shareable` column and a Share-menu UI for it, then removed both — every game is public-by-id by design, matching Chess.com. A privilege/paid-tier check on *viewing* a shared link is planned but intentionally left out — noted in `getSharedUserGameById`'s own doc comment as belonging in the app layer once that model exists.
+
+**Reason:** User asked how saved games get an id at all and pointed at Chess.com's own analysis URL as the pattern to match, then explicitly chose "build sharing in from the start" over a refresh-only fix. The per-game toggle was cut on a direct follow-up ("remove the share button, every game should be visible/public") once the user confirmed that's how Chess.com behaves too (tested by opening one of their links in incognito).
+
+**Follow-up needed:** Migrations `025_user_games_shareable.sql` and `026_user_profiles_board_settings.sql` (see below) are live on the local Docker dev DB (applied via ad hoc `supabase db query --local`, confirmed via `pg_policies`/`information_schema.columns`) but `supabase migration list` shows neither tracked in the migration history table on local *or* remote, and neither has been applied to the cloud project at all. Reconcile migration history before the next `supabase db push` to the cloud project, or it may error expecting a clean apply.
+
+---
+
+## 2026-08-03 - Book-move detection: SAN-prefix match against every named line, not exact position match
+
+**Decision:** `computeBookPlyCount` no longer looks up the played position's exact FEN/position-key against `opening_positions`. It fetches every named line's full SAN sequence once per page load (`getAllOpeningPositionSans`, cached in a module-level promise) and progressively filters that set by the played game's SAN prefix, ply by ply, stopping at the first ply where no named line's sequence matches — that ply count is the book length. A position stays "book" for as long as it's a prefix of *any* named opening's line, even if it isn't itself the anchor position a name is assigned to (Lichess's dataset only names a position where a name actually changes, e.g. once a specific reply is committed to — the position right before that is still theory, just not separately named).
+
+**Reason:** User reported `1. e4 g6 2. d4` not being flagged as book despite Lichess showing it as part of "Modern Defense" — the previous exact-match approach required a named row at that *exact* position, which doesn't exist since the name only attaches once black's reply narrows further. Confirmed via direct query that no exact-FEN row existed but several rows' `sans[]` arrays started with `["e4","g6","d4",...]`.
+
+---
+
+## 2026-08-03 - Board settings sync to account, via a standalone auth subscription
+
+**Decision:** `useBoardSettings` (board theme/pieces/coordinates/sounds/engine prefs) was purely `localStorage`, so it reset to defaults on any browser/device that hadn't set it locally — including signing into an existing account from a fresh incognito window. Added `user_profiles.board_settings` (jsonb, nullable — absence means "never synced") and `BoardSettingsSync`, a headless component mounted once in `Providers`: pulls the account's settings down once per sign-in (overlaying local state), then pushes local changes back up debounced (500ms).
+
+`BoardSettingsSync` deliberately keeps its **own** `supabase.auth.getSession()`/`onAuthStateChange` subscription instead of reading `useAuth()`. `AuthProvider`'s `PUBLIC_AUTH_SKIP_PATHS` (`/`, `/openings`, `/auth/callback`) forces `user: null` on those routes specifically to avoid subscribing to the auth listener there — and `/openings` is the post-sign-in redirect target, so a `useAuth()`-based sync silently no-ops right after every sign-in (confirmed via logs: `user: true` immediately followed by `user: false` on the `/openings` nav). Fixed locally in the new component rather than touching `PUBLIC_AUTH_SKIP_PATHS` itself, to avoid changing real auth state for every other `useAuth()` consumer on those routes.
+
+**Reason:** User noticed board colors didn't carry over after signing into the same account from an incognito window and asked why, since "any kind of settings setup by user" should be tied to the account.
