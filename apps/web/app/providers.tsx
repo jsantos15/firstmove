@@ -5,6 +5,7 @@ import { createContext, useContext, useEffect, useState } from 'react';
 import type { Session, User } from '@supabase/supabase-js';
 import { usePathname } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
+import { BoardSettingsSync } from '@/components/BoardSettingsSync';
 
 // ─── Auth Context ─────────────────────────────────────────────────────────────
 
@@ -76,6 +77,7 @@ function AuthProvider({ children }: { children: React.ReactNode }) {
 
   return (
     <AuthContext.Provider value={value}>
+      <BoardSettingsSync />
       {children}
     </AuthContext.Provider>
   );
