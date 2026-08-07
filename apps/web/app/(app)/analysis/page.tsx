@@ -159,7 +159,7 @@ function applyGameDetailsToPgn(pgn: string, details: GameDetails): string {
 
 const INITIAL_FEN = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
 const INITIAL_EVAL_CP = 20;
-const STOCKFISH_DEPTH = 10;
+const STOCKFISH_DEPTH = 16;
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -3218,7 +3218,7 @@ function AnalysisPageContent() {
       await Promise.all(
         moves.map(async (move, i) => {
           if (pool.terminated) return;
-          enriched[i] = await enrichGameMove(move, pool, STOCKFISH_DEPTH);
+          enriched[i] = await enrichGameMove(move, pool, STOCKFISH_DEPTH, moves[i - 1]?.beforeFen);
           if (!pool.terminated) {
             completed++;
             setEngineProgress(completed / moves.length);

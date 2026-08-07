@@ -233,3 +233,4 @@ export function getCoachEventSpokenFallbacks(
 export * from './analysis';
 export * from './gameAnalysis';
 export * from './openingPractice';
+export * from './tacticalSignals';

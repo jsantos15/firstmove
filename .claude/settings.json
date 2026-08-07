@@ -16,7 +16,33 @@
       "Bash(timeout 60 bash -c 'until curl -sf http://localhost:3000 >/dev/null 2>&1; do sleep 2; done')",
       "Bash(curl -s -o /tmp/analysis.html -w \"%{http_code}\\\\n\" http://localhost:3000/analysis)",
       "Bash(curl -s http://localhost:3000/analysis -o /tmp/analysis2.html -w \"HTTP:%{http_code}\\\\n\")",
-      "Bash(echo \"---exit $?---\")"
+      "Bash(echo \"---exit $?---\")",
+      "Bash(node verify-stuck-rec.js)",
+      "Bash(node explore-lichess-tab.js)",
+      "Bash(node explore-lichess-load.js)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" \"https://lichess.org/api/user/DrNykterstein\")",
+      "Bash(curl -s \"https://lichess.org/api/user/german11\" -o /dev/null -w \"german11: %{http_code}\\\\n\")",
+      "Bash(rm -f \"C:\\\\Users\\\\jesnt\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\c--Users-jesnt-Documents-Projects-FirstMove\\\\d2cf75af-8ac0-49b5-86e1-6567e8d14b5b\\\\scratchpad\\\\\"explore-lichess*.js \"C:\\\\Users\\\\jesnt\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\c--Users-jesnt-Documents-Projects-FirstMove\\\\d2cf75af-8ac0-49b5-86e1-6567e8d14b5b\\\\scratchpad\\\\\"verify-stuck-rec.js)",
+      "Bash(node verify-nav-disabled.js)",
+      "Bash(node verify-nav-disabled2.js)",
+      "Bash(rm -f \"C:\\\\Users\\\\jesnt\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\c--Users-jesnt-Documents-Projects-FirstMove\\\\d2cf75af-8ac0-49b5-86e1-6567e8d14b5b\\\\scratchpad\\\\verify-nav-disabled\"*.js)",
+      "Bash(node verify-book.js)",
+      "Bash(node verify-book2.js)",
+      "Bash(node verify-book3.js)",
+      "Bash(node -e ' *)",
+      "Bash(rm -f \"C:\\\\Users\\\\jesnt\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\c--Users-jesnt-Documents-Projects-FirstMove\\\\d2cf75af-8ac0-49b5-86e1-6567e8d14b5b\\\\scratchpad\\\\verify-book\"*.js)",
+      "Bash(node verify-share-url.js)",
+      "Bash(node verify-share-url2.js)",
+      "Bash(node verify-full-flow.js)",
+      "Bash(node verify-full-flow2.js)",
+      "Bash(node verify-full-flow3.js)",
+      "Bash(node verify-full-flow4.js)",
+      "Bash(rm -f \"C:\\\\Users\\\\jesnt\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\c--Users-jesnt-Documents-Projects-FirstMove\\\\d2cf75af-8ac0-49b5-86e1-6567e8d14b5b\\\\scratchpad\\\\verify-\"*.js)",
+      "Bash(curl -s 'https://suviuiimboycdksqtaer.supabase.co/rest/v1/opening_positions?name=ilike.*Modern%20Defense*&select=name,eco_code,sans,ply&limit=20' -H 'apikey: sb_publishable_32RuOuUy3HpFFgKuzJw5Rw_hu-4rIhQ' -H 'Authorization: Bearer sb_publishable_32RuOuUy3HpFFgKuzJw5Rw_hu-4rIhQ')"
+    ],
+    "additionalDirectories": [
+      "C:\\Users\\jesnt\\AppData\\Local\\Temp\\claude\\c--Users-jesnt-Documents-Projects-FirstMove\\d2cf75af-8ac0-49b5-86e1-6567e8d14b5b",
+      "C:\\Users\\jesnt\\AppData\\Local\\Temp\\claude\\c--Users-jesnt-Documents-Projects-FirstMove\\d2cf75af-8ac0-49b5-86e1-6567e8d14b5b\\scratchpad"
     ]
   }
 }
